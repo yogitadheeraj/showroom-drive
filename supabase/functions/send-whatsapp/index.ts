@@ -49,8 +49,9 @@ Deno.serve(async (req) => {
 
     // Clean phone number - ensure E.164 format
     const cleanPhone = to.replace(/[\s-]/g, "");
+    const cleanFrom = WHATSAPP_FROM.replace(/[\s-]/g, "");
     const whatsappTo = `whatsapp:${cleanPhone}`;
-    const whatsappFrom = `whatsapp:${WHATSAPP_FROM}`;
+    const whatsappFrom = `whatsapp:${cleanFrom}`;
 
     // Send via Twilio gateway
     const twilioResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
