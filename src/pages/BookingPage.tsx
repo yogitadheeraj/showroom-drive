@@ -98,18 +98,35 @@ const BookingPage = () => {
       }
 
       // Create test drive
-      const { error: tdError } = await supabase.from('test_drives').insert({
+      const { data: tdData, error: tdError } = await supabase.from('test_drives').insert({
         customer_id: customerId,
         vehicle_id: formData.vehicleId,
         location_id: formData.locationId,
         scheduled_date: formData.scheduledDate,
         scheduled_time: formData.scheduledTime,
         source: 'online',
-      });
+      }).select('id').single();
       if (tdError) throw tdError;
 
+      // Send WhatsApp confirmation (non-blocking)
+      const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
+      const selectedLocation = locations.find(l => l.id === formData.locationId);
+      const vehicleName = selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}` : 'your selected vehicle';
+      const locationName = selectedLocation?.name || 'our showroom';
+      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}\n\nPlease bring a valid driving license. See you there!\n\n— DriveSync`;
+
+      supabase.functions.invoke('send-whatsapp', {
+        body: {
+          to: formData.phone,
+          message: confirmationMsg,
+          customerId,
+          testDriveId: tdData.id,
+          purpose: 'booking_confirmed',
+        },
+      }).catch(err => console.error('WhatsApp send failed:', err));
+
       setSuccess(true);
-      toast({ title: 'Test drive booked!', description: 'You will receive a confirmation shortly.' });
+      toast({ title: 'Test drive booked!', description: 'You will receive a WhatsApp confirmation shortly.' });
     } catch (err: any) {
       toast({ title: 'Booking failed', description: err.message, variant: 'destructive' });
     } finally {
