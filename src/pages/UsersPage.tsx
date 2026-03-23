@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -9,14 +9,33 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, UserPlus } from 'lucide-react';
+import { UserPlus, Pencil, MapPin } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+
+const ROLES = [
+  { value: 'superadmin', label: 'Super Admin' },
+  { value: 'gro', label: 'GRO' },
+  { value: 'sales', label: 'Sales Person' },
+  { value: 'security', label: 'Security' },
+];
+
+const roleColor: Record<string, string> = {
+  superadmin: 'bg-destructive/10 text-destructive',
+  gro: 'bg-primary/10 text-primary',
+  sales: 'bg-info/10 text-info',
+  security: 'bg-warning/10 text-warning',
+};
 
 const UsersPage = () => {
   const [users, setUsers] = useState<any[]>([]);
-  const [showDialog, setShowDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
   const [locations, setLocations] = useState<any[]>([]);
-  const [formData, setFormData] = useState({ email: '', password: '', fullName: '', role: 'sales', locationId: '' });
+  const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: 'sales', locationId: '' });
+  const [editForm, setEditForm] = useState({ role: '', locationId: '' });
+  const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchUsers();
@@ -34,45 +53,83 @@ const UsersPage = () => {
   };
 
   const handleCreateUser = async () => {
-    if (!formData.email || !formData.password || !formData.fullName) {
+    if (!createForm.email || !createForm.password || !createForm.fullName) {
       toast({ title: 'Missing fields', variant: 'destructive' });
       return;
     }
+    setSaving(true);
     try {
-      // Sign up the user
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: { data: { full_name: formData.fullName } },
+        email: createForm.email,
+        password: createForm.password,
+        options: { data: { full_name: createForm.fullName } },
       });
       if (authError) throw authError;
       if (!authData.user) throw new Error('User creation failed');
 
-      // Assign role
       await supabase.from('user_roles').insert({
         user_id: authData.user.id,
-        role: formData.role as any,
+        role: createForm.role as any,
       });
 
-      // Update profile with location
-      if (formData.locationId) {
-        await supabase.from('profiles').update({ location_id: formData.locationId }).eq('user_id', authData.user.id);
+      if (createForm.locationId) {
+        await supabase.from('profiles').update({ location_id: createForm.locationId }).eq('user_id', authData.user.id);
       }
 
-      toast({ title: 'User created', description: `${formData.fullName} added as ${formData.role}` });
-      setShowDialog(false);
-      setFormData({ email: '', password: '', fullName: '', role: 'sales', locationId: '' });
+      toast({ title: 'User created', description: `${createForm.fullName} added as ${createForm.role}` });
+      setShowCreateDialog(false);
+      setCreateForm({ email: '', password: '', fullName: '', role: 'sales', locationId: '' });
       fetchUsers();
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
   };
 
-  const roleColor: Record<string, string> = {
-    superadmin: 'bg-destructive/10 text-destructive',
-    gro: 'bg-primary/10 text-primary',
-    sales: 'bg-info/10 text-info',
-    security: 'bg-warning/10 text-warning',
+  const openEditDialog = (u: any) => {
+    const currentRole = u.user_roles?.[0]?.role || '';
+    setEditForm({ role: currentRole, locationId: u.location_id || '' });
+    setEditingUser(u);
+  };
+
+  const handleUpdateRole = async () => {
+    if (!editingUser || !editForm.role) return;
+    setSaving(true);
+    try {
+      const currentRole = editingUser.user_roles?.[0];
+
+      if (currentRole) {
+        // Update existing role
+        await supabase.from('user_roles')
+          .update({ role: editForm.role as any })
+          .eq('user_id', editingUser.user_id);
+      } else {
+        // Insert new role
+        await supabase.from('user_roles').insert({
+          user_id: editingUser.user_id,
+          role: editForm.role as any,
+        });
+      }
+
+      // Update location
+      await supabase.from('profiles')
+        .update({ location_id: editForm.locationId || null })
+        .eq('user_id', editingUser.user_id);
+
+      toast({ title: 'Updated', description: `${editingUser.full_name} is now ${editForm.role}` });
+      setEditingUser(null);
+      fetchUsers();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getLocationName = (locationId: string | null) => {
+    if (!locationId) return null;
+    return locations.find(l => l.id === locationId)?.name || null;
   };
 
   return (
@@ -80,7 +137,7 @@ const UsersPage = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-heading font-bold text-foreground">Staff Management</h1>
-          <Button onClick={() => setShowDialog(true)}>
+          <Button onClick={() => setShowCreateDialog(true)}>
             <UserPlus className="h-4 w-4 mr-2" /> Add Staff
           </Button>
         </div>
@@ -93,7 +150,9 @@ const UsersPage = () => {
                   <th className="text-left p-3 text-muted-foreground font-medium">Name</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Email</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Role</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Location</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Status</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,10 +170,23 @@ const UsersPage = () => {
                         <Badge variant="outline">No role</Badge>
                       )}
                     </td>
+                    <td className="p-3 text-muted-foreground text-xs">
+                      {getLocationName(u.location_id) ? (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {getLocationName(u.location_id)}
+                        </span>
+                      ) : '–'}
+                    </td>
                     <td className="p-3">
                       <Badge variant="secondary" className={u.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
                         {u.is_active ? 'Active' : 'Inactive'}
                       </Badge>
+                    </td>
+                    <td className="p-3">
+                      <Button size="sm" variant="ghost" onClick={() => openEditDialog(u)} disabled={u.user_id === user?.id}>
+                        <Pencil className="h-3 w-3 mr-1" /> Edit
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -123,37 +195,71 @@ const UsersPage = () => {
           </CardContent>
         </Card>
 
-        <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        {/* Create Staff Dialog */}
+        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="font-heading">Add Staff Member</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2"><Label>Full Name *</Label><Input value={formData.fullName} onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Email *</Label><Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Password *</Label><Input type="password" value={formData.password} onChange={e => setFormData(p => ({ ...p, password: e.target.value }))} minLength={6} /></div>
+              <div className="space-y-2"><Label>Full Name *</Label><Input value={createForm.fullName} onChange={e => setCreateForm(p => ({ ...p, fullName: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Email *</Label><Input type="email" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Password *</Label><Input type="password" value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} minLength={6} /></div>
               <div className="space-y-2">
                 <Label>Role *</Label>
-                <Select value={formData.role} onValueChange={v => setFormData(p => ({ ...p, role: v }))}>
+                <Select value={createForm.role} onValueChange={v => setCreateForm(p => ({ ...p, role: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="superadmin">Super Admin</SelectItem>
-                    <SelectItem value="gro">GRO</SelectItem>
-                    <SelectItem value="sales">Sales Person</SelectItem>
-                    <SelectItem value="security">Security</SelectItem>
+                    {ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Location</Label>
-                <Select value={formData.locationId} onValueChange={v => setFormData(p => ({ ...p, locationId: v }))}>
+                <Select value={createForm.locationId} onValueChange={v => setCreateForm(p => ({ ...p, locationId: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
                   <SelectContent>
                     {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleCreateUser} className="w-full">Create Staff Member</Button>
+              <Button onClick={handleCreateUser} className="w-full" disabled={saving}>
+                {saving ? 'Creating...' : 'Create Staff Member'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Role Dialog */}
+        <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-heading">
+                Edit {editingUser?.full_name}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={editForm.role} onValueChange={v => setEditForm(p => ({ ...p, role: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Location</Label>
+                <Select value={editForm.locationId} onValueChange={v => setEditForm(p => ({ ...p, locationId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="No location" /></SelectTrigger>
+                  <SelectContent>
+                    {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleUpdateRole} className="w-full" disabled={saving}>
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
