@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import UnsubscribePage from "./pages/UnsubscribePage.tsx";
 import AuthPage from "./pages/AuthPage.tsx";
 import DashboardPage from "./pages/DashboardPage.tsx";
 import BookingPage from "./pages/BookingPage.tsx";
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/vehicles" element={<ProtectedRoute allowedRoles={['superadmin', 'gro']}><VehiclesPage /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute allowedRoles={['superadmin']}><UsersPage /></ProtectedRoute>} />
             <Route path="/data-center" element={<ProtectedRoute allowedRoles={['superadmin']}><DataCenterPage /></ProtectedRoute>} />
+            <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
