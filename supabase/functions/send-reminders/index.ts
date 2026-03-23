@@ -53,8 +53,9 @@ Deno.serve(async (req) => {
       const message = `🔔 *Test Drive Reminder*\n\nHi ${customer.full_name},\n\nThis is a reminder for your test drive tomorrow:\n🚗 *Vehicle:* ${vehicle?.brand} ${vehicle?.model}\n📍 *Location:* ${location?.name}\n⏰ *Time:* ${drive.scheduled_time}\n\nPlease bring a valid driving license. Reply CANCEL to cancel.\n\n— DriveSync`;
 
       const cleanPhone = customer.phone.replace(/[\s-]/g, "");
+      const cleanFrom = WHATSAPP_FROM.replace(/[\s-]/g, "");
       const whatsappTo = `whatsapp:${cleanPhone}`;
-      const whatsappFrom = `whatsapp:${WHATSAPP_FROM}`;
+      const whatsappFrom = `whatsapp:${cleanFrom}`;
 
       try {
         const twilioResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
