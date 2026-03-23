@@ -39,7 +39,7 @@ const Index = () => {
             className="text-5xl md:text-6xl font-heading font-bold text-primary-foreground leading-tight"
           >
             Test Drive Management
-            <span className="block gradient-accent bg-clip-text text-transparent">Made Simple</span>
+            <span className="block bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, hsl(38, 95%, 55%), hsl(25, 90%, 55%))' }}>Made Simple</span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
