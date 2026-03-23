@@ -14,16 +14,414 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      communications: {
+        Row: {
+          body: string | null
+          created_at: string
+          customer_id: string
+          external_id: string | null
+          id: string
+          purpose: Database["public"]["Enums"]["communication_purpose"]
+          sent_at: string | null
+          sent_to: string
+          status: string
+          subject: string | null
+          test_drive_id: string | null
+          type: Database["public"]["Enums"]["communication_type"]
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          customer_id: string
+          external_id?: string | null
+          id?: string
+          purpose: Database["public"]["Enums"]["communication_purpose"]
+          sent_at?: string | null
+          sent_to: string
+          status?: string
+          subject?: string | null
+          test_drive_id?: string | null
+          type: Database["public"]["Enums"]["communication_type"]
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          customer_id?: string
+          external_id?: string | null
+          id?: string
+          purpose?: Database["public"]["Enums"]["communication_purpose"]
+          sent_at?: string | null
+          sent_to?: string
+          status?: string
+          subject?: string | null
+          test_drive_id?: string | null
+          type?: Database["public"]["Enums"]["communication_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "communications_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "communications_test_drive_id_fkey"
+            columns: ["test_drive_id"]
+            isOneToOne: false
+            referencedRelation: "test_drives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          created_at: string
+          driving_license_url: string | null
+          driving_license_verified: boolean
+          email: string | null
+          full_name: string
+          id: string
+          phone: string
+          preferred_contact: string
+          total_test_drives: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          driving_license_url?: string | null
+          driving_license_verified?: boolean
+          email?: string | null
+          full_name: string
+          id?: string
+          phone: string
+          preferred_contact?: string
+          total_test_drives?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          driving_license_url?: string | null
+          driving_license_verified?: boolean
+          email?: string | null
+          full_name?: string
+          id?: string
+          phone?: string
+          preferred_contact?: string
+          total_test_drives?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      locations: {
+        Row: {
+          address: string
+          city: string
+          country: string
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          phone: string | null
+          state: string | null
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          city: string
+          country?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          city?: string
+          country?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          is_active: boolean
+          location_id: string | null
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          is_active?: boolean
+          location_id?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          location_id?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_drives: {
+        Row: {
+          assigned_gro_id: string | null
+          assigned_sales_person_id: string | null
+          cancelled_reason: string | null
+          completed_at: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          location_id: string
+          notes: string | null
+          rescheduled_from: string | null
+          scheduled_date: string
+          scheduled_time: string
+          security_checked_in_at: string | null
+          security_checked_out_at: string | null
+          source: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["test_drive_status"]
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          assigned_gro_id?: string | null
+          assigned_sales_person_id?: string | null
+          cancelled_reason?: string | null
+          completed_at?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          location_id: string
+          notes?: string | null
+          rescheduled_from?: string | null
+          scheduled_date: string
+          scheduled_time: string
+          security_checked_in_at?: string | null
+          security_checked_out_at?: string | null
+          source?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["test_drive_status"]
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          assigned_gro_id?: string | null
+          assigned_sales_person_id?: string | null
+          cancelled_reason?: string | null
+          completed_at?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          location_id?: string
+          notes?: string | null
+          rescheduled_from?: string | null
+          scheduled_date?: string
+          scheduled_time?: string
+          security_checked_in_at?: string | null
+          security_checked_out_at?: string | null
+          source?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["test_drive_status"]
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_drives_assigned_gro_id_fkey"
+            columns: ["assigned_gro_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_drives_assigned_sales_person_id_fkey"
+            columns: ["assigned_sales_person_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_drives_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_drives_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_drives_rescheduled_from_fkey"
+            columns: ["rescheduled_from"]
+            isOneToOne: false
+            referencedRelation: "test_drives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_drives_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          brand: string
+          color: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          is_available: boolean
+          location_id: string
+          model: string
+          registration_number: string | null
+          updated_at: string
+          variant: string | null
+          year: number
+        }
+        Insert: {
+          brand: string
+          color?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          is_available?: boolean
+          location_id: string
+          model: string
+          registration_number?: string | null
+          updated_at?: string
+          variant?: string | null
+          year: number
+        }
+        Update: {
+          brand?: string
+          color?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          is_available?: boolean
+          location_id?: string
+          model?: string
+          registration_number?: string | null
+          updated_at?: string
+          variant?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "superadmin" | "gro" | "sales" | "security"
+      communication_purpose:
+        | "booking_created"
+        | "booking_confirmed"
+        | "booking_rescheduled"
+        | "booking_cancelled"
+        | "reminder"
+        | "follow_up"
+        | "custom"
+      communication_type: "email" | "whatsapp" | "sms"
+      test_drive_status:
+        | "scheduled"
+        | "confirmed"
+        | "show"
+        | "no_show"
+        | "in_progress"
+        | "completed"
+        | "cancelled"
+        | "rescheduled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +548,28 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["superadmin", "gro", "sales", "security"],
+      communication_purpose: [
+        "booking_created",
+        "booking_confirmed",
+        "booking_rescheduled",
+        "booking_cancelled",
+        "reminder",
+        "follow_up",
+        "custom",
+      ],
+      communication_type: ["email", "whatsapp", "sms"],
+      test_drive_status: [
+        "scheduled",
+        "confirmed",
+        "show",
+        "no_show",
+        "in_progress",
+        "completed",
+        "cancelled",
+        "rescheduled",
+      ],
+    },
   },
 } as const
