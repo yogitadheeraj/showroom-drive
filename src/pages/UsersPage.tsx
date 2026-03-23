@@ -24,8 +24,13 @@ const UsersPage = () => {
   }, []);
 
   const fetchUsers = async () => {
-    const { data } = await supabase.from('profiles').select('*, user_roles(role)').order('full_name');
-    setUsers(data || []);
+    const { data: profiles } = await supabase.from('profiles').select('*').order('full_name');
+    const { data: roles } = await supabase.from('user_roles').select('*');
+    const merged = (profiles || []).map(p => ({
+      ...p,
+      user_roles: (roles || []).filter(r => r.user_id === p.user_id),
+    }));
+    setUsers(merged);
   };
 
   const handleCreateUser = async () => {
