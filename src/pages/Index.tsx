@@ -365,6 +365,7 @@ const Index = () => {
           <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} DriveSync — Test Drive Management Platform</p>
         </div>
       </footer>
+      <EnquiryWidget />
     </div>
   );
 };
