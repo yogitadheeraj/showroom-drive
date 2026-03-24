@@ -178,6 +178,10 @@ const Index = () => {
         </div>
       </div>
 
+
+      {/* Product Showcase */}
+      <ProductShowcase />
+
       {/* How It Works */}
       <div className="bg-muted/50 py-24">
         <div className="max-w-5xl mx-auto px-6">
