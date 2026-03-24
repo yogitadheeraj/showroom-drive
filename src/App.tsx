@@ -18,6 +18,7 @@ import LocationsPage from "./pages/LocationsPage.tsx";
 import VehiclesPage from "./pages/VehiclesPage.tsx";
 import UsersPage from "./pages/UsersPage.tsx";
 import DataCenterPage from "./pages/DataCenterPage.tsx";
+import WaitingBoardPage from "./pages/WaitingBoardPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/users" element={<ProtectedRoute allowedRoles={['superadmin']}><UsersPage /></ProtectedRoute>} />
             <Route path="/data-center" element={<ProtectedRoute allowedRoles={['superadmin']}><DataCenterPage /></ProtectedRoute>} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
+            <Route path="/waiting-board" element={<WaitingBoardPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
