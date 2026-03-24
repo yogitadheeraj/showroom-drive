@@ -1,7 +1,11 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2 } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
+import showcaseBooking from '@/assets/showcase-booking.jpg';
+import showcaseGro from '@/assets/showcase-gro-assign.jpg';
+import showcaseAdmin from '@/assets/showcase-admin-dashboard.jpg';
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -9,6 +13,103 @@ const fadeUp: Variants = {
     opacity: 1, y: 0,
     transition: { duration: 0.5, delay: i * 0.1 },
   }),
+};
+
+const showcaseItems = [
+  {
+    id: 'booking',
+    label: 'Customer Booking',
+    title: 'Easy Online Booking',
+    description: 'Customers book test drives in seconds — pick a showroom, choose a vehicle, select a date and time. Confirmation sent via WhatsApp or email instantly.',
+    image: showcaseBooking,
+  },
+  {
+    id: 'gro',
+    label: 'GRO Assignment',
+    title: 'Smart Sales Assignment',
+    description: 'GRO receptionist views all bookings on a calendar, assigns the right sales person with one click, and manages the day\'s schedule effortlessly.',
+    image: showcaseGro,
+  },
+  {
+    id: 'admin',
+    label: 'Admin Dashboard',
+    title: 'Complete Visibility',
+    description: 'Super Admin and Sales Leads see everything — KPIs, trends, vehicle popularity, team performance, and every test drive across all locations.',
+    image: showcaseAdmin,
+  },
+];
+
+const ProductShowcase = () => {
+  const [active, setActive] = useState('booking');
+  const current = showcaseItems.find(i => i.id === active)!;
+
+  return (
+    <div className="py-24 bg-muted/30">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="text-center mb-12">
+          <motion.span
+            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
+            className="text-sm font-semibold text-primary uppercase tracking-wider"
+          >
+            See it in action
+          </motion.span>
+          <motion.h2
+            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
+            className="text-3xl md:text-4xl font-heading font-bold text-foreground mt-3"
+          >
+            How DriveSync Works
+          </motion.h2>
+        </div>
+
+        <motion.div
+          initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
+          className="flex justify-center gap-2 mb-10 flex-wrap"
+        >
+          {showcaseItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActive(item.id)}
+              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                active === item.id
+                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25'
+                  : 'bg-card text-muted-foreground hover:text-foreground border border-border hover:border-primary/30'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </motion.div>
+
+        <motion.div
+          initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={3}
+          className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-center"
+        >
+          <div className="lg:col-span-2 space-y-4">
+            <h3 className="text-2xl font-heading font-bold text-foreground">{current.title}</h3>
+            <p className="text-muted-foreground leading-relaxed">{current.description}</p>
+            {active === 'booking' && (
+              <Link to="/book">
+                <Button className="gradient-primary border-0 text-primary-foreground rounded-xl mt-2">
+                  Try Booking <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            )}
+          </div>
+
+          <div className="lg:col-span-3">
+            <div className="rounded-2xl overflow-hidden shadow-elevated border border-border bg-card">
+              <img
+                src={current.image}
+                alt={current.title}
+                loading="lazy"
+                className="w-full h-auto"
+              />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
 };
 
 const Index = () => {
@@ -173,6 +274,10 @@ const Index = () => {
           })}
         </div>
       </div>
+
+
+      {/* Product Showcase */}
+      <ProductShowcase />
 
       {/* How It Works */}
       <div className="bg-muted/50 py-24">
