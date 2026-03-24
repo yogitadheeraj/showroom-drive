@@ -51,13 +51,11 @@ const GROCalendarView = () => {
   };
 
   const fetchSalesPersons = async () => {
-    if (!profile?.location_id) return;
     const { data: rolesData } = await supabase.from('user_roles').select('user_id').eq('role', 'sales');
-    if (!rolesData?.length) return;
+    if (!rolesData?.length) { setSalesPersons([]); return; }
     const userIds = rolesData.map(r => r.user_id);
     const { data } = await supabase.from('profiles')
-      .select('id, full_name, user_id')
-      .eq('location_id', profile.location_id)
+      .select('id, full_name, user_id, location_id, locations(name)')
       .eq('is_active', true)
       .in('user_id', userIds);
     setSalesPersons(data || []);
@@ -214,7 +212,9 @@ const GROCalendarView = () => {
               </SelectTrigger>
               <SelectContent>
                 {salesPersons.map(sp => (
-                  <SelectItem key={sp.id} value={sp.id}>{sp.full_name}</SelectItem>
+                  <SelectItem key={sp.id} value={sp.id}>
+                    {sp.full_name}{sp.locations?.name ? ` — ${sp.locations.name}` : ''}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
