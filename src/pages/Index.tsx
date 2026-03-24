@@ -193,8 +193,8 @@ const Index = () => {
               </Button>
             </Link>
             <Link to="/auth">
-              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 text-base px-8 h-12 rounded-xl">
-                Staff Portal
+              <Button size="lg" className="bg-primary-foreground text-foreground text-base px-8 h-12 rounded-xl font-semibold shadow-lg hover:bg-primary-foreground/90 transition-all">
+                Staff Portal →
               </Button>
             </Link>
           </motion.div>
