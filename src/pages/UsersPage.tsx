@@ -170,7 +170,7 @@ const UsersPage = () => {
                     <td className="p-3">
                       {u.user_roles?.map((r: any) => (
                         <Badge key={r.role} variant="secondary" className={roleColor[r.role] || ''}>
-                          {r.role}
+                          {roleLabel[r.role] || r.role}
                         </Badge>
                       ))}
                       {(!u.user_roles || u.user_roles.length === 0) && (
