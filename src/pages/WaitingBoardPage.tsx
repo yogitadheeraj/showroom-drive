@@ -21,11 +21,24 @@ const WaitingBoardPage = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(() => {
-      fetchData();
-      setNow(new Date());
-    }, 30000); // refresh every 30s
-    return () => clearInterval(interval);
+
+    // Real-time subscription for instant updates
+    const channel = supabase
+      .channel('waiting-board')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'test_drives' },
+        () => fetchData()
+      )
+      .subscribe();
+
+    // Update clock every minute
+    const clockInterval = setInterval(() => setNow(new Date()), 60000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(clockInterval);
+    };
   }, [locationId]);
 
   const fetchData = async () => {
