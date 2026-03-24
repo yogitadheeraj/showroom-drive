@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Car, CheckCircle } from 'lucide-react';
+import { Car, CheckCircle, Zap, Gauge, Fuel, Users, ArrowRight, Battery, Timer, ArrowUpRight } from 'lucide-react';
 import { z } from 'zod';
 
 const bookingSchema = z.object({
@@ -20,6 +21,80 @@ const bookingSchema = z.object({
   scheduledTime: z.string().min(1, 'Please select a time'),
 });
 
+const VehicleSpecCard = ({ vehicle }: { vehicle: any }) => {
+  if (!vehicle) return null;
+
+  const isEV = vehicle.engine_type === 'electric';
+  const isHybrid = vehicle.engine_type === 'hybrid';
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 space-y-4 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="font-heading font-bold text-foreground text-lg">
+            {vehicle.brand} {vehicle.model}
+          </h4>
+          <p className="text-sm text-muted-foreground">{vehicle.variant} · {vehicle.year}</p>
+        </div>
+        <Badge className={
+          isEV ? 'bg-success/10 text-success border-success/20' :
+          isHybrid ? 'bg-info/10 text-info border-info/20' :
+          'bg-muted text-muted-foreground'
+        }>
+          {isEV ? '⚡ Electric' : isHybrid ? '🔄 Hybrid' : vehicle.fuel_type || 'Petrol'}
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {vehicle.horsepower && (
+          <SpecItem icon={<Gauge className="h-4 w-4" />} label="Power" value={`${vehicle.horsepower} HP`} />
+        )}
+        {vehicle.torque && (
+          <SpecItem icon={<ArrowUpRight className="h-4 w-4" />} label="Torque" value={vehicle.torque} />
+        )}
+        {vehicle.acceleration && (
+          <SpecItem icon={<Timer className="h-4 w-4" />} label="0-100 km/h" value={vehicle.acceleration} />
+        )}
+        {vehicle.top_speed && (
+          <SpecItem icon={<Zap className="h-4 w-4" />} label="Top Speed" value={vehicle.top_speed} />
+        )}
+        {isEV && vehicle.range_km && (
+          <SpecItem icon={<Battery className="h-4 w-4" />} label="Range" value={`${vehicle.range_km} km`} highlight />
+        )}
+        {isEV && vehicle.battery_capacity && (
+          <SpecItem icon={<Fuel className="h-4 w-4" />} label="Battery" value={vehicle.battery_capacity} />
+        )}
+        {!isEV && vehicle.mileage && (
+          <SpecItem icon={<Fuel className="h-4 w-4" />} label="Mileage" value={vehicle.mileage} />
+        )}
+        {vehicle.transmission && (
+          <SpecItem icon={<ArrowRight className="h-4 w-4" />} label="Transmission" value={vehicle.transmission} />
+        )}
+        {vehicle.seating_capacity && (
+          <SpecItem icon={<Users className="h-4 w-4" />} label="Seats" value={`${vehicle.seating_capacity} Seater`} />
+        )}
+        {vehicle.drive_type && (
+          <SpecItem icon={<Car className="h-4 w-4" />} label="Drive" value={vehicle.drive_type} />
+        )}
+      </div>
+
+      {vehicle.color && (
+        <p className="text-xs text-muted-foreground">Color: <span className="font-medium text-foreground">{vehicle.color}</span></p>
+      )}
+    </div>
+  );
+};
+
+const SpecItem = ({ icon, label, value, highlight }: { icon: React.ReactNode; label: string; value: string; highlight?: boolean }) => (
+  <div className={`flex items-start gap-2 p-2.5 rounded-lg ${highlight ? 'bg-success/5 border border-success/15' : 'bg-muted/50'}`}>
+    <div className={`mt-0.5 ${highlight ? 'text-success' : 'text-muted-foreground'}`}>{icon}</div>
+    <div>
+      <p className="text-[11px] text-muted-foreground leading-tight">{label}</p>
+      <p className={`text-sm font-medium leading-tight ${highlight ? 'text-success' : 'text-foreground'}`}>{value}</p>
+    </div>
+  </div>
+);
+
 const BookingPage = () => {
   const [locations, setLocations] = useState<any[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -31,6 +106,8 @@ const BookingPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const { toast } = useToast();
+
+  const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
 
   useEffect(() => {
     supabase.from('locations').select('*').eq('is_active', true).then(({ data }) => setLocations(data || []));
@@ -45,13 +122,6 @@ const BookingPage = () => {
         .then(({ data }) => setVehicles(data || []));
     }
   }, [formData.locationId]);
-
-  const validateField = (name: string, value: string) => {
-    if (name === 'email' && formData.preferredContact === 'email' && !value) {
-      return 'Email is required when preferred contact is email';
-    }
-    return '';
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,7 +144,6 @@ const BookingPage = () => {
 
     setIsSubmitting(true);
     try {
-      // Create or find customer
       const { data: existingCustomer } = await supabase
         .from('customers').select('id').eq('phone', formData.phone).maybeSingle();
 
@@ -97,7 +166,6 @@ const BookingPage = () => {
         customerId = newCustomer.id;
       }
 
-      // Create test drive
       const { data: tdData, error: tdError } = await supabase.from('test_drives').insert({
         customer_id: customerId,
         vehicle_id: formData.vehicleId,
@@ -108,40 +176,23 @@ const BookingPage = () => {
       }).select('id').single();
       if (tdError) throw tdError;
 
-      // Send notifications based on preferred contact method
-      const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
-      const selectedLocation = locations.find(l => l.id === formData.locationId);
       const vehicleName = selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}` : 'your selected vehicle';
+      const selectedLocation = locations.find(l => l.id === formData.locationId);
       const locationName = selectedLocation?.name || 'our showroom';
 
       if (formData.preferredContact === 'email' && formData.email) {
-        // Send email confirmation
         supabase.functions.invoke('send-transactional-email', {
           body: {
             templateName: 'booking-confirmation',
             recipientEmail: formData.email,
             idempotencyKey: `booking-confirm-${tdData.id}`,
-            templateData: {
-              customerName: formData.fullName,
-              vehicleName,
-              locationName,
-              scheduledDate: formData.scheduledDate,
-              scheduledTime: formData.scheduledTime,
-            },
+            templateData: { customerName: formData.fullName, vehicleName, locationName, scheduledDate: formData.scheduledDate, scheduledTime: formData.scheduledTime },
           },
         }).catch(err => console.error('Email send failed:', err));
       } else {
-        // Send WhatsApp confirmation
         const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}\n\nPlease bring a valid driving license. See you there!\n\n— DriveSync`;
-
         supabase.functions.invoke('send-whatsapp', {
-          body: {
-            to: formData.phone,
-            message: confirmationMsg,
-            customerId,
-            testDriveId: tdData.id,
-            purpose: 'booking_confirmed',
-          },
+          body: { to: formData.phone, message: confirmationMsg, customerId, testDriveId: tdData.id, purpose: 'booking_confirmed' },
         }).catch(err => console.error('WhatsApp send failed:', err));
       }
 
@@ -177,6 +228,11 @@ const BookingPage = () => {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const minDate = tomorrow.toISOString().split('T')[0];
+
+  // Group vehicles by type
+  const evVehicles = vehicles.filter(v => v.engine_type === 'electric');
+  const hybridVehicles = vehicles.filter(v => v.engine_type === 'hybrid');
+  const iceVehicles = vehicles.filter(v => v.engine_type !== 'electric' && v.engine_type !== 'hybrid');
 
   return (
     <div className="min-h-screen bg-background">
@@ -250,15 +306,49 @@ const BookingPage = () => {
                 <Select value={formData.vehicleId} onValueChange={v => setFormData(p => ({ ...p, vehicleId: v }))} disabled={!formData.locationId}>
                   <SelectTrigger><SelectValue placeholder={formData.locationId ? 'Select a vehicle' : 'Select location first'} /></SelectTrigger>
                   <SelectContent>
-                    {vehicles.map(v => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.brand} {v.model} {v.variant || ''} ({v.color || v.year})
-                      </SelectItem>
-                    ))}
+                    {evVehicles.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-success flex items-center gap-1">
+                          <Zap className="h-3 w-3" /> Electric Vehicles
+                        </div>
+                        {evVehicles.map(v => (
+                          <SelectItem key={v.id} value={v.id}>
+                            ⚡ {v.brand} {v.model} {v.variant || ''} — {v.range_km}km range
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {hybridVehicles.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-info flex items-center gap-1">
+                          🔄 Hybrid Vehicles
+                        </div>
+                        {hybridVehicles.map(v => (
+                          <SelectItem key={v.id} value={v.id}>
+                            🔄 {v.brand} {v.model} {v.variant || ''} ({v.mileage})
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {iceVehicles.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                          🏎️ Petrol / Diesel
+                        </div>
+                        {iceVehicles.map(v => (
+                          <SelectItem key={v.id} value={v.id}>
+                            {v.brand} {v.model} {v.variant || ''} ({v.color || v.year})
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
                 {errors.vehicleId && <p className="text-xs text-destructive">{errors.vehicleId}</p>}
               </div>
+
+              {/* Vehicle Specs Card */}
+              {selectedVehicle && <VehicleSpecCard vehicle={selectedVehicle} />}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -273,7 +363,7 @@ const BookingPage = () => {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isSubmitting} size="lg">
+              <Button type="submit" className="w-full gradient-primary border-0 text-primary-foreground" disabled={isSubmitting} size="lg">
                 {isSubmitting ? 'Booking...' : 'Book Test Drive'}
               </Button>
             </form>
