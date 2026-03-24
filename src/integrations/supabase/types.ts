@@ -442,46 +442,82 @@ export type Database = {
       }
       vehicles: {
         Row: {
+          acceleration: string | null
+          battery_capacity: string | null
           brand: string
           color: string | null
           created_at: string
+          drive_type: string | null
+          engine_type: string | null
+          fuel_type: string | null
+          horsepower: number | null
           id: string
           image_url: string | null
           is_active: boolean
           is_available: boolean
           location_id: string
+          mileage: string | null
           model: string
+          range_km: number | null
           registration_number: string | null
+          seating_capacity: number | null
+          top_speed: string | null
+          torque: string | null
+          transmission: string | null
           updated_at: string
           variant: string | null
           year: number
         }
         Insert: {
+          acceleration?: string | null
+          battery_capacity?: string | null
           brand: string
           color?: string | null
           created_at?: string
+          drive_type?: string | null
+          engine_type?: string | null
+          fuel_type?: string | null
+          horsepower?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean
           is_available?: boolean
           location_id: string
+          mileage?: string | null
           model: string
+          range_km?: number | null
           registration_number?: string | null
+          seating_capacity?: number | null
+          top_speed?: string | null
+          torque?: string | null
+          transmission?: string | null
           updated_at?: string
           variant?: string | null
           year: number
         }
         Update: {
+          acceleration?: string | null
+          battery_capacity?: string | null
           brand?: string
           color?: string | null
           created_at?: string
+          drive_type?: string | null
+          engine_type?: string | null
+          fuel_type?: string | null
+          horsepower?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean
           is_available?: boolean
           location_id?: string
+          mileage?: string | null
           model?: string
+          range_km?: number | null
           registration_number?: string | null
+          seating_capacity?: number | null
+          top_speed?: string | null
+          torque?: string | null
+          transmission?: string | null
           updated_at?: string
           variant?: string | null
           year?: number
