@@ -200,6 +200,82 @@ export type Database = {
         }
         Relationships: []
       }
+      location_blocked_slots: {
+        Row: {
+          block_source: string
+          blocked_date: string
+          created_at: string
+          end_time: string
+          id: string
+          location_id: string
+          reason: string | null
+          start_time: string
+        }
+        Insert: {
+          block_source?: string
+          blocked_date: string
+          created_at?: string
+          end_time: string
+          id?: string
+          location_id: string
+          reason?: string | null
+          start_time: string
+        }
+        Update: {
+          block_source?: string
+          blocked_date?: string
+          created_at?: string
+          end_time?: string
+          id?: string
+          location_id?: string
+          reason?: string | null
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_blocked_slots_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      location_operating_hours: {
+        Row: {
+          close_time: string
+          day_of_week: number
+          id: string
+          is_closed: boolean
+          location_id: string
+          open_time: string
+        }
+        Insert: {
+          close_time?: string
+          day_of_week: number
+          id?: string
+          is_closed?: boolean
+          location_id: string
+          open_time?: string
+        }
+        Update: {
+          close_time?: string
+          day_of_week?: number
+          id?: string
+          is_closed?: boolean
+          location_id?: string
+          open_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_operating_hours_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       locations: {
         Row: {
           address: string
@@ -537,6 +613,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      auto_release_noshow_vehicles: { Args: never; Returns: undefined }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
