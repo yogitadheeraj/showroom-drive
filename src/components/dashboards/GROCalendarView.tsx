@@ -212,7 +212,9 @@ const GROCalendarView = () => {
               </SelectTrigger>
               <SelectContent>
                 {salesPersons.map(sp => (
-                  <SelectItem key={sp.id} value={sp.id}>{sp.full_name}</SelectItem>
+                  <SelectItem key={sp.id} value={sp.id}>
+                    {sp.full_name}{sp.locations?.name ? ` — ${sp.locations.name}` : ''}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
