@@ -13,7 +13,7 @@ import { UserPlus, Pencil, MapPin } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const ROLES = [
-  { value: 'superadmin', label: 'Super Admin' },
+  { value: 'superadmin', label: 'Sales Lead' },
   { value: 'gro', label: 'GRO' },
   { value: 'sales', label: 'Sales Person' },
   { value: 'security', label: 'Security' },
@@ -24,6 +24,13 @@ const roleColor: Record<string, string> = {
   gro: 'bg-primary/10 text-primary',
   sales: 'bg-info/10 text-info',
   security: 'bg-warning/10 text-warning',
+};
+
+const roleLabel: Record<string, string> = {
+  superadmin: 'Sales Lead',
+  gro: 'GRO',
+  sales: 'Sales',
+  security: 'Security',
 };
 
 const UsersPage = () => {
@@ -163,7 +170,7 @@ const UsersPage = () => {
                     <td className="p-3">
                       {u.user_roles?.map((r: any) => (
                         <Badge key={r.role} variant="secondary" className={roleColor[r.role] || ''}>
-                          {r.role}
+                          {roleLabel[r.role] || r.role}
                         </Badge>
                       ))}
                       {(!u.user_roles || u.user_roles.length === 0) && (

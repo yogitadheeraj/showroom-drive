@@ -63,7 +63,7 @@ const SuperAdminDashboard = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">Super Admin Dashboard</h1>
+          <h1 className="text-2xl font-heading font-bold text-foreground">Sales Lead Dashboard</h1>
           <p className="text-muted-foreground">Overview of all locations and test drives</p>
         </div>
         <Select value={selectedLocation} onValueChange={setSelectedLocation}>
