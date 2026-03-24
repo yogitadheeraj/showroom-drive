@@ -6,6 +6,7 @@ import { motion, type Variants } from 'framer-motion';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
 import showcaseGro from '@/assets/showcase-gro-assign.jpg';
 import showcaseAdmin from '@/assets/showcase-admin-dashboard.jpg';
+import EnquiryWidget from '@/components/EnquiryWidget';
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -193,8 +194,8 @@ const Index = () => {
               </Button>
             </Link>
             <Link to="/auth">
-              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 text-base px-8 h-12 rounded-xl">
-                Staff Portal
+              <Button size="lg" className="bg-primary-foreground text-foreground text-base px-8 h-12 rounded-xl font-semibold shadow-lg hover:bg-primary-foreground/90 transition-all">
+                Staff Portal →
               </Button>
             </Link>
           </motion.div>
@@ -364,6 +365,7 @@ const Index = () => {
           <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} DriveSync — Test Drive Management Platform</p>
         </div>
       </footer>
+      <EnquiryWidget />
     </div>
   );
 };
