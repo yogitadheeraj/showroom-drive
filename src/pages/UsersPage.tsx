@@ -26,6 +26,13 @@ const roleColor: Record<string, string> = {
   security: 'bg-warning/10 text-warning',
 };
 
+const roleLabel: Record<string, string> = {
+  superadmin: 'Sales Lead',
+  gro: 'GRO',
+  sales: 'Sales',
+  security: 'Security',
+};
+
 const UsersPage = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
