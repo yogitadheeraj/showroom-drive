@@ -6,13 +6,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CalendarCheck, Upload, FileCheck } from 'lucide-react';
+import { CalendarCheck, Upload, FileCheck, ArrowRightLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import SalesSwapDialog from './SalesSwapDialog';
 
 const SalesDashboard = () => {
   const { user, profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [swapDrive, setSwapDrive] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -35,7 +37,6 @@ const SalesDashboard = () => {
       const path = `licenses/${customerId}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
       if (uploadError) throw uploadError;
-
       const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(path);
       await supabase.from('customers').update({ driving_license_url: publicUrl }).eq('id', customerId);
       toast({ title: 'License uploaded successfully' });
@@ -117,15 +118,27 @@ const SalesDashboard = () => {
                     <p className="font-medium text-foreground">{td.customers?.full_name}</p>
                     <p className="text-sm text-muted-foreground">{td.customers?.phone} • {td.customers?.email}</p>
                   </div>
-                  <Badge variant="secondary" className={statusColor[td.status] || ''}>
-                    {td.status.replace('_', ' ')}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className={statusColor[td.status] || ''}>
+                      {td.status.replace('_', ' ')}
+                    </Badge>
+                    {['scheduled', 'confirmed', 'show'].includes(td.status) && (
+                      <Button size="sm" variant="ghost" onClick={() => setSwapDrive(td)} title="Swap with teammate">
+                        <ArrowRightLeft className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
                   <span>{td.vehicles?.brand} {td.vehicles?.model}</span>
                   <span>{td.scheduled_date}</span>
                   <span>{td.scheduled_time}</span>
                 </div>
+                {td.notes && (
+                  <div className="mb-3 p-2 rounded bg-muted/50 text-xs text-muted-foreground whitespace-pre-line">
+                    {td.notes}
+                  </div>
+                )}
                 {!td.customers?.driving_license_url ? (
                   <div className="flex items-center gap-3">
                     <Label htmlFor={`license-${td.id}`} className="text-sm">Upload Driving License:</Label>
@@ -162,6 +175,13 @@ const SalesDashboard = () => {
           </div>
         </CardContent>
       </Card>
+
+      <SalesSwapDialog
+        open={!!swapDrive}
+        onClose={() => setSwapDrive(null)}
+        testDrive={swapDrive}
+        onSwapped={fetchAssignedDrives}
+      />
     </div>
   );
 };

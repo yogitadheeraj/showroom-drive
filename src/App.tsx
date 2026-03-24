@@ -18,6 +18,7 @@ import LocationsPage from "./pages/LocationsPage.tsx";
 import VehiclesPage from "./pages/VehiclesPage.tsx";
 import UsersPage from "./pages/UsersPage.tsx";
 import DataCenterPage from "./pages/DataCenterPage.tsx";
+import WaitingBoardPage from "./pages/WaitingBoardPage.tsx";
 
 const queryClient = new QueryClient();
 
