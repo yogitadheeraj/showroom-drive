@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,8 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Car, CheckCircle, Zap, Gauge, Fuel, Users, ArrowRight, Battery, Timer, ArrowUpRight } from 'lucide-react';
+import VehicleSpecCard from '@/components/booking/VehicleSpecCard';
+import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield } from 'lucide-react';
 import { z } from 'zod';
+
+const STEPS = [
+  { id: 'vehicle', label: 'Vehicle', icon: Car },
+  { id: 'date', label: 'Date', icon: Clock },
+  { id: 'location', label: 'Location', icon: MapPin },
+  { id: 'time', label: 'Time', icon: Clock },
+  { id: 'info', label: 'Your Info', icon: User },
+];
 
 const bookingSchema = z.object({
   fullName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
@@ -21,122 +31,135 @@ const bookingSchema = z.object({
   scheduledTime: z.string().min(1, 'Please select a time'),
 });
 
-const VehicleSpecCard = ({ vehicle }: { vehicle: any }) => {
-  if (!vehicle) return null;
-
-  const isEV = vehicle.engine_type === 'electric';
-  const isHybrid = vehicle.engine_type === 'hybrid';
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-4 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h4 className="font-heading font-bold text-foreground text-lg">
-            {vehicle.brand} {vehicle.model}
-          </h4>
-          <p className="text-sm text-muted-foreground">{vehicle.variant} · {vehicle.year}</p>
-        </div>
-        <Badge className={
-          isEV ? 'bg-success/10 text-success border-success/20' :
-          isHybrid ? 'bg-info/10 text-info border-info/20' :
-          'bg-muted text-muted-foreground'
-        }>
-          {isEV ? '⚡ Electric' : isHybrid ? '🔄 Hybrid' : vehicle.fuel_type || 'Petrol'}
-        </Badge>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {vehicle.horsepower && (
-          <SpecItem icon={<Gauge className="h-4 w-4" />} label="Power" value={`${vehicle.horsepower} HP`} />
-        )}
-        {vehicle.torque && (
-          <SpecItem icon={<ArrowUpRight className="h-4 w-4" />} label="Torque" value={vehicle.torque} />
-        )}
-        {vehicle.acceleration && (
-          <SpecItem icon={<Timer className="h-4 w-4" />} label="0-100 km/h" value={vehicle.acceleration} />
-        )}
-        {vehicle.top_speed && (
-          <SpecItem icon={<Zap className="h-4 w-4" />} label="Top Speed" value={vehicle.top_speed} />
-        )}
-        {isEV && vehicle.range_km && (
-          <SpecItem icon={<Battery className="h-4 w-4" />} label="Range" value={`${vehicle.range_km} km`} highlight />
-        )}
-        {isEV && vehicle.battery_capacity && (
-          <SpecItem icon={<Fuel className="h-4 w-4" />} label="Battery" value={vehicle.battery_capacity} />
-        )}
-        {!isEV && vehicle.mileage && (
-          <SpecItem icon={<Fuel className="h-4 w-4" />} label="Mileage" value={vehicle.mileage} />
-        )}
-        {vehicle.transmission && (
-          <SpecItem icon={<ArrowRight className="h-4 w-4" />} label="Transmission" value={vehicle.transmission} />
-        )}
-        {vehicle.seating_capacity && (
-          <SpecItem icon={<Users className="h-4 w-4" />} label="Seats" value={`${vehicle.seating_capacity} Seater`} />
-        )}
-        {vehicle.drive_type && (
-          <SpecItem icon={<Car className="h-4 w-4" />} label="Drive" value={vehicle.drive_type} />
-        )}
-      </div>
-
-      {vehicle.color && (
-        <p className="text-xs text-muted-foreground">Color: <span className="font-medium text-foreground">{vehicle.color}</span></p>
-      )}
-    </div>
-  );
-};
-
-const SpecItem = ({ icon, label, value, highlight }: { icon: React.ReactNode; label: string; value: string; highlight?: boolean }) => (
-  <div className={`flex items-start gap-2 p-2.5 rounded-lg ${highlight ? 'bg-success/5 border border-success/15' : 'bg-muted/50'}`}>
-    <div className={`mt-0.5 ${highlight ? 'text-success' : 'text-muted-foreground'}`}>{icon}</div>
-    <div>
-      <p className="text-[11px] text-muted-foreground leading-tight">{label}</p>
-      <p className={`text-sm font-medium leading-tight ${highlight ? 'text-success' : 'text-foreground'}`}>{value}</p>
-    </div>
-  </div>
-);
-
 const BookingPage = () => {
+  const [step, setStep] = useState(0);
+  const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
-  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [operatingHours, setOperatingHours] = useState<any[]>([]);
+  const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     fullName: '', email: '', phone: '', preferredContact: 'phone',
     locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '',
+    selectedModel: '', // brand+model key for step 1
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const { toast } = useToast();
 
-  const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
-
+  // Load all active available vehicles, locations, and operating hours
   useEffect(() => {
-    supabase.from('locations').select('*').eq('is_active', true).then(({ data }) => setLocations(data || []));
+    Promise.all([
+      supabase.from('vehicles').select('*').eq('is_active', true).eq('is_available', true),
+      supabase.from('locations').select('*').eq('is_active', true),
+      supabase.from('location_operating_hours').select('*'),
+      supabase.from('location_blocked_slots').select('*'),
+    ]).then(([vRes, lRes, ohRes, bsRes]) => {
+      setAllVehicles(vRes.data || []);
+      setLocations(lRes.data || []);
+      setOperatingHours(ohRes.data || []);
+      setBlockedSlots(bsRes.data || []);
+    });
   }, []);
 
-  useEffect(() => {
-    if (formData.locationId) {
-      supabase.from('vehicles').select('*')
-        .eq('location_id', formData.locationId)
-        .eq('is_available', true)
-        .eq('is_active', true)
-        .then(({ data }) => setVehicles(data || []));
+  // Unique models grouped by type
+  const modelGroups = useMemo(() => {
+    const modelMap = new Map<string, { brand: string; model: string; engine_type: string; vehicles: any[] }>();
+    allVehicles.forEach(v => {
+      const key = `${v.brand}|${v.model}`;
+      if (!modelMap.has(key)) {
+        modelMap.set(key, { brand: v.brand, model: v.model, engine_type: v.engine_type || 'petrol', vehicles: [] });
+      }
+      modelMap.get(key)!.vehicles.push(v);
+    });
+    const all = Array.from(modelMap.values());
+    return {
+      ev: all.filter(m => m.engine_type === 'electric'),
+      hybrid: all.filter(m => m.engine_type === 'hybrid'),
+      ice: all.filter(m => m.engine_type !== 'electric' && m.engine_type !== 'hybrid'),
+    };
+  }, [allVehicles]);
+
+  const selectedModelKey = formData.selectedModel;
+  const modelVehicles = useMemo(() => {
+    if (!selectedModelKey) return [];
+    return allVehicles.filter(v => `${v.brand}|${v.model}` === selectedModelKey);
+  }, [selectedModelKey, allVehicles]);
+
+  // Locations that have the selected model available
+  const availableLocations = useMemo(() => {
+    const locIds = new Set(modelVehicles.map(v => v.location_id));
+    return locations.filter(l => locIds.has(l.id));
+  }, [modelVehicles, locations]);
+
+  // Get a sample vehicle for spec display (first vehicle of selected model)
+  const sampleVehicle = modelVehicles[0];
+
+  // Selected vehicle (specific variant at location)
+  const selectedVehicle = allVehicles.find(v => v.id === formData.vehicleId);
+
+  // Get operating hours for selected location on selected date
+  const selectedDateHours = useMemo(() => {
+    if (!formData.locationId || !formData.scheduledDate) return null;
+    const date = new Date(formData.scheduledDate);
+    const dayOfWeek = date.getDay();
+    return operatingHours.find(oh => oh.location_id === formData.locationId && oh.day_of_week === dayOfWeek);
+  }, [formData.locationId, formData.scheduledDate, operatingHours]);
+
+  // Generate time slots based on operating hours
+  const timeSlots = useMemo(() => {
+    if (!selectedDateHours || selectedDateHours.is_closed) return [];
+    const slots: string[] = [];
+    const [openH, openM] = selectedDateHours.open_time.split(':').map(Number);
+    const [closeH, closeM] = selectedDateHours.close_time.split(':').map(Number);
+    
+    let h = openH, m = openM;
+    while (h < closeH || (h === closeH && m < closeM)) {
+      const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      // Check if this slot is blocked
+      const isBlocked = blockedSlots.some(bs =>
+        bs.location_id === formData.locationId &&
+        bs.blocked_date === formData.scheduledDate &&
+        timeStr >= bs.start_time.substring(0, 5) &&
+        timeStr < bs.end_time.substring(0, 5)
+      );
+      if (!isBlocked) slots.push(timeStr);
+      m += 30;
+      if (m >= 60) { h++; m = 0; }
     }
-  }, [formData.locationId]);
+    return slots;
+  }, [selectedDateHours, blockedSlots, formData.locationId, formData.scheduledDate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Min date = tomorrow
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const minDate = tomorrow.toISOString().split('T')[0];
+
+  // Max date = 30 days out
+  const maxDate = new Date();
+  maxDate.setDate(maxDate.getDate() + 30);
+  const maxDateStr = maxDate.toISOString().split('T')[0];
+
+  const canProceed = () => {
+    switch (step) {
+      case 0: return !!formData.selectedModel;
+      case 1: return !!formData.scheduledDate;
+      case 2: return !!formData.locationId && !!formData.vehicleId;
+      case 3: return !!formData.scheduledTime;
+      case 4: return !!formData.fullName && !!formData.phone;
+      default: return false;
+    }
+  };
+
+  const handleSubmit = async () => {
     setErrors({});
-
     const result = bookingSchema.safeParse(formData);
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
-      result.error.errors.forEach(err => {
-        fieldErrors[err.path[0] as string] = err.message;
-      });
+      result.error.errors.forEach(err => { fieldErrors[err.path[0] as string] = err.message; });
       setErrors(fieldErrors);
       return;
     }
-
     if (formData.preferredContact === 'email' && !formData.email) {
       setErrors({ email: 'Email is required when preferred contact is email' });
       return;
@@ -196,8 +219,8 @@ const BookingPage = () => {
         }).catch(err => console.error('WhatsApp send failed:', err));
       }
 
-      const notifType = formData.preferredContact === 'email' ? 'email' : 'WhatsApp';
       setSuccess(true);
+      const notifType = formData.preferredContact === 'email' ? 'email' : 'WhatsApp';
       toast({ title: 'Test drive booked!', description: `You will receive a ${notifType} confirmation shortly.` });
     } catch (err: any) {
       toast({ title: 'Booking failed', description: err.message, variant: 'destructive' });
@@ -215,162 +238,379 @@ const BookingPage = () => {
               <CheckCircle className="h-8 w-8 text-success" />
             </div>
             <h2 className="text-xl font-heading font-bold text-foreground mb-2">Test Drive Booked!</h2>
-            <p className="text-muted-foreground mb-4">We'll send you a confirmation shortly.</p>
-            <Button onClick={() => { setSuccess(false); setFormData({ fullName: '', email: '', phone: '', preferredContact: 'phone', locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '' }); }}>
-              Book Another
-            </Button>
+            <p className="text-muted-foreground mb-6">We'll send you a confirmation shortly.</p>
+            <div className="flex flex-col gap-3">
+              <Button onClick={() => { setSuccess(false); setStep(0); setFormData({ fullName: '', email: '', phone: '', preferredContact: 'phone', locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '', selectedModel: '' }); }}>
+                Book Another
+              </Button>
+              <Link to="/">
+                <Button variant="outline" className="w-full">Back to Home</Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().split('T')[0];
-
-  // Group vehicles by type
-  const evVehicles = vehicles.filter(v => v.engine_type === 'electric');
-  const hybridVehicles = vehicles.filter(v => v.engine_type === 'hybrid');
-  const iceVehicles = vehicles.filter(v => v.engine_type !== 'electric' && v.engine_type !== 'hybrid');
-
   return (
     <div className="min-h-screen bg-background">
-      <div className="gradient-dark py-16 px-4">
-        <div className="max-w-2xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center">
-              <Car className="h-6 w-6 text-primary-foreground" />
+      {/* Header */}
+      <div className="gradient-dark py-6 px-4">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
+            <ArrowLeft className="h-4 w-4" />
+            <span className="text-sm font-medium">Home</span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl gradient-primary flex items-center justify-center">
+              <Car className="h-4 w-4 text-primary-foreground" />
             </div>
-            <h1 className="text-3xl font-heading font-bold text-primary-foreground">DriveSync</h1>
+            <h1 className="text-lg font-heading font-bold text-primary-foreground">DriveSync</h1>
           </div>
-          <p className="text-lg text-primary-foreground/70">Book your test drive experience</p>
+          <Link to="/auth" className="flex items-center gap-1.5 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
+            <Shield className="h-4 w-4" />
+            <span className="text-sm font-medium">Staff</span>
+          </Link>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto -mt-8 px-4 pb-12">
+      {/* Step Indicator */}
+      <div className="max-w-2xl mx-auto px-4 pt-6">
+        <div className="flex items-center justify-between mb-2">
+          {STEPS.map((s, i) => {
+            const Icon = s.icon;
+            const isActive = i === step;
+            const isDone = i < step;
+            return (
+              <div key={s.id} className="flex items-center">
+                <button
+                  onClick={() => i < step && setStep(i)}
+                  disabled={i > step}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    isActive ? 'bg-primary text-primary-foreground shadow-md' :
+                    isDone ? 'bg-primary/10 text-primary cursor-pointer hover:bg-primary/20' :
+                    'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {isDone ? <CheckCircle className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
+                  <span className="hidden sm:inline">{s.label}</span>
+                </button>
+                {i < STEPS.length - 1 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 mx-1" />}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="max-w-2xl mx-auto px-4 pb-12 pt-4">
         <Card className="shadow-elevated animate-fade-in">
-          <CardHeader>
-            <CardTitle className="font-heading">Schedule a Test Drive</CardTitle>
-            <CardDescription>Fill in your details to book a test drive</CardDescription>
+          <CardHeader className="pb-4">
+            <CardTitle className="font-heading text-lg">
+              {step === 0 && 'Choose Your Vehicle'}
+              {step === 1 && 'Select a Date'}
+              {step === 2 && 'Pick a Location'}
+              {step === 3 && 'Choose a Time Slot'}
+              {step === 4 && 'Your Information'}
+            </CardTitle>
+            <CardDescription>
+              {step === 0 && 'Browse available models and select one to test drive'}
+              {step === 1 && 'When would you like to visit?'}
+              {step === 2 && 'Select the showroom nearest to you'}
+              {step === 3 && 'Available time slots for your selected date'}
+              {step === 4 && 'Fill in your contact details to confirm'}
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <CardContent className="space-y-5">
+
+            {/* Step 0: Vehicle Selection */}
+            {step === 0 && (
+              <div className="space-y-4">
+                {modelGroups.ev.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <Zap className="h-4 w-4 text-success" />
+                      <span className="text-sm font-semibold text-success">Electric Vehicles</span>
+                    </div>
+                    <div className="grid gap-3">
+                      {modelGroups.ev.map(m => (
+                        <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
+                          onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {modelGroups.hybrid.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <span className="text-sm font-semibold text-info">🔄 Hybrid Vehicles</span>
+                    </div>
+                    <div className="grid gap-3">
+                      {modelGroups.hybrid.map(m => (
+                        <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
+                          onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {modelGroups.ice.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <span className="text-sm font-semibold text-muted-foreground">🏎️ Petrol / Diesel</span>
+                    </div>
+                    <div className="grid gap-3">
+                      {modelGroups.ice.map(m => (
+                        <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
+                          onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {sampleVehicle && (
+                  <div className="pt-2">
+                    <VehicleSpecCard vehicle={sampleVehicle} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 1: Date Selection */}
+            {step === 1 && (
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name *</Label>
-                  <Input id="fullName" value={formData.fullName} onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))} />
-                  {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
+                  <Label htmlFor="date">Preferred Date</Label>
+                  <Input id="date" type="date" min={minDate} max={maxDateStr}
+                    value={formData.scheduledDate}
+                    onChange={e => setFormData(p => ({ ...p, scheduledDate: e.target.value, scheduledTime: '', locationId: '', vehicleId: '' }))}
+                    className="text-base"
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number *</Label>
-                  <Input id="phone" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="+91 98765 43210" />
-                  {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+                {formData.scheduledDate && (
+                  <p className="text-sm text-muted-foreground">
+                    📅 Selected: <span className="font-medium text-foreground">
+                      {new Date(formData.scheduledDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </span>
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Step 2: Location & Variant Selection */}
+            {step === 2 && (
+              <div className="space-y-4">
+                {availableLocations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No locations have this model available. Try a different model.</p>
+                ) : (
+                  <>
+                    <div className="grid gap-3">
+                      {availableLocations.map(loc => {
+                        const isSelected = formData.locationId === loc.id;
+                        const locVehicles = modelVehicles.filter(v => v.location_id === loc.id);
+                        const dayOfWeek = new Date(formData.scheduledDate).getDay();
+                        const hours = operatingHours.find(oh => oh.location_id === loc.id && oh.day_of_week === dayOfWeek);
+                        const isClosed = hours?.is_closed;
+
+                        if (isClosed) return (
+                          <div key={loc.id} className="p-4 rounded-xl border border-border bg-muted/30 opacity-60">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-foreground">{loc.name}</p>
+                                <p className="text-xs text-muted-foreground">{loc.address}, {loc.city}</p>
+                              </div>
+                              <Badge variant="secondary">Closed</Badge>
+                            </div>
+                          </div>
+                        );
+
+                        return (
+                          <button key={loc.id} type="button"
+                            onClick={() => {
+                              const firstVehicle = locVehicles[0];
+                              setFormData(p => ({ ...p, locationId: loc.id, vehicleId: firstVehicle?.id || '' }));
+                            }}
+                            className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                              isSelected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/30 bg-card'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <p className="font-medium text-foreground">{loc.name}</p>
+                                <p className="text-xs text-muted-foreground">{loc.address}, {loc.city}</p>
+                              </div>
+                              {hours && (
+                                <span className="text-xs text-muted-foreground">
+                                  {hours.open_time?.substring(0, 5)} – {hours.close_time?.substring(0, 5)}
+                                </span>
+                              )}
+                            </div>
+                            {isSelected && locVehicles.length > 1 && (
+                              <div className="mt-3 pt-3 border-t border-border">
+                                <Label className="text-xs mb-2 block">Choose Variant / Color</Label>
+                                <div className="grid gap-2">
+                                  {locVehicles.map(v => (
+                                    <button key={v.id} type="button"
+                                      onClick={(e) => { e.stopPropagation(); setFormData(p => ({ ...p, vehicleId: v.id })); }}
+                                      className={`text-left text-sm p-2.5 rounded-lg border transition-all ${
+                                        formData.vehicleId === v.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/20'
+                                      }`}
+                                    >
+                                      {v.variant || v.model} {v.color ? `· ${v.color}` : ''} {v.year}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedVehicle && <VehicleSpecCard vehicle={selectedVehicle} />}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: Time Selection */}
+            {step === 3 && (
+              <div className="space-y-4">
+                {selectedDateHours?.is_closed ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">This location is closed on the selected day.</p>
+                    <Button variant="outline" className="mt-4" onClick={() => setStep(1)}>Change Date</Button>
+                  </div>
+                ) : timeSlots.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No available time slots for this date.</p>
+                    <Button variant="outline" className="mt-4" onClick={() => setStep(1)}>Change Date</Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {timeSlots.map(slot => {
+                      const isSelected = formData.scheduledTime === slot;
+                      const [h] = slot.split(':').map(Number);
+                      const period = h < 12 ? 'AM' : 'PM';
+                      const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                      const displayTime = `${displayH}:${slot.split(':')[1]} ${period}`;
+                      return (
+                        <button key={slot} type="button"
+                          onClick={() => setFormData(p => ({ ...p, scheduledTime: slot }))}
+                          className={`py-2.5 px-3 rounded-lg text-sm font-medium transition-all ${
+                            isSelected ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground border border-border'
+                          }`}
+                        >
+                          {displayTime}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 4: Personal Info */}
+            {step === 4 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Full Name *</Label>
+                    <Input id="fullName" value={formData.fullName} onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))} placeholder="Your full name" />
+                    {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number *</Label>
+                    <Input id="phone" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="+91 98765 43210" />
+                    {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="your@email.com" />
+                    {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Preferred Contact</Label>
+                    <Select value={formData.preferredContact} onValueChange={v => setFormData(p => ({ ...p, preferredContact: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="phone">📞 Phone</SelectItem>
+                        <SelectItem value="email">📧 Email</SelectItem>
+                        <SelectItem value="whatsapp">💬 WhatsApp</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Booking Summary */}
+                <div className="rounded-xl bg-muted/50 border border-border p-4 space-y-2">
+                  <h4 className="text-sm font-semibold text-foreground">Booking Summary</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-muted-foreground">Vehicle:</span> <span className="font-medium text-foreground">{selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}` : '—'}</span></div>
+                    <div><span className="text-muted-foreground">Date:</span> <span className="font-medium text-foreground">{formData.scheduledDate || '—'}</span></div>
+                    <div><span className="text-muted-foreground">Location:</span> <span className="font-medium text-foreground">{locations.find(l => l.id === formData.locationId)?.name || '—'}</span></div>
+                    <div><span className="text-muted-foreground">Time:</span> <span className="font-medium text-foreground">{formData.scheduledTime || '—'}</span></div>
+                  </div>
                 </div>
               </div>
+            )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
-                  {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="preferredContact">Preferred Contact *</Label>
-                  <Select value={formData.preferredContact} onValueChange={v => setFormData(p => ({ ...p, preferredContact: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="phone">Phone</SelectItem>
-                      <SelectItem value="email">Email</SelectItem>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Showroom Location *</Label>
-                <Select value={formData.locationId} onValueChange={v => setFormData(p => ({ ...p, locationId: v, vehicleId: '' }))}>
-                  <SelectTrigger><SelectValue placeholder="Select a location" /></SelectTrigger>
-                  <SelectContent>
-                    {locations.map(loc => (
-                      <SelectItem key={loc.id} value={loc.id}>{loc.name} - {loc.city}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.locationId && <p className="text-xs text-destructive">{errors.locationId}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Vehicle *</Label>
-                <Select value={formData.vehicleId} onValueChange={v => setFormData(p => ({ ...p, vehicleId: v }))} disabled={!formData.locationId}>
-                  <SelectTrigger><SelectValue placeholder={formData.locationId ? 'Select a vehicle' : 'Select location first'} /></SelectTrigger>
-                  <SelectContent>
-                    {evVehicles.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-success flex items-center gap-1">
-                          <Zap className="h-3 w-3" /> Electric Vehicles
-                        </div>
-                        {evVehicles.map(v => (
-                          <SelectItem key={v.id} value={v.id}>
-                            ⚡ {v.brand} {v.model} {v.variant || ''} — {v.range_km}km range
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
-                    {hybridVehicles.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-info flex items-center gap-1">
-                          🔄 Hybrid Vehicles
-                        </div>
-                        {hybridVehicles.map(v => (
-                          <SelectItem key={v.id} value={v.id}>
-                            🔄 {v.brand} {v.model} {v.variant || ''} ({v.mileage})
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
-                    {iceVehicles.length > 0 && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                          🏎️ Petrol / Diesel
-                        </div>
-                        {iceVehicles.map(v => (
-                          <SelectItem key={v.id} value={v.id}>
-                            {v.brand} {v.model} {v.variant || ''} ({v.color || v.year})
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
-                {errors.vehicleId && <p className="text-xs text-destructive">{errors.vehicleId}</p>}
-              </div>
-
-              {/* Vehicle Specs Card */}
-              {selectedVehicle && <VehicleSpecCard vehicle={selectedVehicle} />}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Preferred Date *</Label>
-                  <Input id="date" type="date" min={minDate} value={formData.scheduledDate} onChange={e => setFormData(p => ({ ...p, scheduledDate: e.target.value }))} />
-                  {errors.scheduledDate && <p className="text-xs text-destructive">{errors.scheduledDate}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="time">Preferred Time *</Label>
-                  <Input id="time" type="time" value={formData.scheduledTime} onChange={e => setFormData(p => ({ ...p, scheduledTime: e.target.value }))} />
-                  {errors.scheduledTime && <p className="text-xs text-destructive">{errors.scheduledTime}</p>}
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full gradient-primary border-0 text-primary-foreground" disabled={isSubmitting} size="lg">
-                {isSubmitting ? 'Booking...' : 'Book Test Drive'}
+            {/* Navigation Buttons */}
+            <div className="flex items-center justify-between pt-4 border-t border-border">
+              <Button type="button" variant="outline" onClick={() => step === 0 ? window.history.back() : setStep(s => s - 1)} className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                {step === 0 ? 'Home' : 'Back'}
               </Button>
-            </form>
+              {step < STEPS.length - 1 ? (
+                <Button type="button" onClick={() => setStep(s => s + 1)} disabled={!canProceed()} className="gradient-primary border-0 text-primary-foreground gap-2">
+                  Next <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button type="button" onClick={handleSubmit} disabled={isSubmitting || !canProceed()} className="gradient-primary border-0 text-primary-foreground gap-2" size="lg">
+                  {isSubmitting ? 'Booking...' : 'Confirm Booking'}
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
     </div>
+  );
+};
+
+// Model selection card
+const ModelCard = ({ model, selected, onClick }: { model: any; selected: boolean; onClick: () => void }) => {
+  const sample = model.vehicles[0];
+  const isEV = model.engine_type === 'electric';
+  return (
+    <button type="button" onClick={onClick}
+      className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+        selected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/30 bg-card'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-semibold text-foreground">{model.brand} {model.model}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {sample?.variant || ''} · {sample?.year}
+            {isEV && sample?.range_km ? ` · ${sample.range_km}km range` : ''}
+            {!isEV && sample?.mileage ? ` · ${sample.mileage}` : ''}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-[10px]">
+            {model.vehicles.length} available
+          </Badge>
+          {selected && <CheckCircle className="h-5 w-5 text-primary" />}
+        </div>
+      </div>
+      {sample?.horsepower && (
+        <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+          <span>{sample.horsepower} HP</span>
+          {sample.acceleration && <span>{sample.acceleration}</span>}
+          {sample.transmission && <span>{sample.transmission}</span>}
+        </div>
+      )}
+    </button>
   );
 };
 
