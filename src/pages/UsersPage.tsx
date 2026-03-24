@@ -13,7 +13,7 @@ import { UserPlus, Pencil, MapPin } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const ROLES = [
-  { value: 'superadmin', label: 'Super Admin' },
+  { value: 'superadmin', label: 'Sales Lead' },
   { value: 'gro', label: 'GRO' },
   { value: 'sales', label: 'Sales Person' },
   { value: 'security', label: 'Security' },
