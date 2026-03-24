@@ -42,6 +42,7 @@ const App = () => (
             <Route path="/users" element={<ProtectedRoute allowedRoles={['superadmin']}><UsersPage /></ProtectedRoute>} />
             <Route path="/data-center" element={<ProtectedRoute allowedRoles={['superadmin']}><DataCenterPage /></ProtectedRoute>} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
+            <Route path="/waiting-board" element={<WaitingBoardPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
