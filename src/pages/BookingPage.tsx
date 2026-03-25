@@ -345,6 +345,20 @@ const BookingPage = () => {
             {/* Step 0: Vehicle Selection */}
             {step === 0 && (
               <div className="space-y-4">
+                {/* Compare button */}
+                {compareIds.length >= 2 && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20">
+                    <span className="text-sm text-foreground font-medium">
+                      <GitCompareArrows className="h-4 w-4 inline mr-1.5" />
+                      {compareIds.length} vehicles selected for comparison
+                    </span>
+                    <RouterLink to={`/compare?ids=${compareIds.join(',')}`}>
+                      <Button size="sm" className="gradient-primary border-0 text-primary-foreground text-xs">
+                        Compare Now
+                      </Button>
+                    </RouterLink>
+                  </div>
+                )}
                 {modelGroups.ev.length > 0 && (
                   <div>
                     <div className="flex items-center gap-1.5 mb-3">
@@ -354,6 +368,7 @@ const BookingPage = () => {
                     <div className="grid gap-3">
                       {modelGroups.ev.map(m => (
                         <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
+                          compareIds={compareIds} onToggleCompare={(id) => setCompareIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : prev.length < 4 ? [...prev, id] : prev)}
                           onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
                       ))}
                     </div>
@@ -367,6 +382,7 @@ const BookingPage = () => {
                     <div className="grid gap-3">
                       {modelGroups.hybrid.map(m => (
                         <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
+                          compareIds={compareIds} onToggleCompare={(id) => setCompareIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : prev.length < 4 ? [...prev, id] : prev)}
                           onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
                       ))}
                     </div>
@@ -380,6 +396,7 @@ const BookingPage = () => {
                     <div className="grid gap-3">
                       {modelGroups.ice.map(m => (
                         <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
+                          compareIds={compareIds} onToggleCompare={(id) => setCompareIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : prev.length < 4 ? [...prev, id] : prev)}
                           onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
                       ))}
                     </div>
