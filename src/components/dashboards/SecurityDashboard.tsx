@@ -61,12 +61,25 @@ const SecurityDashboard = () => {
     fetchTodayDrives();
   };
 
-  const openLicensePreview = (customerId: string, licenseUrl: string) => {
-    // Get public URL from storage
-    const { data } = supabase.storage.from('documents').getPublicUrl(licenseUrl);
-    setPreviewUrl(data?.publicUrl || licenseUrl);
+  const openLicensePreview = async (customerId: string, licenseUrl: string) => {
     setPendingVerifyId(customerId);
     setPreviewOpen(true);
+    
+    // If it's already a full URL, try to extract the storage path for a signed URL
+    if (licenseUrl.startsWith('http')) {
+      const bucketPath = licenseUrl.split('/storage/v1/object/public/documents/')[1] 
+        || licenseUrl.split('/storage/v1/object/sign/documents/')[1];
+      if (bucketPath) {
+        const { data } = await supabase.storage.from('documents').createSignedUrl(bucketPath, 300);
+        setPreviewUrl(data?.signedUrl || licenseUrl);
+      } else {
+        setPreviewUrl(licenseUrl);
+      }
+    } else {
+      // It's a storage path
+      const { data } = await supabase.storage.from('documents').createSignedUrl(licenseUrl, 300);
+      setPreviewUrl(data?.signedUrl || licenseUrl);
+    }
   };
 
   const confirmVerify = async () => {
@@ -104,9 +117,8 @@ const SecurityDashboard = () => {
       const path = `licenses/${customerId}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
       if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(path);
       await supabase.from('customers').update({
-        driving_license_url: publicUrl,
+        driving_license_url: path,
         driving_license_verified: false,
       }).eq('id', customerId);
       toast({ title: 'License re-uploaded', description: 'Ready for verification' });
