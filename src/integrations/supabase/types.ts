@@ -21,6 +21,7 @@ export type Database = {
           customer_id: string
           external_id: string | null
           id: string
+          parent_id: string | null
           purpose: Database["public"]["Enums"]["communication_purpose"]
           sent_at: string | null
           sent_to: string
@@ -35,6 +36,7 @@ export type Database = {
           customer_id: string
           external_id?: string | null
           id?: string
+          parent_id?: string | null
           purpose: Database["public"]["Enums"]["communication_purpose"]
           sent_at?: string | null
           sent_to: string
@@ -49,6 +51,7 @@ export type Database = {
           customer_id?: string
           external_id?: string | null
           id?: string
+          parent_id?: string | null
           purpose?: Database["public"]["Enums"]["communication_purpose"]
           sent_at?: string | null
           sent_to?: string
@@ -63,6 +66,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "communications_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "communications"
             referencedColumns: ["id"]
           },
           {
