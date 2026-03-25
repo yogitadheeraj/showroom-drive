@@ -91,6 +91,9 @@ const GRODashboard = () => {
         <TabsList>
           <TabsTrigger value="calendar">Calendar View</TabsTrigger>
           <TabsTrigger value="queue">Queue View</TabsTrigger>
+          <TabsTrigger value="blocked">
+            <ShieldAlert className="h-4 w-4 mr-1" /> Blocked Slots
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="calendar">
