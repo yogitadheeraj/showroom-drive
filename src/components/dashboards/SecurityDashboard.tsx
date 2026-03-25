@@ -198,20 +198,44 @@ const SecurityDashboard = () => {
                   <p className="text-sm text-muted-foreground">
                     {td.vehicles?.brand} {td.vehicles?.model} • {td.scheduled_time}
                   </p>
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {td.customers?.driving_license_url ? (
                       td.customers?.driving_license_verified ? (
                         <Badge className="bg-success/10 text-success">License Verified</Badge>
                       ) : (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Badge className="bg-warning/10 text-warning">License Pending</Badge>
                           <Button size="sm" variant="outline" onClick={() => openLicensePreview(td.customer_id, td.customers.driving_license_url)}>
                             <FileCheck className="h-3 w-3 mr-1" /> Review & Verify
                           </Button>
+                          <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => openRejectDialog(td.customer_id)}>
+                            <XCircle className="h-3 w-3 mr-1" /> Reject
+                          </Button>
                         </div>
                       )
                     ) : (
-                      <Badge className="bg-destructive/10 text-destructive">No License</Badge>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className="bg-destructive/10 text-destructive">No License</Badge>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor={`reupload-sec-${td.customer_id}`} className="cursor-pointer">
+                            <Button size="sm" variant="outline" asChild>
+                              <span><Upload className="h-3 w-3 mr-1" /> Upload License</span>
+                            </Button>
+                          </Label>
+                          <input
+                            id={`reupload-sec-${td.customer_id}`}
+                            type="file"
+                            accept="image/*,.pdf"
+                            className="hidden"
+                            disabled={reuploadingId === td.customer_id}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleReuploadLicense(td.customer_id, file);
+                            }}
+                          />
+                          {reuploadingId === td.customer_id && <span className="text-xs text-muted-foreground">Uploading...</span>}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
