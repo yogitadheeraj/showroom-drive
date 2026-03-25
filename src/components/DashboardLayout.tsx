@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
-  LogOut, MapPin, BarChart3, MessageSquare, Menu, X
+  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox
 } from 'lucide-react';
 import { useState } from 'react';
 
