@@ -20,6 +20,10 @@ const SecurityDashboard = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [pendingVerifyId, setPendingVerifyId] = useState<string | null>(null);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [pendingRejectId, setPendingRejectId] = useState<string | null>(null);
+  const [reuploadingId, setReuploadingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTodayDrives();
