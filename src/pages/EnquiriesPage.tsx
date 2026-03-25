@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Inbox, Search, MessageSquare, Phone, Mail, Clock, User, Send } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Inbox, Search, MessageSquare, Phone, Mail, Clock, User, Send, Reply } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -20,6 +21,7 @@ interface Enquiry {
   sent_to: string;
   status: string;
   created_at: string;
+  parent_id: string | null;
   customers: { full_name: string; phone: string; email: string | null } | null;
 }
 
@@ -35,7 +37,7 @@ const statusBadge: Record<string, { label: string; className: string }> = {
 };
 
 const EnquiriesPage = () => {
-  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [allComms, setAllComms] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -45,26 +47,37 @@ const EnquiriesPage = () => {
 
   useEffect(() => {
     fetchEnquiries();
-  }, [statusFilter]);
+  }, []);
 
   const fetchEnquiries = async () => {
     setLoading(true);
-    let query = supabase
+    const { data } = await supabase
       .from('communications')
-      .select('id, customer_id, subject, body, sent_to, status, created_at, customers(full_name, phone, email)')
+      .select('id, customer_id, subject, body, sent_to, status, created_at, parent_id, customers(full_name, phone, email)')
       .eq('purpose', 'custom')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
 
-    if (statusFilter !== 'all') {
-      query = query.eq('status', statusFilter);
-    }
-
-    const { data } = await query;
-    setEnquiries((data as unknown as Enquiry[]) || []);
+    setAllComms((data as unknown as Enquiry[]) || []);
     setLoading(false);
   };
 
-  const filtered = enquiries.filter(e => {
+  // Only top-level enquiries (no parent_id) shown in the list
+  const topLevel = allComms.filter(e => !e.parent_id);
+
+  // Determine effective status: if has replies → 'sent', else original status
+  const getEffectiveStatus = (enquiry: Enquiry) => {
+    const replies = allComms.filter(c => c.parent_id === enquiry.id);
+    return replies.length > 0 ? 'sent' : enquiry.status;
+  };
+
+  const getReplies = (enquiryId: string) =>
+    allComms.filter(c => c.parent_id === enquiryId).sort((a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+  const filtered = topLevel.filter(e => {
+    const effectiveStatus = getEffectiveStatus(e);
+    if (statusFilter !== 'all' && effectiveStatus !== statusFilter) return false;
     if (!search.trim()) return true;
     const s = search.toLowerCase();
     return (
@@ -73,15 +86,14 @@ const EnquiriesPage = () => {
       e.body?.toLowerCase().includes(s) ||
       e.sent_to?.toLowerCase().includes(s)
     );
-  });
+  }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  const newCount = enquiries.filter(e => e.status === 'pending').length;
+  const newCount = topLevel.filter(e => getEffectiveStatus(e) === 'pending').length;
 
   const handleReply = async () => {
     if (!selected || !replyText.trim()) return;
     setReplying(true);
     try {
-      // Log the reply as a communication
       const { error } = await supabase.from('communications').insert({
         customer_id: selected.customer_id,
         type: 'email' as const,
@@ -90,19 +102,21 @@ const EnquiriesPage = () => {
         subject: `Re: ${selected.subject || 'Website Enquiry'}`,
         body: replyText.trim(),
         status: 'sent',
+        parent_id: selected.id,
       });
       if (error) throw error;
 
-      toast.success('Reply logged successfully');
+      toast.success('Reply added to thread');
       setReplyText('');
-      setSelected(null);
       fetchEnquiries();
     } catch {
-      toast.error('Failed to log reply');
+      toast.error('Failed to send reply');
     } finally {
       setReplying(false);
     }
   };
+
+  const replyCount = selected ? getReplies(selected.id).length : 0;
 
   return (
     <DashboardLayout>
@@ -156,12 +170,14 @@ const EnquiriesPage = () => {
         ) : (
           <div className="grid gap-3">
             {filtered.map(e => {
-              const badge = statusBadge[e.status] || statusBadge.pending;
+              const effectiveStatus = getEffectiveStatus(e);
+              const badge = statusBadge[effectiveStatus] || statusBadge.pending;
+              const replies = getReplies(e.id);
               return (
                 <Card
                   key={e.id}
                   className={`shadow-card cursor-pointer hover:shadow-elevated transition-all hover:-translate-y-0.5 ${
-                    e.status === 'pending' ? 'border-l-4 border-l-warning' : ''
+                    effectiveStatus === 'pending' ? 'border-l-4 border-l-warning' : ''
                   }`}
                   onClick={() => setSelected(e)}
                 >
@@ -173,6 +189,11 @@ const EnquiriesPage = () => {
                         </div>
                         <span className="font-semibold text-foreground">{e.customers?.full_name || 'Unknown'}</span>
                         <Badge variant="outline" className={badge.className}>{badge.label}</Badge>
+                        {replies.length > 0 && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Reply className="h-3 w-3" />{replies.length} repl{replies.length === 1 ? 'y' : 'ies'}
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2">{e.body || 'No message'}</p>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -185,7 +206,7 @@ const EnquiriesPage = () => {
                     </div>
                     <div className="flex items-center">
                       <Button variant="outline" size="sm" className="rounded-xl text-xs">
-                        View Details
+                        View Thread
                       </Button>
                     </div>
                   </CardContent>
@@ -196,14 +217,15 @@ const EnquiriesPage = () => {
         )}
       </div>
 
-      {/* Detail Dialog */}
-      <Dialog open={!!selected} onOpenChange={open => { if (!open) setSelected(null); }}>
-        <DialogContent className="sm:max-w-lg">
+      {/* Thread Dialog */}
+      <Dialog open={!!selected} onOpenChange={open => { if (!open) { setSelected(null); setReplyText(''); } }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="font-heading">Enquiry Details</DialogTitle>
+            <DialogTitle className="font-heading">Enquiry Thread</DialogTitle>
           </DialogHeader>
           {selected && (
-            <div className="space-y-5">
+            <div className="flex flex-col flex-1 min-h-0 space-y-4">
+              {/* Customer info */}
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <User className="h-5 w-5 text-primary" />
@@ -212,27 +234,48 @@ const EnquiriesPage = () => {
                   <p className="font-semibold text-foreground">{selected.customers?.full_name}</p>
                   <p className="text-xs text-muted-foreground">{selected.customers?.phone} {selected.customers?.email ? `• ${selected.customers.email}` : ''}</p>
                 </div>
-                <Badge variant="outline" className={`ml-auto ${(statusBadge[selected.status] || statusBadge.pending).className}`}>
-                  {(statusBadge[selected.status] || statusBadge.pending).label}
-                </Badge>
               </div>
 
-              <div className="p-4 rounded-xl bg-muted/50 border border-border">
-                <p className="text-xs text-muted-foreground mb-1 font-medium">Message</p>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{selected.body || 'No message content'}</p>
-              </div>
+              {/* Message thread */}
+              <ScrollArea className="flex-1 max-h-[350px] pr-2">
+                <div className="space-y-3">
+                  {/* Original enquiry */}
+                  <div className="p-3 rounded-xl bg-muted/50 border border-border">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-foreground flex items-center gap-1">
+                        <User className="h-3 w-3" /> {selected.customers?.full_name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {format(new Date(selected.created_at), "dd MMM yyyy, h:mm a")}
+                      </span>
+                    </div>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{selected.body || 'No message'}</p>
+                  </div>
 
-              <p className="text-xs text-muted-foreground">
-                Received {format(new Date(selected.created_at), "dd MMM yyyy 'at' h:mm a")}
-              </p>
+                  {/* Replies */}
+                  {getReplies(selected.id).map(reply => (
+                    <div key={reply.id} className="p-3 rounded-xl bg-primary/5 border border-primary/10 ml-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-primary flex items-center gap-1">
+                          <Reply className="h-3 w-3" /> Staff Reply
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {format(new Date(reply.created_at), "dd MMM yyyy, h:mm a")}
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{reply.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Log a Reply</label>
+              {/* Reply input */}
+              <div className="space-y-2 pt-2 border-t border-border">
                 <Textarea
-                  placeholder="Type your response…"
+                  placeholder="Type your reply…"
                   value={replyText}
                   onChange={e => setReplyText(e.target.value)}
-                  className="rounded-xl min-h-[80px]"
+                  className="rounded-xl min-h-[70px]"
                   maxLength={2000}
                 />
                 <Button
@@ -240,7 +283,7 @@ const EnquiriesPage = () => {
                   disabled={replying || !replyText.trim()}
                   className="gradient-primary border-0 text-primary-foreground rounded-xl"
                 >
-                  {replying ? 'Sending…' : <><Send className="h-4 w-4 mr-2" />Log Reply</>}
+                  {replying ? 'Sending…' : <><Send className="h-4 w-4 mr-2" />Reply</>}
                 </Button>
               </div>
             </div>
