@@ -156,11 +156,31 @@ const SalesDashboard = () => {
                     {uploading === td.id && <span className="text-xs text-muted-foreground">Uploading...</span>}
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-sm text-success">
-                    <FileCheck className="h-4 w-4" />
-                    <span>License uploaded</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <FileCheck className="h-4 w-4 text-success" />
+                    <span className="text-sm text-success">License uploaded</span>
                     {!td.customers?.driving_license_verified && (
-                      <Badge variant="outline" className="text-warning">Pending verification</Badge>
+                      <>
+                        <Badge variant="outline" className="text-warning">Pending verification</Badge>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor={`reupload-${td.id}`} className="cursor-pointer">
+                            <Button size="sm" variant="ghost" asChild className="text-muted-foreground">
+                              <span><RotateCcw className="h-3 w-3 mr-1" /> Re-upload</span>
+                            </Button>
+                          </Label>
+                          <input
+                            id={`reupload-${td.id}`}
+                            type="file"
+                            accept="image/*,.pdf"
+                            className="hidden"
+                            disabled={uploading === td.id}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUploadLicense(td.id, td.customer_id, file);
+                            }}
+                          />
+                        </div>
+                      </>
                     )}
                     {td.customers?.driving_license_verified && (
                       <Badge variant="outline" className="text-success">Verified</Badge>
