@@ -4,9 +4,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CalendarCheck, Clock, TrendingUp, Monitor } from 'lucide-react';
+import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import GROCalendarView from './GROCalendarView';
+import BlockedSlotsManager from './BlockedSlotsManager';
 
 const GRODashboard = () => {
   const { profile } = useAuth();
@@ -90,6 +91,9 @@ const GRODashboard = () => {
         <TabsList>
           <TabsTrigger value="calendar">Calendar View</TabsTrigger>
           <TabsTrigger value="queue">Queue View</TabsTrigger>
+          <TabsTrigger value="blocked">
+            <ShieldAlert className="h-4 w-4 mr-1" /> Blocked Slots
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="calendar">
@@ -143,6 +147,10 @@ const GRODashboard = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="blocked">
+          <BlockedSlotsManager />
         </TabsContent>
       </Tabs>
     </div>
