@@ -46,7 +46,7 @@ const EnquiryWidget = () => {
         sent_to: form.email.trim() || form.phone.trim(),
         subject: 'Website Enquiry',
         body: form.message.trim(),
-        status: 'received',
+        status: 'pending',
       });
       if (error) throw error;
 
