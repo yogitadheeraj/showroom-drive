@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import VehicleSpecCard from '@/components/booking/VehicleSpecCard';
-import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield } from 'lucide-react';
+import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows } from 'lucide-react';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 
 const STEPS = [
@@ -32,20 +33,38 @@ const bookingSchema = z.object({
 });
 
 const BookingPage = () => {
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState(0);
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [operatingHours, setOperatingHours] = useState<any[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     fullName: '', email: '', phone: '', preferredContact: 'phone',
     locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '',
-    selectedModel: '', // brand+model key for step 1
+    selectedModel: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const { toast } = useToast();
+
+  // Auto-select vehicle from URL (coming from compare page)
+  useEffect(() => {
+    const vehicleId = searchParams.get('vehicleId');
+    if (vehicleId && allVehicles.length > 0) {
+      const v = allVehicles.find(veh => veh.id === vehicleId);
+      if (v) {
+        setFormData(prev => ({
+          ...prev,
+          selectedModel: `${v.brand}|${v.model}`,
+          vehicleId: v.id,
+          locationId: v.location_id,
+        }));
+      }
+    }
+  }, [searchParams, allVehicles]);
 
   // Load all active available vehicles, locations, and operating hours
   useEffect(() => {
