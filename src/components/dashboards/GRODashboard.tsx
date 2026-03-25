@@ -148,6 +148,10 @@ const GRODashboard = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="blocked">
+          <BlockedSlotsManager />
+        </TabsContent>
       </Tabs>
     </div>
   );
