@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import VehicleSpecCard from '@/components/booking/VehicleSpecCard';
-import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield } from 'lucide-react';
+import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows } from 'lucide-react';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 
 const STEPS = [
@@ -32,20 +33,38 @@ const bookingSchema = z.object({
 });
 
 const BookingPage = () => {
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState(0);
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [operatingHours, setOperatingHours] = useState<any[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     fullName: '', email: '', phone: '', preferredContact: 'phone',
     locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '',
-    selectedModel: '', // brand+model key for step 1
+    selectedModel: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const { toast } = useToast();
+
+  // Auto-select vehicle from URL (coming from compare page)
+  useEffect(() => {
+    const vehicleId = searchParams.get('vehicleId');
+    if (vehicleId && allVehicles.length > 0) {
+      const v = allVehicles.find(veh => veh.id === vehicleId);
+      if (v) {
+        setFormData(prev => ({
+          ...prev,
+          selectedModel: `${v.brand}|${v.model}`,
+          vehicleId: v.id,
+          locationId: v.location_id,
+        }));
+      }
+    }
+  }, [searchParams, allVehicles]);
 
   // Load all active available vehicles, locations, and operating hours
   useEffect(() => {
@@ -326,6 +345,20 @@ const BookingPage = () => {
             {/* Step 0: Vehicle Selection */}
             {step === 0 && (
               <div className="space-y-4">
+                {/* Compare button */}
+                {compareIds.length >= 2 && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20">
+                    <span className="text-sm text-foreground font-medium">
+                      <GitCompareArrows className="h-4 w-4 inline mr-1.5" />
+                      {compareIds.length} vehicles selected for comparison
+                    </span>
+                    <RouterLink to={`/compare?ids=${compareIds.join(',')}`}>
+                      <Button size="sm" className="gradient-primary border-0 text-primary-foreground text-xs">
+                        Compare Now
+                      </Button>
+                    </RouterLink>
+                  </div>
+                )}
                 {modelGroups.ev.length > 0 && (
                   <div>
                     <div className="flex items-center gap-1.5 mb-3">
@@ -335,6 +368,7 @@ const BookingPage = () => {
                     <div className="grid gap-3">
                       {modelGroups.ev.map(m => (
                         <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
+                          compareIds={compareIds} onToggleCompare={(id) => setCompareIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : prev.length < 4 ? [...prev, id] : prev)}
                           onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
                       ))}
                     </div>
@@ -348,6 +382,7 @@ const BookingPage = () => {
                     <div className="grid gap-3">
                       {modelGroups.hybrid.map(m => (
                         <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
+                          compareIds={compareIds} onToggleCompare={(id) => setCompareIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : prev.length < 4 ? [...prev, id] : prev)}
                           onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
                       ))}
                     </div>
@@ -361,6 +396,7 @@ const BookingPage = () => {
                     <div className="grid gap-3">
                       {modelGroups.ice.map(m => (
                         <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
+                          compareIds={compareIds} onToggleCompare={(id) => setCompareIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : prev.length < 4 ? [...prev, id] : prev)}
                           onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
                       ))}
                     </div>
@@ -578,39 +614,54 @@ const BookingPage = () => {
 };
 
 // Model selection card
-const ModelCard = ({ model, selected, onClick }: { model: any; selected: boolean; onClick: () => void }) => {
+const ModelCard = ({ model, selected, onClick, compareIds = [], onToggleCompare }: { model: any; selected: boolean; onClick: () => void; compareIds?: string[]; onToggleCompare?: (id: string) => void }) => {
   const sample = model.vehicles[0];
   const isEV = model.engine_type === 'electric';
+  const vehicleId = sample?.id;
+  const isInCompare = vehicleId && compareIds.includes(vehicleId);
   return (
-    <button type="button" onClick={onClick}
-      className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-        selected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/30 bg-card'
-      }`}
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="font-semibold text-foreground">{model.brand} {model.model}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {sample?.variant || ''} · {sample?.year}
-            {isEV && sample?.range_km ? ` · ${sample.range_km}km range` : ''}
-            {!isEV && sample?.mileage ? ` · ${sample.mileage}` : ''}
-          </p>
+    <div className="relative">
+      <button type="button" onClick={onClick}
+        className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+          selected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/30 bg-card'
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-foreground">{model.brand} {model.model}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {sample?.variant || ''} · {sample?.year}
+              {isEV && sample?.range_km ? ` · ${sample.range_km}km range` : ''}
+              {!isEV && sample?.mileage ? ` · ${sample.mileage}` : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className={`text-[10px] ${sample?.available_units > 0 ? '' : 'bg-destructive/10 text-destructive'}`}>
+              {sample?.available_units > 0 ? `${sample.available_units}/${sample.total_units} avail` : 'Booked'}
+            </Badge>
+            {selected && <CheckCircle className="h-5 w-5 text-primary" />}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-[10px]">
-            {model.vehicles.length} available
-          </Badge>
-          {selected && <CheckCircle className="h-5 w-5 text-primary" />}
-        </div>
-      </div>
-      {sample?.horsepower && (
-        <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-          <span>{sample.horsepower} HP</span>
-          {sample.acceleration && <span>{sample.acceleration}</span>}
-          {sample.transmission && <span>{sample.transmission}</span>}
-        </div>
+        {sample?.horsepower && (
+          <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+            <span>{sample.horsepower} HP</span>
+            {sample.acceleration && <span>{sample.acceleration}</span>}
+            {sample.transmission && <span>{sample.transmission}</span>}
+          </div>
+        )}
+      </button>
+      {onToggleCompare && vehicleId && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleCompare(vehicleId); }}
+          className={`absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+            isInCompare ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          }`}
+        >
+          {isInCompare ? '✓ Compare' : '+ Compare'}
+        </button>
       )}
-    </button>
+    </div>
   );
 };
 

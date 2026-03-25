@@ -132,6 +132,11 @@ const Index = () => {
             <span className="text-xl font-heading font-bold text-primary-foreground tracking-tight">DriveSync</span>
           </div>
           <div className="flex items-center gap-3">
+            <Link to="/compare">
+              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground rounded-xl font-semibold hover:bg-primary-foreground/10 transition-all px-6">
+                Compare Vehicles
+              </Button>
+            </Link>
             <Link to="/book">
               <Button size="lg" className="gradient-accent border-0 text-accent-foreground rounded-xl font-semibold shadow-lg shadow-accent/30 hover:shadow-xl hover:shadow-accent/40 transition-shadow px-6">
                 🚗 Book Test Drive
@@ -361,6 +366,10 @@ const Index = () => {
               <Car className="h-4 w-4 text-primary-foreground" />
             </div>
             <span className="font-heading font-semibold text-foreground">DriveSync</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link to="/dealer-onboarding" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Dealer Onboarding</Link>
+            <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
           </div>
           <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} DriveSync — Test Drive Management Platform</p>
         </div>

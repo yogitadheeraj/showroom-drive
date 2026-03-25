@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      brands: {
+        Row: {
+          created_at: string
+          dealer_id: string | null
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          dealer_id?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+        }
+        Update: {
+          created_at?: string
+          dealer_id?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brands_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "dealers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       communications: {
         Row: {
           body: string | null
@@ -119,6 +154,45 @@ export type Database = {
           phone?: string
           preferred_contact?: string
           total_test_drives?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      dealers: {
+        Row: {
+          admin_user_id: string | null
+          contact_email: string
+          contact_phone: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          admin_user_id?: string | null
+          contact_email: string
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          admin_user_id?: string | null
+          contact_email?: string
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+          slug?: string
           updated_at?: string
         }
         Relationships: []
@@ -292,6 +366,7 @@ export type Database = {
           city: string
           country: string
           created_at: string
+          dealer_id: string | null
           email: string | null
           id: string
           is_active: boolean
@@ -305,6 +380,7 @@ export type Database = {
           city: string
           country?: string
           created_at?: string
+          dealer_id?: string | null
           email?: string | null
           id?: string
           is_active?: boolean
@@ -318,6 +394,7 @@ export type Database = {
           city?: string
           country?: string
           created_at?: string
+          dealer_id?: string | null
           email?: string | null
           id?: string
           is_active?: boolean
@@ -326,7 +403,15 @@ export type Database = {
           state?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "locations_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "dealers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -529,6 +614,7 @@ export type Database = {
       vehicles: {
         Row: {
           acceleration: string | null
+          available_units: number
           battery_capacity: string | null
           brand: string
           color: string | null
@@ -549,6 +635,7 @@ export type Database = {
           seating_capacity: number | null
           top_speed: string | null
           torque: string | null
+          total_units: number
           transmission: string | null
           updated_at: string
           variant: string | null
@@ -556,6 +643,7 @@ export type Database = {
         }
         Insert: {
           acceleration?: string | null
+          available_units?: number
           battery_capacity?: string | null
           brand: string
           color?: string | null
@@ -576,6 +664,7 @@ export type Database = {
           seating_capacity?: number | null
           top_speed?: string | null
           torque?: string | null
+          total_units?: number
           transmission?: string | null
           updated_at?: string
           variant?: string | null
@@ -583,6 +672,7 @@ export type Database = {
         }
         Update: {
           acceleration?: string | null
+          available_units?: number
           battery_capacity?: string | null
           brand?: string
           color?: string | null
@@ -603,6 +693,7 @@ export type Database = {
           seating_capacity?: number | null
           top_speed?: string | null
           torque?: string | null
+          total_units?: number
           transmission?: string | null
           updated_at?: string
           variant?: string | null
