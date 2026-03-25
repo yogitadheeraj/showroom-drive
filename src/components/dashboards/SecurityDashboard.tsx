@@ -4,13 +4,19 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Shield, CheckCircle, XCircle, FileCheck } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
+} from '@/components/ui/dialog';
 
 const SecurityDashboard = () => {
   const { profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const { toast } = useToast();
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [pendingVerifyId, setPendingVerifyId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTodayDrives();
@@ -48,11 +54,26 @@ const SecurityDashboard = () => {
     fetchTodayDrives();
   };
 
-  const verifyLicense = async (customerId: string) => {
-    await supabase.from('customers').update({ driving_license_verified: true }).eq('id', customerId);
+  const openLicensePreview = (customerId: string, licenseUrl: string) => {
+    // Get public URL from storage
+    const { data } = supabase.storage.from('documents').getPublicUrl(licenseUrl);
+    setPreviewUrl(data?.publicUrl || licenseUrl);
+    setPendingVerifyId(customerId);
+    setPreviewOpen(true);
+  };
+
+  const confirmVerify = async () => {
+    if (!pendingVerifyId) return;
+    await supabase.from('customers').update({ driving_license_verified: true }).eq('id', pendingVerifyId);
     toast({ title: 'License verified' });
+    setPreviewOpen(false);
+    setPendingVerifyId(null);
     fetchTodayDrives();
   };
+
+  const pendingCount = testDrives.filter(
+    t => t.customers?.driving_license_url && !t.customers?.driving_license_verified
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -61,7 +82,7 @@ const SecurityDashboard = () => {
         <p className="text-muted-foreground">Today's check-ins and document verification</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="shadow-card">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center">
@@ -99,6 +120,22 @@ const SecurityDashboard = () => {
             </div>
           </CardContent>
         </Card>
+        <Card className="shadow-card border-warning/30">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="relative h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-warning" />
+              {pendingCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
+                  {pendingCount}
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Pending Verification</p>
+              <p className="text-2xl font-heading font-bold text-warning">{pendingCount}</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="shadow-card">
@@ -121,8 +158,8 @@ const SecurityDashboard = () => {
                       ) : (
                         <div className="flex items-center gap-2">
                           <Badge className="bg-warning/10 text-warning">License Pending</Badge>
-                          <Button size="sm" variant="outline" onClick={() => verifyLicense(td.customer_id)}>
-                            <FileCheck className="h-3 w-3 mr-1" /> Verify
+                          <Button size="sm" variant="outline" onClick={() => openLicensePreview(td.customer_id, td.customers.driving_license_url)}>
+                            <FileCheck className="h-3 w-3 mr-1" /> Review & Verify
                           </Button>
                         </div>
                       )
@@ -155,6 +192,37 @@ const SecurityDashboard = () => {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Driving License Preview</DialogTitle>
+            <DialogDescription>Review the uploaded license before verifying</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center bg-muted rounded-lg p-4 min-h-[300px]">
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt="Driving License"
+                className="max-w-full max-h-[400px] rounded-lg object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                  (e.target as HTMLImageElement).parentElement!.innerHTML =
+                    '<p class="text-muted-foreground">Unable to load license image. The file may not be an image format.</p>';
+                }}
+              />
+            ) : (
+              <p className="text-muted-foreground">No preview available</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cancel</Button>
+            <Button onClick={confirmVerify}>
+              <CheckCircle className="h-4 w-4 mr-1" /> Confirm Verification
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
