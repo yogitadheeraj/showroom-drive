@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
-  LogOut, MapPin, BarChart3, MessageSquare, Menu, X
+  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -14,6 +14,7 @@ const NAV_ITEMS: Record<string, { label: string; path: string; icon: any }[]> = 
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Users', path: '/users', icon: Users },
+    { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
   ],
@@ -22,11 +23,13 @@ const NAV_ITEMS: Record<string, { label: string; path: string; icon: any }[]> = 
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
+    { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
   ],
   sales: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'My Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Upload License', path: '/upload-license', icon: Shield },
   ],
   security: [
