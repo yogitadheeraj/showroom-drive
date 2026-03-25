@@ -4,9 +4,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CalendarCheck, Clock, TrendingUp, Monitor } from 'lucide-react';
+import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import GROCalendarView from './GROCalendarView';
+import BlockedSlotsManager from './BlockedSlotsManager';
 
 const GRODashboard = () => {
   const { profile } = useAuth();
