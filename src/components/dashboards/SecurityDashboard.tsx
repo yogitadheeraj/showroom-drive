@@ -4,14 +4,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, RotateCcw } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
+import VehicleInspectionDialog from './VehicleInspectionDialog';
 
 const SecurityDashboard = () => {
   const { profile } = useAuth();
@@ -24,6 +24,9 @@ const SecurityDashboard = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [pendingRejectId, setPendingRejectId] = useState<string | null>(null);
   const [reuploadingId, setReuploadingId] = useState<string | null>(null);
+  const [inspectionDrive, setInspectionDrive] = useState<any>(null);
+  const [inspectionType, setInspectionType] = useState<'pre' | 'post'>('pre');
+  const [inspectionViewDrive, setInspectionViewDrive] = useState<any>(null);
 
   useEffect(() => {
     fetchTodayDrives();
@@ -65,7 +68,6 @@ const SecurityDashboard = () => {
     setPendingVerifyId(customerId);
     setPreviewOpen(true);
     
-    // If it's already a full URL, try to extract the storage path for a signed URL
     if (licenseUrl.startsWith('http')) {
       const bucketPath = licenseUrl.split('/storage/v1/object/public/documents/')[1] 
         || licenseUrl.split('/storage/v1/object/sign/documents/')[1];
@@ -76,7 +78,6 @@ const SecurityDashboard = () => {
         setPreviewUrl(licenseUrl);
       }
     } else {
-      // It's a storage path
       const { data } = await supabase.storage.from('documents').createSignedUrl(licenseUrl, 300);
       setPreviewUrl(data?.signedUrl || licenseUrl);
     }
@@ -130,6 +131,11 @@ const SecurityDashboard = () => {
     }
   };
 
+  const openInspection = (td: any, type: 'pre' | 'post') => {
+    setInspectionDrive(td);
+    setInspectionType(type);
+  };
+
   const pendingCount = testDrives.filter(
     t => t.customers?.driving_license_url && !t.customers?.driving_license_verified
   ).length;
@@ -138,7 +144,7 @@ const SecurityDashboard = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-heading font-bold text-foreground">Security Dashboard</h1>
-        <p className="text-muted-foreground">Today's check-ins and document verification</p>
+        <p className="text-muted-foreground">Today's check-ins, inspections & document verification</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -204,67 +210,112 @@ const SecurityDashboard = () => {
         <CardContent>
           <div className="space-y-3">
             {testDrives.map(td => (
-              <div key={td.id} className="flex items-center justify-between p-4 rounded-lg border border-border">
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">{td.customers?.full_name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {td.vehicles?.brand} {td.vehicles?.model} • {td.scheduled_time}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    {td.customers?.driving_license_url ? (
-                      td.customers?.driving_license_verified ? (
-                        <Badge className="bg-success/10 text-success">License Verified</Badge>
-                      ) : (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge className="bg-warning/10 text-warning">License Pending</Badge>
-                          <Button size="sm" variant="outline" onClick={() => openLicensePreview(td.customer_id, td.customers.driving_license_url)}>
-                            <FileCheck className="h-3 w-3 mr-1" /> Review & Verify
-                          </Button>
-                          <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => openRejectDialog(td.customer_id)}>
-                            <XCircle className="h-3 w-3 mr-1" /> Reject
-                          </Button>
-                        </div>
-                      )
-                    ) : (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge className="bg-destructive/10 text-destructive">No License</Badge>
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor={`reupload-sec-${td.customer_id}`} className="cursor-pointer">
-                            <Button size="sm" variant="outline" asChild>
-                              <span><Upload className="h-3 w-3 mr-1" /> Upload License</span>
-                            </Button>
-                          </Label>
-                          <input
-                            id={`reupload-sec-${td.customer_id}`}
-                            type="file"
-                            accept="image/*,.pdf"
-                            className="hidden"
-                            disabled={reuploadingId === td.customer_id}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleReuploadLicense(td.customer_id, file);
-                            }}
-                          />
-                          {reuploadingId === td.customer_id && <span className="text-xs text-muted-foreground">Uploading...</span>}
-                        </div>
+              <div key={td.id} className="p-4 rounded-lg border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-foreground">{td.customers?.full_name}</p>
+                      <Badge variant="secondary" className={
+                        td.status === 'completed' ? 'bg-success/10 text-success' :
+                        td.status === 'in_progress' ? 'bg-primary/10 text-primary' :
+                        'bg-muted text-muted-foreground'
+                      }>
+                        {td.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {td.vehicles?.brand} {td.vehicles?.model} ({td.vehicles?.registration_number}) • {td.scheduled_time}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {!td.security_checked_in_at ? (
+                      <Button size="sm" onClick={() => checkIn(td.id)}>
+                        <CheckCircle className="h-4 w-4 mr-1" /> Check In
+                      </Button>
+                    ) : !td.security_checked_out_at ? (
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-success/10 text-success">Checked In</Badge>
+                        <Button size="sm" variant="outline" onClick={() => checkOut(td.id)}>
+                          <XCircle className="h-4 w-4 mr-1" /> Check Out
+                        </Button>
                       </div>
+                    ) : (
+                      <Badge className="bg-muted text-muted-foreground">Checked Out</Badge>
                     )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {!td.security_checked_in_at ? (
-                    <Button size="sm" onClick={() => checkIn(td.id)}>
-                      <CheckCircle className="h-4 w-4 mr-1" /> Check In
-                    </Button>
-                  ) : !td.security_checked_out_at ? (
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-success/10 text-success">Checked In</Badge>
-                      <Button size="sm" variant="outline" onClick={() => checkOut(td.id)}>
-                        <XCircle className="h-4 w-4 mr-1" /> Check Out
-                      </Button>
-                    </div>
+
+                {/* License verification section */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {td.customers?.driving_license_url ? (
+                    td.customers?.driving_license_verified ? (
+                      <Badge className="bg-success/10 text-success">License Verified</Badge>
+                    ) : (
+                      <>
+                        <Badge className="bg-warning/10 text-warning">License Pending</Badge>
+                        <Button size="sm" variant="outline" onClick={() => openLicensePreview(td.customer_id, td.customers.driving_license_url)}>
+                          <FileCheck className="h-3 w-3 mr-1" /> Review & Verify
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => openRejectDialog(td.customer_id)}>
+                          <XCircle className="h-3 w-3 mr-1" /> Reject
+                        </Button>
+                      </>
+                    )
                   ) : (
-                    <Badge className="bg-muted text-muted-foreground">Checked Out</Badge>
+                    <>
+                      <Badge className="bg-destructive/10 text-destructive">No License</Badge>
+                      <Label htmlFor={`reupload-sec-${td.customer_id}`} className="cursor-pointer">
+                        <Button size="sm" variant="outline" asChild>
+                          <span><Upload className="h-3 w-3 mr-1" /> Upload License</span>
+                        </Button>
+                      </Label>
+                      <input
+                        id={`reupload-sec-${td.customer_id}`}
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        disabled={reuploadingId === td.customer_id}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleReuploadLicense(td.customer_id, file);
+                        }}
+                      />
+                      {reuploadingId === td.customer_id && <span className="text-xs text-muted-foreground">Uploading...</span>}
+                    </>
+                  )}
+                </div>
+
+                {/* Vehicle Inspection section */}
+                <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-border">
+                  {/* Pre-drive inspection */}
+                  {td.status === 'in_progress' && !(td as any).pre_drive_km && (
+                    <Button size="sm" variant="outline" className="text-primary" onClick={() => openInspection(td, 'pre')}>
+                      <ClipboardCheck className="h-3 w-3 mr-1" /> Pre-Drive Inspection
+                    </Button>
+                  )}
+                  {(td as any).pre_drive_km && (
+                    <Badge className="bg-primary/10 text-primary">Pre-Drive: {(td as any).pre_drive_km} km</Badge>
+                  )}
+
+                  {/* Post-drive inspection */}
+                  {(td.status === 'completed' || (td.status === 'in_progress' && (td as any).pre_drive_km)) && !(td as any).post_drive_km && (
+                    <Button size="sm" variant="outline" className="text-success" onClick={() => openInspection(td, 'post')}>
+                      <ClipboardCheck className="h-3 w-3 mr-1" /> Post-Drive Inspection
+                    </Button>
+                  )}
+                  {(td as any).post_drive_km && (
+                    <Badge className="bg-success/10 text-success">Post-Drive: {(td as any).post_drive_km} km</Badge>
+                  )}
+
+                  {/* View inspection details */}
+                  {((td as any).pre_drive_km || (td as any).post_drive_km) && (
+                    <Button size="sm" variant="ghost" onClick={() => setInspectionViewDrive(td)}>
+                      <Eye className="h-3 w-3 mr-1" /> View Details
+                    </Button>
+                  )}
+
+                  {(td as any).inspection_submitted_at && (
+                    <Badge className="bg-muted text-muted-foreground">Inspection Complete</Badge>
                   )}
                 </div>
               </div>
@@ -276,6 +327,7 @@ const SecurityDashboard = () => {
         </CardContent>
       </Card>
 
+      {/* License Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -295,7 +347,7 @@ const SecurityDashboard = () => {
                 }}
               />
             ) : (
-              <p className="text-muted-foreground">No preview available</p>
+              <p className="text-muted-foreground">Loading preview...</p>
             )}
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -310,6 +362,7 @@ const SecurityDashboard = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Reject License Dialog */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>
           <DialogHeader>
@@ -332,6 +385,79 @@ const SecurityDashboard = () => {
             <Button variant="destructive" onClick={confirmReject}>
               <XCircle className="h-4 w-4 mr-1" /> Confirm Rejection
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Vehicle Inspection Dialog */}
+      <VehicleInspectionDialog
+        open={!!inspectionDrive}
+        onClose={() => setInspectionDrive(null)}
+        testDrive={inspectionDrive}
+        type={inspectionType}
+        onComplete={fetchTodayDrives}
+      />
+
+      {/* Inspection Details View Dialog */}
+      <Dialog open={!!inspectionViewDrive} onOpenChange={() => setInspectionViewDrive(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-primary" />
+              Inspection Report
+            </DialogTitle>
+            <DialogDescription>
+              {inspectionViewDrive?.vehicles?.brand} {inspectionViewDrive?.vehicles?.model} — {inspectionViewDrive?.vehicles?.registration_number}
+            </DialogDescription>
+          </DialogHeader>
+          {inspectionViewDrive && (
+            <div className="space-y-4">
+              {(inspectionViewDrive as any).pre_drive_km && (
+                <div className="rounded-lg border border-border p-4 space-y-2">
+                  <h4 className="font-medium text-foreground flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-primary" /> Pre-Drive Inspection
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_km} km</span></div>
+                    <div><span className="text-muted-foreground">Fuel/Battery:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_fuel_level || 'N/A'}</span></div>
+                  </div>
+                  {(inspectionViewDrive as any).pre_drive_scratches && (
+                    <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> <span>{(inspectionViewDrive as any).pre_drive_scratches}</span></div>
+                  )}
+                  {(inspectionViewDrive as any).pre_drive_notes && (
+                    <div className="text-sm"><span className="text-muted-foreground">Notes:</span> <span>{(inspectionViewDrive as any).pre_drive_notes}</span></div>
+                  )}
+                </div>
+              )}
+              {(inspectionViewDrive as any).post_drive_km && (
+                <div className="rounded-lg border border-border p-4 space-y-2">
+                  <h4 className="font-medium text-foreground flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-success" /> Post-Drive Inspection
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_km} km</span></div>
+                    <div><span className="text-muted-foreground">Fuel/Battery:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_fuel_level || 'N/A'}</span></div>
+                  </div>
+                  {(inspectionViewDrive as any).post_drive_scratches && (
+                    <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> <span>{(inspectionViewDrive as any).post_drive_scratches}</span></div>
+                  )}
+                  {(inspectionViewDrive as any).post_drive_notes && (
+                    <div className="text-sm"><span className="text-muted-foreground">Notes:</span> <span>{(inspectionViewDrive as any).post_drive_notes}</span></div>
+                  )}
+                </div>
+              )}
+              {(inspectionViewDrive as any).pre_drive_km && (inspectionViewDrive as any).post_drive_km && (
+                <div className="rounded-lg bg-muted p-3 text-sm">
+                  <p className="font-medium text-foreground">Drive Summary</p>
+                  <p className="text-muted-foreground">
+                    Distance covered: <span className="font-medium text-foreground">{((inspectionViewDrive as any).post_drive_km - (inspectionViewDrive as any).pre_drive_km).toFixed(1)} km</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInspectionViewDrive(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

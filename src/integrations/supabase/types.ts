@@ -493,8 +493,18 @@ export type Database = {
           created_at: string
           customer_id: string
           id: string
+          inspection_submitted_at: string | null
+          key_handed_at: string | null
           location_id: string
           notes: string | null
+          post_drive_fuel_level: string | null
+          post_drive_km: number | null
+          post_drive_notes: string | null
+          post_drive_scratches: string | null
+          pre_drive_fuel_level: string | null
+          pre_drive_km: number | null
+          pre_drive_notes: string | null
+          pre_drive_scratches: string | null
           rescheduled_from: string | null
           scheduled_date: string
           scheduled_time: string
@@ -514,8 +524,18 @@ export type Database = {
           created_at?: string
           customer_id: string
           id?: string
+          inspection_submitted_at?: string | null
+          key_handed_at?: string | null
           location_id: string
           notes?: string | null
+          post_drive_fuel_level?: string | null
+          post_drive_km?: number | null
+          post_drive_notes?: string | null
+          post_drive_scratches?: string | null
+          pre_drive_fuel_level?: string | null
+          pre_drive_km?: number | null
+          pre_drive_notes?: string | null
+          pre_drive_scratches?: string | null
           rescheduled_from?: string | null
           scheduled_date: string
           scheduled_time: string
@@ -535,8 +555,18 @@ export type Database = {
           created_at?: string
           customer_id?: string
           id?: string
+          inspection_submitted_at?: string | null
+          key_handed_at?: string | null
           location_id?: string
           notes?: string | null
+          post_drive_fuel_level?: string | null
+          post_drive_km?: number | null
+          post_drive_notes?: string | null
+          post_drive_scratches?: string | null
+          pre_drive_fuel_level?: string | null
+          pre_drive_km?: number | null
+          pre_drive_notes?: string | null
+          pre_drive_scratches?: string | null
           rescheduled_from?: string | null
           scheduled_date?: string
           scheduled_time?: string
