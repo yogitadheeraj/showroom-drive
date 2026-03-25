@@ -4,8 +4,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
@@ -17,6 +20,10 @@ const SecurityDashboard = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [pendingVerifyId, setPendingVerifyId] = useState<string | null>(null);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [pendingRejectId, setPendingRejectId] = useState<string | null>(null);
+  const [reuploadingId, setReuploadingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTodayDrives();
@@ -69,6 +76,46 @@ const SecurityDashboard = () => {
     setPreviewOpen(false);
     setPendingVerifyId(null);
     fetchTodayDrives();
+  };
+
+  const openRejectDialog = (customerId: string) => {
+    setPendingRejectId(customerId);
+    setRejectReason('');
+    setRejectOpen(true);
+  };
+
+  const confirmReject = async () => {
+    if (!pendingRejectId) return;
+    await supabase.from('customers').update({
+      driving_license_url: null,
+      driving_license_verified: false,
+    }).eq('id', pendingRejectId);
+    toast({ title: 'License rejected', description: rejectReason || 'Customer must re-upload their license' });
+    setRejectOpen(false);
+    setPendingRejectId(null);
+    setPreviewOpen(false);
+    fetchTodayDrives();
+  };
+
+  const handleReuploadLicense = async (customerId: string, file: File) => {
+    setReuploadingId(customerId);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `licenses/${customerId}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(path);
+      await supabase.from('customers').update({
+        driving_license_url: publicUrl,
+        driving_license_verified: false,
+      }).eq('id', customerId);
+      toast({ title: 'License re-uploaded', description: 'Ready for verification' });
+      fetchTodayDrives();
+    } catch (err: any) {
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setReuploadingId(null);
+    }
   };
 
   const pendingCount = testDrives.filter(
@@ -151,20 +198,44 @@ const SecurityDashboard = () => {
                   <p className="text-sm text-muted-foreground">
                     {td.vehicles?.brand} {td.vehicles?.model} • {td.scheduled_time}
                   </p>
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {td.customers?.driving_license_url ? (
                       td.customers?.driving_license_verified ? (
                         <Badge className="bg-success/10 text-success">License Verified</Badge>
                       ) : (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Badge className="bg-warning/10 text-warning">License Pending</Badge>
                           <Button size="sm" variant="outline" onClick={() => openLicensePreview(td.customer_id, td.customers.driving_license_url)}>
                             <FileCheck className="h-3 w-3 mr-1" /> Review & Verify
                           </Button>
+                          <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => openRejectDialog(td.customer_id)}>
+                            <XCircle className="h-3 w-3 mr-1" /> Reject
+                          </Button>
                         </div>
                       )
                     ) : (
-                      <Badge className="bg-destructive/10 text-destructive">No License</Badge>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className="bg-destructive/10 text-destructive">No License</Badge>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor={`reupload-sec-${td.customer_id}`} className="cursor-pointer">
+                            <Button size="sm" variant="outline" asChild>
+                              <span><Upload className="h-3 w-3 mr-1" /> Upload License</span>
+                            </Button>
+                          </Label>
+                          <input
+                            id={`reupload-sec-${td.customer_id}`}
+                            type="file"
+                            accept="image/*,.pdf"
+                            className="hidden"
+                            disabled={reuploadingId === td.customer_id}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleReuploadLicense(td.customer_id, file);
+                            }}
+                          />
+                          {reuploadingId === td.customer_id && <span className="text-xs text-muted-foreground">Uploading...</span>}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -215,10 +286,39 @@ const SecurityDashboard = () => {
               <p className="text-muted-foreground">No preview available</p>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="destructive" onClick={() => { setPreviewOpen(false); openRejectDialog(pendingVerifyId!); }} className="sm:mr-auto">
+              <XCircle className="h-4 w-4 mr-1" /> Reject License
+            </Button>
             <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cancel</Button>
             <Button onClick={confirmVerify}>
               <CheckCircle className="h-4 w-4 mr-1" /> Confirm Verification
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Driving License</DialogTitle>
+            <DialogDescription>The license will be removed and the customer or staff can re-upload a new one.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Reason for rejection <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Textarea
+                placeholder="e.g. Image is blurry, expired license, wrong document..."
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmReject}>
+              <XCircle className="h-4 w-4 mr-1" /> Confirm Rejection
             </Button>
           </DialogFooter>
         </DialogContent>
