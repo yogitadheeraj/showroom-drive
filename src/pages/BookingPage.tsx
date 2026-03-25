@@ -614,39 +614,54 @@ const BookingPage = () => {
 };
 
 // Model selection card
-const ModelCard = ({ model, selected, onClick }: { model: any; selected: boolean; onClick: () => void }) => {
+const ModelCard = ({ model, selected, onClick, compareIds = [], onToggleCompare }: { model: any; selected: boolean; onClick: () => void; compareIds?: string[]; onToggleCompare?: (id: string) => void }) => {
   const sample = model.vehicles[0];
   const isEV = model.engine_type === 'electric';
+  const vehicleId = sample?.id;
+  const isInCompare = vehicleId && compareIds.includes(vehicleId);
   return (
-    <button type="button" onClick={onClick}
-      className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-        selected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/30 bg-card'
-      }`}
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="font-semibold text-foreground">{model.brand} {model.model}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {sample?.variant || ''} · {sample?.year}
-            {isEV && sample?.range_km ? ` · ${sample.range_km}km range` : ''}
-            {!isEV && sample?.mileage ? ` · ${sample.mileage}` : ''}
-          </p>
+    <div className="relative">
+      <button type="button" onClick={onClick}
+        className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+          selected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/30 bg-card'
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-foreground">{model.brand} {model.model}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {sample?.variant || ''} · {sample?.year}
+              {isEV && sample?.range_km ? ` · ${sample.range_km}km range` : ''}
+              {!isEV && sample?.mileage ? ` · ${sample.mileage}` : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className={`text-[10px] ${sample?.available_units > 0 ? '' : 'bg-destructive/10 text-destructive'}`}>
+              {sample?.available_units > 0 ? `${sample.available_units}/${sample.total_units} avail` : 'Booked'}
+            </Badge>
+            {selected && <CheckCircle className="h-5 w-5 text-primary" />}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-[10px]">
-            {model.vehicles.length} available
-          </Badge>
-          {selected && <CheckCircle className="h-5 w-5 text-primary" />}
-        </div>
-      </div>
-      {sample?.horsepower && (
-        <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-          <span>{sample.horsepower} HP</span>
-          {sample.acceleration && <span>{sample.acceleration}</span>}
-          {sample.transmission && <span>{sample.transmission}</span>}
-        </div>
+        {sample?.horsepower && (
+          <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+            <span>{sample.horsepower} HP</span>
+            {sample.acceleration && <span>{sample.acceleration}</span>}
+            {sample.transmission && <span>{sample.transmission}</span>}
+          </div>
+        )}
+      </button>
+      {onToggleCompare && vehicleId && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleCompare(vehicleId); }}
+          className={`absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
+            isInCompare ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          }`}
+        >
+          {isInCompare ? '✓ Compare' : '+ Compare'}
+        </button>
       )}
-    </button>
+    </div>
   );
 };
 
