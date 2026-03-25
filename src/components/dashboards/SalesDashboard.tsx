@@ -6,15 +6,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw } from 'lucide-react';
+import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SalesSwapDialog from './SalesSwapDialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
+} from '@/components/ui/dialog';
 
 const SalesDashboard = () => {
   const { user, profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
   const [swapDrive, setSwapDrive] = useState<any>(null);
+  const [inspectionViewDrive, setInspectionViewDrive] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -37,8 +41,7 @@ const SalesDashboard = () => {
       const path = `licenses/${customerId}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
       if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(path);
-      await supabase.from('customers').update({ driving_license_url: publicUrl }).eq('id', customerId);
+      await supabase.from('customers').update({ driving_license_url: path }).eq('id', customerId);
       toast({ title: 'License uploaded successfully' });
       fetchAssignedDrives();
     } catch (err: any) {
@@ -46,6 +49,23 @@ const SalesDashboard = () => {
     } finally {
       setUploading(null);
     }
+  };
+
+  const handleGiveKeyAndStart = async (id: string) => {
+    await supabase.from('test_drives').update({
+      key_handed_at: new Date().toISOString(),
+      status: 'in_progress' as any,
+    } as any).eq('id', id);
+    toast({ title: 'Key handed over', description: 'Test drive marked as in progress' });
+    fetchAssignedDrives();
+  };
+
+  const handleComplete = async (id: string) => {
+    await supabase.from('test_drives').update({
+      status: 'completed' as any,
+    }).eq('id', id);
+    toast({ title: 'Test drive completed' });
+    fetchAssignedDrives();
   };
 
   const statusColor: Record<string, string> = {
@@ -65,7 +85,7 @@ const SalesDashboard = () => {
         <p className="text-muted-foreground">Your assigned test drives</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="shadow-card">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center">
@@ -74,6 +94,19 @@ const SalesDashboard = () => {
             <div>
               <p className="text-sm text-muted-foreground">Assigned</p>
               <p className="text-2xl font-heading font-bold text-foreground">{testDrives.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-card">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center">
+              <Key className="h-6 w-6 text-info" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">In Progress</p>
+              <p className="text-2xl font-heading font-bold text-foreground">
+                {testDrives.filter(t => t.status === 'in_progress').length}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -93,7 +126,7 @@ const SalesDashboard = () => {
         <Card className="shadow-card">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center">
-              <Upload className="h-6 w-6 text-info" />
+              <Upload className="h-6 w-6 text-warning" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Pending License</p>
@@ -131,6 +164,7 @@ const SalesDashboard = () => {
                 </div>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
                   <span>{td.vehicles?.brand} {td.vehicles?.model}</span>
+                  <span>{td.vehicles?.registration_number}</span>
                   <span>{td.scheduled_date}</span>
                   <span>{td.scheduled_time}</span>
                 </div>
@@ -139,8 +173,10 @@ const SalesDashboard = () => {
                     {td.notes}
                   </div>
                 )}
+
+                {/* License section */}
                 {!td.customers?.driving_license_url ? (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 mb-3">
                     <Label htmlFor={`license-${td.id}`} className="text-sm">Upload Driving License:</Label>
                     <Input
                       id={`license-${td.id}`}
@@ -156,30 +192,28 @@ const SalesDashboard = () => {
                     {uploading === td.id && <span className="text-xs text-muted-foreground">Uploading...</span>}
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
                     <FileCheck className="h-4 w-4 text-success" />
                     <span className="text-sm text-success">License uploaded</span>
                     {!td.customers?.driving_license_verified && (
                       <>
                         <Badge variant="outline" className="text-warning">Pending verification</Badge>
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor={`reupload-${td.id}`} className="cursor-pointer">
-                            <Button size="sm" variant="ghost" asChild className="text-muted-foreground">
-                              <span><RotateCcw className="h-3 w-3 mr-1" /> Re-upload</span>
-                            </Button>
-                          </Label>
-                          <input
-                            id={`reupload-${td.id}`}
-                            type="file"
-                            accept="image/*,.pdf"
-                            className="hidden"
-                            disabled={uploading === td.id}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleUploadLicense(td.id, td.customer_id, file);
-                            }}
-                          />
-                        </div>
+                        <Label htmlFor={`reupload-${td.id}`} className="cursor-pointer">
+                          <Button size="sm" variant="ghost" asChild className="text-muted-foreground">
+                            <span><RotateCcw className="h-3 w-3 mr-1" /> Re-upload</span>
+                          </Button>
+                        </Label>
+                        <input
+                          id={`reupload-${td.id}`}
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          disabled={uploading === td.id}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadLicense(td.id, td.customer_id, file);
+                          }}
+                        />
                       </>
                     )}
                     {td.customers?.driving_license_verified && (
@@ -187,6 +221,36 @@ const SalesDashboard = () => {
                     )}
                   </div>
                 )}
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border">
+                  {td.status === 'show' && (
+                    <Button size="sm" onClick={() => handleGiveKeyAndStart(td.id)}>
+                      <Key className="h-4 w-4 mr-1" /> Give Key & Start Drive
+                    </Button>
+                  )}
+                  {td.status === 'in_progress' && (
+                    <>
+                      <Badge className="bg-primary/10 text-primary">
+                        <Key className="h-3 w-3 mr-1" /> Key Handed
+                      </Badge>
+                      <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={() => handleComplete(td.id)}>
+                        <FileCheck className="h-4 w-4 mr-1" /> Mark Completed
+                      </Button>
+                    </>
+                  )}
+                  {/* Inspection details for completed drives */}
+                  {td.status === 'completed' && ((td as any).pre_drive_km || (td as any).post_drive_km) && (
+                    <Button size="sm" variant="outline" onClick={() => setInspectionViewDrive(td)}>
+                      <Eye className="h-4 w-4 mr-1" /> View Inspection
+                    </Button>
+                  )}
+                  {td.status === 'completed' && (td as any).inspection_submitted_at && (
+                    <Badge className="bg-success/10 text-success">
+                      <ClipboardCheck className="h-3 w-3 mr-1" /> Inspection Complete
+                    </Badge>
+                  )}
+                </div>
               </div>
             ))}
             {testDrives.length === 0 && (
@@ -202,6 +266,67 @@ const SalesDashboard = () => {
         testDrive={swapDrive}
         onSwapped={fetchAssignedDrives}
       />
+
+      {/* Inspection Details Dialog */}
+      <Dialog open={!!inspectionViewDrive} onOpenChange={() => setInspectionViewDrive(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5 text-primary" />
+              Inspection Report
+            </DialogTitle>
+            <DialogDescription>
+              {inspectionViewDrive?.vehicles?.brand} {inspectionViewDrive?.vehicles?.model} — {inspectionViewDrive?.vehicles?.registration_number}
+            </DialogDescription>
+          </DialogHeader>
+          {inspectionViewDrive && (
+            <div className="space-y-4">
+              {(inspectionViewDrive as any).pre_drive_km && (
+                <div className="rounded-lg border border-border p-4 space-y-2">
+                  <h4 className="font-medium text-foreground flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-primary" /> Pre-Drive
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_km} km</span></div>
+                    <div><span className="text-muted-foreground">Fuel:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_fuel_level || 'N/A'}</span></div>
+                  </div>
+                  {(inspectionViewDrive as any).pre_drive_scratches && (
+                    <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> {(inspectionViewDrive as any).pre_drive_scratches}</div>
+                  )}
+                  {(inspectionViewDrive as any).pre_drive_notes && (
+                    <div className="text-sm"><span className="text-muted-foreground">Notes:</span> {(inspectionViewDrive as any).pre_drive_notes}</div>
+                  )}
+                </div>
+              )}
+              {(inspectionViewDrive as any).post_drive_km && (
+                <div className="rounded-lg border border-border p-4 space-y-2">
+                  <h4 className="font-medium text-foreground flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-success" /> Post-Drive
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_km} km</span></div>
+                    <div><span className="text-muted-foreground">Fuel:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_fuel_level || 'N/A'}</span></div>
+                  </div>
+                  {(inspectionViewDrive as any).post_drive_scratches && (
+                    <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> {(inspectionViewDrive as any).post_drive_scratches}</div>
+                  )}
+                  {(inspectionViewDrive as any).post_drive_notes && (
+                    <div className="text-sm"><span className="text-muted-foreground">Notes:</span> {(inspectionViewDrive as any).post_drive_notes}</div>
+                  )}
+                </div>
+              )}
+              {(inspectionViewDrive as any).pre_drive_km && (inspectionViewDrive as any).post_drive_km && (
+                <div className="rounded-lg bg-muted p-3 text-sm">
+                  <p className="font-medium text-foreground">Distance: {((inspectionViewDrive as any).post_drive_km - (inspectionViewDrive as any).pre_drive_km).toFixed(1)} km</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInspectionViewDrive(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
