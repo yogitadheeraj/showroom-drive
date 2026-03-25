@@ -10,12 +10,14 @@ import { useState } from 'react';
 const NAV_ITEMS: Record<string, { label: string; path: string; icon: any }[]> = {
   superadmin: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Locations', path: '/locations', icon: MapPin },
-    { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Walk-in', path: '/walkin', icon: Users },
+    { label: 'Vehicles', path: '/vehicles', icon: Car },
+    { label: 'Locations', path: '/locations', icon: MapPin },
     { label: 'Users', path: '/users', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
+    { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
   ],
   gro: [
@@ -25,17 +27,18 @@ const NAV_ITEMS: Record<string, { label: string; path: string; icon: any }[]> = 
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
+    { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
   ],
   sales: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'My Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
-    { label: 'Upload License', path: '/upload-license', icon: Shield },
+    { label: 'Communications', path: '/communications', icon: MessageSquare },
   ],
   security: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Check-In/Out', path: '/security', icon: Shield },
-    { label: 'Documents', path: '/documents', icon: Shield },
+    { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
   ],
 };
 
