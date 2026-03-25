@@ -286,10 +286,39 @@ const SecurityDashboard = () => {
               <p className="text-muted-foreground">No preview available</p>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="destructive" onClick={() => { setPreviewOpen(false); openRejectDialog(pendingVerifyId!); }} className="sm:mr-auto">
+              <XCircle className="h-4 w-4 mr-1" /> Reject License
+            </Button>
             <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cancel</Button>
             <Button onClick={confirmVerify}>
               <CheckCircle className="h-4 w-4 mr-1" /> Confirm Verification
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Driving License</DialogTitle>
+            <DialogDescription>The license will be removed and the customer or staff can re-upload a new one.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Reason for rejection <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Textarea
+                placeholder="e.g. Image is blurry, expired license, wrong document..."
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmReject}>
+              <XCircle className="h-4 w-4 mr-1" /> Confirm Rejection
             </Button>
           </DialogFooter>
         </DialogContent>
