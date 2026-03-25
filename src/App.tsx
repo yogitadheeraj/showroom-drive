@@ -20,6 +20,8 @@ import UsersPage from "./pages/UsersPage.tsx";
 import DataCenterPage from "./pages/DataCenterPage.tsx";
 import WaitingBoardPage from "./pages/WaitingBoardPage.tsx";
 import EnquiriesPage from "./pages/EnquiriesPage.tsx";
+import ComparePage from "./pages/ComparePage.tsx";
+import DealerOnboardingPage from "./pages/DealerOnboardingPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +45,8 @@ const App = () => (
             <Route path="/vehicles" element={<ProtectedRoute allowedRoles={['superadmin', 'gro']}><VehiclesPage /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute allowedRoles={['superadmin']}><UsersPage /></ProtectedRoute>} />
             <Route path="/data-center" element={<ProtectedRoute allowedRoles={['superadmin']}><DataCenterPage /></ProtectedRoute>} />
+            <Route path="/compare" element={<ComparePage />} />
+            <Route path="/dealer-onboarding" element={<DealerOnboardingPage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="/waiting-board" element={<WaitingBoardPage />} />
             <Route path="*" element={<NotFound />} />
