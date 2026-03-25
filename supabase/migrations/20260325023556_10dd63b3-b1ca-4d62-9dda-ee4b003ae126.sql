@@ -1,0 +1,1 @@
+ALTER TABLE public.communications ADD COLUMN parent_id uuid REFERENCES public.communications(id) ON DELETE SET NULL DEFAULT NULL;
