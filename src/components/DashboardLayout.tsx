@@ -19,6 +19,7 @@ const NAV_ITEMS: Record<string, { label: string; path: string; icon: any }[]> = 
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
+    { label: 'Settings', path: '/settings', icon: Settings },
   ],
   dealer_admin: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -31,6 +32,7 @@ const NAV_ITEMS: Record<string, { label: string; path: string; icon: any }[]> = 
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
+    { label: 'Settings', path: '/settings', icon: Settings },
   ],
   gro: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
