@@ -18,25 +18,34 @@ export type Database = {
         Row: {
           created_at: string
           dealer_id: string | null
+          description: string | null
           id: string
           is_active: boolean
           logo_url: string | null
+          meta_description: string | null
+          meta_title: string | null
           name: string
         }
         Insert: {
           created_at?: string
           dealer_id?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          meta_description?: string | null
+          meta_title?: string | null
           name: string
         }
         Update: {
           created_at?: string
           dealer_id?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          meta_description?: string | null
+          meta_title?: string | null
           name?: string
         }
         Relationships: [

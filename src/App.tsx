@@ -22,6 +22,7 @@ import WaitingBoardPage from "./pages/WaitingBoardPage.tsx";
 import EnquiriesPage from "./pages/EnquiriesPage.tsx";
 import ComparePage from "./pages/ComparePage.tsx";
 import DealerOnboardingPage from "./pages/DealerOnboardingPage.tsx";
+import DealerSettingsPage from "./pages/DealerSettingsPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ const App = () => (
             <Route path="/users" element={<ProtectedRoute allowedRoles={['superadmin', 'dealer_admin']}><UsersPage /></ProtectedRoute>} />
             <Route path="/data-center" element={<ProtectedRoute allowedRoles={['superadmin', 'dealer_admin']}><DataCenterPage /></ProtectedRoute>} />
             <Route path="/compare" element={<ComparePage />} />
+            <Route path="/settings" element={<ProtectedRoute allowedRoles={['superadmin', 'dealer_admin']}><DealerSettingsPage /></ProtectedRoute>} />
             <Route path="/dealer-onboarding" element={<DealerOnboardingPage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="/waiting-board" element={<WaitingBoardPage />} />
