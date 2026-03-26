@@ -307,7 +307,7 @@ const SecurityDashboard = () => {
         onClose={() => setInspectionDrive(null)}
         testDrive={inspectionDrive}
         type={inspectionType}
-        onSaved={fetchTodayDrives}
+        onComplete={fetchTodayDrives}
       />
 
       {/* Inspection View Dialog */}
