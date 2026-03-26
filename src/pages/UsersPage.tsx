@@ -14,7 +14,7 @@ import { UserPlus, Pencil, MapPin } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const ROLES = [
-  { value: 'superadmin', label: 'Sales Lead' },
+  { value: 'dealer_admin', label: 'Dealer Admin' },
   { value: 'gro', label: 'GRO' },
   { value: 'sales', label: 'Sales Person' },
   { value: 'security', label: 'Security' },
@@ -22,13 +22,15 @@ const ROLES = [
 
 const roleColor: Record<string, string> = {
   superadmin: 'bg-destructive/10 text-destructive',
+  dealer_admin: 'bg-accent/10 text-accent-foreground',
   gro: 'bg-primary/10 text-primary',
   sales: 'bg-info/10 text-info',
   security: 'bg-warning/10 text-warning',
 };
 
 const roleLabel: Record<string, string> = {
-  superadmin: 'Sales Lead',
+  superadmin: 'Super Admin',
+  dealer_admin: 'Dealer Admin',
   gro: 'GRO',
   sales: 'Sales',
   security: 'Security',
