@@ -3,57 +3,128 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock } from 'lucide-react';
+import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter } from 'lucide-react';
 
 const SuperAdminDashboard = () => {
+  const { role } = useAuth();
+  const { dealerId: contextDealerId, loading: dealerLoading } = useDealerContext();
+  const isSuperAdmin = role === 'superadmin';
+
   const [stats, setStats] = useState({ total: 0, scheduled: 0, completed: 0, noShow: 0, cancelled: 0 });
+  const [dealers, setDealers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
-  const [selectedLocation, setSelectedLocation] = useState('all');
+  const [staffMembers, setStaffMembers] = useState<any[]>([]);
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [repeatedCustomers, setRepeatedCustomers] = useState<any[]>([]);
-  const { dealerId, dealerLocationIds, loading: dealerLoading } = useDealerContext();
 
+  const [selectedDealer, setSelectedDealer] = useState('all');
+  const [selectedLocation, setSelectedLocation] = useState('all');
+  const [selectedStaff, setSelectedStaff] = useState('all');
+
+  // For superadmin: fetch all dealers. For dealer_admin: use context dealer
+  const activeDealerId = isSuperAdmin
+    ? (selectedDealer === 'all' ? null : selectedDealer)
+    : contextDealerId;
+
+  // Fetch dealers (superadmin only)
   useEffect(() => {
-    if (!dealerLoading && dealerId) {
-      fetchLocations();
-      fetchData();
-    }
-  }, [selectedLocation, dealerId, dealerLoading]);
+    if (!isSuperAdmin) return;
+    const fetchDealers = async () => {
+      const { data } = await supabase.from('dealers').select('id, name').eq('is_active', true).order('name');
+      setDealers(data || []);
+    };
+    fetchDealers();
+  }, [isSuperAdmin]);
 
-  const fetchLocations = async () => {
-    let query = supabase.from('locations').select('*').eq('is_active', true);
-    if (dealerId) query = query.eq('dealer_id', dealerId);
-    const { data } = await query;
-    setLocations(data || []);
-  };
+  // Fetch locations based on selected dealer
+  useEffect(() => {
+    if (dealerLoading && !isSuperAdmin) return;
+    const fetchLocations = async () => {
+      let query = supabase.from('locations').select('id, name, dealer_id').eq('is_active', true);
+      if (activeDealerId) query = query.eq('dealer_id', activeDealerId);
+      const { data } = await query.order('name');
+      setLocations(data || []);
+    };
+    fetchLocations();
+    setSelectedLocation('all');
+    setSelectedStaff('all');
+  }, [activeDealerId, dealerLoading, isSuperAdmin]);
 
-  const fetchData = async () => {
-    let query = supabase.from('test_drives').select('*, customers(*), vehicles(*), locations(*)');
-    if (selectedLocation !== 'all') {
-      query = query.eq('location_id', selectedLocation);
-    } else if (dealerLocationIds && dealerLocationIds.length > 0) {
-      query = query.in('location_id', dealerLocationIds);
-    }
-    const { data: td } = await query.order('scheduled_date', { ascending: false });
-    setTestDrives(td || []);
+  // Fetch staff based on selected location/dealer
+  useEffect(() => {
+    if (dealerLoading && !isSuperAdmin) return;
+    const fetchStaff = async () => {
+      const locationIds = selectedLocation !== 'all'
+        ? [selectedLocation]
+        : locations.map(l => l.id);
 
-    const total = td?.length || 0;
-    const scheduled = td?.filter(t => t.status === 'scheduled').length || 0;
-    const completed = td?.filter(t => t.status === 'completed').length || 0;
-    const noShow = td?.filter(t => t.status === 'no_show').length || 0;
-    const cancelled = td?.filter(t => t.status === 'cancelled').length || 0;
-    setStats({ total, scheduled, completed, noShow, cancelled });
+      if (locationIds.length === 0) {
+        setStaffMembers([]);
+        return;
+      }
 
-    // Get customers who have test drives at this dealer's locations
-    const customerIds = [...new Set(td?.map(t => t.customer_id) || [])];
-    if (customerIds.length > 0) {
-      const { data: customers } = await supabase.from('customers').select('*').gt('total_test_drives', 1).in('id', customerIds);
-      setRepeatedCustomers(customers || []);
-    } else {
-      setRepeatedCustomers([]);
-    }
-  };
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, location_id')
+        .in('location_id', locationIds)
+        .eq('is_active', true)
+        .order('full_name');
+      setStaffMembers(data || []);
+    };
+    fetchStaff();
+    setSelectedStaff('all');
+  }, [selectedLocation, locations, dealerLoading, isSuperAdmin]);
+
+  // Fetch test drives data
+  useEffect(() => {
+    if (dealerLoading && !isSuperAdmin) return;
+    const fetchData = async () => {
+      const locationIds = selectedLocation !== 'all'
+        ? [selectedLocation]
+        : locations.map(l => l.id);
+
+      if (locationIds.length === 0 && !isSuperAdmin) {
+        setTestDrives([]);
+        setStats({ total: 0, scheduled: 0, completed: 0, noShow: 0, cancelled: 0 });
+        setRepeatedCustomers([]);
+        return;
+      }
+
+      let query = supabase.from('test_drives').select('*, customers(*), vehicles(*), locations(*)');
+
+      if (locationIds.length > 0) {
+        query = query.in('location_id', locationIds);
+      }
+
+      if (selectedStaff !== 'all') {
+        query = query.or(`assigned_gro_id.eq.${selectedStaff},assigned_sales_person_id.eq.${selectedStaff}`);
+      }
+
+      const { data: td } = await query.order('scheduled_date', { ascending: false }).limit(500);
+      setTestDrives(td || []);
+
+      const total = td?.length || 0;
+      const scheduled = td?.filter(t => t.status === 'scheduled').length || 0;
+      const completed = td?.filter(t => t.status === 'completed').length || 0;
+      const noShow = td?.filter(t => t.status === 'no_show').length || 0;
+      const cancelled = td?.filter(t => t.status === 'cancelled').length || 0;
+      setStats({ total, scheduled, completed, noShow, cancelled });
+
+      const customerIds = [...new Set(td?.map(t => t.customer_id) || [])];
+      if (customerIds.length > 0) {
+        const { data: customers } = await supabase
+          .from('customers').select('*')
+          .gt('total_test_drives', 1)
+          .in('id', customerIds);
+        setRepeatedCustomers(customers || []);
+      } else {
+        setRepeatedCustomers([]);
+      }
+    };
+    fetchData();
+  }, [selectedLocation, selectedStaff, locations, dealerLoading, isSuperAdmin]);
 
   const statCards = [
     { label: 'Total Test Drives', value: stats.total, icon: CalendarCheck, color: 'text-primary' },
@@ -77,22 +148,59 @@ const SuperAdminDashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">Sales Lead Dashboard</h1>
-          <p className="text-muted-foreground">Overview of your dealership locations and test drives</p>
+          <h1 className="text-2xl font-heading font-bold text-foreground">
+            {isSuperAdmin ? 'Super Admin Dashboard' : 'Sales Lead Dashboard'}
+          </h1>
+          <p className="text-muted-foreground">
+            {isSuperAdmin ? 'Overview of all dealerships, locations and test drives' : 'Overview of your dealership locations and test drives'}
+          </p>
         </div>
-        <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All Locations" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Locations</SelectItem>
-            {locations.map(loc => (
-              <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3 p-4 rounded-lg bg-muted/30 border border-border">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground mr-1">Filters:</span>
+
+          {isSuperAdmin && (
+            <Select value={selectedDealer} onValueChange={(v) => { setSelectedDealer(v); }}>
+              <SelectTrigger className="w-[180px] h-9 text-sm">
+                <SelectValue placeholder="All Dealers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Dealers</SelectItem>
+                {dealers.map(d => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+            <SelectTrigger className="w-[180px] h-9 text-sm">
+              <SelectValue placeholder="All Locations" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Locations</SelectItem>
+              {locations.map(loc => (
+                <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+            <SelectTrigger className="w-[180px] h-9 text-sm">
+              <SelectValue placeholder="All Staff" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Staff</SelectItem>
+              {staffMembers.map(s => (
+                <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
