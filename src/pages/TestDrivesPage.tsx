@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { CalendarX, RefreshCw } from 'lucide-react';
+import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Phone } from 'lucide-react';
 
 const TestDrivesPage = () => {
   const { role } = useAuth();
@@ -82,26 +82,26 @@ const TestDrivesPage = () => {
   };
 
   const statusColor: Record<string, string> = {
-    scheduled: 'bg-info/10 text-info',
-    confirmed: 'bg-primary/10 text-primary',
-    show: 'bg-success/10 text-success',
-    no_show: 'bg-warning/10 text-warning',
-    in_progress: 'bg-accent/10 text-accent-foreground',
-    completed: 'bg-success/10 text-success',
-    cancelled: 'bg-destructive/10 text-destructive',
-    rescheduled: 'bg-muted text-muted-foreground',
+    scheduled: 'bg-info/10 text-info border-info/20',
+    confirmed: 'bg-primary/10 text-primary border-primary/20',
+    show: 'bg-success/10 text-success border-success/20',
+    no_show: 'bg-warning/10 text-warning border-warning/20',
+    in_progress: 'bg-accent/10 text-accent-foreground border-accent/20',
+    completed: 'bg-success/10 text-success border-success/20',
+    cancelled: 'bg-destructive/10 text-destructive border-destructive/20',
+    rescheduled: 'bg-muted text-muted-foreground border-border',
   };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-heading font-bold text-foreground">Test Drives</h1>
-            <p className="text-muted-foreground">Manage all test drive appointments</p>
+            <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Test Drives</h1>
+            <p className="text-sm text-muted-foreground">Manage all test drive appointments</p>
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -118,7 +118,8 @@ const TestDrivesPage = () => {
           </Select>
         </div>
 
-        <Card className="shadow-card">
+        {/* Desktop Table */}
+        <Card className="shadow-card hidden lg:block">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -150,10 +151,10 @@ const TestDrivesPage = () => {
                       <td className="p-3">
                         {['scheduled', 'confirmed'].includes(td.status) && (
                           <div className="flex gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => { setRescheduleId(td.id); }}>
+                            <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90" onClick={() => { setRescheduleId(td.id); }}>
                               <RefreshCw className="h-3 w-3" />
                             </Button>
-                            <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setCancelId(td.id)}>
+                            <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => setCancelId(td.id)}>
                               <CalendarX className="h-3 w-3" />
                             </Button>
                           </div>
@@ -170,6 +171,69 @@ const TestDrivesPage = () => {
           </CardContent>
         </Card>
 
+        {/* Mobile Cards */}
+        <div className="lg:hidden space-y-3">
+          {testDrives.length === 0 ? (
+            <Card className="shadow-card">
+              <CardContent className="p-8 text-center text-muted-foreground">No test drives found</CardContent>
+            </Card>
+          ) : testDrives.map(td => (
+            <Card key={td.id} className="shadow-card hover:shadow-elevated transition-shadow">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-heading font-semibold text-foreground">{td.customers?.full_name}</p>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                      <Phone className="h-3 w-3" />
+                      {td.customers?.phone}
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className={`text-xs ${statusColor[td.status]}`}>
+                    {td.status.replace('_', ' ')}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="flex items-center gap-1.5">
+                    <Car className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-foreground font-medium truncate">{td.vehicles?.brand} {td.vehicles?.model}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground truncate">{td.locations?.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">{td.scheduled_date}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">{td.scheduled_time}</span>
+                  </div>
+                </div>
+
+                {td.profiles?.full_name && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <User className="h-3 w-3" />
+                    Sales: {td.profiles.full_name}
+                  </div>
+                )}
+
+                {['scheduled', 'confirmed'].includes(td.status) && (
+                  <div className="flex gap-2 pt-2 border-t border-border">
+                    <Button size="sm" className="flex-1 bg-info text-info-foreground hover:bg-info/90" onClick={() => { setRescheduleId(td.id); }}>
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Reschedule
+                    </Button>
+                    <Button size="sm" className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => setCancelId(td.id)}>
+                      <CalendarX className="h-3.5 w-3.5 mr-1.5" /> Cancel
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
         <Dialog open={!!rescheduleId} onOpenChange={(o) => !o && setRescheduleId(null)}>
           <DialogContent>
             <DialogHeader>
@@ -184,7 +248,7 @@ const TestDrivesPage = () => {
                 <Label>New Time</Label>
                 <Input type="time" value={newTime} onChange={e => setNewTime(e.target.value)} />
               </div>
-              <Button onClick={handleReschedule} className="w-full">Confirm Reschedule</Button>
+              <Button onClick={handleReschedule} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">Confirm Reschedule</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -199,7 +263,7 @@ const TestDrivesPage = () => {
                 <Label>Reason for cancellation</Label>
                 <Textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Optional reason..." />
               </div>
-              <Button onClick={handleCancel} variant="destructive" className="w-full">Confirm Cancellation</Button>
+              <Button onClick={handleCancel} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm Cancellation</Button>
             </div>
           </DialogContent>
         </Dialog>

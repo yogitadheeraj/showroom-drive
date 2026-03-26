@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert } from 'lucide-react';
+import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert, Car } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import GROCalendarView from './GROCalendarView';
 import BlockedSlotsManager from './BlockedSlotsManager';
@@ -53,33 +53,33 @@ const GRODashboard = () => {
     : '/waiting-board';
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">GRO Dashboard</h1>
-          <p className="text-muted-foreground">Manage test drive appointments for your location</p>
+          <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">GRO Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Manage test drive appointments</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => window.open(waitingBoardUrl, '_blank')}>
+        <Button className="bg-primary text-primary-foreground hover:bg-primary/90 w-full sm:w-auto" onClick={() => window.open(waitingBoardUrl, '_blank')}>
           <Monitor className="h-4 w-4 mr-2" /> Waiting Board
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {[
-          { label: "Today's Drives", value: stats.today, icon: CalendarCheck, color: 'text-primary' },
-          { label: 'Upcoming', value: stats.upcoming, icon: Clock, color: 'text-info' },
-          { label: 'Completed', value: stats.completed, icon: TrendingUp, color: 'text-success' },
+          { label: "Today's Drives", value: stats.today, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
+          { label: 'Upcoming', value: stats.upcoming, icon: Clock, color: 'text-info', bg: 'bg-info/10' },
+          { label: 'Completed', value: stats.completed, icon: TrendingUp, color: 'text-success', bg: 'bg-success/10' },
         ].map(stat => {
           const Icon = stat.icon;
           return (
             <Card key={stat.label} className="shadow-card">
-              <CardContent className="p-5 flex items-center gap-4">
-                <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center">
-                  <Icon className={`h-6 w-6 ${stat.color}`} />
+              <CardContent className="p-4 sm:p-5 flex items-center gap-3 sm:gap-4">
+                <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-xl ${stat.bg} flex items-center justify-center`}>
+                  <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${stat.color}`} />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  <p className="text-2xl font-heading font-bold text-foreground">{stat.value}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">{stat.label}</p>
+                  <p className="text-xl sm:text-2xl font-heading font-bold text-foreground">{stat.value}</p>
                 </div>
               </CardContent>
             </Card>
@@ -88,11 +88,11 @@ const GRODashboard = () => {
       </div>
 
       <Tabs defaultValue="calendar" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="calendar">Calendar View</TabsTrigger>
-          <TabsTrigger value="queue">Queue View</TabsTrigger>
-          <TabsTrigger value="blocked">
-            <ShieldAlert className="h-4 w-4 mr-1" /> Blocked Slots
+        <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:flex">
+          <TabsTrigger value="calendar" className="text-xs sm:text-sm">Calendar</TabsTrigger>
+          <TabsTrigger value="queue" className="text-xs sm:text-sm">Queue</TabsTrigger>
+          <TabsTrigger value="blocked" className="text-xs sm:text-sm">
+            <ShieldAlert className="h-3.5 w-3.5 mr-1" /> Blocked
           </TabsTrigger>
         </TabsList>
 
@@ -102,42 +102,48 @@ const GRODashboard = () => {
 
         <TabsContent value="queue">
           <Card className="shadow-card">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="space-y-3">
                 {testDrives.map(td => (
-                  <div key={td.id} className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <p className="font-medium text-foreground">{td.customers?.full_name}</p>
-                        <Badge variant="secondary" className={statusColor[td.status] || ''}>
-                          {td.status.replace('_', ' ')}
-                        </Badge>
-                        <Badge variant="outline" className="capitalize">{td.source}</Badge>
+                  <div key={td.id} className="p-3 sm:p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-foreground text-sm sm:text-base">{td.customers?.full_name}</p>
+                          <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>
+                            {td.status.replace('_', ' ')}
+                          </Badge>
+                          <Badge variant="outline" className="capitalize text-xs">{td.source}</Badge>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground mt-1">
+                          <Car className="h-3 w-3" />
+                          <span>{td.vehicles?.brand} {td.vehicles?.model}</span>
+                          <span>•</span>
+                          <Clock className="h-3 w-3" />
+                          <span>{td.scheduled_date} {td.scheduled_time}</span>
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {td.vehicles?.brand} {td.vehicles?.model} • {td.scheduled_date} at {td.scheduled_time}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      {td.status === 'scheduled' && (
-                        <>
-                          <Button size="sm" variant="outline" onClick={() => updateStatus(td.id, 'confirmed')}>Confirm</Button>
-                          <Button size="sm" variant="outline" className="text-success" onClick={() => updateStatus(td.id, 'show')}>Show</Button>
-                          <Button size="sm" variant="outline" className="text-warning" onClick={() => updateStatus(td.id, 'no_show')}>No Show</Button>
-                        </>
-                      )}
-                      {td.status === 'confirmed' && (
-                        <>
-                          <Button size="sm" variant="outline" className="text-success" onClick={() => updateStatus(td.id, 'show')}>Show</Button>
-                          <Button size="sm" variant="outline" className="text-warning" onClick={() => updateStatus(td.id, 'no_show')}>No Show</Button>
-                        </>
-                      )}
-                      {td.status === 'show' && (
-                        <Button size="sm" onClick={() => updateStatus(td.id, 'in_progress')}>Start Drive</Button>
-                      )}
-                      {td.status === 'in_progress' && (
-                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90" onClick={() => updateStatus(td.id, 'completed')}>Complete</Button>
-                      )}
+                      <div className="flex gap-2 flex-wrap">
+                        {td.status === 'scheduled' && (
+                          <>
+                            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => updateStatus(td.id, 'confirmed')}>Confirm</Button>
+                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>Show</Button>
+                            <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => updateStatus(td.id, 'no_show')}>No Show</Button>
+                          </>
+                        )}
+                        {td.status === 'confirmed' && (
+                          <>
+                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>Show</Button>
+                            <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => updateStatus(td.id, 'no_show')}>No Show</Button>
+                          </>
+                        )}
+                        {td.status === 'show' && (
+                          <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs" onClick={() => updateStatus(td.id, 'in_progress')}>Start Drive</Button>
+                        )}
+                        {td.status === 'in_progress' && (
+                          <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'completed')}>Complete</Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
