@@ -59,6 +59,20 @@ const DealerOnboardingPage = () => {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      // Generate slug from admin email to ensure uniqueness
+      const emailPrefix = accountData.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const slug = emailPrefix || dealerData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+      // Check for duplicate slug before creating anything
+      const { data: existingDealer } = await supabase
+        .from('dealers')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle();
+      if (existingDealer) {
+        throw new Error('A dealership with this email already exists. Please use a different email address.');
+      }
+
       // 1. Create admin account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: accountData.email,
@@ -71,7 +85,6 @@ const DealerOnboardingPage = () => {
       const userId = authData.user.id;
 
       // 2. Create dealer, brands, and locations via security definer function
-      const slug = dealerData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       const validBrands = brands.filter(b => b.trim());
 
       const { error: onboardError } = await supabase.rpc('onboard_dealer', {
