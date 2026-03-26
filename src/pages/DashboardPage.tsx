@@ -11,6 +11,7 @@ const DashboardPage = () => {
   const renderDashboard = () => {
     switch (role) {
       case 'superadmin': return <SuperAdminDashboard />;
+      case 'dealer_admin': return <SuperAdminDashboard />;
       case 'gro': return <GRODashboard />;
       case 'sales': return <SalesDashboard />;
       case 'security': return <SecurityDashboard />;

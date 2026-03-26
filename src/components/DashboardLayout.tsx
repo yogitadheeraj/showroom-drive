@@ -20,6 +20,18 @@ const NAV_ITEMS: Record<string, { label: string; path: string; icon: any }[]> = 
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
   ],
+  dealer_admin: [
+    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Walk-in', path: '/walkin', icon: Users },
+    { label: 'Vehicles', path: '/vehicles', icon: Car },
+    { label: 'Locations', path: '/locations', icon: MapPin },
+    { label: 'Users', path: '/users', icon: Users },
+    { label: 'Enquiries', path: '/enquiries', icon: Inbox },
+    { label: 'Communications', path: '/communications', icon: MessageSquare },
+    { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
+    { label: 'Data Center', path: '/data-center', icon: BarChart3 },
+  ],
   gro: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
