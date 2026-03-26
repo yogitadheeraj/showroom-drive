@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useDealerContext } from '@/hooks/useDealerContext';
 import { UserPlus, Pencil, MapPin } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -43,19 +44,33 @@ const UsersPage = () => {
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { dealerId, dealerLocationIds, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
-    fetchUsers();
-    supabase.from('locations').select('*').then(({ data }) => setLocations(data || []));
-  }, []);
+    if (!dealerLoading && dealerId) {
+      fetchUsers();
+      supabase.from('locations').select('*').eq('dealer_id', dealerId).then(({ data }) => setLocations(data || []));
+    }
+  }, [dealerId, dealerLoading]);
 
   const fetchUsers = async () => {
     const { data: profiles } = await supabase.from('profiles').select('*').order('full_name');
     const { data: roles } = await supabase.from('user_roles').select('*');
-    const merged = (profiles || []).map(p => ({
-      ...p,
-      user_roles: (roles || []).filter(r => r.user_id === p.user_id),
-    }));
+    
+    // Filter profiles to only those assigned to dealer's locations (or the dealer admin themselves)
+    const merged = (profiles || [])
+      .filter(p => {
+        if (!dealerLocationIds) return true;
+        // Include users at dealer's locations
+        if (p.location_id && dealerLocationIds.includes(p.location_id)) return true;
+        // Include the current user (dealer admin)
+        if (p.user_id === user?.id) return true;
+        return false;
+      })
+      .map(p => ({
+        ...p,
+        user_roles: (roles || []).filter(r => r.user_id === p.user_id),
+      }));
     setUsers(merged);
   };
 
@@ -107,19 +122,16 @@ const UsersPage = () => {
       const currentRole = editingUser.user_roles?.[0];
 
       if (currentRole) {
-        // Update existing role
         await supabase.from('user_roles')
           .update({ role: editForm.role as any })
           .eq('user_id', editingUser.user_id);
       } else {
-        // Insert new role
         await supabase.from('user_roles').insert({
           user_id: editingUser.user_id,
           role: editForm.role as any,
         });
       }
 
-      // Update location
       await supabase.from('profiles')
         .update({ location_id: editForm.locationId || null })
         .eq('user_id', editingUser.user_id);
@@ -138,6 +150,14 @@ const UsersPage = () => {
     if (!locationId) return null;
     return locations.find(l => l.id === locationId)?.name || null;
   };
+
+  if (dealerLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-16 text-muted-foreground">Loading...</div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -202,7 +222,6 @@ const UsersPage = () => {
           </CardContent>
         </Card>
 
-        {/* Create Staff Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogContent>
             <DialogHeader>
@@ -237,7 +256,6 @@ const UsersPage = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Role Dialog */}
         <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
           <DialogContent>
             <DialogHeader>

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
+import { useDealerContext } from '@/hooks/useDealerContext';
 import { Plus, MapPin, Pencil, Clock } from 'lucide-react';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -21,11 +22,16 @@ const LocationsPage = () => {
   const [hours, setHours] = useState<any[]>([]);
   const [savingHours, setSavingHours] = useState(false);
   const { toast } = useToast();
+  const { dealerId, loading: dealerLoading } = useDealerContext();
 
-  useEffect(() => { fetchLocations(); }, []);
+  useEffect(() => {
+    if (!dealerLoading && dealerId) fetchLocations();
+  }, [dealerId, dealerLoading]);
 
   const fetchLocations = async () => {
-    const { data } = await supabase.from('locations').select('*').order('name');
+    let query = supabase.from('locations').select('*').order('name');
+    if (dealerId) query = query.eq('dealer_id', dealerId);
+    const { data } = await query;
     setLocations(data || []);
   };
 
@@ -34,11 +40,12 @@ const LocationsPage = () => {
       toast({ title: 'Missing fields', variant: 'destructive' });
       return;
     }
+    const payload = { ...formData, dealer_id: dealerId };
     if (editingId) {
       await supabase.from('locations').update(formData).eq('id', editingId);
       toast({ title: 'Location updated' });
     } else {
-      await supabase.from('locations').insert(formData);
+      await supabase.from('locations').insert(payload);
       toast({ title: 'Location added' });
     }
     setShowDialog(false);
@@ -96,6 +103,14 @@ const LocationsPage = () => {
   };
 
   const hoursLocationName = locations.find(l => l.id === hoursDialog)?.name || '';
+
+  if (dealerLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-16 text-muted-foreground">Loading...</div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

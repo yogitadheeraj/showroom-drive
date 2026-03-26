@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useDealerContext } from '@/hooks/useDealerContext';
 import { CalendarX, RefreshCw } from 'lucide-react';
 
 const TestDrivesPage = () => {
@@ -23,14 +24,20 @@ const TestDrivesPage = () => {
   const [newTime, setNewTime] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const { toast } = useToast();
+  const { dealerLocationIds, loading: dealerLoading } = useDealerContext();
 
-  useEffect(() => { fetchTestDrives(); }, [statusFilter]);
+  useEffect(() => {
+    if (!dealerLoading) fetchTestDrives();
+  }, [statusFilter, dealerLocationIds, dealerLoading]);
 
   const fetchTestDrives = async () => {
     let query = supabase.from('test_drives')
       .select('*, customers(*), vehicles(*), locations(*), profiles!test_drives_assigned_sales_person_id_fkey(full_name)')
       .order('scheduled_date', { ascending: false });
     if (statusFilter !== 'all') query = query.eq('status', statusFilter as any);
+    if (dealerLocationIds && dealerLocationIds.length > 0) {
+      query = query.in('location_id', dealerLocationIds);
+    }
     const { data } = await query;
     setTestDrives(data || []);
   };
@@ -40,7 +47,6 @@ const TestDrivesPage = () => {
     const original = testDrives.find(t => t.id === rescheduleId);
     if (!original) return;
 
-    // Create new test drive as rescheduled
     await supabase.from('test_drives').insert({
       customer_id: original.customer_id,
       vehicle_id: original.vehicle_id,
@@ -53,7 +59,6 @@ const TestDrivesPage = () => {
       rescheduled_from: rescheduleId,
     });
 
-    // Mark original as rescheduled
     await supabase.from('test_drives').update({ status: 'rescheduled' as any }).eq('id', rescheduleId);
 
     toast({ title: 'Test drive rescheduled' });
@@ -165,7 +170,6 @@ const TestDrivesPage = () => {
           </CardContent>
         </Card>
 
-        {/* Reschedule Dialog */}
         <Dialog open={!!rescheduleId} onOpenChange={(o) => !o && setRescheduleId(null)}>
           <DialogContent>
             <DialogHeader>
@@ -185,7 +189,6 @@ const TestDrivesPage = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Cancel Dialog */}
         <Dialog open={!!cancelId} onOpenChange={(o) => !o && setCancelId(null)}>
           <DialogContent>
             <DialogHeader>

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useDealerContext } from '@/hooks/useDealerContext';
 import { Plus, Car, Edit2 } from 'lucide-react';
 
 const VehiclesPage = () => {
@@ -22,15 +23,21 @@ const VehiclesPage = () => {
     total_units: '1', available_units: '1',
   });
   const { toast } = useToast();
+  const { dealerId, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
-    fetchVehicles();
-    supabase.from('locations').select('*').eq('is_active', true).then(({ data }) => setLocations(data || []));
-  }, []);
+    if (!dealerLoading && dealerId) {
+      fetchVehicles();
+      supabase.from('locations').select('*').eq('is_active', true).eq('dealer_id', dealerId).then(({ data }) => setLocations(data || []));
+    }
+  }, [dealerId, dealerLoading]);
 
   const fetchVehicles = async () => {
-    const { data } = await supabase.from('vehicles').select('*, locations(name)').eq('is_active', true).order('brand');
-    setVehicles(data || []);
+    let query = supabase.from('vehicles').select('*, locations(name, dealer_id)').eq('is_active', true).order('brand');
+    const { data } = await query;
+    // Filter client-side by dealer locations
+    const filtered = (data || []).filter(v => v.locations?.dealer_id === dealerId);
+    setVehicles(filtered);
   };
 
   const openEdit = (v: any) => {
@@ -74,6 +81,14 @@ const VehiclesPage = () => {
     setShowDialog(false);
     fetchVehicles();
   };
+
+  if (dealerLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-16 text-muted-foreground">Loading...</div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
