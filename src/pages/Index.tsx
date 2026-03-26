@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2 } from 'lucide-react';
+import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2 } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
 import showcaseGro from '@/assets/showcase-gro-assign.jpg';
@@ -133,13 +133,18 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-3">
             <Link to="/compare">
-              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground rounded-xl font-semibold hover:bg-primary-foreground/10 transition-all px-6">
-                Compare Vehicles
+              <Button size="lg" className="bg-primary-foreground/10 border border-primary-foreground/20 text-primary-foreground rounded-xl font-semibold hover:bg-primary-foreground/20 backdrop-blur-sm transition-all px-6">
+                <Car className="mr-2 h-4 w-4" /> Compare Vehicles
               </Button>
             </Link>
             <Link to="/book">
               <Button size="lg" className="gradient-accent border-0 text-accent-foreground rounded-xl font-semibold shadow-lg shadow-accent/30 hover:shadow-xl hover:shadow-accent/40 transition-shadow px-6">
                 🚗 Book Test Drive
+              </Button>
+            </Link>
+            <Link to="/dealer-onboarding">
+              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground rounded-xl font-semibold hover:bg-primary-foreground/10 transition-all px-6">
+                <Building2 className="mr-2 h-4 w-4" /> For Dealers
               </Button>
             </Link>
             <Link to="/auth">
@@ -330,6 +335,67 @@ const Index = () => {
         </div>
       </div>
 
+      {/* For Dealers Section */}
+      <div className="py-24">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <motion.span
+              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
+              className="text-sm font-semibold text-accent uppercase tracking-wider"
+            >
+              For Dealerships
+            </motion.span>
+            <motion.h2
+              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
+              className="text-3xl md:text-4xl font-heading font-bold text-foreground mt-3"
+            >
+              Set Up Your Dealership in Minutes
+            </motion.h2>
+            <motion.p
+              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
+              className="text-muted-foreground mt-4 max-w-xl mx-auto"
+            >
+              Onboard your dealership, add brands, configure locations, and customize branding — all from one dashboard.
+            </motion.p>
+          </div>
+
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={3}
+            className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          >
+            {[
+              { icon: Building2, title: 'Dealer Onboarding', desc: 'Create your admin account, add brands and showroom locations in a guided setup wizard.', link: '/dealer-onboarding', linkLabel: 'Get Started' },
+              { icon: Car, title: 'Brand Customization', desc: 'Upload logos, set titles, descriptions, and SEO metadata for each brand you sell.', link: '/auth', linkLabel: 'Login to Configure' },
+              { icon: MapPin, title: 'Multi-Location Management', desc: 'Manage vehicles, staff, and schedules across all your showroom locations independently.', link: '/auth', linkLabel: 'Login to Manage' },
+            ].map((item, i) => {
+              const Icon = item.icon;
+              return (
+                <motion.div
+                  key={item.title}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true }}
+                  variants={fadeUp}
+                  custom={i + 4}
+                  className="p-6 rounded-2xl border border-border bg-card hover:shadow-elevated transition-all duration-300 hover:-translate-y-1 flex flex-col"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-accent/10 text-accent flex items-center justify-center mb-4">
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <h3 className="font-heading font-semibold text-foreground text-lg mb-2">{item.title}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed flex-1">{item.desc}</p>
+                  <Link to={item.link} className="mt-4">
+                    <Button variant="outline" size="sm" className="rounded-xl gap-2 w-full">
+                      {item.linkLabel} <ArrowRight className="h-3 w-3" />
+                    </Button>
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+        </div>
+      </div>
+
       {/* CTA */}
       <div className="py-24">
         <div className="max-w-3xl mx-auto px-6 text-center">
@@ -348,11 +414,18 @@ const Index = () => {
               <p className="text-primary-foreground/60 mb-8 max-w-md mx-auto">
                 Book your test drive today. It only takes a minute to get started.
               </p>
-              <Link to="/book">
-                <Button size="lg" className="gradient-accent border-0 text-accent-foreground text-base px-10 h-12 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-shadow">
-                  Book Your Test Drive <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link to="/book">
+                  <Button size="lg" className="gradient-accent border-0 text-accent-foreground text-base px-10 h-12 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-shadow">
+                    Book Your Test Drive <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link to="/dealer-onboarding">
+                  <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground text-base px-8 h-12 rounded-xl font-semibold hover:bg-primary-foreground/10 transition-all">
+                    <Building2 className="mr-2 h-4 w-4" /> Register as Dealer
+                  </Button>
+                </Link>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -370,6 +443,7 @@ const Index = () => {
           <div className="flex items-center gap-4">
             <Link to="/dealer-onboarding" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Dealer Onboarding</Link>
             <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
+            <Link to="/auth" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
           </div>
           <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} DriveSync — Test Drive Management Platform</p>
         </div>
