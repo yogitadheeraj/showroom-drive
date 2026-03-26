@@ -131,13 +131,13 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Main content */}
       <main className="flex-1 min-h-screen">
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-sm border-b border-border px-6 py-4 flex items-center gap-4">
+        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-sm border-b border-border px-3 sm:px-6 py-3 sm:py-4 flex items-center gap-4">
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden">
             <Menu className="h-5 w-5 text-foreground" />
           </button>
           <div className="flex-1" />
         </header>
-        <div className="p-6 animate-fade-in">
+        <div className="p-3 sm:p-6 animate-fade-in">
           {children}
         </div>
       </main>

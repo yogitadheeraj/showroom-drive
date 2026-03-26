@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { UserPlus, Pencil, MapPin } from 'lucide-react';
+import { UserPlus, Pencil, MapPin, Mail, Shield } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const ROLES = [
@@ -59,13 +59,10 @@ const UsersPage = () => {
     const { data: profiles } = await supabase.from('profiles').select('*').order('full_name');
     const { data: roles } = await supabase.from('user_roles').select('*');
     
-    // Filter profiles to only those assigned to dealer's locations (or the dealer admin themselves)
     const merged = (profiles || [])
       .filter(p => {
         if (!dealerLocationIds) return true;
-        // Include users at dealer's locations
         if (p.location_id && dealerLocationIds.includes(p.location_id)) return true;
-        // Include the current user (dealer admin)
         if (p.user_id === user?.id) return true;
         return false;
       })
@@ -163,15 +160,16 @@ const UsersPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-heading font-bold text-foreground">Staff Management</h1>
-          <Button onClick={() => setShowCreateDialog(true)}>
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Staff Management</h1>
+          <Button onClick={() => setShowCreateDialog(true)} className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
             <UserPlus className="h-4 w-4 mr-2" /> Add Staff
           </Button>
         </div>
 
-        <Card className="shadow-card">
+        {/* Desktop Table */}
+        <Card className="shadow-card hidden lg:block">
           <CardContent className="p-0">
             <table className="w-full text-sm">
               <thead>
@@ -213,7 +211,7 @@ const UsersPage = () => {
                       </Badge>
                     </td>
                     <td className="p-3">
-                      <Button size="sm" variant="ghost" onClick={() => openEditDialog(u)} disabled={u.user_id === user?.id}>
+                      <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openEditDialog(u)} disabled={u.user_id === user?.id}>
                         <Pencil className="h-3 w-3 mr-1" /> Edit
                       </Button>
                     </td>
@@ -223,6 +221,53 @@ const UsersPage = () => {
             </table>
           </CardContent>
         </Card>
+
+        {/* Mobile Cards */}
+        <div className="lg:hidden space-y-3">
+          {users.map(u => (
+            <Card key={u.id} className="shadow-card hover:shadow-elevated transition-shadow">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-heading font-semibold text-foreground">{u.full_name}</p>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                      <Mail className="h-3 w-3" />
+                      <span className="truncate max-w-[200px]">{u.email}</span>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className={u.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
+                    {u.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                    {u.user_roles?.map((r: any) => (
+                      <Badge key={r.role} variant="secondary" className={`text-xs ${roleColor[r.role] || ''}`}>
+                        {roleLabel[r.role] || r.role}
+                      </Badge>
+                    ))}
+                    {(!u.user_roles || u.user_roles.length === 0) && (
+                      <Badge variant="outline" className="text-xs">No role</Badge>
+                    )}
+                  </div>
+                </div>
+
+                {getLocationName(u.location_id) && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <MapPin className="h-3 w-3" />
+                    {getLocationName(u.location_id)}
+                  </div>
+                )}
+
+                <Button size="sm" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openEditDialog(u)} disabled={u.user_id === user?.id}>
+                  <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit Role & Location
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogContent>
@@ -251,7 +296,7 @@ const UsersPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleCreateUser} className="w-full" disabled={saving}>
+              <Button onClick={handleCreateUser} className="w-full bg-success text-success-foreground hover:bg-success/90" disabled={saving}>
                 {saving ? 'Creating...' : 'Create Staff Member'}
               </Button>
             </div>
@@ -284,7 +329,7 @@ const UsersPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleUpdateRole} className="w-full" disabled={saving}>
+              <Button onClick={handleUpdateRole} className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={saving}>
                 {saving ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>

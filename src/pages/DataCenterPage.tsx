@@ -65,14 +65,14 @@ const DataCenterPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-heading font-bold text-foreground">Data Center</h1>
-            <p className="text-muted-foreground">Analytics and insights for your dealership</p>
+            <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Data Center</h1>
+            <p className="text-sm text-muted-foreground">Analytics and insights</p>
           </div>
           <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Locations" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="All Locations" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Locations</SelectItem>
               {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
@@ -80,7 +80,7 @@ const DataCenterPage = () => {
           </Select>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <Card className="shadow-card">
             <CardHeader><CardTitle className="font-heading text-lg">Daily Trend (Last 14 Days)</CardTitle></CardHeader>
             <CardContent>

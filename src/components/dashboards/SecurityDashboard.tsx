@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye, Car, Clock, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,28 +38,19 @@ const SecurityDashboard = () => {
       .select('*, customers(*), vehicles(*), locations(*)')
       .eq('scheduled_date', today)
       .in('status', ['confirmed', 'show', 'in_progress', 'completed']);
-    
-    if (profile?.location_id) {
-      query = query.eq('location_id', profile.location_id);
-    }
-    
+    if (profile?.location_id) query = query.eq('location_id', profile.location_id);
     const { data } = await query.order('scheduled_time', { ascending: true });
     setTestDrives(data || []);
   };
 
   const checkIn = async (id: string) => {
-    await supabase.from('test_drives').update({ 
-      security_checked_in_at: new Date().toISOString(),
-      status: 'show' as any
-    }).eq('id', id);
+    await supabase.from('test_drives').update({ security_checked_in_at: new Date().toISOString(), status: 'show' as any }).eq('id', id);
     toast({ title: 'Customer checked in' });
     fetchTodayDrives();
   };
 
   const checkOut = async (id: string) => {
-    await supabase.from('test_drives').update({ 
-      security_checked_out_at: new Date().toISOString() 
-    }).eq('id', id);
+    await supabase.from('test_drives').update({ security_checked_out_at: new Date().toISOString() }).eq('id', id);
     toast({ title: 'Customer checked out' });
     fetchTodayDrives();
   };
@@ -67,16 +58,12 @@ const SecurityDashboard = () => {
   const openLicensePreview = async (customerId: string, licenseUrl: string) => {
     setPendingVerifyId(customerId);
     setPreviewOpen(true);
-    
     if (licenseUrl.startsWith('http')) {
-      const bucketPath = licenseUrl.split('/storage/v1/object/public/documents/')[1] 
-        || licenseUrl.split('/storage/v1/object/sign/documents/')[1];
+      const bucketPath = licenseUrl.split('/storage/v1/object/public/documents/')[1] || licenseUrl.split('/storage/v1/object/sign/documents/')[1];
       if (bucketPath) {
         const { data } = await supabase.storage.from('documents').createSignedUrl(bucketPath, 300);
         setPreviewUrl(data?.signedUrl || licenseUrl);
-      } else {
-        setPreviewUrl(licenseUrl);
-      }
+      } else { setPreviewUrl(licenseUrl); }
     } else {
       const { data } = await supabase.storage.from('documents').createSignedUrl(licenseUrl, 300);
       setPreviewUrl(data?.signedUrl || licenseUrl);
@@ -100,10 +87,7 @@ const SecurityDashboard = () => {
 
   const confirmReject = async () => {
     if (!pendingRejectId) return;
-    await supabase.from('customers').update({
-      driving_license_url: null,
-      driving_license_verified: false,
-    }).eq('id', pendingRejectId);
+    await supabase.from('customers').update({ driving_license_url: null, driving_license_verified: false }).eq('id', pendingRejectId);
     toast({ title: 'License rejected', description: rejectReason || 'Customer must re-upload their license' });
     setRejectOpen(false);
     setPendingRejectId(null);
@@ -118,17 +102,12 @@ const SecurityDashboard = () => {
       const path = `licenses/${customerId}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
       if (uploadError) throw uploadError;
-      await supabase.from('customers').update({
-        driving_license_url: path,
-        driving_license_verified: false,
-      }).eq('id', customerId);
+      await supabase.from('customers').update({ driving_license_url: path, driving_license_verified: false }).eq('id', customerId);
       toast({ title: 'License re-uploaded', description: 'Ready for verification' });
       fetchTodayDrives();
     } catch (err: any) {
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
-    } finally {
-      setReuploadingId(null);
-    }
+    } finally { setReuploadingId(null); }
   };
 
   const openInspection = (td: any, type: 'pre' | 'post') => {
@@ -136,192 +115,140 @@ const SecurityDashboard = () => {
     setInspectionType(type);
   };
 
-  const pendingCount = testDrives.filter(
-    t => t.customers?.driving_license_url && !t.customers?.driving_license_verified
-  ).length;
+  const pendingCount = testDrives.filter(t => t.customers?.driving_license_url && !t.customers?.driving_license_verified).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">Security Dashboard</h1>
-        <p className="text-muted-foreground">Today's check-ins, inspections & document verification</p>
+        <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Security Dashboard</h1>
+        <p className="text-sm text-muted-foreground">Check-ins, inspections & verification</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="shadow-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center">
-              <Shield className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Today's Visitors</p>
-              <p className="text-2xl font-heading font-bold text-foreground">{testDrives.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center">
-              <CheckCircle className="h-6 w-6 text-success" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Checked In</p>
-              <p className="text-2xl font-heading font-bold text-foreground">
-                {testDrives.filter(t => t.security_checked_in_at).length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-muted flex items-center justify-center">
-              <FileCheck className="h-6 w-6 text-info" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">License Verified</p>
-              <p className="text-2xl font-heading font-bold text-foreground">
-                {testDrives.filter(t => t.customers?.driving_license_verified).length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-card border-warning/30">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="relative h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center">
-              <AlertCircle className="h-6 w-6 text-warning" />
-              {pendingCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
-                  {pendingCount}
-                </span>
-              )}
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Pending Verification</p>
-              <p className="text-2xl font-heading font-bold text-warning">{pendingCount}</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        {[
+          { label: "Today's Visitors", value: testDrives.length, icon: Shield, color: 'text-primary', bg: 'bg-primary/10' },
+          { label: 'Checked In', value: testDrives.filter(t => t.security_checked_in_at).length, icon: CheckCircle, color: 'text-success', bg: 'bg-success/10' },
+          { label: 'License OK', value: testDrives.filter(t => t.customers?.driving_license_verified).length, icon: FileCheck, color: 'text-info', bg: 'bg-info/10' },
+          { label: 'Pending', value: pendingCount, icon: AlertCircle, color: 'text-warning', bg: 'bg-warning/10', alert: pendingCount > 0 },
+        ].map(stat => {
+          const Icon = stat.icon;
+          return (
+            <Card key={stat.label} className={`shadow-card ${(stat as any).alert ? 'border-warning/30' : ''}`}>
+              <CardContent className="p-3 sm:p-5 flex items-center gap-3 sm:gap-4">
+                <div className={`relative h-9 w-9 sm:h-12 sm:w-12 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-4 w-4 sm:h-6 sm:w-6 ${stat.color}`} />
+                  {(stat as any).alert && (
+                    <span className="absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                      {pendingCount}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-[10px] sm:text-sm text-muted-foreground">{stat.label}</p>
+                  <p className="text-lg sm:text-2xl font-heading font-bold text-foreground">{stat.value}</p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card className="shadow-card">
-        <CardHeader>
-          <CardTitle className="font-heading text-lg">Today's Appointments</CardTitle>
+        <CardHeader className="pb-2 sm:pb-4">
+          <CardTitle className="font-heading text-base sm:text-lg">Today's Appointments</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {testDrives.map(td => (
-              <div key={td.id} className="p-4 rounded-lg border border-border space-y-3">
-                <div className="flex items-center justify-between">
+              <div key={td.id} className="p-3 sm:p-4 rounded-lg border border-border space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-foreground">{td.customers?.full_name}</p>
-                      <Badge variant="secondary" className={
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-foreground text-sm sm:text-base">{td.customers?.full_name}</p>
+                      <Badge variant="secondary" className={`text-xs ${
                         td.status === 'completed' ? 'bg-success/10 text-success' :
                         td.status === 'in_progress' ? 'bg-primary/10 text-primary' :
                         'bg-muted text-muted-foreground'
-                      }>
-                        {td.status.replace('_', ' ')}
-                      </Badge>
+                      }`}>{td.status.replace('_', ' ')}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {td.vehicles?.brand} {td.vehicles?.model} ({td.vehicles?.registration_number}) • {td.scheduled_time}
-                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                      <span className="flex items-center gap-1"><Car className="h-3 w-3" />{td.vehicles?.brand} {td.vehicles?.model}</span>
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{td.scheduled_time}</span>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     {!td.security_checked_in_at ? (
-                      <Button size="sm" onClick={() => checkIn(td.id)}>
-                        <CheckCircle className="h-4 w-4 mr-1" /> Check In
+                      <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => checkIn(td.id)}>
+                        <CheckCircle className="h-3.5 w-3.5 mr-1" /> Check In
                       </Button>
                     ) : !td.security_checked_out_at ? (
                       <div className="flex items-center gap-2">
-                        <Badge className="bg-success/10 text-success">Checked In</Badge>
-                        <Button size="sm" variant="outline" onClick={() => checkOut(td.id)}>
-                          <XCircle className="h-4 w-4 mr-1" /> Check Out
+                        <Badge className="bg-success/10 text-success text-xs">Checked In</Badge>
+                        <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => checkOut(td.id)}>
+                          <XCircle className="h-3.5 w-3.5 mr-1" /> Check Out
                         </Button>
                       </div>
                     ) : (
-                      <Badge className="bg-muted text-muted-foreground">Checked Out</Badge>
+                      <Badge className="bg-muted text-muted-foreground text-xs">Checked Out</Badge>
                     )}
                   </div>
                 </div>
 
-                {/* License verification section */}
+                {/* License section */}
                 <div className="flex items-center gap-2 flex-wrap">
                   {td.customers?.driving_license_url ? (
                     td.customers?.driving_license_verified ? (
-                      <Badge className="bg-success/10 text-success">License Verified</Badge>
+                      <Badge className="bg-success/10 text-success text-xs">License Verified</Badge>
                     ) : (
                       <>
-                        <Badge className="bg-warning/10 text-warning">License Pending</Badge>
-                        <Button size="sm" variant="outline" onClick={() => openLicensePreview(td.customer_id, td.customers.driving_license_url)}>
-                          <FileCheck className="h-3 w-3 mr-1" /> Review & Verify
+                        <Badge className="bg-warning/10 text-warning text-xs">License Pending</Badge>
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => openLicensePreview(td.customer_id, td.customers.driving_license_url)}>
+                          <FileCheck className="h-3 w-3 mr-1" /> Verify
                         </Button>
-                        <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => openRejectDialog(td.customer_id)}>
+                        <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs" onClick={() => openRejectDialog(td.customer_id)}>
                           <XCircle className="h-3 w-3 mr-1" /> Reject
                         </Button>
                       </>
                     )
                   ) : (
                     <>
-                      <Badge className="bg-destructive/10 text-destructive">No License</Badge>
+                      <Badge className="bg-destructive/10 text-destructive text-xs">No License</Badge>
                       <Label htmlFor={`reupload-sec-${td.customer_id}`} className="cursor-pointer">
-                        <Button size="sm" variant="outline" asChild>
-                          <span><Upload className="h-3 w-3 mr-1" /> Upload License</span>
+                        <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" asChild>
+                          <span><Upload className="h-3 w-3 mr-1" /> Upload</span>
                         </Button>
                       </Label>
-                      <input
-                        id={`reupload-sec-${td.customer_id}`}
-                        type="file"
-                        accept="image/*,.pdf"
-                        className="hidden"
-                        disabled={reuploadingId === td.customer_id}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleReuploadLicense(td.customer_id, file);
-                        }}
-                      />
-                      {reuploadingId === td.customer_id && <span className="text-xs text-muted-foreground">Uploading...</span>}
+                      <input id={`reupload-sec-${td.customer_id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={reuploadingId === td.customer_id}
+                        onChange={(e) => { const file = e.target.files?.[0]; if (file) handleReuploadLicense(td.customer_id, file); }} />
                     </>
                   )}
                 </div>
 
-                {/* Vehicle Inspection section */}
-                <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-border">
-                  {/* Pre-drive inspection */}
+                {/* Inspection */}
+                <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-border">
                   {td.status === 'in_progress' && !(td as any).pre_drive_km && (
-                    <Button size="sm" variant="outline" className="text-primary" onClick={() => openInspection(td, 'pre')}>
-                      <ClipboardCheck className="h-3 w-3 mr-1" /> Pre-Drive Inspection
+                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => openInspection(td, 'pre')}>
+                      <ClipboardCheck className="h-3 w-3 mr-1" /> Pre-Drive
                     </Button>
                   )}
-                  {(td as any).pre_drive_km && (
-                    <Badge className="bg-primary/10 text-primary">Pre-Drive: {(td as any).pre_drive_km} km</Badge>
-                  )}
-
-                  {/* Post-drive inspection */}
+                  {(td as any).pre_drive_km && <Badge className="bg-primary/10 text-primary text-xs">Pre: {(td as any).pre_drive_km} km</Badge>}
                   {(td.status === 'completed' || (td.status === 'in_progress' && (td as any).pre_drive_km)) && !(td as any).post_drive_km && (
-                    <Button size="sm" variant="outline" className="text-success" onClick={() => openInspection(td, 'post')}>
-                      <ClipboardCheck className="h-3 w-3 mr-1" /> Post-Drive Inspection
+                    <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => openInspection(td, 'post')}>
+                      <ClipboardCheck className="h-3 w-3 mr-1" /> Post-Drive
                     </Button>
                   )}
-                  {(td as any).post_drive_km && (
-                    <Badge className="bg-success/10 text-success">Post-Drive: {(td as any).post_drive_km} km</Badge>
-                  )}
-
-                  {/* View inspection details */}
+                  {(td as any).post_drive_km && <Badge className="bg-success/10 text-success text-xs">Post: {(td as any).post_drive_km} km</Badge>}
                   {((td as any).pre_drive_km || (td as any).post_drive_km) && (
-                    <Button size="sm" variant="ghost" onClick={() => setInspectionViewDrive(td)}>
-                      <Eye className="h-3 w-3 mr-1" /> View Details
+                    <Button size="sm" className="bg-muted text-foreground hover:bg-muted/80 text-xs" onClick={() => setInspectionViewDrive(td)}>
+                      <Eye className="h-3 w-3 mr-1" /> Details
                     </Button>
                   )}
-
-                  {(td as any).inspection_submitted_at && (
-                    <Badge className="bg-muted text-muted-foreground">Inspection Complete</Badge>
-                  )}
+                  {(td as any).inspection_submitted_at && <Badge className="bg-muted text-muted-foreground text-xs">Complete</Badge>}
                 </div>
               </div>
             ))}
             {testDrives.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">No appointments for today</p>
+              <p className="text-center text-muted-foreground py-8 text-sm">No appointments for today</p>
             )}
           </div>
         </CardContent>
@@ -334,55 +261,40 @@ const SecurityDashboard = () => {
             <DialogTitle>Driving License Preview</DialogTitle>
             <DialogDescription>Review the uploaded license before verifying</DialogDescription>
           </DialogHeader>
-          <div className="flex items-center justify-center bg-muted rounded-lg p-4 min-h-[300px]">
+          <div className="flex items-center justify-center bg-muted rounded-lg p-4 min-h-[200px] sm:min-h-[300px]">
             {previewUrl ? (
-              <img
-                src={previewUrl}
-                alt="Driving License"
-                className="max-w-full max-h-[400px] rounded-lg object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                  (e.target as HTMLImageElement).parentElement!.innerHTML =
-                    '<p class="text-muted-foreground">Unable to load license image. The file may not be an image format.</p>';
-                }}
-              />
-            ) : (
-              <p className="text-muted-foreground">Loading preview...</p>
-            )}
+              <img src={previewUrl} alt="Driving License" className="max-w-full max-h-[300px] sm:max-h-[400px] rounded-lg object-contain"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = '<p class="text-muted-foreground">Unable to load license image.</p>'; }} />
+            ) : <p className="text-muted-foreground">Loading preview...</p>}
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="destructive" onClick={() => { setPreviewOpen(false); openRejectDialog(pendingVerifyId!); }} className="sm:mr-auto">
-              <XCircle className="h-4 w-4 mr-1" /> Reject License
+            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { setPreviewOpen(false); openRejectDialog(pendingVerifyId!); }}>
+              <XCircle className="h-4 w-4 mr-1" /> Reject
             </Button>
-            <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cancel</Button>
-            <Button onClick={confirmVerify}>
-              <CheckCircle className="h-4 w-4 mr-1" /> Confirm Verification
+            <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => setPreviewOpen(false)}>Cancel</Button>
+            <Button className="bg-success text-success-foreground hover:bg-success/90" onClick={confirmVerify}>
+              <CheckCircle className="h-4 w-4 mr-1" /> Verify
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Reject License Dialog */}
+      {/* Reject Dialog */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject Driving License</DialogTitle>
-            <DialogDescription>The license will be removed and the customer or staff can re-upload a new one.</DialogDescription>
+            <DialogDescription>The license will be removed and must be re-uploaded.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label>Reason for rejection <span className="text-muted-foreground text-xs">(optional)</span></Label>
-              <Textarea
-                placeholder="e.g. Image is blurry, expired license, wrong document..."
-                value={rejectReason}
-                onChange={e => setRejectReason(e.target.value)}
-                rows={3}
-              />
+              <Label>Reason <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Textarea placeholder="e.g. Image is blurry, expired license..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmReject}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => setRejectOpen(false)}>Cancel</Button>
+            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmReject}>
               <XCircle className="h-4 w-4 mr-1" /> Confirm Rejection
             </Button>
           </DialogFooter>
@@ -398,66 +310,42 @@ const SecurityDashboard = () => {
         onComplete={fetchTodayDrives}
       />
 
-      {/* Inspection Details View Dialog */}
+      {/* Inspection View Dialog */}
       <Dialog open={!!inspectionViewDrive} onOpenChange={() => setInspectionViewDrive(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ClipboardCheck className="h-5 w-5 text-primary" />
-              Inspection Report
-            </DialogTitle>
-            <DialogDescription>
-              {inspectionViewDrive?.vehicles?.brand} {inspectionViewDrive?.vehicles?.model} — {inspectionViewDrive?.vehicles?.registration_number}
-            </DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary" />Inspection Report</DialogTitle>
+            <DialogDescription>{inspectionViewDrive?.vehicles?.brand} {inspectionViewDrive?.vehicles?.model} — {inspectionViewDrive?.vehicles?.registration_number}</DialogDescription>
           </DialogHeader>
           {inspectionViewDrive && (
             <div className="space-y-4">
               {(inspectionViewDrive as any).pre_drive_km && (
-                <div className="rounded-lg border border-border p-4 space-y-2">
-                  <h4 className="font-medium text-foreground flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-primary" /> Pre-Drive Inspection
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-lg border border-border p-3 sm:p-4 space-y-2">
+                  <h4 className="font-medium text-foreground flex items-center gap-2 text-sm"><span className="h-2 w-2 rounded-full bg-primary" /> Pre-Drive</h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
                     <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_km} km</span></div>
-                    <div><span className="text-muted-foreground">Fuel/Battery:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_fuel_level || 'N/A'}</span></div>
+                    <div><span className="text-muted-foreground">Fuel:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_fuel_level || 'N/A'}</span></div>
                   </div>
-                  {(inspectionViewDrive as any).pre_drive_scratches && (
-                    <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> <span>{(inspectionViewDrive as any).pre_drive_scratches}</span></div>
-                  )}
-                  {(inspectionViewDrive as any).pre_drive_notes && (
-                    <div className="text-sm"><span className="text-muted-foreground">Notes:</span> <span>{(inspectionViewDrive as any).pre_drive_notes}</span></div>
-                  )}
                 </div>
               )}
               {(inspectionViewDrive as any).post_drive_km && (
-                <div className="rounded-lg border border-border p-4 space-y-2">
-                  <h4 className="font-medium text-foreground flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-success" /> Post-Drive Inspection
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-lg border border-border p-3 sm:p-4 space-y-2">
+                  <h4 className="font-medium text-foreground flex items-center gap-2 text-sm"><span className="h-2 w-2 rounded-full bg-success" /> Post-Drive</h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
                     <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_km} km</span></div>
-                    <div><span className="text-muted-foreground">Fuel/Battery:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_fuel_level || 'N/A'}</span></div>
+                    <div><span className="text-muted-foreground">Fuel:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_fuel_level || 'N/A'}</span></div>
                   </div>
-                  {(inspectionViewDrive as any).post_drive_scratches && (
-                    <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> <span>{(inspectionViewDrive as any).post_drive_scratches}</span></div>
-                  )}
-                  {(inspectionViewDrive as any).post_drive_notes && (
-                    <div className="text-sm"><span className="text-muted-foreground">Notes:</span> <span>{(inspectionViewDrive as any).post_drive_notes}</span></div>
-                  )}
                 </div>
               )}
               {(inspectionViewDrive as any).pre_drive_km && (inspectionViewDrive as any).post_drive_km && (
                 <div className="rounded-lg bg-muted p-3 text-sm">
-                  <p className="font-medium text-foreground">Drive Summary</p>
-                  <p className="text-muted-foreground">
-                    Distance covered: <span className="font-medium text-foreground">{((inspectionViewDrive as any).post_drive_km - (inspectionViewDrive as any).pre_drive_km).toFixed(1)} km</span>
-                  </p>
+                  <p className="font-medium text-foreground">Distance: {((inspectionViewDrive as any).post_drive_km - (inspectionViewDrive as any).pre_drive_km).toFixed(1)} km</p>
                 </div>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInspectionViewDrive(null)}>Close</Button>
+            <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => setInspectionViewDrive(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

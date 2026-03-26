@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { MessageSquare, User, Clock, Send, Mail, Phone } from 'lucide-react';
 
 const CommunicationsPage = () => {
   const [communications, setCommunications] = useState<any[]>([]);
@@ -22,14 +23,12 @@ const CommunicationsPage = () => {
     if (typeFilter !== 'all') query = query.eq('type', typeFilter as any);
     const { data } = await query;
     
-    // Filter by dealer's locations via test_drive's location_id
     let filtered = data || [];
     if (dealerLocationIds && dealerLocationIds.length > 0) {
       filtered = filtered.filter(c => {
         if (c.test_drive_id && c.test_drives?.location_id) {
           return dealerLocationIds.includes(c.test_drives.location_id);
         }
-        // Keep communications without test_drive link (enquiries) visible to all for now
         return !c.test_drive_id;
       });
     }
@@ -42,6 +41,12 @@ const CommunicationsPage = () => {
     sms: 'bg-accent/10 text-accent-foreground',
   };
 
+  const typeIcon: Record<string, any> = {
+    email: Mail,
+    whatsapp: MessageSquare,
+    sms: Phone,
+  };
+
   const statusColor: Record<string, string> = {
     pending: 'bg-warning/10 text-warning',
     sent: 'bg-info/10 text-info',
@@ -51,14 +56,14 @@ const CommunicationsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-heading font-bold text-foreground">Communications</h1>
-            <p className="text-muted-foreground">Email & WhatsApp message history</p>
+            <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Communications</h1>
+            <p className="text-sm text-muted-foreground">Email & WhatsApp message history</p>
           </div>
           <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="All Types" />
             </SelectTrigger>
             <SelectContent>
@@ -70,7 +75,8 @@ const CommunicationsPage = () => {
           </Select>
         </div>
 
-        <Card className="shadow-card">
+        {/* Desktop Table */}
+        <Card className="shadow-card hidden lg:block">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -105,6 +111,51 @@ const CommunicationsPage = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Mobile Cards */}
+        <div className="lg:hidden space-y-3">
+          {communications.length === 0 ? (
+            <Card className="shadow-card">
+              <CardContent className="p-8 text-center text-muted-foreground">No communications found</CardContent>
+            </Card>
+          ) : communications.map(c => {
+            const TypeIcon = typeIcon[c.type] || MessageSquare;
+            return (
+              <Card key={c.id} className="shadow-card hover:shadow-elevated transition-shadow">
+                <CardContent className="p-4 space-y-2.5">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <TypeIcon className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-heading font-semibold text-sm text-foreground">{c.customers?.full_name}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{c.purpose.replace('_', ' ')}</p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className={`text-xs ${statusColor[c.status]}`}>{c.status}</Badge>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" className={`text-xs ${typeColor[c.type]}`}>{c.type}</Badge>
+                    {c.subject && <span className="text-xs text-muted-foreground truncate">{c.subject}</span>}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Send className="h-3 w-3" />
+                      <span className="truncate max-w-[180px]">{c.sent_to}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {new Date(c.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </DashboardLayout>
   );

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { Plus, Car, Edit2 } from 'lucide-react';
+import { Plus, Car, Edit2, MapPin, Palette } from 'lucide-react';
 
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -35,7 +35,6 @@ const VehiclesPage = () => {
   const fetchVehicles = async () => {
     let query = supabase.from('vehicles').select('*, locations(name, dealer_id)').eq('is_active', true).order('brand');
     const { data } = await query;
-    // Filter client-side by dealer locations
     const filtered = (data || []).filter(v => v.locations?.dealer_id === dealerId);
     setVehicles(filtered);
   };
@@ -92,41 +91,41 @@ const VehiclesPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-heading font-bold text-foreground">Vehicles</h1>
-          <Button onClick={openNew}>
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Vehicles</h1>
+          <Button onClick={openNew} className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" /> Add Vehicle
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {vehicles.map(v => (
             <Card key={v.id} className="shadow-card hover:shadow-elevated transition-shadow">
-              <CardContent className="p-5">
+              <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                      <Car className="h-5 w-5 text-accent" />
+                  <div className="flex items-center gap-2.5 sm:gap-3">
+                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                      <Car className="h-4 w-4 sm:h-5 sm:w-5 text-accent" />
                     </div>
                     <div>
-                      <h3 className="font-heading font-semibold text-foreground">{v.brand} {v.model}</h3>
-                      <p className="text-sm text-muted-foreground">{v.variant || ''} {v.year}</p>
+                      <h3 className="font-heading font-semibold text-sm sm:text-base text-foreground">{v.brand} {v.model}</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground">{v.variant || ''} {v.year}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className={v.available_units > 0 ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}>
-                      {v.available_units}/{v.total_units} available
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="secondary" className={`text-xs ${v.available_units > 0 ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                      {v.available_units}/{v.total_units}
                     </Badge>
-                    <button onClick={() => openEdit(v)} className="h-7 w-7 rounded-md bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
-                      <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
+                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 h-7 w-7 p-0" onClick={() => openEdit(v)}>
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
-                <div className="mt-3 text-sm text-muted-foreground space-y-1">
-                  {v.color && <p>Color: {v.color}</p>}
+                <div className="mt-2.5 text-xs sm:text-sm text-muted-foreground space-y-1">
+                  {v.color && <p className="flex items-center gap-1"><Palette className="h-3 w-3" /> {v.color}</p>}
                   {v.registration_number && <p>Reg: {v.registration_number}</p>}
-                  <p>Location: {v.locations?.name}</p>
+                  <p className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {v.locations?.name}</p>
                 </div>
               </CardContent>
             </Card>
@@ -139,21 +138,21 @@ const VehiclesPage = () => {
               <DialogTitle className="font-heading">{editingId ? 'Edit Vehicle' : 'Add Vehicle'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2"><Label>Brand *</Label><Input value={formData.brand} onChange={e => setFormData(p => ({ ...p, brand: e.target.value }))} /></div>
                 <div className="space-y-2"><Label>Model *</Label><Input value={formData.model} onChange={e => setFormData(p => ({ ...p, model: e.target.value }))} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2"><Label>Variant</Label><Input value={formData.variant} onChange={e => setFormData(p => ({ ...p, variant: e.target.value }))} /></div>
                 <div className="space-y-2"><Label>Year</Label><Input type="number" value={formData.year} onChange={e => setFormData(p => ({ ...p, year: e.target.value }))} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Total Units</Label><Input type="number" min="1" value={formData.total_units} onChange={e => setFormData(p => ({ ...p, total_units: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Available Units</Label><Input type="number" min="0" value={formData.available_units} onChange={e => setFormData(p => ({ ...p, available_units: e.target.value }))} /></div>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div className="space-y-2"><Label>Units</Label><Input type="number" min="1" value={formData.total_units} onChange={e => setFormData(p => ({ ...p, total_units: e.target.value }))} /></div>
+                <div className="space-y-2"><Label>Available</Label><Input type="number" min="0" value={formData.available_units} onChange={e => setFormData(p => ({ ...p, available_units: e.target.value }))} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2"><Label>Color</Label><Input value={formData.color} onChange={e => setFormData(p => ({ ...p, color: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Registration</Label><Input value={formData.registration_number} onChange={e => setFormData(p => ({ ...p, registration_number: e.target.value }))} /></div>
+                <div className="space-y-2"><Label>Reg #</Label><Input value={formData.registration_number} onChange={e => setFormData(p => ({ ...p, registration_number: e.target.value }))} /></div>
               </div>
               <div className="space-y-2">
                 <Label>Location *</Label>
@@ -165,7 +164,7 @@ const VehiclesPage = () => {
                 </Select>
               </div>
               <div className="space-y-2"><Label>Image URL</Label><Input value={formData.image_url} onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." /></div>
-              <Button onClick={handleSubmit} className="w-full">{editingId ? 'Update Vehicle' : 'Add Vehicle'}</Button>
+              <Button onClick={handleSubmit} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">{editingId ? 'Update Vehicle' : 'Add Vehicle'}</Button>
             </div>
           </DialogContent>
         </Dialog>
