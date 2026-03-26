@@ -71,33 +71,33 @@ const WaitingBoardPage = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-card border-b border-border px-8 py-6">
+      <header className="bg-card border-b border-border px-4 sm:px-8 py-4 sm:py-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center">
-              <Car className="h-6 w-6 text-primary-foreground" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl gradient-primary flex items-center justify-center">
+              <Car className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-heading font-bold text-foreground">Test Drive Status</h1>
-              {locationName && <p className="text-muted-foreground">{locationName}</p>}
+              <h1 className="text-lg sm:text-2xl font-heading font-bold text-foreground">Test Drive Status</h1>
+              {locationName && <p className="text-xs sm:text-base text-muted-foreground">{locationName}</p>}
             </div>
           </div>
           <div className="text-right">
-            <p className="text-3xl font-heading font-bold text-foreground">{format(now, 'HH:mm')}</p>
-            <p className="text-sm text-muted-foreground">{format(now, 'EEEE, MMM d')}</p>
+            <p className="text-xl sm:text-3xl font-heading font-bold text-foreground">{format(now, 'HH:mm')}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{format(now, 'EEEE, MMM d')}</p>
           </div>
         </div>
       </header>
 
       {/* Board */}
-      <main className="max-w-7xl mx-auto p-8">
+      <main className="max-w-7xl mx-auto p-4 sm:p-8">
         {testDrives.length === 0 ? (
-          <div className="text-center py-24">
-            <Car className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-            <p className="text-xl text-muted-foreground">No test drives scheduled right now</p>
+          <div className="text-center py-16 sm:py-24">
+            <Car className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground/30 mx-auto mb-4" />
+            <p className="text-base sm:text-xl text-muted-foreground">No test drives scheduled right now</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
             {testDrives.map((td, index) => {
               const cfg = statusConfig[td.status] || statusConfig.scheduled;
               return (
