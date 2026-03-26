@@ -753,6 +753,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_user_dealer_id: { Args: { _user_id: string }; Returns: string }
       get_user_location_id: { Args: { _user_id: string }; Returns: string }
       get_user_role: {
         Args: { _user_id: string }

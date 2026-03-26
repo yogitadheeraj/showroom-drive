@@ -4,22 +4,36 @@ import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDealerContext } from '@/hooks/useDealerContext';
 
 const CommunicationsPage = () => {
   const [communications, setCommunications] = useState<any[]>([]);
   const [typeFilter, setTypeFilter] = useState('all');
+  const { dealerLocationIds, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
-    fetchCommunications();
-  }, [typeFilter]);
+    if (!dealerLoading) fetchCommunications();
+  }, [typeFilter, dealerLocationIds, dealerLoading]);
 
   const fetchCommunications = async () => {
     let query = supabase.from('communications')
-      .select('*, customers(full_name, phone), test_drives(scheduled_date)')
+      .select('*, customers(full_name, phone), test_drives(scheduled_date, location_id)')
       .order('created_at', { ascending: false });
     if (typeFilter !== 'all') query = query.eq('type', typeFilter as any);
     const { data } = await query;
-    setCommunications(data || []);
+    
+    // Filter by dealer's locations via test_drive's location_id
+    let filtered = data || [];
+    if (dealerLocationIds && dealerLocationIds.length > 0) {
+      filtered = filtered.filter(c => {
+        if (c.test_drive_id && c.test_drives?.location_id) {
+          return dealerLocationIds.includes(c.test_drives.location_id);
+        }
+        // Keep communications without test_drive link (enquiries) visible to all for now
+        return !c.test_drive_id;
+      });
+    }
+    setCommunications(filtered);
   };
 
   const typeColor: Record<string, string> = {

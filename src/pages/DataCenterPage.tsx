@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDealerContext } from '@/hooks/useDealerContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 
 const COLORS = ['hsl(220,80%,50%)', 'hsl(145,65%,42%)', 'hsl(38,95%,55%)', 'hsl(0,75%,55%)', 'hsl(200,80%,50%)'];
@@ -14,34 +15,40 @@ const DataCenterPage = () => {
   const [dailyData, setDailyData] = useState<any[]>([]);
   const [vehicleData, setVehicleData] = useState<any[]>([]);
   const [sourceData, setSourceData] = useState<any[]>([]);
+  const { dealerId, dealerLocationIds, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
-    supabase.from('locations').select('*').then(({ data }) => setLocations(data || []));
-  }, []);
+    if (!dealerLoading && dealerId) {
+      supabase.from('locations').select('*').eq('dealer_id', dealerId).then(({ data }) => setLocations(data || []));
+    }
+  }, [dealerId, dealerLoading]);
 
-  useEffect(() => { fetchAnalytics(); }, [selectedLocation]);
+  useEffect(() => {
+    if (!dealerLoading) fetchAnalytics();
+  }, [selectedLocation, dealerLocationIds, dealerLoading]);
 
   const fetchAnalytics = async () => {
     let query = supabase.from('test_drives').select('*, vehicles(brand, model), locations(name)');
-    if (selectedLocation !== 'all') query = query.eq('location_id', selectedLocation);
+    if (selectedLocation !== 'all') {
+      query = query.eq('location_id', selectedLocation);
+    } else if (dealerLocationIds && dealerLocationIds.length > 0) {
+      query = query.in('location_id', dealerLocationIds);
+    }
     const { data: testDrives } = await query;
     if (!testDrives) return;
 
-    // Status distribution
     const statusCounts: Record<string, number> = {};
     testDrives.forEach(td => {
       statusCounts[td.status] = (statusCounts[td.status] || 0) + 1;
     });
     setStatusData(Object.entries(statusCounts).map(([name, value]) => ({ name: name.replace('_', ' '), value })));
 
-    // Daily trend
     const dailyCounts: Record<string, number> = {};
     testDrives.forEach(td => {
       dailyCounts[td.scheduled_date] = (dailyCounts[td.scheduled_date] || 0) + 1;
     });
     setDailyData(Object.entries(dailyCounts).sort().slice(-14).map(([date, count]) => ({ date, count })));
 
-    // Vehicle popularity
     const vehicleCounts: Record<string, number> = {};
     testDrives.forEach(td => {
       const name = `${td.vehicles?.brand} ${td.vehicles?.model}`;
@@ -49,7 +56,6 @@ const DataCenterPage = () => {
     });
     setVehicleData(Object.entries(vehicleCounts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name, count })));
 
-    // Source distribution
     const sourceCounts: Record<string, number> = {};
     testDrives.forEach(td => {
       sourceCounts[td.source] = (sourceCounts[td.source] || 0) + 1;
@@ -63,7 +69,7 @@ const DataCenterPage = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-heading font-bold text-foreground">Data Center</h1>
-            <p className="text-muted-foreground">Analytics and insights</p>
+            <p className="text-muted-foreground">Analytics and insights for your dealership</p>
           </div>
           <Select value={selectedLocation} onValueChange={setSelectedLocation}>
             <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Locations" /></SelectTrigger>

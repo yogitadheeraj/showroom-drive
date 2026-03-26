@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { useDealerContext } from '@/hooks/useDealerContext';
 import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock } from 'lucide-react';
 
 const SuperAdminDashboard = () => {
@@ -11,20 +12,29 @@ const SuperAdminDashboard = () => {
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [repeatedCustomers, setRepeatedCustomers] = useState<any[]>([]);
+  const { dealerId, dealerLocationIds, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
-    fetchLocations();
-    fetchData();
-  }, [selectedLocation]);
+    if (!dealerLoading && dealerId) {
+      fetchLocations();
+      fetchData();
+    }
+  }, [selectedLocation, dealerId, dealerLoading]);
 
   const fetchLocations = async () => {
-    const { data } = await supabase.from('locations').select('*').eq('is_active', true);
+    let query = supabase.from('locations').select('*').eq('is_active', true);
+    if (dealerId) query = query.eq('dealer_id', dealerId);
+    const { data } = await query;
     setLocations(data || []);
   };
 
   const fetchData = async () => {
     let query = supabase.from('test_drives').select('*, customers(*), vehicles(*), locations(*)');
-    if (selectedLocation !== 'all') query = query.eq('location_id', selectedLocation);
+    if (selectedLocation !== 'all') {
+      query = query.eq('location_id', selectedLocation);
+    } else if (dealerLocationIds && dealerLocationIds.length > 0) {
+      query = query.in('location_id', dealerLocationIds);
+    }
     const { data: td } = await query.order('scheduled_date', { ascending: false });
     setTestDrives(td || []);
 
@@ -35,8 +45,14 @@ const SuperAdminDashboard = () => {
     const cancelled = td?.filter(t => t.status === 'cancelled').length || 0;
     setStats({ total, scheduled, completed, noShow, cancelled });
 
-    const { data: customers } = await supabase.from('customers').select('*').gt('total_test_drives', 1);
-    setRepeatedCustomers(customers || []);
+    // Get customers who have test drives at this dealer's locations
+    const customerIds = [...new Set(td?.map(t => t.customer_id) || [])];
+    if (customerIds.length > 0) {
+      const { data: customers } = await supabase.from('customers').select('*').gt('total_test_drives', 1).in('id', customerIds);
+      setRepeatedCustomers(customers || []);
+    } else {
+      setRepeatedCustomers([]);
+    }
   };
 
   const statCards = [
@@ -64,7 +80,7 @@ const SuperAdminDashboard = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-heading font-bold text-foreground">Sales Lead Dashboard</h1>
-          <p className="text-muted-foreground">Overview of all locations and test drives</p>
+          <p className="text-muted-foreground">Overview of your dealership locations and test drives</p>
         </div>
         <Select value={selectedLocation} onValueChange={setSelectedLocation}>
           <SelectTrigger className="w-[200px]">
