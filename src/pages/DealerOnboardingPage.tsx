@@ -70,37 +70,27 @@ const DealerOnboardingPage = () => {
 
       const userId = authData.user.id;
 
-      // 2. Create dealer
+      // 2. Create dealer, brands, and locations via security definer function
       const slug = dealerData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const { data: dealer, error: dealerError } = await supabase.from('dealers').insert({
-        name: dealerData.name,
-        slug,
-        contact_email: dealerData.contactEmail,
-        contact_phone: dealerData.contactPhone || null,
-        admin_user_id: userId,
-      } as any).select('id').single();
-      if (dealerError) throw dealerError;
-
-      // 3. Create brands
       const validBrands = brands.filter(b => b.trim());
-      if (validBrands.length > 0) {
-        await supabase.from('brands').insert(
-          validBrands.map(name => ({ name: name.trim(), dealer_id: (dealer as any).id })) as any
-        );
-      }
 
-      // 4. Create locations
-      for (const loc of locationForms) {
-        await supabase.from('locations').insert({
+      const { error: onboardError } = await supabase.rpc('onboard_dealer', {
+        _dealer_name: dealerData.name,
+        _slug: slug,
+        _contact_email: dealerData.contactEmail,
+        _contact_phone: dealerData.contactPhone || null,
+        _admin_user_id: userId,
+        _brands: validBrands,
+        _locations: locationForms.map(loc => ({
           name: loc.name,
           address: loc.address,
           city: loc.city,
-          state: loc.state || null,
-          phone: loc.phone || null,
-          email: loc.email || null,
-          dealer_id: (dealer as any).id,
-        } as any);
-      }
+          state: loc.state || '',
+          phone: loc.phone || '',
+          email: loc.email || '',
+        })),
+      } as any);
+      if (onboardError) throw onboardError;
 
       toast({ title: 'Dealership created!', description: 'Please check your email to verify your account, then log in.' });
       navigate('/auth');

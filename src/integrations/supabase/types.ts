@@ -775,6 +775,18 @@ export type Database = {
         }
         Returns: number
       }
+      onboard_dealer: {
+        Args: {
+          _admin_user_id: string
+          _brands: string[]
+          _contact_email: string
+          _contact_phone: string
+          _dealer_name: string
+          _locations: Json[]
+          _slug: string
+        }
+        Returns: string
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
