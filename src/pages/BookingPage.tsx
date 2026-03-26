@@ -222,7 +222,14 @@ const BookingPage = () => {
       const selectedLocation = locations.find(l => l.id === formData.locationId);
       const locationName = selectedLocation?.name || 'our showroom';
 
-      if (formData.preferredContact === 'email' && formData.email) {
+      // Always send WhatsApp confirmation
+      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}\n\nPlease bring a valid driving license. See you there!\n\n— DriveSync`;
+      supabase.functions.invoke('send-whatsapp', {
+        body: { to: formData.phone, message: confirmationMsg, customerId, testDriveId: tdData.id, purpose: 'booking_confirmed' },
+      }).catch(err => console.error('WhatsApp send failed:', err));
+
+      // Also send email if email is provided
+      if (formData.email) {
         supabase.functions.invoke('send-transactional-email', {
           body: {
             templateName: 'booking-confirmation',
@@ -231,16 +238,10 @@ const BookingPage = () => {
             templateData: { customerName: formData.fullName, vehicleName, locationName, scheduledDate: formData.scheduledDate, scheduledTime: formData.scheduledTime },
           },
         }).catch(err => console.error('Email send failed:', err));
-      } else {
-        const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}\n\nPlease bring a valid driving license. See you there!\n\n— DriveSync`;
-        supabase.functions.invoke('send-whatsapp', {
-          body: { to: formData.phone, message: confirmationMsg, customerId, testDriveId: tdData.id, purpose: 'booking_confirmed' },
-        }).catch(err => console.error('WhatsApp send failed:', err));
       }
 
       setSuccess(true);
-      const notifType = formData.preferredContact === 'email' ? 'email' : 'WhatsApp';
-      toast({ title: 'Test drive booked!', description: `You will receive a ${notifType} confirmation shortly.` });
+      toast({ title: 'Test drive booked!', description: 'You will receive a WhatsApp confirmation shortly.' + (formData.email ? ' An email confirmation has also been sent.' : '') });
     } catch (err: any) {
       toast({ title: 'Booking failed', description: err.message, variant: 'destructive' });
     } finally {
