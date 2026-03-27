@@ -26,16 +26,20 @@ const VehiclesPage = () => {
   const { dealerId, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
-    if (!dealerLoading && dealerId) {
+    if (!dealerLoading) {
       fetchVehicles();
-      supabase.from('locations').select('*').eq('is_active', true).eq('dealer_id', dealerId).then(({ data }) => setLocations(data || []));
+      let query = supabase.from('locations').select('*').eq('is_active', true);
+      if (dealerId) query = query.eq('dealer_id', dealerId);
+      query.then(({ data }) => setLocations(data || []));
     }
   }, [dealerId, dealerLoading]);
 
   const fetchVehicles = async () => {
     let query = supabase.from('vehicles').select('*, locations(name, dealer_id)').eq('is_active', true).order('brand');
     const { data } = await query;
-    const filtered = (data || []).filter(v => v.locations?.dealer_id === dealerId);
+    const filtered = dealerId
+      ? (data || []).filter(v => v.locations?.dealer_id === dealerId)
+      : (data || []);
     setVehicles(filtered);
   };
 

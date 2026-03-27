@@ -1,143 +1,94 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
+import {
+  createServiceRoleClient,
+  errorResponse,
+  jsonResponse,
+  logWhatsAppCommunication,
+  preflightResponse,
+  sanitizePhoneNumber,
+  sendWhatsAppMessage,
+} from "../_shared/whatsapp/common.ts";
+import {
+  WhatsAppDeliveryStatus,
+  WhatsAppPurpose,
+} from "../_shared/whatsapp/enums.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/twilio";
-
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
-  if (!TWILIO_API_KEY) {
-    return new Response(JSON.stringify({ error: "TWILIO_API_KEY not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const WHATSAPP_FROM = Deno.env.get("TWILIO_WHATSAPP_FROM");
-  if (!WHATSAPP_FROM) {
-    return new Response(JSON.stringify({ error: "TWILIO_WHATSAPP_FROM not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return preflightResponse();
   }
 
   try {
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableApiKey) {
+      return errorResponse("LOVABLE_API_KEY not configured");
+    }
+
+    const twilioApiKey = Deno.env.get("TWILIO_API_KEY");
+    if (!twilioApiKey) {
+      return errorResponse("TWILIO_API_KEY not configured");
+    }
+
+    const whatsappFrom = Deno.env.get("TWILIO_WHATSAPP_FROM");
+    if (!whatsappFrom) {
+      return errorResponse("TWILIO_WHATSAPP_FROM not configured");
+    }
+
     const { to, message, customerId, testDriveId, purpose } = await req.json();
 
     if (!to || !message) {
-      return new Response(JSON.stringify({ error: "Missing 'to' or 'message'" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse("Missing 'to' or 'message'", 400);
     }
 
-    // Clean phone number - ensure E.164 format
-    const cleanPhone = to.replace(/[\s-]/g, "");
-    const cleanFrom = WHATSAPP_FROM.replace(/[\s-]/g, "");
-    const whatsappTo = `whatsapp:${cleanPhone}`;
-    const whatsappFrom = `whatsapp:${cleanFrom}`;
-
-    // Send via Twilio gateway
-    const twilioResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "X-Connection-Api-Key": TWILIO_API_KEY,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        To: whatsappTo,
-        From: whatsappFrom,
-        Body: message,
-      }),
+    const cleanPhone = sanitizePhoneNumber(to);
+    const cleanFrom = sanitizePhoneNumber(whatsappFrom);
+    const { response, data } = await sendWhatsAppMessage({
+      to: cleanPhone,
+      from: cleanFrom,
+      message,
+      lovableApiKey,
+      twilioApiKey,
     });
 
-    const twilioData = await twilioResponse.json();
+    const supabase = createServiceRoleClient();
+    const externalId = data && typeof data === "object" && "sid" in data ? String(data.sid) : null;
+    const resolvedPurpose = purpose === WhatsAppPurpose.Reminder
+      ? WhatsAppPurpose.Reminder
+      : WhatsAppPurpose.Custom;
 
-    if (!twilioResponse.ok) {
-      console.error("Twilio error:", twilioData);
-      // Still log the failed attempt
-      await logCommunication({
+    if (!response.ok) {
+      console.error("Twilio error:", data);
+      await logWhatsAppCommunication({
+        supabase,
         customerId,
         testDriveId,
-        purpose: purpose || "custom",
+        purpose: resolvedPurpose,
         sentTo: cleanPhone,
         body: message,
-        status: "failed",
-        externalId: null,
+        status: WhatsAppDeliveryStatus.Failed,
+        externalId,
       });
 
-      return new Response(
-        JSON.stringify({ success: false, error: `Twilio error [${twilioResponse.status}]: ${JSON.stringify(twilioData)}` }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      return jsonResponse(
+        { success: false, error: `Twilio error [${response.status}]: ${JSON.stringify(data)}` },
+        502
       );
     }
 
-    // Log successful communication
-    await logCommunication({
+    await logWhatsAppCommunication({
+      supabase,
       customerId,
       testDriveId,
-      purpose: purpose || "custom",
+      purpose: resolvedPurpose,
       sentTo: cleanPhone,
       body: message,
-      status: "sent",
-      externalId: twilioData.sid || null,
+      status: WhatsAppDeliveryStatus.Sent,
+      externalId,
     });
 
-    return new Response(
-      JSON.stringify({ success: true, messageSid: twilioData.sid }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ success: true, messageSid: externalId });
   } catch (error: unknown) {
     console.error("WhatsApp send error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ success: false, error: errorMessage }, 500);
   }
 });
-
-async function logCommunication(params: {
-  customerId?: string;
-  testDriveId?: string;
-  purpose: string;
-  sentTo: string;
-  body: string;
-  status: string;
-  externalId: string | null;
-}) {
-  if (!params.customerId) return;
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
-  await supabase.from("communications").insert({
-    customer_id: params.customerId,
-    test_drive_id: params.testDriveId || null,
-    type: "whatsapp",
-    purpose: params.purpose,
-    sent_to: params.sentTo,
-    body: params.body,
-    status: params.status,
-    external_id: params.externalId,
-    sent_at: params.status === "sent" ? new Date().toISOString() : null,
-  });
-}

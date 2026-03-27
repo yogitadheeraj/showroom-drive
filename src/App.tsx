@@ -23,6 +23,7 @@ import EnquiriesPage from "./pages/EnquiriesPage.tsx";
 import ComparePage from "./pages/ComparePage.tsx";
 import DealerOnboardingPage from "./pages/DealerOnboardingPage.tsx";
 import DealerSettingsPage from "./pages/DealerSettingsPage.tsx";
+import { ROUTE_ALLOWED_ROLES } from "@/constants/roles";
 
 const queryClient = new QueryClient();
 
@@ -38,16 +39,16 @@ const App = () => (
             <Route path="/book" element={<BookingPage />} />
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-            <Route path="/walkin" element={<ProtectedRoute allowedRoles={['gro', 'superadmin', 'dealer_admin', 'security']}><WalkinPage /></ProtectedRoute>} />
+            <Route path="/walkin" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.WALKIN]}><WalkinPage /></ProtectedRoute>} />
             <Route path="/test-drives" element={<ProtectedRoute><TestDrivesPage /></ProtectedRoute>} />
             <Route path="/communications" element={<ProtectedRoute><CommunicationsPage /></ProtectedRoute>} />
-            <Route path="/enquiries" element={<ProtectedRoute allowedRoles={['superadmin', 'dealer_admin', 'gro', 'sales']}><EnquiriesPage /></ProtectedRoute>} />
-            <Route path="/locations" element={<ProtectedRoute allowedRoles={['superadmin', 'dealer_admin']}><LocationsPage /></ProtectedRoute>} />
-            <Route path="/vehicles" element={<ProtectedRoute allowedRoles={['superadmin', 'dealer_admin', 'gro']}><VehiclesPage /></ProtectedRoute>} />
-            <Route path="/users" element={<ProtectedRoute allowedRoles={['superadmin', 'dealer_admin']}><UsersPage /></ProtectedRoute>} />
-            <Route path="/data-center" element={<ProtectedRoute allowedRoles={['superadmin', 'dealer_admin']}><DataCenterPage /></ProtectedRoute>} />
+            <Route path="/enquiries" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.ENQUIRIES]}><EnquiriesPage /></ProtectedRoute>} />
+            <Route path="/locations" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.LOCATIONS]}><LocationsPage /></ProtectedRoute>} />
+            <Route path="/vehicles" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.VEHICLES]}><VehiclesPage /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.USERS]}><UsersPage /></ProtectedRoute>} />
+            <Route path="/data-center" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.DATA_CENTER]}><DataCenterPage /></ProtectedRoute>} />
             <Route path="/compare" element={<ComparePage />} />
-            <Route path="/settings" element={<ProtectedRoute allowedRoles={['superadmin', 'dealer_admin']}><DealerSettingsPage /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.SETTINGS]}><DealerSettingsPage /></ProtectedRoute>} />
             <Route path="/dealer-onboarding" element={<DealerOnboardingPage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="/waiting-board" element={<WaitingBoardPage />} />

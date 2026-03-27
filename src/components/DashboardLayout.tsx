@@ -2,13 +2,34 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
+  type LucideIcon,
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
   LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings
 } from 'lucide-react';
 import { useState } from 'react';
+import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
+import { getAppRoleLabel } from '@/lib/roles';
 
-const NAV_ITEMS: Record<string, { label: string; path: string; icon: any }[]> = {
-  superadmin: [
+interface NavItem {
+  label: string;
+  path: string;
+  icon: LucideIcon;
+}
+
+const NAV_ITEMS: Record<AppRole, NavItem[]> = {
+  [APP_ROLE.SUPERADMIN]: [
+    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Vehicles', path: '/vehicles', icon: Car },
+    { label: 'Locations', path: '/locations', icon: MapPin },
+    { label: 'Users', path: '/users', icon: Users },
+    { label: 'Enquiries', path: '/enquiries', icon: Inbox },
+    { label: 'Communications', path: '/communications', icon: MessageSquare },
+    { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
+    { label: 'Data Center', path: '/data-center', icon: BarChart3 },
+    { label: 'Settings', path: '/settings', icon: Settings },
+  ],
+  [APP_ROLE.DEALER_ADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Walk-in', path: '/walkin', icon: Users },
@@ -21,20 +42,7 @@ const NAV_ITEMS: Record<string, { label: string; path: string; icon: any }[]> = 
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
   ],
-  dealer_admin: [
-    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
-    { label: 'Walk-in', path: '/walkin', icon: Users },
-    { label: 'Vehicles', path: '/vehicles', icon: Car },
-    { label: 'Locations', path: '/locations', icon: MapPin },
-    { label: 'Users', path: '/users', icon: Users },
-    { label: 'Enquiries', path: '/enquiries', icon: Inbox },
-    { label: 'Communications', path: '/communications', icon: MessageSquare },
-    { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
-    { label: 'Data Center', path: '/data-center', icon: BarChart3 },
-    { label: 'Settings', path: '/settings', icon: Settings },
-  ],
-  gro: [
+  [APP_ROLE.GRO]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Walk-in', path: '/walkin', icon: Users },
@@ -43,13 +51,13 @@ const NAV_ITEMS: Record<string, { label: string; path: string; icon: any }[]> = 
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
   ],
-  sales: [
+  [APP_ROLE.SALES]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'My Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
   ],
-  security: [
+  [APP_ROLE.SECURITY]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
@@ -62,7 +70,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const navItems = NAV_ITEMS[role || 'sales'] || NAV_ITEMS.sales;
+  const navItems = NAV_ITEMS[role ?? DEFAULT_APP_ROLE];
 
   const handleSignOut = async () => {
     await signOut();
@@ -80,7 +88,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
             </div>
             <div>
               <h1 className="text-lg font-heading font-bold text-sidebar-foreground">TestDriveSync</h1>
-              <p className="text-xs text-sidebar-foreground/60 capitalize">{role || 'Staff'}</p>
+              <p className="text-xs text-sidebar-foreground/60">{role ? getAppRoleLabel(role) : 'Staff'}</p>
             </div>
             <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground">
               <X className="h-5 w-5" />

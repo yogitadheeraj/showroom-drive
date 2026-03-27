@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Phone } from 'lucide-react';
+import { APP_ROLE } from '@/constants/roles';
 
 const TestDrivesPage = () => {
   const { role } = useAuth();
@@ -35,7 +36,7 @@ const TestDrivesPage = () => {
       .select('*, customers(*), vehicles(*), locations(*), profiles!test_drives_assigned_sales_person_id_fkey(full_name)')
       .order('scheduled_date', { ascending: false });
     if (statusFilter !== 'all') query = query.eq('status', statusFilter as any);
-    if (dealerLocationIds && dealerLocationIds.length > 0) {
+    if (role !== APP_ROLE.SUPERADMIN && dealerLocationIds && dealerLocationIds.length > 0) {
       query = query.in('location_id', dealerLocationIds);
     }
     const { data } = await query;

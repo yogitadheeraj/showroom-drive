@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { APP_ROLE } from '@/constants/roles';
 
 interface DealerContext {
   dealerId: string | null;
@@ -9,13 +10,20 @@ interface DealerContext {
 }
 
 export const useDealerContext = (): DealerContext => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [dealerId, setDealerId] = useState<string | null>(null);
   const [dealerLocationIds, setDealerLocationIds] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
+      setDealerId(null);
+      setDealerLocationIds(null);
+      setLoading(false);
+      return;
+    }
+
+    if (role === APP_ROLE.SUPERADMIN) {
       setDealerId(null);
       setDealerLocationIds(null);
       setLoading(false);
@@ -71,7 +79,7 @@ export const useDealerContext = (): DealerContext => {
     };
 
     fetchDealer();
-  }, [user]);
+  }, [user, role]);
 
   return { dealerId, dealerLocationIds, loading };
 };

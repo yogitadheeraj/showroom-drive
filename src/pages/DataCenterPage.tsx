@@ -18,8 +18,10 @@ const DataCenterPage = () => {
   const { dealerId, dealerLocationIds, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
-    if (!dealerLoading && dealerId) {
-      supabase.from('locations').select('*').eq('dealer_id', dealerId).then(({ data }) => setLocations(data || []));
+    if (!dealerLoading) {
+      let query = supabase.from('locations').select('*');
+      if (dealerId) query = query.eq('dealer_id', dealerId);
+      query.then(({ data }) => setLocations(data || []));
     }
   }, [dealerId, dealerLoading]);
 

@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-
-type AppRole = 'superadmin' | 'dealer_admin' | 'gro' | 'sales' | 'security';
+import { AppRole } from '@/constants/roles';
+import { isAppRole } from '@/lib/roles';
 
 interface AuthContextType {
   user: User | null;
@@ -35,7 +35,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
       supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
     ]);
-    setRole((roleData?.role as AppRole) || null);
+    setRole(isAppRole(roleData?.role) ? roleData.role : null);
     setProfile(profileData);
   };
 
@@ -65,8 +65,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+
+    if (data.user) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('is_active')
+        .eq('user_id', data.user.id)
+        .maybeSingle();
+
+      if (profileData?.is_active === false) {
+        await supabase.auth.signOut();
+        throw new Error('Your account is blocked. Contact superadmin.');
+      }
+    }
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {

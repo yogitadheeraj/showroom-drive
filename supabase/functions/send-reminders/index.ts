@@ -1,32 +1,40 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
+import {
+  createServiceRoleClient,
+  errorResponse,
+  getRequiredEnv,
+  jsonResponse,
+  logWhatsAppCommunication,
+  preflightResponse,
+  sanitizePhoneNumber,
+  sendWhatsAppMessage,
+} from "../_shared/whatsapp/common.ts";
+import { TEST_DRIVE_REMINDER_SELECT } from "../_shared/whatsapp/constants.ts";
+import {
+  TestDriveStatus,
+  WhatsAppDeliveryStatus,
+  WhatsAppPurpose,
+} from "../_shared/whatsapp/enums.ts";
+import { ReminderDriveRecord } from "../_shared/whatsapp/types.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+function buildReminderMessage(drive: ReminderDriveRecord): string {
+  const customerName = drive.customers?.full_name ?? "Customer";
+  const vehicleName = [drive.vehicles?.brand, drive.vehicles?.model].filter(Boolean).join(" ") || "your selected vehicle";
+  const locationName = drive.locations?.name ?? "your selected location";
 
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/twilio";
+  return `🔔 *Test Drive Reminder*\n\nHi ${customerName},\n\nThis is a reminder for your test drive tomorrow:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n⏰ *Time:* ${drive.scheduled_time}\n\nPlease bring a valid driving license. Reply CANCEL to cancel.\n\n— TestDriveSync`;
+}
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return preflightResponse();
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) return errorResponse("LOVABLE_API_KEY not configured");
-
-  const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
-  if (!TWILIO_API_KEY) return errorResponse("TWILIO_API_KEY not configured");
-
-  const WHATSAPP_FROM = Deno.env.get("TWILIO_WHATSAPP_FROM");
-  if (!WHATSAPP_FROM) return errorResponse("TWILIO_WHATSAPP_FROM not configured");
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
   try {
+    const lovableApiKey = getRequiredEnv("LOVABLE_API_KEY");
+    const twilioApiKey = getRequiredEnv("TWILIO_API_KEY");
+    const whatsappFrom = getRequiredEnv("TWILIO_WHATSAPP_FROM");
+    const supabase = createServiceRoleClient();
+
     // Find test drives scheduled for tomorrow
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -34,60 +42,48 @@ Deno.serve(async (req) => {
 
     const { data: drives, error } = await supabase
       .from("test_drives")
-      .select("id, scheduled_date, scheduled_time, customer_id, vehicle_id, location_id, customers(full_name, phone), vehicles(brand, model), locations(name)")
+      .select(TEST_DRIVE_REMINDER_SELECT)
       .eq("scheduled_date", tomorrowStr)
-      .in("status", ["scheduled", "confirmed"]);
+      .in("status", [TestDriveStatus.Scheduled, TestDriveStatus.Confirmed]);
 
     if (error) throw error;
 
     let sent = 0;
     let failed = 0;
 
-    for (const drive of drives || []) {
-      const customer = (drive as any).customers;
-      const vehicle = (drive as any).vehicles;
-      const location = (drive as any).locations;
+    for (const drive of (drives as ReminderDriveRecord[] | null) ?? []) {
+      const customer = drive.customers;
 
       if (!customer?.phone) continue;
 
-      const message = `🔔 *Test Drive Reminder*\n\nHi ${customer.full_name},\n\nThis is a reminder for your test drive tomorrow:\n🚗 *Vehicle:* ${vehicle?.brand} ${vehicle?.model}\n📍 *Location:* ${location?.name}\n⏰ *Time:* ${drive.scheduled_time}\n\nPlease bring a valid driving license. Reply CANCEL to cancel.\n\n— TestDriveSync`;
-
-      const cleanPhone = customer.phone.replace(/[\s-]/g, "");
-      const cleanFrom = WHATSAPP_FROM.replace(/[\s-]/g, "");
-      const whatsappTo = `whatsapp:${cleanPhone}`;
-      const whatsappFrom = `whatsapp:${cleanFrom}`;
+      const message = buildReminderMessage(drive);
+      const cleanPhone = sanitizePhoneNumber(customer.phone);
 
       try {
-        const twilioResponse = await fetch(`${GATEWAY_URL}/Messages.json`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "X-Connection-Api-Key": TWILIO_API_KEY,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            To: whatsappTo,
-            From: whatsappFrom,
-            Body: message,
-          }),
+        const { response, data } = await sendWhatsAppMessage({
+          to: cleanPhone,
+          from: whatsappFrom,
+          message,
+          lovableApiKey,
+          twilioApiKey,
         });
 
-        const twilioData = await twilioResponse.json();
-        const status = twilioResponse.ok ? "sent" : "failed";
+        const status = response.ok
+          ? WhatsAppDeliveryStatus.Sent
+          : WhatsAppDeliveryStatus.Failed;
 
-        await supabase.from("communications").insert({
-          customer_id: drive.customer_id,
-          test_drive_id: drive.id,
-          type: "whatsapp",
-          purpose: "reminder",
-          sent_to: cleanPhone,
+        await logWhatsAppCommunication({
+          supabase,
+          customerId: drive.customer_id,
+          testDriveId: drive.id,
+          purpose: WhatsAppPurpose.Reminder,
+          sentTo: cleanPhone,
           body: message,
           status,
-          external_id: twilioData.sid || null,
-          sent_at: status === "sent" ? new Date().toISOString() : null,
+          externalId: data && typeof data === "object" && "sid" in data ? String(data.sid) : null,
         });
 
-        if (twilioResponse.ok) sent++;
+        if (response.ok) sent++;
         else failed++;
       } catch (err) {
         console.error(`Failed to send reminder to ${cleanPhone}:`, err);
@@ -95,20 +91,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({ success: true, total: drives?.length || 0, sent, failed }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ success: true, total: drives?.length || 0, sent, failed });
   } catch (error: unknown) {
     console.error("Reminder error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return errorResponse(errorMessage);
   }
 });
-
-function errorResponse(msg: string) {
-  return new Response(JSON.stringify({ error: msg }), {
-    status: 500,
-    headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
-  });
-}

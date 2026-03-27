@@ -25,7 +25,7 @@ const LocationsPage = () => {
   const { dealerId, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
-    if (!dealerLoading && dealerId) fetchLocations();
+    if (!dealerLoading) fetchLocations();
   }, [dealerId, dealerLoading]);
 
   const fetchLocations = async () => {
@@ -178,7 +178,7 @@ const LocationsPage = () => {
                 Hours — {hoursLocationName}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-2 sm:space-y-3">
+            <div className="space-y-2 sm:space-y-3 p-10">
               {hours.map((h, i) => (
                 <div key={i} className={`flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg border transition-colors ${h.is_closed ? 'bg-muted/50 border-border' : 'bg-card border-border'}`}>
                   <div className="w-full sm:w-24 flex items-center justify-between sm:block">
