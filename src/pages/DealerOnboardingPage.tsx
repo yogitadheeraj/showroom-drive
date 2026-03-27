@@ -129,7 +129,12 @@ const DealerOnboardingPage = () => {
             </div>
             <h1 className="text-lg font-heading font-bold text-primary-foreground">Dealer Onboarding</h1>
           </div>
-          <div className="w-20" />
+          <button
+            onClick={() => navigate('/auth')}
+            className="text-sm font-medium text-primary-foreground/80 hover:text-primary-foreground transition-colors"
+          >
+            Login
+          </button>
         </div>
       </div>
 

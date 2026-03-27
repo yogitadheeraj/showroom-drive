@@ -14,7 +14,8 @@ import { UserPlus, Pencil, MapPin, Mail, Shield } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 const ROLES = [
-  { value: 'dealer_admin', label: 'Dealer Admin' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'sales_admin', label: 'Sales Admin' },
   { value: 'gro', label: 'GRO' },
   { value: 'sales', label: 'Sales Person' },
   { value: 'security', label: 'Security' },

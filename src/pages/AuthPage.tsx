@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,6 +80,9 @@ const AuthPage = () => {
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Signing in...' : 'Sign In'}
+                  </Button>
+                  <Button asChild variant="link" className="w-full">
+                    <Link to="/dealer-onboarding">New dealer? Start onboarding</Link>
                   </Button>
                 </form>
               </TabsContent>
