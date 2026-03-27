@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS } from '@/constants/roles';
+import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, type AppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
 
 const UsersPage = () => {
