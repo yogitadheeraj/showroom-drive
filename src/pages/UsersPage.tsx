@@ -312,7 +312,7 @@ const UsersPage = () => {
               <div className="space-y-2"><Label>Password *</Label><Input type="password" value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} minLength={6} /></div>
               <div className="space-y-2">
                 <Label>Role *</Label>
-                <Select value={createForm.role} onValueChange={v => setCreateForm(p => ({ ...p, role: v }))}>
+                <Select value={createForm.role} <Select value={createForm.role} onValueChange={v => setCreateForm(p => ({ ...p, role: v as AppRole }))}>>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {STAFF_ROLE_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
