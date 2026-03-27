@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
 
       if (!customer?.phone) continue;
 
-      const message = `🔔 *Test Drive Reminder*\n\nHi ${customer.full_name},\n\nThis is a reminder for your test drive tomorrow:\n🚗 *Vehicle:* ${vehicle?.brand} ${vehicle?.model}\n📍 *Location:* ${location?.name}\n⏰ *Time:* ${drive.scheduled_time}\n\nPlease bring a valid driving license. Reply CANCEL to cancel.\n\n— DriveSync`;
+      const message = `🔔 *Test Drive Reminder*\n\nHi ${customer.full_name},\n\nThis is a reminder for your test drive tomorrow:\n🚗 *Vehicle:* ${vehicle?.brand} ${vehicle?.model}\n📍 *Location:* ${location?.name}\n⏰ *Time:* ${drive.scheduled_time}\n\nPlease bring a valid driving license. Reply CANCEL to cancel.\n\n— TestDriveSync`;
 
       const cleanPhone = customer.phone.replace(/[\s-]/g, "");
       const cleanFrom = WHATSAPP_FROM.replace(/[\s-]/g, "");

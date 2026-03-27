@@ -34,7 +34,7 @@ export const SignupEmail = ({
     <Body style={main}>
       <Container style={container}>
         <Section style={headerSection}>
-          <Text style={logoText}>🚗 DriveSync</Text>
+          <Text style={logoText}>🚗 TestDriveSync</Text>
         </Section>
         <Heading style={h1}>Confirm your email</Heading>
         <Text style={text}>
