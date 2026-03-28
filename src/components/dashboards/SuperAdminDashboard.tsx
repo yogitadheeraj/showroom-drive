@@ -538,7 +538,7 @@ const SuperAdminDashboard = () => {
                       </Badge>
                     </td>
                     <td className="p-3 text-muted-foreground">
-                      {staff.last_login_at ? new Date(staff.last_login_at).toLocaleString() : 'Never'}
+                      —
                     </td>
                   </tr>
                 ))}
