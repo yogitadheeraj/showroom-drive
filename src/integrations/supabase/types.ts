@@ -334,6 +334,47 @@ export type Database = {
           },
         ]
       }
+      location_devices: {
+        Row: {
+          created_at: string
+          device_type: string
+          id: string
+          is_active: boolean
+          location_id: string
+          name: string
+          notes: string | null
+          serial_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_type?: string
+          id?: string
+          is_active?: boolean
+          location_id: string
+          name: string
+          notes?: string | null
+          serial_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_type?: string
+          id?: string
+          is_active?: boolean
+          location_id?: string
+          name?: string
+          notes?: string | null
+          serial_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_devices_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       location_operating_hours: {
         Row: {
           close_time: string
@@ -362,6 +403,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "location_operating_hours_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      location_special_periods: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          is_full_closure: boolean
+          location_id: string
+          modified_close_time: string | null
+          modified_open_time: string | null
+          name: string
+          notes: string | null
+          start_date: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          is_full_closure?: boolean
+          location_id: string
+          modified_close_time?: string | null
+          modified_open_time?: string | null
+          name: string
+          notes?: string | null
+          start_date: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          is_full_closure?: boolean
+          location_id?: string
+          modified_close_time?: string | null
+          modified_open_time?: string | null
+          name?: string
+          notes?: string | null
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_special_periods_location_id_fkey"
             columns: ["location_id"]
             isOneToOne: false
             referencedRelation: "locations"
@@ -430,7 +518,6 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean
-          last_login_at: string | null
           location_id: string | null
           phone: string | null
           updated_at: string
@@ -443,7 +530,6 @@ export type Database = {
           full_name: string
           id?: string
           is_active?: boolean
-          last_login_at?: string | null
           location_id?: string | null
           phone?: string | null
           updated_at?: string
@@ -456,7 +542,6 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean
-          last_login_at?: string | null
           location_id?: string | null
           phone?: string | null
           updated_at?: string
@@ -475,42 +560,42 @@ export type Database = {
       staff_activity_events: {
         Row: {
           created_at: string
-          event_label: string
+          event_label: string | null
           event_type: string
           happened_at: string
           id: string
           location_id: string | null
           metadata: Json | null
           profile_id: string | null
-          role: Database["public"]["Enums"]["app_role"] | null
+          role: string | null
           route: string | null
           session_id: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
-          event_label: string
+          event_label?: string | null
           event_type: string
           happened_at?: string
           id?: string
           location_id?: string | null
           metadata?: Json | null
           profile_id?: string | null
-          role?: Database["public"]["Enums"]["app_role"] | null
+          role?: string | null
           route?: string | null
           session_id?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
-          event_label?: string
+          event_label?: string | null
           event_type?: string
           happened_at?: string
           id?: string
           location_id?: string | null
           metadata?: Json | null
           profile_id?: string | null
-          role?: Database["public"]["Enums"]["app_role"] | null
+          role?: string | null
           route?: string | null
           session_id?: string | null
           user_id?: string
@@ -551,9 +636,8 @@ export type Database = {
           login_at: string
           logout_at: string | null
           profile_id: string | null
-          role: Database["public"]["Enums"]["app_role"] | null
-          session_source: string
-          updated_at: string
+          role: string | null
+          session_source: string | null
           user_id: string
         }
         Insert: {
@@ -567,9 +651,8 @@ export type Database = {
           login_at?: string
           logout_at?: string | null
           profile_id?: string | null
-          role?: Database["public"]["Enums"]["app_role"] | null
-          session_source?: string
-          updated_at?: string
+          role?: string | null
+          session_source?: string | null
           user_id: string
         }
         Update: {
@@ -583,9 +666,8 @@ export type Database = {
           login_at?: string
           logout_at?: string | null
           profile_id?: string | null
-          role?: Database["public"]["Enums"]["app_role"] | null
-          session_source?: string
-          updated_at?: string
+          role?: string | null
+          session_source?: string | null
           user_id?: string
         }
         Relationships: [
