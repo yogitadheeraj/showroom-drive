@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useDealerContext } from '@/hooks/useDealerContext';
+import { isLocationCurrentlyOpen } from '@/lib/slotAvailability';
 import { APP_ROLE } from '@/constants/roles';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -12,11 +14,13 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2 } from 'lucide-react';
 
-type Step = 'customer' | 'vehicle' | 'license' | 'confirm';
+type Step = 'customer' | 'license' | 'confirm';
 
 const WalkinPage = () => {
   const { profile, role } = useAuth();
+  const { dealerId, loading: dealerLoading } = useDealerContext();
   const [locations, setLocations] = useState<any[]>([]);
+  const [locationStatus, setLocationStatus] = useState<Record<string, { isOpen: boolean; openTime: string | null; closeTime: string | null }>>({});
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [step, setStep] = useState<Step>('customer');
   const [formData, setFormData] = useState({
@@ -34,8 +38,34 @@ const WalkinPage = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    supabase.from('locations').select('*').eq('is_active', true).then(({ data }) => setLocations(data || []));
-  }, []);
+    if (dealerLoading) return;
+
+    let query = supabase.from('locations').select('*').eq('is_active', true);
+    if (dealerId) query = query.eq('dealer_id', dealerId);
+
+    query.then(({ data }) => setLocations(data || []));
+  }, [dealerId, dealerLoading]);
+
+  useEffect(() => {
+    if (locations.length === 0) return;
+
+    const fetchLocationStatus = async () => {
+      const status: Record<string, { isOpen: boolean; openTime: string | null; closeTime: string | null }> = {};
+      
+      for (const location of locations) {
+        const result = await isLocationCurrentlyOpen(location.id);
+        status[location.id] = {
+          isOpen: result.isOpen,
+          openTime: result.openTime,
+          closeTime: result.closeTime,
+        };
+      }
+      
+      setLocationStatus(status);
+    };
+
+    fetchLocationStatus();
+  }, [locations]);
 
   useEffect(() => {
     if (formData.locationId) {
@@ -47,8 +77,28 @@ const WalkinPage = () => {
   }, [formData.locationId]);
 
   useEffect(() => {
-    if (profile?.location_id) setFormData(p => ({ ...p, locationId: profile.location_id }));
-  }, [profile]);
+    if (dealerLoading) return;
+
+    if (profile?.location_id && locations.some((l) => l.id === profile.location_id)) {
+      const status = locationStatus[profile.location_id];
+      // Only set profile location if it's open
+      if (status?.isOpen) {
+        setFormData((p) => ({ ...p, locationId: profile.location_id }));
+        return;
+      } else {
+        // If profile location is closed, clear it
+        setFormData((p) => ({ ...p, locationId: '', vehicleId: '' }));
+        return;
+      }
+    }
+
+    setFormData((p) => {
+      if (p.locationId && !locations.some((l) => l.id === p.locationId)) {
+        return { ...p, locationId: '', vehicleId: '' };
+      }
+      return p;
+    });
+  }, [profile, locations, dealerLoading, locationStatus]);
 
   useEffect(() => {
     return () => {
@@ -115,9 +165,15 @@ const WalkinPage = () => {
 
   const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
   const selectedLocation = locations.find(l => l.id === formData.locationId);
+  const selectedLocationStatus = formData.locationId ? locationStatus[formData.locationId] : null;
 
-  const canProceedFromCustomer = formData.fullName && formData.phone;
-  const canProceedFromVehicle = formData.vehicleId && formData.locationId;
+  const canProceedFromCustomer = !!(
+    formData.fullName && 
+    formData.phone && 
+    formData.vehicleId && 
+    formData.locationId && 
+    selectedLocationStatus?.isOpen
+  );
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -235,7 +291,6 @@ const WalkinPage = () => {
 
   const steps: { key: Step; label: string; icon: React.ReactNode }[] = [
     { key: 'customer', label: 'Customer', icon: <UserPlus className="h-4 w-4" /> },
-    { key: 'vehicle', label: 'Vehicle', icon: <Car className="h-4 w-4" /> },
     { key: 'license', label: 'License', icon: <Camera className="h-4 w-4" /> },
     { key: 'confirm', label: 'Confirm', icon: <CheckCircle2 className="h-4 w-4" /> },
   ];
@@ -270,14 +325,16 @@ const WalkinPage = () => {
         </div>
 
         <Card className="shadow-card">
-          {/* Step 1: Customer Info */}
+          {/* Step 1: Customer + Vehicle */}
           {step === 'customer' && (
             <>
               <CardHeader>
                 <CardTitle className="font-heading text-lg flex items-center gap-2">
-                  <UserPlus className="h-5 w-5 text-primary" /> Customer Information
+                  <UserPlus className="h-5 w-5 text-primary" /> Customer & Vehicle Information
                 </CardTitle>
-                <CardDescription>Enter the walk-in customer's details</CardDescription>
+                <CardDescription>
+                  Enter customer details and choose a vehicle. Default profile location is applied automatically.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -320,40 +377,91 @@ const WalkinPage = () => {
                     </Select>
                   </div>
                 </div>
-                <div className="flex justify-end pt-2">
-                  <Button onClick={() => setStep('vehicle')} disabled={!canProceedFromCustomer}>
-                    Next <ArrowRight className="h-4 w-4 ml-1" />
-                  </Button>
-                </div>
-              </CardContent>
-            </>
-          )}
 
-          {/* Step 2: Vehicle Selection */}
-          {step === 'vehicle' && (
-            <>
-              <CardHeader>
-                <CardTitle className="font-heading text-lg flex items-center gap-2">
-                  <Car className="h-5 w-5 text-primary" /> Select Vehicle
-                </CardTitle>
-                <CardDescription>Location is fixed to your profile. Choose a vehicle for the test drive.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
+                <div className="space-y-2 pt-2 border-t border-border">
                   <Label>Location</Label>
-                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-                    <p className="font-medium text-foreground">{selectedLocation?.name || 'Your Location'}</p>
-                    <p className="text-xs text-muted-foreground">{selectedLocation?.address || 'Default profile location is applied automatically'}</p>
-                  </div>
+                  {formData.locationId ? (
+                    <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium text-foreground">{selectedLocation?.name || 'Your Location'}</p>
+                          <p className="text-xs text-muted-foreground">{selectedLocation?.address || 'Default profile location is applied automatically'}</p>
+                        </div>
+                        {locationStatus[formData.locationId] && (
+                          <Badge variant={locationStatus[formData.locationId]?.isOpen ? 'default' : 'destructive'} className="ml-2 shrink-0">
+                            {locationStatus[formData.locationId]?.isOpen ? (
+                              <>
+                                <span className="inline-block h-2 w-2 rounded-full bg-current mr-1"></span>
+                                Open
+                              </>
+                            ) : (
+                              <>
+                                <span className="inline-block h-2 w-2 rounded-full bg-current mr-1 animate-pulse"></span>
+                                Closed
+                              </>
+                            )}
+                          </Badge>
+                        )}
+                      </div>
+                      {locationStatus[formData.locationId] && !locationStatus[formData.locationId]?.isOpen && (
+                        <div className="flex items-center gap-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
+                          <span className="text-xs text-destructive font-medium">
+                            ⏰ This location is closed. Hours: {locationStatus[formData.locationId]?.openTime} - {locationStatus[formData.locationId]?.closeTime}
+                          </span>
+                        </div>
+                      )}
+                      {locationStatus[formData.locationId]?.isOpen && (
+                        <p className="text-xs text-success flex items-center gap-1">
+                          ✓ Open until {locationStatus[formData.locationId]?.closeTime}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Select value={formData.locationId} onValueChange={(v) => setFormData((p) => ({ ...p, locationId: v, vehicleId: '' }))}>
+                        <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                        <SelectContent>
+                          {locations.map((l) => {
+                            const status = locationStatus[l.id];
+                            const isOpen = status?.isOpen;
+                            return (
+                              <SelectItem key={l.id} value={l.id} disabled={!isOpen}>
+                                <div className="flex items-center gap-2">
+                                  <span>{l.name}</span>
+                                  {status && (
+                                    <>
+                                      {isOpen ? (
+                                        <Badge variant="outline" className="text-xs h-5 bg-green-50">
+                                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600 mr-1"></span>
+                                          Open
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-xs h-5 bg-red-50">
+                                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600 mr-1"></span>
+                                          Closed
+                                        </Badge>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">No default profile location found, select an open location to continue.</p>
+                    </div>
+                  )}
                 </div>
+
                 <div className="space-y-2">
                   <Label>Vehicle <span className="text-destructive">*</span></Label>
                   {vehicles.length > 0 ? (
                     <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto">
-                      {vehicles.map(v => (
+                      {vehicles.map((v) => (
                         <div
                           key={v.id}
-                          onClick={() => setFormData(p => ({ ...p, vehicleId: v.id }))}
+                          onClick={() => setFormData((p) => ({ ...p, vehicleId: v.id }))}
                           className={`p-3 rounded-lg border cursor-pointer transition-all ${
                             formData.vehicleId === v.id
                               ? 'border-primary bg-primary/5 ring-1 ring-primary'
@@ -376,17 +484,22 @@ const WalkinPage = () => {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground py-4 text-center">
-                      {formData.locationId ? 'No vehicles available at your location' : 'No default location found on your profile'}
+                      {formData.locationId ? 'No vehicles available at your location' : 'Select/apply location to load vehicles'}
                     </p>
                   )}
                 </div>
-                <div className="flex justify-between pt-2">
-                  <Button variant="outline" onClick={() => setStep('customer')}>
-                    <ArrowLeft className="h-4 w-4 mr-1" /> Back
-                  </Button>
-                  <Button onClick={() => setStep('license')} disabled={!canProceedFromVehicle}>
-                    Next <ArrowRight className="h-4 w-4 ml-1" />
-                  </Button>
+
+                <div className="flex justify-end pt-2">
+                  <div className="flex flex-col items-end gap-2 w-full">
+                    {formData.locationId && selectedLocationStatus && !selectedLocationStatus.isOpen && (
+                      <p className="text-xs text-destructive font-medium">
+                        ⏰ Cannot proceed: This location is closed. Opens at {selectedLocationStatus.openTime}
+                      </p>
+                    )}
+                    <Button onClick={() => setStep('license')} disabled={!canProceedFromCustomer} className="w-full">
+                      Next <ArrowRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </>
@@ -465,7 +578,7 @@ const WalkinPage = () => {
                 )}
 
                 <div className="flex justify-between pt-2">
-                  <Button variant="outline" onClick={() => setStep('vehicle')}>
+                  <Button variant="outline" onClick={() => setStep('customer')}>
                     <ArrowLeft className="h-4 w-4 mr-1" /> Back
                   </Button>
                   <Button onClick={() => setStep('confirm')}>

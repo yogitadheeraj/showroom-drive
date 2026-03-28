@@ -27,8 +27,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
-    { label: 'Data Center', path: '/data-center', icon: BarChart3 },
-    { label: 'Settings', path: '/settings', icon: Settings },
+    { label: 'Data Center', path: '/data-center', icon: BarChart3 }
   ],
   [APP_ROLE.DEALER_ADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },

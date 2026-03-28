@@ -64,7 +64,7 @@ const GRODashboard = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {[
           { label: "Today's Drives", value: stats.today, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
           { label: 'Upcoming', value: stats.upcoming, icon: Clock, color: 'text-info', bg: 'bg-info/10' },
@@ -72,14 +72,14 @@ const GRODashboard = () => {
         ].map(stat => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="shadow-card">
-              <CardContent className="p-4 sm:p-5 flex items-center gap-3 sm:gap-4">
-                <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-xl ${stat.bg} flex items-center justify-center`}>
-                  <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${stat.color}`} />
+            <Card key={stat.label} className="shadow-card h-full min-w-0">
+              <CardContent className="p-3 sm:p-4 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">
+                <div className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
                 </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">{stat.label}</p>
-                  <p className="text-xl sm:text-2xl font-heading font-bold text-foreground">{stat.value}</p>
+                <div className="min-w-0">
+                  <p className="text-lg sm:text-2xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight break-words mt-1">{stat.label}</p>
                 </div>
               </CardContent>
             </Card>

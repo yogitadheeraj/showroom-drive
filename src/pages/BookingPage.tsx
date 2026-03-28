@@ -7,11 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import VehicleSpecCard from '@/components/booking/VehicleSpecCard';
-import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows, Map as MapIcon, ExternalLink } from 'lucide-react';
+import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows, Map as MapIcon, ExternalLink, CalendarIcon } from 'lucide-react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
+import { format, isBefore, startOfDay } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { checkAndReleaseNoShowBookings, getAvailableTimeSlots, getAvailableVehicles } from '@/lib/slotAvailability';
 
 const STEPS = [
   { id: 'vehicle', label: 'Vehicle', icon: Car },
@@ -32,6 +37,11 @@ const bookingSchema = z.object({
   scheduledTime: z.string().min(1, 'Please select a time'),
 });
 
+const isMissingSpecialPeriodsTableError = (error: any) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes("location_special_periods") && message.includes('schema cache');
+};
+
 const BookingPage = () => {
   const [searchParams] = useSearchParams();
   const [step, setStep] = useState(0);
@@ -51,6 +61,12 @@ const BookingPage = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [slotDurationMinutes, setSlotDurationMinutes] = useState(30);
+  const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
+  const [timeSlots, setTimeSlots] = useState<Array<{ startTime: string; endTime: string }>>([]);
+  const [availableVehiclesForSlot, setAvailableVehiclesForSlot] = useState<any[]>([]);
+  const [loadingVehiclesForSlot, setLoadingVehiclesForSlot] = useState(false);
   const { toast } = useToast();
 
   // Auto-select vehicle from URL (coming from compare page)
@@ -95,7 +111,12 @@ const BookingPage = () => {
       setBrandsByDealerId(brandMap);
       setOperatingHours(ohRes.data || []);
       setBlockedSlots(bsRes.data || []);
-      setSpecialPeriods(spRes.data || []);
+
+      if (spRes.error && isMissingSpecialPeriodsTableError(spRes.error)) {
+        setSpecialPeriods([]);
+      } else {
+        setSpecialPeriods(spRes.data || []);
+      }
     });
   }, []);
 
@@ -184,29 +205,104 @@ const BookingPage = () => {
     return getEffectiveHoursForDate(formData.locationId, formData.scheduledDate);
   }, [formData.locationId, formData.scheduledDate, operatingHours, specialPeriods]);
 
-  // Generate time slots based on operating hours
-  const timeSlots = useMemo(() => {
-    if (!selectedDateHours || selectedDateHours.is_closed || !selectedDateHours.open_time || !selectedDateHours.close_time) return [];
-    const slots: string[] = [];
-    const [openH, openM] = selectedDateHours.open_time.split(':').map(Number);
-    const [closeH, closeM] = selectedDateHours.close_time.split(':').map(Number);
-    
-    let h = openH, m = openM;
-    while (h < closeH || (h === closeH && m < closeM)) {
-      const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      // Check if this slot is blocked
-      const isBlocked = blockedSlots.some(bs =>
-        bs.location_id === formData.locationId &&
-        bs.blocked_date === formData.scheduledDate &&
-        timeStr >= bs.start_time.substring(0, 5) &&
-        timeStr < bs.end_time.substring(0, 5)
+  useEffect(() => {
+    const loadTimeSlots = async () => {
+      if (!formData.locationId || !formData.scheduledDate || !formData.vehicleId || selectedDateHours?.is_closed) {
+        setTimeSlots([]);
+        return;
+      }
+
+      setLoadingTimeSlots(true);
+
+      const location = locations.find((l: any) => l.id === formData.locationId);
+      const configuredDuration = Number(location?.slot_duration_minutes || 30);
+      setSlotDurationMinutes(configuredDuration);
+
+      await checkAndReleaseNoShowBookings(formData.locationId, formData.scheduledDate);
+
+      const { slots, error } = await getAvailableTimeSlots(formData.locationId, formData.scheduledDate, configuredDuration);
+      if (error) {
+        setTimeSlots([]);
+        setLoadingTimeSlots(false);
+        return;
+      }
+
+      const { data: vehicleBookings } = await supabase
+        .from('test_drives')
+        .select('scheduled_time, slot_duration_minutes')
+        .eq('vehicle_id', formData.vehicleId)
+        .eq('location_id', formData.locationId)
+        .eq('scheduled_date', formData.scheduledDate)
+        .in('status', ['scheduled', 'confirmed', 'show', 'in_progress']);
+
+      // Check if selected date is today
+      const now = new Date();
+      const currentDateStr = now.toISOString().split('T')[0];
+      const isToday = formData.scheduledDate === currentDateStr;
+      const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const filteredSlots = (slots || []).filter((slot: any) => {
+        const slotBlocked = blockedSlots.some((bs: any) =>
+          bs.location_id === formData.locationId &&
+          bs.blocked_date === formData.scheduledDate &&
+          slot.startTime >= bs.start_time.substring(0, 5) &&
+          slot.startTime < bs.end_time.substring(0, 5)
+        );
+
+        if (slotBlocked) return false;
+
+        // Filter out past slots if date is today
+        if (isToday) {
+          if (slot.startMinutes < currentTimeMinutes) {
+            return false;
+          }
+        }
+
+        const slotStart = slot.startMinutes;
+        const slotEnd = slot.endMinutes;
+
+        const hasVehicleConflict = (vehicleBookings || []).some((booking: any) => {
+          if (!booking.scheduled_time) return false;
+          const [bh, bm] = booking.scheduled_time.substring(0, 5).split(':').map(Number);
+          const bookingStart = bh * 60 + bm;
+          const bookingEnd = bookingStart + Number(booking.slot_duration_minutes || configuredDuration);
+          return !(slotEnd <= bookingStart || slotStart >= bookingEnd);
+        });
+
+        return !hasVehicleConflict;
+      }).map((slot: any) => ({ startTime: slot.startTime, endTime: slot.endTime }));
+
+      if (formData.scheduledTime && !filteredSlots.some((s: any) => s.startTime === formData.scheduledTime)) {
+        setFormData((p) => ({ ...p, scheduledTime: '' }));
+      }
+
+      setTimeSlots(filteredSlots);
+      setLoadingTimeSlots(false);
+    };
+
+    void loadTimeSlots();
+  }, [formData.locationId, formData.scheduledDate, formData.vehicleId, selectedDateHours, locations, blockedSlots]);
+
+  useEffect(() => {
+    const loadVehiclesForSlot = async () => {
+      if (!formData.locationId || !formData.scheduledDate || !formData.scheduledTime) {
+        setAvailableVehiclesForSlot([]);
+        return;
+      }
+
+      setLoadingVehiclesForSlot(true);
+      const { vehicles } = await getAvailableVehicles(
+        formData.locationId,
+        formData.scheduledDate,
+        formData.scheduledTime,
+        slotDurationMinutes
       );
-      if (!isBlocked) slots.push(timeStr);
-      m += 30;
-      if (m >= 60) { h++; m = 0; }
-    }
-    return slots;
-  }, [selectedDateHours, blockedSlots, formData.locationId, formData.scheduledDate]);
+      setAvailableVehiclesForSlot(vehicles || []);
+      setLoadingVehiclesForSlot(false);
+    };
+
+    void loadVehiclesForSlot();
+  }, [formData.locationId, formData.scheduledDate, formData.scheduledTime, slotDurationMinutes]);
 
   const openLocationsForDate = useMemo(() => {
     if (!formData.scheduledDate) return availableLocations;
@@ -221,15 +317,32 @@ const BookingPage = () => {
     return openLocationsForDate.length > 0;
   }, [formData.scheduledDate, openLocationsForDate]);
 
-  // Min date = tomorrow
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().split('T')[0];
+  // Min date = today (current day)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const minDate = today.toISOString().split('T')[0];
 
   // Max date = 30 days out
   const maxDate = new Date();
   maxDate.setDate(maxDate.getDate() + 30);
   const maxDateStr = maxDate.toISOString().split('T')[0];
+
+  const isDateUnavailable = (date: Date) => {
+    const day = startOfDay(date);
+    const minDay = startOfDay(today);
+    const max = startOfDay(maxDate);
+
+    if (isBefore(day, minDay) || day > max) return true;
+    if (availableLocations.length === 0) return true;
+
+    const dateStr = format(day, 'yyyy-MM-dd');
+    const hasAnyOpenLocation = availableLocations.some((loc: any) => {
+      const effectiveHours = getEffectiveHoursForDate(loc.id, dateStr);
+      return !!effectiveHours && !effectiveHours.is_closed;
+    });
+
+    return !hasAnyOpenLocation;
+  };
 
   const canProceed = () => {
     switch (step) {
@@ -286,6 +399,7 @@ const BookingPage = () => {
         location_id: formData.locationId,
         scheduled_date: formData.scheduledDate,
         scheduled_time: formData.scheduledTime,
+        slot_duration_minutes: slotDurationMinutes,
         source: 'online',
       }).select('id').single();
       if (tdError) throw tdError;
@@ -487,11 +601,46 @@ const BookingPage = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="date">Preferred Date</Label>
-                  <Input id="date" type="date" min={minDate} max={maxDateStr}
-                    value={formData.scheduledDate}
-                    onChange={e => setFormData(p => ({ ...p, scheduledDate: e.target.value, scheduledTime: '', locationId: '', vehicleId: '' }))}
-                    className="text-base"
-                  />
+                  <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="date"
+                        variant="outline"
+                        className={cn(
+                          'w-full justify-start text-left font-normal text-base',
+                          !formData.scheduledDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formData.scheduledDate
+                          ? format(new Date(`${formData.scheduledDate}T00:00:00`), 'PPP')
+                          : 'Pick a date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.scheduledDate ? new Date(`${formData.scheduledDate}T00:00:00`) : undefined}
+                        onSelect={(d) => {
+                          if (!d) return;
+                          setFormData(p => ({
+                            ...p,
+                            scheduledDate: format(d, 'yyyy-MM-dd'),
+                            scheduledTime: '',
+                            locationId: '',
+                            vehicleId: '',
+                          }));
+                          setDatePickerOpen(false);
+                        }}
+                        disabled={isDateUnavailable}
+                        initialFocus
+                        className={cn('p-3 pointer-events-auto')}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <p className="text-xs text-muted-foreground">
+                    Dates are enabled only when at least one location is open (including special schedules).
+                  </p>
                 </div>
                 {formData.scheduledDate && (
                   <p className="text-sm text-muted-foreground">
@@ -551,6 +700,9 @@ const BookingPage = () => {
                                     {hours.open_time?.substring(0, 5)} - {hours.close_time?.substring(0, 5)}
                                   </span>
                                 )}
+                                <Badge variant="secondary" className="text-[10px]">
+                                  Slot: {Number(loc.slot_duration_minutes || 30)}m
+                                </Badge>
                                 {hours?.source === 'special' && hours?.source_name && (
                                   <Badge variant="outline" className="text-[10px]">{hours.source_name}</Badge>
                                 )}
@@ -624,6 +776,7 @@ const BookingPage = () => {
                           : ''}
                       </p>
                     )}
+                    <p className="text-xs text-muted-foreground">Slot duration: {slotDurationMinutes} minutes</p>
                   </div>
                 )}
                 {selectedDateHours?.is_closed ? (
@@ -634,30 +787,68 @@ const BookingPage = () => {
                     </p>
                     <Button variant="outline" className="mt-4" onClick={() => setStep(1)}>Change Date</Button>
                   </div>
+                ) : loadingTimeSlots ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Loading available slots...</p>
+                  </div>
                 ) : timeSlots.length === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-muted-foreground">No available time slots for this date.</p>
+                    <p className="text-muted-foreground">No available time slots for this vehicle on this date.</p>
                     <Button variant="outline" className="mt-4" onClick={() => setStep(1)}>Change Date</Button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {timeSlots.map(slot => {
-                      const isSelected = formData.scheduledTime === slot;
-                      const [h] = slot.split(':').map(Number);
+                      const isSelected = formData.scheduledTime === slot.startTime;
+                      const [h] = slot.startTime.split(':').map(Number);
                       const period = h < 12 ? 'AM' : 'PM';
                       const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                      const displayTime = `${displayH}:${slot.split(':')[1]} ${period}`;
+                      const displayTime = `${displayH}:${slot.startTime.split(':')[1]} ${period}`;
                       return (
-                        <button key={slot} type="button"
-                          onClick={() => setFormData(p => ({ ...p, scheduledTime: slot }))}
+                        <button key={slot.startTime} type="button"
+                          onClick={() => setFormData(p => ({ ...p, scheduledTime: slot.startTime }))}
                           className={`py-2.5 px-3 rounded-lg text-sm font-medium transition-all ${
                             isSelected ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground border border-border'
                           }`}
                         >
                           {displayTime}
+                          <span className="block text-[10px] opacity-80">until {slot.endTime}</span>
                         </button>
                       );
                     })}
+                  </div>
+                )}
+
+                {formData.scheduledTime && (
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-xs font-medium text-foreground mb-2">Vehicle availability for selected slot</p>
+                    {loadingVehiclesForSlot ? (
+                      <p className="text-xs text-muted-foreground">Checking available vehicles...</p>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          {(availableVehiclesForSlot || []).filter((v: any) => v.availableForSlot).length} vehicles available at this location.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {(availableVehiclesForSlot || [])
+                            .filter((v: any) => v.availableForSlot && `${v.brand}|${v.model}` === selectedModelKey)
+                            .slice(0, 4)
+                            .map((v: any) => (
+                              <button
+                                key={v.id}
+                                type="button"
+                                onClick={() => setFormData((p) => ({ ...p, vehicleId: v.id }))}
+                                className={`text-left p-2.5 rounded-lg border text-xs transition-all ${
+                                  formData.vehicleId === v.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'
+                                }`}
+                              >
+                                <p className="font-medium text-foreground">{v.brand} {v.model}</p>
+                                <p className="text-muted-foreground">{v.variant || 'Standard'} {v.year ? `· ${v.year}` : ''}</p>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

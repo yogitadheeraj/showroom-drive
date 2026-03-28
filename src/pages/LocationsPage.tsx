@@ -26,6 +26,9 @@ const LocationsPage = () => {
   const [hoursDialog, setHoursDialog] = useState<string | null>(null);
   const [hours, setHours] = useState<any[]>([]);
   const [savingHours, setSavingHours] = useState(false);
+    const [slotDurationDialog, setSlotDurationDialog] = useState<string | null>(null);
+    const [slotDuration, setSlotDuration] = useState<number>(30);
+    const [slotDurations, setSlotDurations] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const { dealerId, loading: dealerLoading } = useDealerContext();
   const { role, profile } = useAuth();
@@ -52,8 +55,16 @@ const LocationsPage = () => {
   const [specialPeriodsByLocation, setSpecialPeriodsByLocation] = useState<Record<string, any[]>>({});
   const [specialPeriodsDialog, setSpecialPeriodsDialog] = useState<string | null>(null);
   const [specialPeriods, setSpecialPeriods] = useState<any[]>([]);
+  const [editingSpecialPeriodId, setEditingSpecialPeriodId] = useState<string | null>(null);
   const [newPeriod, setNewPeriod] = useState({ name: '', start_date: '', end_date: '', is_full_closure: true, modified_open_time: '09:00', modified_close_time: '19:00', notes: '' });
   const [savingPeriod, setSavingPeriod] = useState(false);
+
+  const hasInvalidModifiedHours = !newPeriod.is_full_closure && newPeriod.modified_close_time <= newPeriod.modified_open_time;
+
+  const resetSpecialPeriodForm = () => {
+    setEditingSpecialPeriodId(null);
+    setNewPeriod({ name: '', start_date: '', end_date: '', is_full_closure: true, modified_open_time: '09:00', modified_close_time: '19:00', notes: '' });
+  };
 
   // Check if user can manage schedules / breaks
   const canManageSchedules = [APP_ROLE.GRO, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN].includes(role as any);
@@ -68,6 +79,13 @@ const LocationsPage = () => {
     const { data } = await query;
     setLocations(data || []);
 
+    if (data) {
+      const durations: Record<string, number> = {};
+      data.forEach(loc => {
+        durations[loc.id] = Number(loc.slot_duration_minutes || 30);
+      });
+      setSlotDurations(durations);
+    }
     const locationIds = (data || []).map((loc) => loc.id);
     const dealerIds = Array.from(new Set((data || []).map((loc) => loc.dealer_id).filter(Boolean)));
     const today = new Date();
@@ -190,6 +208,26 @@ const LocationsPage = () => {
   const openScheduleDialog = (locationId: string) => {
     fetchSchedules(locationId);
     setScheduleDialog(locationId);
+  };
+
+  const openSlotDurationDialog = (locationId: string) => {
+    setSlotDuration(slotDurations[locationId] || 30);
+    setSlotDurationDialog(locationId);
+  };
+
+  const saveSlotDuration = async () => {
+    if (!slotDurationDialog) return;
+    try {
+      await supabase
+        .from('locations')
+        .update({ slot_duration_minutes: slotDuration })
+        .eq('id', slotDurationDialog);
+      setSlotDurations((prev) => ({ ...prev, [slotDurationDialog]: slotDuration }));
+      toast({ title: 'Slot duration saved successfully', description: `${slotDuration} minutes per slot` });
+      setSlotDurationDialog(null);
+    } catch (err: any) {
+      toast({ title: 'Failed to save slot duration', description: err.message, variant: 'destructive' });
+    }
   };
 
   const handleSubmit = async () => {
@@ -388,8 +426,21 @@ const LocationsPage = () => {
       setSpecialPeriods(data || []);
     }
 
-    setNewPeriod({ name: '', start_date: '', end_date: '', is_full_closure: true, modified_open_time: '09:00', modified_close_time: '19:00', notes: '' });
+    resetSpecialPeriodForm();
     setSpecialPeriodsDialog(locationId);
+  };
+
+  const startEditSpecialPeriod = (period: any) => {
+    setEditingSpecialPeriodId(period.id);
+    setNewPeriod({
+      name: period.name || '',
+      start_date: period.start_date || '',
+      end_date: period.end_date || '',
+      is_full_closure: !!period.is_full_closure,
+      modified_open_time: period.modified_open_time?.substring(0, 5) || '09:00',
+      modified_close_time: period.modified_close_time?.substring(0, 5) || '19:00',
+      notes: period.notes || '',
+    });
   };
 
   const addSpecialPeriod = async () => {
@@ -401,10 +452,13 @@ const LocationsPage = () => {
       toast({ title: 'End date must be on or after start date', variant: 'destructive' });
       return;
     }
+    if (hasInvalidModifiedHours) {
+      toast({ title: 'Close time must be after open time', variant: 'destructive' });
+      return;
+    }
     setSavingPeriod(true);
     try {
-      const { error: insertError } = await supabase.from('location_special_periods').insert({
-        location_id: specialPeriodsDialog,
+      const payload = {
         name: newPeriod.name,
         start_date: newPeriod.start_date,
         end_date: newPeriod.end_date,
@@ -412,12 +466,19 @@ const LocationsPage = () => {
         modified_open_time: newPeriod.is_full_closure ? null : newPeriod.modified_open_time,
         modified_close_time: newPeriod.is_full_closure ? null : newPeriod.modified_close_time,
         notes: newPeriod.notes || null,
-      });
+      };
 
-      if (insertError) throw insertError;
+      const { error: saveError } = editingSpecialPeriodId
+        ? await supabase.from('location_special_periods').update(payload).eq('id', editingSpecialPeriodId)
+        : await supabase.from('location_special_periods').insert({
+            location_id: specialPeriodsDialog,
+            ...payload,
+          });
 
-      toast({ title: 'Special period added' });
-      setNewPeriod({ name: '', start_date: '', end_date: '', is_full_closure: true, modified_open_time: '09:00', modified_close_time: '19:00', notes: '' });
+      if (saveError) throw saveError;
+
+      toast({ title: editingSpecialPeriodId ? 'Special period updated' : 'Special period added' });
+      resetSpecialPeriodForm();
 
       const { data: refreshed, error: refreshError } = await supabase
         .from('location_special_periods')
@@ -491,139 +552,165 @@ const LocationsPage = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {locations.map(loc => (
-              <Card key={loc.id} className="shadow-card hover:shadow-elevated transition-shadow overflow-hidden">
-                <CardHeader className="pb-3 bg-gradient-to-r from-primary/5 to-transparent">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                        <MapPin className="h-5 w-5 text-primary" />
+              <Card key={loc.id} className="shadow-card hover:shadow-elevated transition-all duration-300 overflow-hidden border-border/50">
+                {/* Header Section */}
+                <div className="bg-gradient-to-r from-primary/8 via-primary/4 to-transparent border-b border-border/50 p-5 sm:p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 shadow-sm">
+                        <MapPin className="h-6 w-6 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <CardTitle className="text-lg">{loc.name}</CardTitle>
-                        <p className="text-sm text-muted-foreground mt-0.5">{loc.address}</p>
+                        <h3 className="text-lg sm:text-xl font-heading font-bold text-foreground leading-tight">{loc.name}</h3>
+                        <p className="text-sm text-muted-foreground mt-1">{loc.address}</p>
                         <p className="text-xs text-muted-foreground">{loc.city}{loc.state ? `, ${loc.state}` : ''}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          {(() => {
-                            const s = getLocationStatus(loc.id);
-                            return (
-                              <Badge className={`text-[11px] font-semibold border px-2 py-0.5 ${s.open ? 'bg-success/15 text-success border-success/40' : 'bg-destructive/15 text-destructive border-destructive/40'}`}>
-                                <span className="mr-1">{s.open ? '●' : '●'}</span>
-                                {s.label}
-                                {s.subLabel && <span className="ml-1 font-normal opacity-75 text-[10px]">· {s.subLabel}</span>}
-                              </Badge>
-                            );
-                          })()}
-                          <Badge variant="outline" className="text-[11px]">
-                            Dealer: {dealerNamesById[loc.dealer_id] || 'Unknown'}
-                          </Badge>
-                          <Badge variant="secondary" className="text-[11px] max-w-full truncate">
-                            Brands: {(dealerBrandsByDealerId[loc.dealer_id] || []).length > 0
-                              ? dealerBrandsByDealerId[loc.dealer_id].join(', ')
-                              : 'No brands mapped'}
-                          </Badge>
-                        </div>
                       </div>
                     </div>
-                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => editLocation(loc)} title="Edit Location">
+                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 h-9 w-9 p-0" onClick={() => editLocation(loc)} title="Edit Location">
                       <Pencil className="h-4 w-4" />
                     </Button>
                   </div>
-                </CardHeader>
+                  
+                  {/* Status & Info Badges */}
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    {(() => {
+                      const s = getLocationStatus(loc.id);
+                      return (
+                        <Badge className={`text-xs font-semibold border ${s.open ? 'bg-success/10 text-success border-success/30' : 'bg-destructive/10 text-destructive border-destructive/30'}`}>
+                          <span className="mr-1.5">{s.open ? '●' : '●'}</span>
+                          {s.label}
+                        </Badge>
+                      );
+                    })()}
+                    <Badge variant="outline" className="text-xs font-medium">
+                      {dealerNamesById[loc.dealer_id] || 'Unknown'}
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs max-w-xs truncate font-medium">
+                      {(dealerBrandsByDealerId[loc.dealer_id] || []).length > 0
+                        ? dealerBrandsByDealerId[loc.dealer_id].slice(0, 2).join(', ') + ((dealerBrandsByDealerId[loc.dealer_id] || []).length > 2 ? '...' : '')
+                        : 'No brands'}
+                    </Badge>
+                  </div>
+                </div>
 
-                <CardContent className="p-4 space-y-4">
-                  {/* Business Snapshot */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                    <div className="bg-primary/10 rounded-lg p-2.5 text-center">
-                      <div className="text-xs text-muted-foreground">Total Drives</div>
-                      <div className="text-xl font-bold text-primary mt-0.5">{testDriveCounts[loc.id] || 0}</div>
-                    </div>
-                    <div className="bg-primary/10 rounded-lg p-2.5 text-center">
-                      <div className="text-xs text-muted-foreground">Today's Drives</div>
-                      <div className="text-xl font-bold text-primary mt-0.5">{testDriveTodayCounts[loc.id] || 0}</div>
-                    </div>
-                    <div className="bg-info/10 rounded-lg p-2.5 text-center">
-                      <div className="text-xs text-muted-foreground">Next 7 Days</div>
-                      <div className="text-xl font-bold text-info mt-0.5">{testDriveNext7DaysCounts[loc.id] || 0}</div>
-                    </div>
-                    <div className="bg-success/10 rounded-lg p-2.5 text-center">
-                      <div className="text-xs text-muted-foreground">Staff</div>
-                      <div className="text-xl font-bold text-success mt-0.5">{staffCounts[loc.id] || 0}</div>
-                    </div>
-                    <div className="bg-info/10 rounded-lg p-2.5 text-center">
-                      <div className="text-xs text-muted-foreground">Active Devices</div>
-                      <div className="text-xl font-bold text-info mt-0.5">{(devices[loc.id] || []).filter(d => d.is_active).length}</div>
-                    </div>
-                    <div className="bg-muted/70 rounded-lg p-2.5 text-center">
-                      <div className="text-xs text-muted-foreground">Today's Hours</div>
-                      <div className="text-sm font-semibold text-foreground mt-0.5">{todayHoursByLocation[loc.id] || 'Not set'}</div>
+                <CardContent className="p-5 sm:p-6 space-y-5">
+                  {/* KPI Grid */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Performance Metrics</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {[
+                        { label: 'Total Drives', value: testDriveCounts[loc.id] || 0, color: 'primary', icon: '📊' },
+                        { label: 'Today', value: testDriveTodayCounts[loc.id] || 0, color: 'primary', icon: '📅' },
+                        { label: 'Next 7 Days', value: testDriveNext7DaysCounts[loc.id] || 0, color: 'info', icon: '📈' },
+                        { label: 'Staff', value: staffCounts[loc.id] || 0, color: 'success', icon: '👥' },
+                        { label: 'Devices', value: (devices[loc.id] || []).filter(d => d.is_active).length, color: 'info', icon: '📱' },
+                        { label: 'Hours', value: todayHoursByLocation[loc.id] || '—', color: 'muted', icon: '🕐' },
+                      ].map((stat, idx) => (
+                        <div key={idx} className={`rounded-lg border border-border/50 bg-gradient-to-br from-${stat.color}/5 to-transparent p-3 text-center hover:border-${stat.color}/30 transition-colors`}>
+                          <div className="text-2xl mb-1">{stat.icon}</div>
+                          <div className={`text-xs font-semibold text-${stat.color} mb-1`}>{typeof stat.value === 'number' ? stat.value : stat.value}</div>
+                          <div className="text-xs text-muted-foreground leading-tight">{stat.label}</div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Contact Info */}
-                  <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground border-t border-border pt-3">
-                    {loc.phone && <span className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" />{loc.phone}</span>}
-                    {loc.email && <span className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" />{loc.email}</span>}
-                    <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />Today: {todayHoursByLocation[loc.id] || 'Not set'}</span>
+                  {/* Contact Section */}
+                  <div className="border-t border-border/50 pt-4">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Contact Information</h4>
+                    <div className="space-y-2">
+                      {loc.phone && (
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-info/8 to-transparent border border-info/20 hover:border-info/40 transition-colors">
+                          <div className="h-10 w-10 rounded-lg bg-info/10 flex items-center justify-center shrink-0">
+                            <Phone className="h-5 w-5 text-info" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-muted-foreground">Phone</p>
+                            <p className="text-sm font-semibold text-foreground">{loc.phone}</p>
+                          </div>
+                        </div>
+                      )}
+                      {loc.email && (
+                        <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-info/8 to-transparent border border-info/20 hover:border-info/40 transition-colors">
+                          <div className="h-10 w-10 rounded-lg bg-info/10 flex items-center justify-center shrink-0">
+                            <Mail className="h-5 w-5 text-info" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-muted-foreground">Email</p>
+                            <p className="text-sm font-semibold text-foreground truncate">{loc.email}</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-info/8 to-transparent border border-info/20 hover:border-info/40 transition-colors">
+                        <div className="h-10 w-10 rounded-lg bg-info/10 flex items-center justify-center shrink-0">
+                          <Clock className="h-5 w-5 text-info" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-muted-foreground">Today</p>
+                          <p className="text-sm font-semibold text-foreground">{todayHoursByLocation[loc.id] || 'Not set'}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Device List */}
-                  <div className="space-y-2 border-t border-border pt-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium text-sm flex items-center gap-2">
-                        <Smartphone className="h-4 w-4 text-info" /> Devices
-                      </h4>
-                      <Button size="sm" className="h-7 px-2 bg-info text-info-foreground hover:bg-info/90" onClick={() => openDeviceDialog(loc.id)}>
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    
-                    {devices[loc.id]?.length ? (
-                      <div className="space-y-1.5">
-                        {devices[loc.id].map(dev => (
-                          <div key={dev.id} className="flex items-center justify-between p-2 rounded bg-muted/50 text-xs">
+                  {/* Devices Section */}
+                  {devices[loc.id]?.length > 0 && (
+                    <div className="border-t border-border/50 pt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                          <Smartphone className="h-3.5 w-3.5" /> Devices ({devices[loc.id].filter(d => d.is_active).length} active)
+                        </h4>
+                        <Button size="sm" className="h-7 px-2 bg-info text-info-foreground hover:bg-info/90 text-xs" onClick={() => openDeviceDialog(loc.id)}>
+                          <Plus className="h-3 w-3 mr-1" /> Add
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {devices[loc.id].slice(0, 3).map(dev => (
+                          <div key={dev.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <Smartphone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                               <div className="min-w-0">
-                                <p className="font-medium">{dev.name}</p>
-                                <p className="text-muted-foreground">{dev.device_type}{dev.serial_number ? ` • ${dev.serial_number}` : ''}</p>
+                                <p className="text-sm font-medium text-foreground">{dev.name}</p>
+                                <p className="text-xs text-muted-foreground capitalize">{dev.device_type}{dev.serial_number ? ` • ${dev.serial_number}` : ''}</p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Badge variant={dev.is_active ? 'default' : 'secondary'} className="text-xs">
-                                {dev.is_active ? 'Active' : 'Inactive'}
-                              </Badge>
-                              <Button size="sm" className="h-6 w-6 p-0 hover:bg-destructive/20" onClick={() => deleteDevice(loc.id, dev.id)}>
-                                <Trash2 className="h-3 w-3 text-destructive" />
-                              </Button>
-                            </div>
+                            <Badge variant={dev.is_active ? 'default' : 'secondary'} className="text-xs shrink-0 ml-2">
+                              {dev.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
                           </div>
                         ))}
+                        {devices[loc.id].length > 3 && (
+                          <p className="text-xs text-muted-foreground italic text-center py-1">+{devices[loc.id].length - 3} more</p>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground italic">No devices yet</p>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  {/* Quick Action Buttons */}
-                  <div className="border-t border-border pt-3">
+                  {/* Action Buttons */}
+                  <div className="border-t border-border/50 pt-4">
                     {canManageSchedules ? (
-                      <div className="flex gap-2 flex-wrap">
-                        <Button size="sm" className="flex-1 bg-info text-info-foreground hover:bg-info/90 text-xs min-w-[80px]" onClick={() => openHoursDialog(loc.id)}>
-                          <Clock className="h-3.5 w-3.5 mr-1.5" /> Hours
+                      <>
+                        <div className="grid grid-cols-3 gap-2">
+                          <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs h-9 font-medium" onClick={() => openHoursDialog(loc.id)}>
+                            <Clock className="h-3.5 w-3.5 mr-1.5" /> Hours
+                          </Button>
+                          <Button size="sm" className="bg-orange-500 text-white hover:bg-orange-600 text-xs h-9 font-medium" onClick={() => openSpecialPeriodsDialog(loc.id)}>
+                            <CalendarX className="h-3.5 w-3.5 mr-1.5" /> Breaks
+                          </Button>
+                          <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs h-9 font-medium" onClick={() => openScheduleDialog(loc.id)}>
+                            <Calendar className="h-3.5 w-3.5 mr-1.5" /> Schedule
+                          </Button>
+                        </div>
+                        <Button size="sm" className="w-full mt-2 bg-violet-500 text-white hover:bg-violet-600 text-xs h-9 font-medium" onClick={() => openSlotDurationDialog(loc.id)}>
+                          <Clock className="h-3.5 w-3.5 mr-1.5" /> Slot Duration: {slotDurations[loc.id] || 30}m
                         </Button>
-                        <Button size="sm" className="flex-1 bg-orange-500/80 text-white hover:bg-orange-500 text-xs min-w-[80px]" onClick={() => openSpecialPeriodsDialog(loc.id)}>
-                          <CalendarX className="h-3.5 w-3.5 mr-1.5" /> Breaks
-                        </Button>
-                        <Button size="sm" className="flex-1 bg-primary/50 text-primary-foreground hover:bg-primary/60 text-xs min-w-[80px]" onClick={() => openScheduleDialog(loc.id)}>
-                          <Calendar className="h-3.5 w-3.5 mr-1.5" /> Schedule
-                        </Button>
-                      </div>
+                      </>
                     ) : (
-                      <div className="flex items-center gap-2 px-3 py-2 rounded bg-muted/50">
+                      <div className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-muted/50 border border-border/50">
                         <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">GRO/Admin only</span>
+                        <span className="text-xs text-muted-foreground font-medium">Admin only</span>
                       </div>
                     )}
                   </div>
@@ -755,7 +842,10 @@ const LocationsPage = () => {
         </Dialog>
 
         {/* Special Periods (Breaks / Holidays) Dialog */}
-        <Dialog open={!!specialPeriodsDialog} onOpenChange={() => setSpecialPeriodsDialog(null)}>
+        <Dialog open={!!specialPeriodsDialog} onOpenChange={() => {
+          setSpecialPeriodsDialog(null);
+          resetSpecialPeriodForm();
+        }}>
           <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-heading flex items-center gap-2">
@@ -770,10 +860,10 @@ const LocationsPage = () => {
               </p>
             </DialogHeader>
 
-            {/* Add New Period */}
+            {/* Add / Edit Period */}
             <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
               <h4 className="text-sm font-semibold flex items-center gap-2">
-                <Plus className="h-4 w-4 text-primary" /> Add New Period
+                <Plus className="h-4 w-4 text-primary" /> {editingSpecialPeriodId ? 'Edit Period' : 'Add New Period'}
               </h4>
               <div className="space-y-2">
                 <Label>Period Name *</Label>
@@ -810,20 +900,25 @@ const LocationsPage = () => {
                 </div>
               </div>
               {!newPeriod.is_full_closure && (
-                <div className="flex items-center gap-3">
-                  <div className="space-y-1.5 flex-1">
-                    <Label className="text-xs">Modified Open Time</Label>
-                    <Input type="time" value={newPeriod.modified_open_time}
-                      onChange={e => setNewPeriod(p => ({ ...p, modified_open_time: e.target.value }))}
-                      className="h-8 text-xs" />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="space-y-1.5 flex-1">
+                      <Label className="text-xs">Modified Open Time</Label>
+                      <Input type="time" value={newPeriod.modified_open_time}
+                        onChange={e => setNewPeriod(p => ({ ...p, modified_open_time: e.target.value }))}
+                        className="h-8 text-xs" />
+                    </div>
+                    <span className="text-xs text-muted-foreground mt-5">to</span>
+                    <div className="space-y-1.5 flex-1">
+                      <Label className="text-xs">Modified Close Time</Label>
+                      <Input type="time" value={newPeriod.modified_close_time}
+                        onChange={e => setNewPeriod(p => ({ ...p, modified_close_time: e.target.value }))}
+                        className="h-8 text-xs" />
+                    </div>
                   </div>
-                  <span className="text-xs text-muted-foreground mt-5">to</span>
-                  <div className="space-y-1.5 flex-1">
-                    <Label className="text-xs">Modified Close Time</Label>
-                    <Input type="time" value={newPeriod.modified_close_time}
-                      onChange={e => setNewPeriod(p => ({ ...p, modified_close_time: e.target.value }))}
-                      className="h-8 text-xs" />
-                  </div>
+                  {hasInvalidModifiedHours && (
+                    <p className="text-xs text-destructive">Close time must be after open time.</p>
+                  )}
                 </div>
               )}
               <div className="space-y-2">
@@ -835,10 +930,15 @@ const LocationsPage = () => {
                   rows={2}
                 />
               </div>
-              <Button onClick={addSpecialPeriod} disabled={savingPeriod}
+              <Button onClick={addSpecialPeriod} disabled={savingPeriod || hasInvalidModifiedHours}
                 className="w-full bg-orange-500 text-white hover:bg-orange-600">
-                {savingPeriod ? 'Saving...' : 'Add Period'}
+                {savingPeriod ? 'Saving...' : editingSpecialPeriodId ? 'Update Period' : 'Add Period'}
               </Button>
+              {editingSpecialPeriodId && (
+                <Button type="button" variant="outline" className="w-full" onClick={resetSpecialPeriodForm}>
+                  Cancel Edit
+                </Button>
+              )}
             </div>
 
             {/* Existing Periods List */}
@@ -875,10 +975,22 @@ const LocationsPage = () => {
                             <p className="text-xs text-muted-foreground italic mt-0.5">{period.notes}</p>
                           )}
                         </div>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 hover:bg-destructive/20 shrink-0 ml-2"
-                          onClick={() => deleteSpecialPeriod(period.id)}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 hover:bg-primary/15"
+                            onClick={() => startEditSpecialPeriod(period)}
+                            title="Edit period"
+                          >
+                            <Pencil className="h-3.5 w-3.5 text-primary" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 hover:bg-destructive/20"
+                            onClick={() => deleteSpecialPeriod(period.id)}
+                            title="Delete period">
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}
@@ -887,7 +999,10 @@ const LocationsPage = () => {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setSpecialPeriodsDialog(null)}>Close</Button>
+              <Button variant="outline" onClick={() => {
+                setSpecialPeriodsDialog(null);
+                resetSpecialPeriodForm();
+              }}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -932,6 +1047,55 @@ const LocationsPage = () => {
             
             <DialogFooter>
               <Button onClick={() => setScheduleDialog(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Slot Duration Configuration Dialog */}
+        <Dialog open={!!slotDurationDialog} onOpenChange={() => setSlotDurationDialog(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-heading flex items-center gap-2">
+                <Clock className="h-5 w-5 text-violet-500" />
+                Slot Duration
+              </DialogTitle>
+              <DialogDescription>
+                Set the duration for each test drive slot at {locations.find(l => l.id === slotDurationDialog)?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">Select Slot Duration</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[15, 30, 45, 60, 90, 120].map(duration => (
+                    <button
+                      key={duration}
+                      onClick={() => setSlotDuration(duration)}
+                      className={`p-3 rounded-lg border-2 text-sm font-semibold transition-colors ${
+                        slotDuration === duration
+                          ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-950 dark:text-violet-100'
+                          : 'border-border bg-card hover:border-violet-300'
+                      }`}
+                    >
+                      {duration}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-blue/10 border border-blue/20 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">Selected:</span> {slotDuration} minutes per slot
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Each booking will reserve a {slotDuration}-minute slot. Previous bookings affecting this slot must be completed or marked as no-show.
+                </p>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setSlotDurationDialog(null)}>Cancel</Button>
+              <Button onClick={saveSlotDuration} className="bg-violet-500 text-white hover:bg-violet-600">
+                Save Duration
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

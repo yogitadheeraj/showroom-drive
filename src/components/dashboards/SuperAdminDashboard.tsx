@@ -165,7 +165,7 @@ const SuperAdminDashboard = () => {
       const [{ data: profiles }, { data: roles }] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, user_id, full_name, location_id, is_active')
+          .select('id, user_id, full_name, location_id, is_active, last_login_at')
           .in('location_id', locationIds)
           .order('full_name'),
         supabase
@@ -509,26 +509,26 @@ const SuperAdminDashboard = () => {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {statCards.map(stat => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="shadow-card">
-              <CardContent className="p-3 sm:p-4">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className={`h-7 w-7 sm:h-8 sm:w-8 rounded-lg ${stat.bg} flex items-center justify-center`}>
-                    <Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${stat.color}`} />
-                  </div>
+            <Card key={stat.label} className="shadow-card h-full min-w-0">
+              <CardContent className="p-3 sm:p-4 min-w-0 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">
+                <div className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
                 </div>
-                <p className="text-lg sm:text-2xl font-heading font-bold text-foreground">{stat.value}</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">{stat.label}</p>
+                <div className="min-w-0">
+                  <p className="text-lg sm:text-2xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight break-words mt-1">{stat.label}</p>
+                </div>
               </CardContent>
             </Card>
           );
         })}
       </div>
 
-   
+
 
       <Card className="shadow-card">
         <CardHeader className="space-y-3">
@@ -894,6 +894,8 @@ const SuperAdminDashboard = () => {
         </>
       )}
 
+    
+
       {isSuperAdmin && (
         <Card className="shadow-card border-primary/20">
           <CardHeader>
@@ -942,28 +944,28 @@ const SuperAdminDashboard = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              <div className="rounded-lg border border-border p-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+              <div className="rounded-lg border border-border p-3 min-w-0">
                 <p className="text-xs text-muted-foreground">Queued/Logged</p>
                 <p className="text-xl font-heading font-bold text-foreground">{authDiagnostics.totalAuthEmails24h}</p>
               </div>
-              <div className="rounded-lg border border-border p-3">
+              <div className="rounded-lg border border-border p-3 min-w-0">
                 <p className="text-xs text-muted-foreground">Sent</p>
                 <p className="text-xl font-heading font-bold text-success">{authDiagnostics.sent}</p>
               </div>
-              <div className="rounded-lg border border-border p-3">
+              <div className="rounded-lg border border-border p-3 min-w-0">
                 <p className="text-xs text-muted-foreground">Failed</p>
                 <p className="text-xl font-heading font-bold text-destructive">{authDiagnostics.failed}</p>
               </div>
-              <div className="rounded-lg border border-border p-3">
+              <div className="rounded-lg border border-border p-3 min-w-0">
                 <p className="text-xs text-muted-foreground">DLQ</p>
                 <p className="text-xl font-heading font-bold text-warning">{authDiagnostics.dlq}</p>
               </div>
-              <div className="rounded-lg border border-border p-3">
+              <div className="rounded-lg border border-border p-3 min-w-0">
                 <p className="text-xs text-muted-foreground">Pending</p>
                 <p className="text-xl font-heading font-bold text-primary">{authDiagnostics.pending}</p>
               </div>
-              <div className="rounded-lg border border-border p-3">
+              <div className="rounded-lg border border-border p-3 min-w-0">
                 <p className="text-xs text-muted-foreground">Rate Limited</p>
                 <p className="text-xl font-heading font-bold text-warning">{authDiagnostics.rateLimited}</p>
               </div>
@@ -971,7 +973,7 @@ const SuperAdminDashboard = () => {
 
             <div className="rounded-lg border border-border p-3">
               <p className="text-xs text-muted-foreground mb-2">Customer Test-Drive Emails (24h)</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
                   <p className="text-[11px] text-muted-foreground">Sent</p>
                   <p className="text-base font-semibold text-success">{authDiagnostics.customerDriveSent}</p>

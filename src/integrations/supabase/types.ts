@@ -469,6 +469,7 @@ export type Database = {
           is_active: boolean
           name: string
           phone: string | null
+          slot_duration_minutes: number
           state: string | null
           updated_at: string
         }
@@ -483,6 +484,7 @@ export type Database = {
           is_active?: boolean
           name: string
           phone?: string | null
+          slot_duration_minutes?: number
           state?: string | null
           updated_at?: string
         }
@@ -497,6 +499,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           phone?: string | null
+          slot_duration_minutes?: number
           state?: string | null
           updated_at?: string
         }

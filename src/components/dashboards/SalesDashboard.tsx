@@ -312,7 +312,7 @@ const SalesDashboard = () => {
         <p className="text-sm text-muted-foreground">Your assigned test drives</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: 'Assigned', value: testDrives.length, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
           { label: 'In Progress', value: testDrives.filter(t => t.status === 'in_progress').length, icon: Key, color: 'text-info', bg: 'bg-green/10' },
@@ -321,14 +321,14 @@ const SalesDashboard = () => {
         ].map(stat => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="shadow-card">
-              <CardContent className="p-3 sm:p-5 flex items-center gap-3 sm:gap-4">
-                <div className={`h-9 w-9 sm:h-12 sm:w-12 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
-                  <Icon className={`h-4 w-4 sm:h-6 sm:w-6 ${stat.color}`} />
+            <Card key={stat.label} className="shadow-card h-full min-w-0">
+              <CardContent className="p-3 sm:p-4 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">
+                <div className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
                 </div>
-                <div>
-                  <p className="text-[10px] sm:text-sm text-muted-foreground">{stat.label}</p>
-                  <p className="text-lg sm:text-2xl font-heading font-bold text-foreground">{stat.value}</p>
+                <div className="min-w-0">
+                  <p className="text-lg sm:text-2xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight break-words mt-1">{stat.label}</p>
                 </div>
               </CardContent>
             </Card>

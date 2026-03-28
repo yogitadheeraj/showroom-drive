@@ -490,7 +490,7 @@ const SecurityDashboard = () => {
         <p className="text-sm text-muted-foreground">Check-ins, inspections & verification for your location</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: 'Total Test Drives', value: testDrives.length, icon: Shield, color: 'text-primary', bg: 'bg-primary/10' },
           { label: 'Checked In', value: testDrives.filter((testDrive) => testDrive.security_checked_in_at).length, icon: CheckCircle, color: 'text-success', bg: 'bg-success/10' },
@@ -499,19 +499,19 @@ const SecurityDashboard = () => {
         ].map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className={`shadow-card ${stat.alert ? 'border-warning/30' : ''}`}>
-              <CardContent className="p-3 sm:p-5 flex items-center gap-3 sm:gap-4">
-                <div className={`relative h-9 w-9 sm:h-12 sm:w-12 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
-                  <Icon className={`h-4 w-4 sm:h-6 sm:w-6 ${stat.color}`} />
+            <Card key={stat.label} className={`shadow-card h-full min-w-0 ${stat.alert ? 'border-warning/30' : ''}`}>
+              <CardContent className="p-3 sm:p-4 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">
+                <div className={`relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
                   {stat.alert && (
                     <span className="absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
                       {pendingCount}
                     </span>
                   )}
                 </div>
-                <div>
-                  <p className="text-[10px] sm:text-sm text-muted-foreground">{stat.label}</p>
-                  <p className="text-lg sm:text-2xl font-heading font-bold text-foreground">{stat.value}</p>
+                <div className="min-w-0">
+                  <p className="text-lg sm:text-2xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight break-words mt-1">{stat.label}</p>
                 </div>
               </CardContent>
             </Card>
@@ -654,24 +654,9 @@ const SecurityDashboard = () => {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-border">
-                  {!testDrive.security_checked_in_at && testDrive.key_handed_at && !(testDrive as any).pre_drive_km && (
-                    <Button
-                      size="sm"
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
-                      onClick={() => {
-                        setPendingStartDriveId(testDrive.id);
-                        openInspection(testDrive, 'pre');
-                      }}
-                    >
-                      <ClipboardCheck className="h-3 w-3 mr-1" /> Pre-Drive
-                    </Button>
-                  )}
+               
                   {(testDrive as any).pre_drive_km && <Badge className="bg-primary/10 text-primary text-xs">Pre: {(testDrive as any).pre_drive_km} km</Badge>}
-                  {(testDrive.status === 'in_progress' && (testDrive as any).pre_drive_km) && !(testDrive as any).post_drive_km && (
-                    <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => openInspection(testDrive, 'post')}>
-                      <ClipboardCheck className="h-3 w-3 mr-1" /> Post-Drive
-                    </Button>
-                  )}
+                 
                   {(testDrive as any).post_drive_km && <Badge className="bg-success/10 text-success text-xs">Post: {(testDrive as any).post_drive_km} km</Badge>}
                   {((testDrive as any).pre_drive_km || (testDrive as any).post_drive_km) && (
                     <Button size="sm" className="bg-muted text-foreground hover:bg-muted/80 text-xs" onClick={() => setInspectionViewDrive(testDrive)}>

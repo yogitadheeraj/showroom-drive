@@ -10,14 +10,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Plus, Car, Edit2, MapPin, Palette } from 'lucide-react';
+import { APP_ROLE } from '@/constants/roles';
 
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [brands, setBrands] = useState<any[]>([]);
+  const [dealers, setDealers] = useState<any[]>([]);
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedDealer, setSelectedDealer] = useState<string>('all');
   const [formData, setFormData] = useState({
     brand: '', model: '', variant: '', year: new Date().getFullYear().toString(),
     color: '', registration_number: '', location_id: '', image_url: '',
@@ -25,9 +29,14 @@ const VehiclesPage = () => {
   });
   const { toast } = useToast();
   const { dealerId, loading: dealerLoading } = useDealerContext();
+  const { role } = useAuth();
+  const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
 
   useEffect(() => {
     if (!dealerLoading) {
+      if (isSuperAdmin) {
+        supabase.from('dealers').select('id, name').eq('is_active', true).order('name').then(({ data }) => setDealers(data || []));
+      }
       fetchVehicles();
       let query = supabase.from('locations').select('*').eq('is_active', true);
       if (dealerId) query = query.eq('dealer_id', dealerId);
@@ -37,14 +46,25 @@ const VehiclesPage = () => {
       if (dealerId) brandsQuery = brandsQuery.eq('dealer_id', dealerId);
       brandsQuery.then(({ data }) => setBrands(data || []));
     }
-  }, [dealerId, dealerLoading]);
+  }, [dealerId, dealerLoading, isSuperAdmin]);
+
+  useEffect(() => {
+    if (!dealerLoading) {
+      fetchVehicles();
+    }
+  }, [selectedDealer, dealerLoading]);
 
   const fetchVehicles = async () => {
     let query = supabase.from('vehicles').select('*, locations(name, dealer_id)').eq('is_active', true).order('brand');
     const { data } = await query;
-    const filtered = dealerId
-      ? (data || []).filter(v => v.locations?.dealer_id === dealerId)
-      : (data || []);
+    let filtered = data || [];
+    
+    if (isSuperAdmin && selectedDealer !== 'all') {
+      filtered = filtered.filter(v => v.locations?.dealer_id === selectedDealer);
+    } else if (!isSuperAdmin && dealerId) {
+      filtered = filtered.filter(v => v.locations?.dealer_id === dealerId);
+    }
+    
     setVehicles(filtered);
   };
 
@@ -107,6 +127,25 @@ const VehiclesPage = () => {
             <Plus className="h-4 w-4 mr-2" /> Add Vehicle
           </Button>
         </div>
+
+        {isSuperAdmin && (
+          <div className="flex items-end gap-3">
+            <div className="flex-1 max-w-xs">
+              <Label className="text-sm text-muted-foreground mb-2 block">Filter by Dealer</Label>
+              <Select value={selectedDealer} onValueChange={setSelectedDealer}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select dealer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Dealers</SelectItem>
+                  {dealers.map(d => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {vehicles.map(v => (
