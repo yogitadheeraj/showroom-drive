@@ -69,6 +69,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error) throw error;
 
     if (data.user) {
+      const loginTimestamp = new Date().toISOString();
+
+      // Track last successful login for dashboard visibility.
+      await supabase
+        .from('profiles')
+        .update({ last_login_at: loginTimestamp } as any)
+        .eq('user_id', data.user.id);
+
       const { data: profileData } = await supabase
         .from('profiles')
         .select('is_active')

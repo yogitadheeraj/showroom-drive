@@ -6,11 +6,21 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock } from 'lucide-react';
+import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, type AppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
@@ -23,12 +33,18 @@ const UsersPage = () => {
   const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '' });
   const [editForm, setEditForm] = useState({ role: '', locationId: '' });
   const [saving, setSaving] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<null | {
+    type: 'delete' | 'toggle-block';
+    user: any;
+  }>(null);
   const { toast } = useToast();
   const { user, role } = useAuth();
   const { dealerId, dealerLocationIds, loading: dealerLoading } = useDealerContext();
   const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
+  const isDealerAdmin = role === APP_ROLE.DEALER_ADMIN;
+  const canManageStaff = isSuperAdmin || isDealerAdmin;
 
-  const isUserActive = (u: any) => u.is_active !== false;
+  const isUserActive = (u: any) => u?.is_active !== false;
 
   useEffect(() => {
     if (!dealerLoading) {
@@ -130,7 +146,7 @@ const UsersPage = () => {
   };
 
   const handleToggleUserBlock = async (u: any) => {
-    if (!isSuperAdmin || u.user_id === user?.id) return;
+    if (!canManageStaff || u.user_id === user?.id) return;
 
     const nextActive = !isUserActive(u);
     setSaving(true);
@@ -149,6 +165,53 @@ const UsersPage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDeleteUser = async (u: any) => {
+    if (!canManageStaff || u.user_id === user?.id) return;
+
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-staff-user', {
+        body: { userId: u.user_id },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error as string);
+
+      toast({ title: 'User deleted' });
+      fetchUsers();
+    } catch (err: any) {
+      const isEdgeFunctionNetworkError =
+        typeof err?.message === 'string' && err.message.toLowerCase().includes('failed to send a request to the edge function');
+
+      toast({
+        title: 'Error',
+        description: isEdgeFunctionNetworkError
+          ? 'Delete service is unreachable. Please deploy/enable the delete-staff-user Edge Function and try again.'
+          : err.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openConfirmAction = (type: 'delete' | 'toggle-block', u: any) => {
+    if (!canManageStaff || u.user_id === user?.id || saving) return;
+    setConfirmAction({ type, user: u });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+
+    if (confirmAction.type === 'delete') {
+      await handleDeleteUser(confirmAction.user);
+    } else {
+      await handleToggleUserBlock(confirmAction.user);
+    }
+
+    setConfirmAction(null);
   };
 
   if (dealerLoading) {
@@ -216,11 +279,11 @@ const UsersPage = () => {
                         <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openEditDialog(u)} disabled={u.user_id === user?.id || saving}>
                           <Pencil className="h-3 w-3 mr-1" /> Edit
                         </Button>
-                        {isSuperAdmin && (
+                        {canManageStaff && (
                           <Button
                             size="sm"
                             variant={isUserActive(u) ? 'destructive' : 'outline'}
-                            onClick={() => handleToggleUserBlock(u)}
+                            onClick={() => openConfirmAction('toggle-block', u)}
                             disabled={u.user_id === user?.id || saving}
                           >
                             {isUserActive(u) ? (
@@ -228,6 +291,16 @@ const UsersPage = () => {
                             ) : (
                               <><Unlock className="h-3 w-3 mr-1" /> Unblock</>
                             )}
+                          </Button>
+                        )}
+                        {canManageStaff && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openConfirmAction('delete', u)}
+                            disabled={u.user_id === user?.id || saving}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" /> Delete
                           </Button>
                         )}
                       </div>
@@ -252,7 +325,7 @@ const UsersPage = () => {
                       <span className="truncate max-w-[200px]">{u.email}</span>
                     </div>
                   </div>
-                  <Badge variant="secondary" className={u.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
+                  <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
                     {isUserActive(u) ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
@@ -281,12 +354,12 @@ const UsersPage = () => {
                 <Button size="sm" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openEditDialog(u)} disabled={u.user_id === user?.id}>
                   <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit Role & Location
                 </Button>
-                {isSuperAdmin && (
+                {canManageStaff && (
                   <Button
                     size="sm"
                     variant={isUserActive(u) ? 'destructive' : 'outline'}
                     className="w-full"
-                    onClick={() => handleToggleUserBlock(u)}
+                    onClick={() => openConfirmAction('toggle-block', u)}
                     disabled={u.user_id === user?.id || saving}
                   >
                     {isUserActive(u) ? (
@@ -294,6 +367,17 @@ const UsersPage = () => {
                     ) : (
                       <><Unlock className="h-3.5 w-3.5 mr-1.5" /> Unblock User</>
                     )}
+                  </Button>
+                )}
+                {canManageStaff && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => openConfirmAction('delete', u)}
+                    disabled={u.user_id === user?.id || saving}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete User
                   </Button>
                 )}
               </CardContent>
@@ -315,7 +399,9 @@ const UsersPage = () => {
                 <Select value={createForm.role} onValueChange={(v: string) => setCreateForm(p => ({ ...p, role: v as AppRole }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {STAFF_ROLE_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                    {STAFF_ROLE_OPTIONS
+                      .filter(r => isSuperAdmin || r.value !== APP_ROLE.DEALER_ADMIN)
+                      .map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -348,7 +434,9 @@ const UsersPage = () => {
                 <Select value={editForm.role} onValueChange={v => setEditForm(p => ({ ...p, role: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
                   <SelectContent>
-                    {STAFF_ROLE_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                    {STAFF_ROLE_OPTIONS
+                      .filter(r => isSuperAdmin || r.value !== APP_ROLE.DEALER_ADMIN)
+                      .map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -367,6 +455,54 @@ const UsersPage = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {confirmAction?.type === 'delete'
+                  ? 'Delete User'
+                  : isUserActive(confirmAction?.user)
+                    ? 'Block User'
+                    : 'Unblock User'}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirmAction?.type === 'delete'
+                  ? (
+                    <div className="space-y-2 text-sm">
+                      <p>This action cannot be undone. Please confirm the staff member details:</p>
+                      <div className="rounded-md border border-border bg-muted/40 p-3 space-y-1">
+                        <p><span className="font-medium">Name:</span> {confirmAction?.user?.full_name || 'N/A'}</p>
+                        <p><span className="font-medium">Email:</span> {confirmAction?.user?.email || 'N/A'}</p>
+                        <p>
+                          <span className="font-medium">Role:</span>{' '}
+                          {confirmAction?.user?.user_roles?.[0]?.role
+                            ? getAppRoleLabel(confirmAction.user.user_roles[0].role)
+                            : 'No role'}
+                        </p>
+                      </div>
+                      <p>Do you want to permanently delete this user?</p>
+                    </div>
+                  )
+                  : isUserActive(confirmAction?.user)
+                    ? `Block ${confirmAction?.user?.full_name}? They will not be able to log in until unblocked.`
+                    : `Unblock ${confirmAction?.user?.full_name}? They will be able to log in again.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmAction} disabled={saving}>
+                {saving
+                  ? 'Please wait...'
+                  : confirmAction?.type === 'delete'
+                    ? 'Delete'
+                    : isUserActive(confirmAction?.user)
+                      ? 'Block'
+                      : 'Unblock'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

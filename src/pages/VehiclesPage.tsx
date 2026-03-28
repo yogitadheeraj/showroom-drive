@@ -15,6 +15,7 @@ import { Plus, Car, Edit2, MapPin, Palette } from 'lucide-react';
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -31,6 +32,10 @@ const VehiclesPage = () => {
       let query = supabase.from('locations').select('*').eq('is_active', true);
       if (dealerId) query = query.eq('dealer_id', dealerId);
       query.then(({ data }) => setLocations(data || []));
+
+      let brandsQuery = supabase.from('brands').select('id, name, dealer_id').order('name');
+      if (dealerId) brandsQuery = brandsQuery.eq('dealer_id', dealerId);
+      brandsQuery.then(({ data }) => setBrands(data || []));
     }
   }, [dealerId, dealerLoading]);
 
@@ -143,7 +148,18 @@ const VehiclesPage = () => {
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2"><Label>Brand *</Label><Input value={formData.brand} onChange={e => setFormData(p => ({ ...p, brand: e.target.value }))} /></div>
+                <div className="space-y-2">
+                  <Label>Brand *</Label>
+                  <Select value={formData.brand} onValueChange={v => setFormData(p => ({ ...p, brand: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
+                    <SelectContent>
+                      {brands.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
+                      {formData.brand && !brands.some(b => b.name === formData.brand) && (
+                        <SelectItem value={formData.brand}>{formData.brand}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2"><Label>Model *</Label><Input value={formData.model} onChange={e => setFormData(p => ({ ...p, model: e.target.value }))} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:gap-4">

@@ -14,4 +14,6 @@ project_id = "khlggspniptydvrpzcwf"
   [functions.send-transactional-email]
     verify_jwt = false
   [functions.create-staff-user]
-    verify_jwt = false
+    verify_jwt = true
+  [functions.delete-staff-user]
+    verify_jwt = true

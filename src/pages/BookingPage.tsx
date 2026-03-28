@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import VehicleSpecCard from '@/components/booking/VehicleSpecCard';
-import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows } from 'lucide-react';
+import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows, Map as MapIcon, ExternalLink } from 'lucide-react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 
@@ -446,6 +446,7 @@ const BookingPage = () => {
                         const dayOfWeek = new Date(formData.scheduledDate).getDay();
                         const hours = operatingHours.find(oh => oh.location_id === loc.id && oh.day_of_week === dayOfWeek);
                         const isClosed = hours?.is_closed;
+                        const mapUrl = `https://www.google.com/maps/search/${encodeURIComponent(loc.address + ' ' + loc.city)}`;
 
                         if (isClosed) return (
                           <div key={loc.id} className="p-4 rounded-xl border border-border bg-muted/30 opacity-60">
@@ -474,27 +475,52 @@ const BookingPage = () => {
                                 <p className="font-medium text-foreground">{loc.name}</p>
                                 <p className="text-xs text-muted-foreground">{loc.address}, {loc.city}</p>
                               </div>
-                              {hours && (
-                                <span className="text-xs text-muted-foreground">
-                                  {hours.open_time?.substring(0, 5)} – {hours.close_time?.substring(0, 5)}
-                                </span>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {hours && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {hours.open_time?.substring(0, 5)} – {hours.close_time?.substring(0, 5)}
+                                  </span>
+                                )}
+                                <a
+                                  href={mapUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="p-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
+                                  title="View on Google Maps"
+                                >
+                                  <MapIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                                </a>
+                              </div>
                             </div>
-                            {isSelected && locVehicles.length > 1 && (
-                              <div className="mt-3 pt-3 border-t border-border">
-                                <Label className="text-xs mb-2 block">Choose Variant / Color</Label>
-                                <div className="grid gap-2">
-                                  {locVehicles.map(v => (
-                                    <button key={v.id} type="button"
-                                      onClick={(e) => { e.stopPropagation(); setFormData(p => ({ ...p, vehicleId: v.id })); }}
-                                      className={`text-left text-sm p-2.5 rounded-lg border transition-all ${
-                                        formData.vehicleId === v.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/20'
-                                      }`}
-                                    >
-                                      {v.variant || v.model} {v.color ? `· ${v.color}` : ''} {v.year}
-                                    </button>
-                                  ))}
-                                </div>
+                            {isSelected && (
+                              <div className="mt-3 pt-3 border-t border-border space-y-3">
+                                <a
+                                  href={mapUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 text-xs text-primary hover:underline font-medium"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  View Full Map
+                                </a>
+                                {locVehicles.length > 1 && (
+                                  <div>
+                                    <Label className="text-xs mb-2 block">Choose Variant / Color</Label>
+                                    <div className="grid gap-2">
+                                      {locVehicles.map(v => (
+                                        <button key={v.id} type="button"
+                                          onClick={(e) => { e.stopPropagation(); setFormData(p => ({ ...p, vehicleId: v.id })); }}
+                                          className={`text-left text-sm p-2.5 rounded-lg border transition-all ${
+                                            formData.vehicleId === v.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/20'
+                                          }`}
+                                        >
+                                          {v.variant || v.model} {v.color ? `· ${v.color}` : ''} {v.year}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </button>

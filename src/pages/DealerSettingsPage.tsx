@@ -5,8 +5,9 @@ import { useDealerContext } from '@/hooks/useDealerContext';
 import DashboardLayout from '@/components/DashboardLayout';
 import DealerProfileSettings from '@/components/settings/DealerProfileSettings';
 import BrandSettings from '@/components/settings/BrandSettings';
+import OperatingHoursSettings from '@/components/settings/OperatingHoursSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, Palette } from 'lucide-react';
+import { Building2, Palette, Clock } from 'lucide-react';
 
 const DealerSettingsPage = () => {
   return (
@@ -25,6 +26,9 @@ const DealerSettingsPage = () => {
             <TabsTrigger value="brands" className="gap-2">
               <Palette className="h-4 w-4" /> Brand Settings
             </TabsTrigger>
+            <TabsTrigger value="hours" className="gap-2">
+              <Clock className="h-4 w-4" /> Operating Hours
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -33,6 +37,10 @@ const DealerSettingsPage = () => {
 
           <TabsContent value="brands">
             <BrandSettings />
+          </TabsContent>
+
+          <TabsContent value="hours">
+            <OperatingHoursSettings />
           </TabsContent>
         </Tabs>
       </div>
