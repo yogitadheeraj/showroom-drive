@@ -131,7 +131,7 @@ const SuperAdminDashboard = () => {
       const [{ data: profiles }, { data: roles }] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, user_id, full_name, location_id, is_active, last_login_at')
+          .select('id, user_id, full_name, location_id, is_active')
           .in('location_id', locationIds)
           .order('full_name'),
         supabase
@@ -538,7 +538,7 @@ const SuperAdminDashboard = () => {
                       </Badge>
                     </td>
                     <td className="p-3 text-muted-foreground">
-                      {staff.last_login_at ? new Date(staff.last_login_at).toLocaleString() : 'Never'}
+                      —
                     </td>
                   </tr>
                 ))}
