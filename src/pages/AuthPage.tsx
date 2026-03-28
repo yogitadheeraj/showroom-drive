@@ -14,7 +14,7 @@ const AuthPage = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resendVerificationEmail } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -44,6 +44,26 @@ const AuthPage = () => {
     }
   };
 
+  const handleResendVerification = async () => {
+    if (!email) {
+      toast({ title: 'Email required', description: 'Enter your signup email first.', variant: 'destructive' });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await resendVerificationEmail(email);
+      toast({
+        title: 'Verification email sent',
+        description: 'Please check inbox/spam. If still missing, ask admin to verify auth-email-hook deployment.',
+      });
+    } catch (err: any) {
+      toast({ title: 'Resend failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
@@ -63,11 +83,7 @@ const AuthPage = () => {
             <CardDescription>Sign in to manage test drives</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="signin">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
+            <Tabs defaultValue="signin"> 
               <TabsContent value="signin">
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
@@ -86,25 +102,7 @@ const AuthPage = () => {
                   </Button>
                 </form>
               </TabsContent>
-              <TabsContent value="signup">
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signupEmail">Email</Label>
-                    <Input id="signupEmail" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signupPassword">Password</Label>
-                    <Input id="signupPassword" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Creating account...' : 'Sign Up'}
-                  </Button>
-                </form>
-              </TabsContent>
+            
             </Tabs>
           </CardContent>
         </Card>

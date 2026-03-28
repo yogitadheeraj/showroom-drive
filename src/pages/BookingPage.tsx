@@ -37,8 +37,11 @@ const BookingPage = () => {
   const [step, setStep] = useState(0);
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
+  const [dealerNamesById, setDealerNamesById] = useState<Record<string, string>>({});
+  const [brandsByDealerId, setBrandsByDealerId] = useState<Record<string, string[]>>({});
   const [operatingHours, setOperatingHours] = useState<any[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
+  const [specialPeriods, setSpecialPeriods] = useState<any[]>([]);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     fullName: '', email: '', phone: '', preferredContact: 'phone',
@@ -71,13 +74,28 @@ const BookingPage = () => {
     Promise.all([
       supabase.from('vehicles').select('*').eq('is_active', true).eq('is_available', true),
       supabase.from('locations').select('*').eq('is_active', true),
+      supabase.from('dealers').select('id, name').eq('is_active', true),
+      supabase.from('brands').select('dealer_id, name').order('name'),
       supabase.from('location_operating_hours').select('*'),
       supabase.from('location_blocked_slots').select('*'),
-    ]).then(([vRes, lRes, ohRes, bsRes]) => {
+      supabase.from('location_special_periods').select('*'),
+    ]).then(([vRes, lRes, dRes, bRes, ohRes, bsRes, spRes]) => {
       setAllVehicles(vRes.data || []);
       setLocations(lRes.data || []);
+      const dealerNameMap = (dRes.data || []).reduce((acc: Record<string, string>, dealer: any) => {
+        acc[dealer.id] = dealer.name;
+        return acc;
+      }, {});
+      const brandMap = (bRes.data || []).reduce((acc: Record<string, string[]>, brand: any) => {
+        if (!acc[brand.dealer_id]) acc[brand.dealer_id] = [];
+        acc[brand.dealer_id].push(brand.name);
+        return acc;
+      }, {});
+      setDealerNamesById(dealerNameMap);
+      setBrandsByDealerId(brandMap);
       setOperatingHours(ohRes.data || []);
       setBlockedSlots(bsRes.data || []);
+      setSpecialPeriods(spRes.data || []);
     });
   }, []);
 
@@ -116,18 +134,59 @@ const BookingPage = () => {
 
   // Selected vehicle (specific variant at location)
   const selectedVehicle = allVehicles.find(v => v.id === formData.vehicleId);
+  const selectedLocation = locations.find(l => l.id === formData.locationId);
 
-  // Get operating hours for selected location on selected date
+  const getEffectiveHoursForDate = (locationId: string, dateStr: string) => {
+    if (!locationId || !dateStr) return null;
+
+    const special = specialPeriods.find((p: any) =>
+      p.location_id === locationId &&
+      p.start_date <= dateStr &&
+      p.end_date >= dateStr
+    );
+
+    if (special) {
+      if (special.is_full_closure) {
+        return {
+          location_id: locationId,
+          is_closed: true,
+          open_time: null,
+          close_time: null,
+          source: 'special',
+          source_name: special.name,
+        };
+      }
+
+      return {
+        location_id: locationId,
+        is_closed: false,
+        open_time: special.modified_open_time,
+        close_time: special.modified_close_time,
+        source: 'special',
+        source_name: special.name,
+      };
+    }
+
+    const dayOfWeek = new Date(`${dateStr}T00:00:00`).getDay();
+    const regular = operatingHours.find((oh: any) => oh.location_id === locationId && oh.day_of_week === dayOfWeek);
+    if (!regular) return null;
+
+    return {
+      ...regular,
+      source: 'regular',
+      source_name: null,
+    };
+  };
+
+  // Get effective operating hours for selected location and date
   const selectedDateHours = useMemo(() => {
     if (!formData.locationId || !formData.scheduledDate) return null;
-    const date = new Date(formData.scheduledDate);
-    const dayOfWeek = date.getDay();
-    return operatingHours.find(oh => oh.location_id === formData.locationId && oh.day_of_week === dayOfWeek);
-  }, [formData.locationId, formData.scheduledDate, operatingHours]);
+    return getEffectiveHoursForDate(formData.locationId, formData.scheduledDate);
+  }, [formData.locationId, formData.scheduledDate, operatingHours, specialPeriods]);
 
   // Generate time slots based on operating hours
   const timeSlots = useMemo(() => {
-    if (!selectedDateHours || selectedDateHours.is_closed) return [];
+    if (!selectedDateHours || selectedDateHours.is_closed || !selectedDateHours.open_time || !selectedDateHours.close_time) return [];
     const slots: string[] = [];
     const [openH, openM] = selectedDateHours.open_time.split(':').map(Number);
     const [closeH, closeM] = selectedDateHours.close_time.split(':').map(Number);
@@ -149,6 +208,19 @@ const BookingPage = () => {
     return slots;
   }, [selectedDateHours, blockedSlots, formData.locationId, formData.scheduledDate]);
 
+  const openLocationsForDate = useMemo(() => {
+    if (!formData.scheduledDate) return availableLocations;
+    return availableLocations.filter((loc: any) => {
+      const effectiveHours = getEffectiveHoursForDate(loc.id, formData.scheduledDate);
+      return effectiveHours && !effectiveHours.is_closed;
+    });
+  }, [availableLocations, formData.scheduledDate, operatingHours, specialPeriods]);
+
+  const hasOpenLocationOnSelectedDate = useMemo(() => {
+    if (!formData.scheduledDate) return false;
+    return openLocationsForDate.length > 0;
+  }, [formData.scheduledDate, openLocationsForDate]);
+
   // Min date = tomorrow
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -162,7 +234,7 @@ const BookingPage = () => {
   const canProceed = () => {
     switch (step) {
       case 0: return !!formData.selectedModel;
-      case 1: return !!formData.scheduledDate;
+      case 1: return !!formData.scheduledDate && hasOpenLocationOnSelectedDate;
       case 2: return !!formData.locationId && !!formData.vehicleId;
       case 3: return !!formData.scheduledTime;
       case 4: return !!formData.fullName && !!formData.phone;
@@ -219,7 +291,6 @@ const BookingPage = () => {
       if (tdError) throw tdError;
 
       const vehicleName = selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}` : 'your selected vehicle';
-      const selectedLocation = locations.find(l => l.id === formData.locationId);
       const locationName = selectedLocation?.name || 'our showroom';
 
       // Always send WhatsApp confirmation
@@ -429,36 +500,27 @@ const BookingPage = () => {
                     </span>
                   </p>
                 )}
+                {formData.scheduledDate && !hasOpenLocationOnSelectedDate && (
+                  <p className="text-sm text-destructive">
+                    All locations are closed on this date. Please choose another date.
+                  </p>
+                )}
               </div>
             )}
 
             {/* Step 2: Location & Variant Selection */}
             {step === 2 && (
               <div className="space-y-4">
-                {availableLocations.length === 0 ? (
+                {openLocationsForDate.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No locations have this model available. Try a different model.</p>
                 ) : (
                   <>
                     <div className="grid gap-3">
-                      {availableLocations.map(loc => {
+                      {openLocationsForDate.map(loc => {
                         const isSelected = formData.locationId === loc.id;
                         const locVehicles = modelVehicles.filter(v => v.location_id === loc.id);
-                        const dayOfWeek = new Date(formData.scheduledDate).getDay();
-                        const hours = operatingHours.find(oh => oh.location_id === loc.id && oh.day_of_week === dayOfWeek);
-                        const isClosed = hours?.is_closed;
+                        const hours = getEffectiveHoursForDate(loc.id, formData.scheduledDate);
                         const mapUrl = `https://www.google.com/maps/search/${encodeURIComponent(loc.address + ' ' + loc.city)}`;
-
-                        if (isClosed) return (
-                          <div key={loc.id} className="p-4 rounded-xl border border-border bg-muted/30 opacity-60">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium text-foreground">{loc.name}</p>
-                                <p className="text-xs text-muted-foreground">{loc.address}, {loc.city}</p>
-                              </div>
-                              <Badge variant="secondary">Closed</Badge>
-                            </div>
-                          </div>
-                        );
 
                         return (
                           <button key={loc.id} type="button"
@@ -474,12 +536,23 @@ const BookingPage = () => {
                               <div>
                                 <p className="font-medium text-foreground">{loc.name}</p>
                                 <p className="text-xs text-muted-foreground">{loc.address}, {loc.city}</p>
+                                <div className="mt-1.5 space-y-1">
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Dealer: <span className="font-medium text-foreground">{dealerNamesById[loc.dealer_id] || 'Unknown'}</span>
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Brands: <span className="font-medium text-foreground">{(brandsByDealerId[loc.dealer_id] || []).join(', ') || 'No brands mapped'}</span>
+                                  </p>
+                                </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 {hours && (
                                   <span className="text-xs text-muted-foreground">
-                                    {hours.open_time?.substring(0, 5)} – {hours.close_time?.substring(0, 5)}
+                                    {hours.open_time?.substring(0, 5)} - {hours.close_time?.substring(0, 5)}
                                   </span>
+                                )}
+                                {hours?.source === 'special' && hours?.source_name && (
+                                  <Badge variant="outline" className="text-[10px]">{hours.source_name}</Badge>
                                 )}
                                 <a
                                   href={mapUrl}
@@ -536,9 +609,29 @@ const BookingPage = () => {
             {/* Step 3: Time Selection */}
             {step === 3 && (
               <div className="space-y-4">
+                {formData.scheduledDate && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      {new Date(`${formData.scheduledDate}T00:00:00`).toLocaleDateString('en-IN', {
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                      })}
+                    </p>
+                    {selectedDateHours && !selectedDateHours.is_closed && (
+                      <p className="text-xs text-muted-foreground">
+                        Available window: {selectedDateHours.open_time?.substring(0, 5)} - {selectedDateHours.close_time?.substring(0, 5)}
+                        {selectedDateHours.source === 'special' && selectedDateHours.source_name
+                          ? ` (${selectedDateHours.source_name})`
+                          : ''}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {selectedDateHours?.is_closed ? (
                   <div className="text-center py-8">
-                    <p className="text-muted-foreground">This location is closed on the selected day.</p>
+                    <p className="text-muted-foreground">
+                      This location is closed on the selected day
+                      {selectedDateHours?.source_name ? ` (${selectedDateHours.source_name})` : ''}.
+                    </p>
                     <Button variant="outline" className="mt-4" onClick={() => setStep(1)}>Change Date</Button>
                   </div>
                 ) : timeSlots.length === 0 ? (
@@ -610,8 +703,10 @@ const BookingPage = () => {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div><span className="text-muted-foreground">Vehicle:</span> <span className="font-medium text-foreground">{selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}` : '—'}</span></div>
                     <div><span className="text-muted-foreground">Date:</span> <span className="font-medium text-foreground">{formData.scheduledDate || '—'}</span></div>
-                    <div><span className="text-muted-foreground">Location:</span> <span className="font-medium text-foreground">{locations.find(l => l.id === formData.locationId)?.name || '—'}</span></div>
+                    <div><span className="text-muted-foreground">Location:</span> <span className="font-medium text-foreground">{selectedLocation?.name || '—'}</span></div>
                     <div><span className="text-muted-foreground">Time:</span> <span className="font-medium text-foreground">{formData.scheduledTime || '—'}</span></div>
+                    <div><span className="text-muted-foreground">Dealer:</span> <span className="font-medium text-foreground">{selectedLocation ? dealerNamesById[selectedLocation.dealer_id] || 'Unknown' : '—'}</span></div>
+                    <div><span className="text-muted-foreground">Brands:</span> <span className="font-medium text-foreground">{selectedLocation ? (brandsByDealerId[selectedLocation.dealer_id] || []).join(', ') || 'No brands mapped' : '—'}</span></div>
                   </div>
                 </div>
               </div>

@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
-import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, ChevronRight, Users, Calendar, AlertCircle, Lock } from 'lucide-react';
+import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, ChevronRight, Users, Calendar, AlertCircle, Lock, CalendarX } from 'lucide-react';
 import { logStaffActivity } from '@/lib/activityLogger';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -36,14 +36,27 @@ const LocationsPage = () => {
   const [newDevice, setNewDevice] = useState({ name: '', device_type: 'tablet', serial_number: '', notes: '' });
   const [staffCounts, setStaffCounts] = useState<Record<string, number>>({});
   const [testDriveCounts, setTestDriveCounts] = useState<Record<string, number>>({});
+  const [testDriveTodayCounts, setTestDriveTodayCounts] = useState<Record<string, number>>({});
+  const [testDriveNext7DaysCounts, setTestDriveNext7DaysCounts] = useState<Record<string, number>>({});
+  const [todayHoursByLocation, setTodayHoursByLocation] = useState<Record<string, string>>({});
+  const [dealerNamesById, setDealerNamesById] = useState<Record<string, string>>({});
+  const [dealerBrandsByDealerId, setDealerBrandsByDealerId] = useState<Record<string, string[]>>({});
   
   // Test drive schedule states
   const [scheduleDialog, setScheduleDialog] = useState<string | null>(null);
   const [schedules, setSchedules] = useState<Record<string, any[]>>({});
   const [selectedScheduleSlot, setSelectedScheduleSlot] = useState<any>(null);
 
-  // Check if user can manage schedules
-  const canManageSchedules = [APP_ROLE.GRO, APP_ROLE.DEALER_ADMIN].includes(role);
+  // Special periods (breaks/holidays) states
+  const [todayHoursRawByLocation, setTodayHoursRawByLocation] = useState<Record<string, any>>({});
+  const [specialPeriodsByLocation, setSpecialPeriodsByLocation] = useState<Record<string, any[]>>({});
+  const [specialPeriodsDialog, setSpecialPeriodsDialog] = useState<string | null>(null);
+  const [specialPeriods, setSpecialPeriods] = useState<any[]>([]);
+  const [newPeriod, setNewPeriod] = useState({ name: '', start_date: '', end_date: '', is_full_closure: true, modified_open_time: '09:00', modified_close_time: '19:00', notes: '' });
+  const [savingPeriod, setSavingPeriod] = useState(false);
+
+  // Check if user can manage schedules / breaks
+  const canManageSchedules = [APP_ROLE.GRO, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN].includes(role);
 
   useEffect(() => {
     if (!dealerLoading) fetchLocations();
@@ -54,6 +67,70 @@ const LocationsPage = () => {
     if (dealerId) query = query.eq('dealer_id', dealerId);
     const { data } = await query;
     setLocations(data || []);
+
+    const locationIds = (data || []).map((loc) => loc.id);
+    const dealerIds = Array.from(new Set((data || []).map((loc) => loc.dealer_id).filter(Boolean)));
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const todayStr = today.toISOString().split('T')[0];
+
+    if (dealerIds.length > 0 || locationIds.length > 0) {
+      const [{ data: dealersData }, { data: brandsData }, { data: todayHoursData }, { data: activePeriods }] = await Promise.all([
+        dealerIds.length > 0
+          ? supabase.from('dealers').select('id, name').in('id', dealerIds)
+          : Promise.resolve({ data: [] as any[] }),
+        dealerIds.length > 0
+          ? supabase.from('brands').select('dealer_id, name').in('dealer_id', dealerIds).order('name')
+          : Promise.resolve({ data: [] as any[] }),
+        locationIds.length > 0
+          ? supabase.from('location_operating_hours').select('location_id, open_time, close_time, is_closed').in('location_id', locationIds).eq('day_of_week', dayOfWeek)
+          : Promise.resolve({ data: [] as any[] }),
+        locationIds.length > 0
+          ? supabase.from('location_special_periods').select('*').in('location_id', locationIds).lte('start_date', todayStr).gte('end_date', todayStr)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+
+      const dealerNameMap = (dealersData || []).reduce((acc: Record<string, string>, dealer: any) => {
+        acc[dealer.id] = dealer.name;
+        return acc;
+      }, {});
+
+      const dealerBrandsMap = (brandsData || []).reduce((acc: Record<string, string[]>, brand: any) => {
+        if (!acc[brand.dealer_id]) acc[brand.dealer_id] = [];
+        acc[brand.dealer_id].push(brand.name);
+        return acc;
+      }, {});
+
+      const todayHoursMap = (todayHoursData || []).reduce((acc: Record<string, string>, row: any) => {
+        acc[row.location_id] = row.is_closed
+          ? 'Closed Today'
+          : `${row.open_time?.substring(0, 5)} - ${row.close_time?.substring(0, 5)}`;
+        return acc;
+      }, {});
+
+      const todayHoursRawMap = (todayHoursData || []).reduce((acc: Record<string, any>, row: any) => {
+        acc[row.location_id] = row;
+        return acc;
+      }, {});
+
+      const specialPeriodsMap = (activePeriods || []).reduce((acc: Record<string, any[]>, row: any) => {
+        if (!acc[row.location_id]) acc[row.location_id] = [];
+        acc[row.location_id].push(row);
+        return acc;
+      }, {});
+
+      setDealerNamesById(dealerNameMap);
+      setDealerBrandsByDealerId(dealerBrandsMap);
+      setTodayHoursByLocation(todayHoursMap);
+      setTodayHoursRawByLocation(todayHoursRawMap);
+      setSpecialPeriodsByLocation(specialPeriodsMap);
+    } else {
+      setDealerNamesById({});
+      setDealerBrandsByDealerId({});
+      setTodayHoursByLocation({});
+      setTodayHoursRawByLocation({});
+      setSpecialPeriodsByLocation({});
+    }
     
     // Fetch related data for each location
     if (data) {
@@ -82,12 +159,26 @@ const LocationsPage = () => {
 
   const fetchTestDriveCount = async (locationId: string) => {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const { count } = await supabase.from('test_drives').select('id', { count: 'exact', head: true }).eq('location_id', locationId).eq('scheduled_date', today).in('status', ['confirmed', 'show', 'in_progress']);
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const next7 = new Date(today);
+      next7.setDate(next7.getDate() + 7);
+      const next7Str = next7.toISOString().split('T')[0];
+
+      const [{ count }, { count: todayCount }, { count: next7Count }] = await Promise.all([
+        supabase.from('test_drives').select('id', { count: 'exact', head: true }).eq('location_id', locationId).in('status', ['confirmed', 'show', 'in_progress', 'scheduled']),
+        supabase.from('test_drives').select('id', { count: 'exact', head: true }).eq('location_id', locationId).eq('scheduled_date', todayStr).in('status', ['confirmed', 'show', 'in_progress', 'scheduled']),
+        supabase.from('test_drives').select('id', { count: 'exact', head: true }).eq('location_id', locationId).gte('scheduled_date', todayStr).lte('scheduled_date', next7Str).in('status', ['confirmed', 'show', 'in_progress', 'scheduled']),
+      ]);
+
       setTestDriveCounts(prev => ({ ...prev, [locationId]: count || 0 }));
+      setTestDriveTodayCounts(prev => ({ ...prev, [locationId]: todayCount || 0 }));
+      setTestDriveNext7DaysCounts(prev => ({ ...prev, [locationId]: next7Count || 0 }));
     } catch (err) {
       console.error('Error fetching test drive count:', err);
       setTestDriveCounts(prev => ({ ...prev, [locationId]: 0 }));
+      setTestDriveTodayCounts(prev => ({ ...prev, [locationId]: 0 }));
+      setTestDriveNext7DaysCounts(prev => ({ ...prev, [locationId]: 0 }));
     }
   };
 
@@ -243,6 +334,131 @@ const LocationsPage = () => {
     }
   };
 
+  const getLocationStatus = (locationId: string): { open: boolean; label: string; subLabel?: string } => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const activePeriod = (specialPeriodsByLocation[locationId] || []).find(
+      (p: any) => p.start_date <= todayStr && p.end_date >= todayStr
+    );
+
+    if (activePeriod) {
+      if (activePeriod.is_full_closure) {
+        return { open: false, label: 'Closed', subLabel: activePeriod.name };
+      }
+      if (activePeriod.modified_open_time && activePeriod.modified_close_time) {
+        const open = currentTime >= activePeriod.modified_open_time.substring(0, 5)
+                  && currentTime <= activePeriod.modified_close_time.substring(0, 5);
+        return {
+          open,
+          label: open ? 'Open Now' : 'Closed',
+          subLabel: `${activePeriod.name} · ${activePeriod.modified_open_time.substring(0, 5)}–${activePeriod.modified_close_time.substring(0, 5)}`,
+        };
+      }
+    }
+
+    const raw = todayHoursRawByLocation[locationId];
+    if (!raw) return { open: false, label: 'Hours Not Set' };
+    if (raw.is_closed) return { open: false, label: 'Closed Today' };
+
+    const isOpen = currentTime >= raw.open_time.substring(0, 5) && currentTime <= raw.close_time.substring(0, 5);
+    return {
+      open: isOpen,
+      label: isOpen ? 'Open Now' : 'Closed',
+      subLabel: isOpen
+        ? `Until ${raw.close_time.substring(0, 5)}`
+        : currentTime < raw.open_time.substring(0, 5)
+          ? `Opens ${raw.open_time.substring(0, 5)}`
+          : `${raw.open_time.substring(0, 5)}–${raw.close_time.substring(0, 5)}`,
+    };
+  };
+
+  const openSpecialPeriodsDialog = async (locationId: string) => {
+    const { data, error } = await supabase
+      .from('location_special_periods')
+      .select('*')
+      .eq('location_id', locationId)
+      .order('start_date', { ascending: false });
+
+    if (error) {
+      toast({ title: 'Failed to load saved records', description: error.message, variant: 'destructive' });
+      setSpecialPeriods([]);
+    } else {
+      setSpecialPeriods(data || []);
+    }
+
+    setNewPeriod({ name: '', start_date: '', end_date: '', is_full_closure: true, modified_open_time: '09:00', modified_close_time: '19:00', notes: '' });
+    setSpecialPeriodsDialog(locationId);
+  };
+
+  const addSpecialPeriod = async () => {
+    if (!specialPeriodsDialog || !newPeriod.name || !newPeriod.start_date || !newPeriod.end_date) {
+      toast({ title: 'Name, start date, and end date are required', variant: 'destructive' });
+      return;
+    }
+    if (newPeriod.end_date < newPeriod.start_date) {
+      toast({ title: 'End date must be on or after start date', variant: 'destructive' });
+      return;
+    }
+    setSavingPeriod(true);
+    try {
+      const { error: insertError } = await supabase.from('location_special_periods').insert({
+        location_id: specialPeriodsDialog,
+        name: newPeriod.name,
+        start_date: newPeriod.start_date,
+        end_date: newPeriod.end_date,
+        is_full_closure: newPeriod.is_full_closure,
+        modified_open_time: newPeriod.is_full_closure ? null : newPeriod.modified_open_time,
+        modified_close_time: newPeriod.is_full_closure ? null : newPeriod.modified_close_time,
+        notes: newPeriod.notes || null,
+      });
+
+      if (insertError) throw insertError;
+
+      toast({ title: 'Special period added' });
+      setNewPeriod({ name: '', start_date: '', end_date: '', is_full_closure: true, modified_open_time: '09:00', modified_close_time: '19:00', notes: '' });
+
+      const { data: refreshed, error: refreshError } = await supabase
+        .from('location_special_periods')
+        .select('*')
+        .eq('location_id', specialPeriodsDialog)
+        .order('start_date', { ascending: false });
+
+      if (refreshError) throw refreshError;
+
+      setSpecialPeriods(refreshed || []);
+      fetchLocations();
+    } catch (err: any) {
+      toast({ title: 'Failed to add period', description: err.message, variant: 'destructive' });
+    } finally { setSavingPeriod(false); }
+  };
+
+  const deleteSpecialPeriod = async (periodId: string) => {
+    if (!confirm('Delete this special period?')) return;
+    try {
+      const { error: deleteError } = await supabase.from('location_special_periods').delete().eq('id', periodId);
+      if (deleteError) throw deleteError;
+
+      toast({ title: 'Period removed' });
+
+      if (specialPeriodsDialog) {
+        const { data: refreshed, error: refreshError } = await supabase
+          .from('location_special_periods')
+          .select('*')
+          .eq('location_id', specialPeriodsDialog)
+          .order('start_date', { ascending: false });
+
+        if (refreshError) throw refreshError;
+
+        setSpecialPeriods(refreshed || []);
+        fetchLocations();
+      }
+    } catch (err: any) {
+      toast({ title: 'Failed to delete period', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const hoursLocationName = locations.find(l => l.id === hoursDialog)?.name || '';
 
   if (dealerLoading) {
@@ -288,6 +504,26 @@ const LocationsPage = () => {
                         <CardTitle className="text-lg">{loc.name}</CardTitle>
                         <p className="text-sm text-muted-foreground mt-0.5">{loc.address}</p>
                         <p className="text-xs text-muted-foreground">{loc.city}{loc.state ? `, ${loc.state}` : ''}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {(() => {
+                            const s = getLocationStatus(loc.id);
+                            return (
+                              <Badge className={`text-[11px] font-semibold border px-2 py-0.5 ${s.open ? 'bg-success/15 text-success border-success/40' : 'bg-destructive/15 text-destructive border-destructive/40'}`}>
+                                <span className="mr-1">{s.open ? '●' : '●'}</span>
+                                {s.label}
+                                {s.subLabel && <span className="ml-1 font-normal opacity-75 text-[10px]">· {s.subLabel}</span>}
+                              </Badge>
+                            );
+                          })()}
+                          <Badge variant="outline" className="text-[11px]">
+                            Dealer: {dealerNamesById[loc.dealer_id] || 'Unknown'}
+                          </Badge>
+                          <Badge variant="secondary" className="text-[11px] max-w-full truncate">
+                            Brands: {(dealerBrandsByDealerId[loc.dealer_id] || []).length > 0
+                              ? dealerBrandsByDealerId[loc.dealer_id].join(', ')
+                              : 'No brands mapped'}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
                     <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => editLocation(loc)} title="Edit Location">
@@ -297,26 +533,39 @@ const LocationsPage = () => {
                 </CardHeader>
 
                 <CardContent className="p-4 space-y-4">
-                  {/* Quick Stats */}
-                  <div className="grid grid-cols-3 gap-2">
+                  {/* Business Snapshot */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                    <div className="bg-primary/10 rounded-lg p-2.5 text-center">
+                      <div className="text-xs text-muted-foreground">Total Drives</div>
+                      <div className="text-xl font-bold text-primary mt-0.5">{testDriveCounts[loc.id] || 0}</div>
+                    </div>
                     <div className="bg-primary/10 rounded-lg p-2.5 text-center">
                       <div className="text-xs text-muted-foreground">Today's Drives</div>
-                      <div className="text-xl font-bold text-primary mt-0.5">{testDriveCounts[loc.id] || 0}</div>
+                      <div className="text-xl font-bold text-primary mt-0.5">{testDriveTodayCounts[loc.id] || 0}</div>
+                    </div>
+                    <div className="bg-info/10 rounded-lg p-2.5 text-center">
+                      <div className="text-xs text-muted-foreground">Next 7 Days</div>
+                      <div className="text-xl font-bold text-info mt-0.5">{testDriveNext7DaysCounts[loc.id] || 0}</div>
                     </div>
                     <div className="bg-success/10 rounded-lg p-2.5 text-center">
                       <div className="text-xs text-muted-foreground">Staff</div>
                       <div className="text-xl font-bold text-success mt-0.5">{staffCounts[loc.id] || 0}</div>
                     </div>
                     <div className="bg-info/10 rounded-lg p-2.5 text-center">
-                      <div className="text-xs text-muted-foreground">Devices</div>
-                      <div className="text-xl font-bold text-info mt-0.5">{devices[loc.id]?.length || 0}</div>
+                      <div className="text-xs text-muted-foreground">Active Devices</div>
+                      <div className="text-xl font-bold text-info mt-0.5">{(devices[loc.id] || []).filter(d => d.is_active).length}</div>
+                    </div>
+                    <div className="bg-muted/70 rounded-lg p-2.5 text-center">
+                      <div className="text-xs text-muted-foreground">Today's Hours</div>
+                      <div className="text-sm font-semibold text-foreground mt-0.5">{todayHoursByLocation[loc.id] || 'Not set'}</div>
                     </div>
                   </div>
 
                   {/* Contact Info */}
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground border-t border-border pt-3">
+                  <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground border-t border-border pt-3">
                     {loc.phone && <span className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" />{loc.phone}</span>}
                     {loc.email && <span className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" />{loc.email}</span>}
+                    <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />Today: {todayHoursByLocation[loc.id] || 'Not set'}</span>
                   </div>
 
                   {/* Device List */}
@@ -360,11 +609,14 @@ const LocationsPage = () => {
                   {/* Quick Action Buttons */}
                   <div className="border-t border-border pt-3">
                     {canManageSchedules ? (
-                      <div className="flex gap-2">
-                        <Button size="sm" className="flex-1 bg-info text-info-foreground hover:bg-info/90 text-xs" onClick={() => openHoursDialog(loc.id)}>
+                      <div className="flex gap-2 flex-wrap">
+                        <Button size="sm" className="flex-1 bg-info text-info-foreground hover:bg-info/90 text-xs min-w-[80px]" onClick={() => openHoursDialog(loc.id)}>
                           <Clock className="h-3.5 w-3.5 mr-1.5" /> Hours
                         </Button>
-                        <Button size="sm" className="flex-1 bg-primary/50 text-primary-foreground hover:bg-primary/60 text-xs" onClick={() => openScheduleDialog(loc.id)}>
+                        <Button size="sm" className="flex-1 bg-orange-500/80 text-white hover:bg-orange-500 text-xs min-w-[80px]" onClick={() => openSpecialPeriodsDialog(loc.id)}>
+                          <CalendarX className="h-3.5 w-3.5 mr-1.5" /> Breaks
+                        </Button>
+                        <Button size="sm" className="flex-1 bg-primary/50 text-primary-foreground hover:bg-primary/60 text-xs min-w-[80px]" onClick={() => openScheduleDialog(loc.id)}>
                           <Calendar className="h-3.5 w-3.5 mr-1.5" /> Schedule
                         </Button>
                       </div>
@@ -498,6 +750,144 @@ const LocationsPage = () => {
             <DialogFooter>
               <Button variant="outline" onClick={() => setDeviceDialog(null)}>Cancel</Button>
               <Button onClick={addDevice} className="bg-primary text-primary-foreground hover:bg-primary/90">Add Device</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Special Periods (Breaks / Holidays) Dialog */}
+        <Dialog open={!!specialPeriodsDialog} onOpenChange={() => setSpecialPeriodsDialog(null)}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-heading flex items-center gap-2">
+                <CalendarX className="h-5 w-5 text-orange-500" />
+                Breaks & Closures — {locations.find(l => l.id === specialPeriodsDialog)?.name}
+              </DialogTitle>
+              <DialogDescription>
+                Manage Ramadan breaks, holidays, and any special periods that override regular hours.
+              </DialogDescription>
+              <p className="text-xs text-muted-foreground">
+                Saved records: <span className="font-medium text-foreground">{specialPeriods.length}</span>
+              </p>
+            </DialogHeader>
+
+            {/* Add New Period */}
+            <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Plus className="h-4 w-4 text-primary" /> Add New Period
+              </h4>
+              <div className="space-y-2">
+                <Label>Period Name *</Label>
+                <Input
+                  placeholder="e.g. Ramadan 2026, Eid Holiday, National Day"
+                  value={newPeriod.name}
+                  onChange={e => setNewPeriod(p => ({ ...p, name: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Start Date *</Label>
+                  <Input type="date" value={newPeriod.start_date} onChange={e => setNewPeriod(p => ({ ...p, start_date: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date *</Label>
+                  <Input type="date" value={newPeriod.end_date} onChange={e => setNewPeriod(p => ({ ...p, end_date: e.target.value }))} />
+                </div>
+              </div>
+              <div className="flex items-center gap-3 py-1">
+                <Switch
+                  checked={newPeriod.is_full_closure}
+                  onCheckedChange={v => setNewPeriod(p => ({ ...p, is_full_closure: v }))}
+                />
+                <div>
+                  <Label className="cursor-pointer font-medium">
+                    {newPeriod.is_full_closure ? 'Full Closure (Closed all day)' : 'Modified Hours'}
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {newPeriod.is_full_closure
+                      ? 'Location will show as Closed during this period'
+                      : 'Location opens with different hours during this period'}
+                  </p>
+                </div>
+              </div>
+              {!newPeriod.is_full_closure && (
+                <div className="flex items-center gap-3">
+                  <div className="space-y-1.5 flex-1">
+                    <Label className="text-xs">Modified Open Time</Label>
+                    <Input type="time" value={newPeriod.modified_open_time}
+                      onChange={e => setNewPeriod(p => ({ ...p, modified_open_time: e.target.value }))}
+                      className="h-8 text-xs" />
+                  </div>
+                  <span className="text-xs text-muted-foreground mt-5">to</span>
+                  <div className="space-y-1.5 flex-1">
+                    <Label className="text-xs">Modified Close Time</Label>
+                    <Input type="time" value={newPeriod.modified_close_time}
+                      onChange={e => setNewPeriod(p => ({ ...p, modified_close_time: e.target.value }))}
+                      className="h-8 text-xs" />
+                  </div>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  placeholder="Any additional notes for staff..."
+                  value={newPeriod.notes}
+                  onChange={e => setNewPeriod(p => ({ ...p, notes: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+              <Button onClick={addSpecialPeriod} disabled={savingPeriod}
+                className="w-full bg-orange-500 text-white hover:bg-orange-600">
+                {savingPeriod ? 'Saving...' : 'Add Period'}
+              </Button>
+            </div>
+
+            {/* Existing Periods List */}
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">All Periods</h4>
+              {specialPeriods.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CalendarX className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No special periods set for this location.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {specialPeriods.map((period: any) => {
+                    const today = new Date().toISOString().split('T')[0];
+                    const isActive = period.start_date <= today && period.end_date >= today;
+                    const isPast = period.end_date < today;
+                    return (
+                      <div key={period.id} className={`flex items-start justify-between p-3 rounded-lg border transition-colors ${isActive ? 'border-orange-400 bg-orange-50/50 dark:bg-orange-950/20' : isPast ? 'border-border bg-muted/30 opacity-60' : 'border-border bg-card'}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{period.name}</span>
+                            {isActive && <Badge className="text-[10px] bg-orange-500 text-white px-1.5">Active</Badge>}
+                            {isPast && <Badge variant="secondary" className="text-[10px]">Past</Badge>}
+                            <Badge variant={period.is_full_closure ? 'destructive' : 'outline'} className="text-[10px]">
+                              {period.is_full_closure ? 'Full Closure' : 'Modified Hours'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {period.start_date} → {period.end_date}
+                            {!period.is_full_closure && period.modified_open_time &&
+                              ` · ${period.modified_open_time?.substring(0, 5)}–${period.modified_close_time?.substring(0, 5)}`}
+                          </p>
+                          {period.notes && (
+                            <p className="text-xs text-muted-foreground italic mt-0.5">{period.notes}</p>
+                          )}
+                        </div>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 hover:bg-destructive/20 shrink-0 ml-2"
+                          onClick={() => deleteSpecialPeriod(period.id)}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSpecialPeriodsDialog(null)}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -18,7 +18,6 @@ import { APP_ROLE } from '@/constants/roles';
 const TestDrivesPage = () => {
   const { role, profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
-  const [securityLogsByDrive, setSecurityLogsByDrive] = useState<Record<string, any[]>>({});
   const [statusFilter, setStatusFilter] = useState('all');
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [cancelId, setCancelId] = useState<string | null>(null);
@@ -50,45 +49,7 @@ const TestDrivesPage = () => {
       query = query.in('location_id', dealerLocationIds);
     }
     const { data } = await query;
-    const drives = data || [];
-    setTestDrives(drives);
-
-    if (!drives.length) {
-      setSecurityLogsByDrive({});
-      return;
-    }
-
-    const driveIds = new Set(drives.map((d) => d.id));
-    const { data: securityEvents } = await supabase
-      .from('staff_activity_events')
-      .select('event_type, event_label, happened_at, metadata, profiles:profile_id(full_name)')
-      .eq('role', 'security')
-      .in('event_type', [
-        'test_drive_check_in',
-        'test_drive_check_out',
-        'test_drive_completed',
-        'vehicle_inspection_pre',
-        'vehicle_inspection_post',
-        'license_verified',
-      ])
-      .order('happened_at', { ascending: false })
-      .limit(1500);
-
-    const logsByDrive: Record<string, any[]> = {};
-    for (const event of securityEvents || []) {
-      const testDriveId = (event as any)?.metadata?.testDriveId;
-      if (!testDriveId || !driveIds.has(testDriveId)) continue;
-      if (!logsByDrive[testDriveId]) logsByDrive[testDriveId] = [];
-
-      logsByDrive[testDriveId].push({
-        eventType: (event as any).event_type,
-        label: (event as any).event_label || (event as any).event_type,
-        happenedAt: (event as any).happened_at,
-        by: (event as any)?.profiles?.full_name || 'Security',
-      });
-    }
-
-    setSecurityLogsByDrive(logsByDrive);
+    setTestDrives(data || []);
   };
 
   const handleReschedule = async () => {
@@ -167,8 +128,8 @@ const TestDrivesPage = () => {
           </Select>
         </div>
 
-        {/* Legacy table intentionally hidden in favor of card records */}
-        <Card className="hidden">
+        {/* Desktop Table */}
+        <Card className="shadow-card hidden lg:block">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -220,8 +181,8 @@ const TestDrivesPage = () => {
           </CardContent>
         </Card>
 
-        {/* Card Records */}
-        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
+        {/* Mobile Cards */}
+        <div className="lg:hidden space-y-3">
           {testDrives.length === 0 ? (
             <Card className="shadow-card">
               <CardContent className="p-8 text-center text-muted-foreground">No test drives found</CardContent>
@@ -265,36 +226,6 @@ const TestDrivesPage = () => {
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <User className="h-3 w-3" />
                     Sales: {td.profiles.full_name}
-                  </div>
-                )}
-
-                {td.status === 'completed' && (
-                  <div className="rounded-md border border-success/30 bg-success/5 p-2.5 space-y-2 text-xs">
-                    <p className="font-semibold text-foreground">Completed Drive Details</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div><span className="text-muted-foreground">Pre KM:</span> <span className="font-medium">{(td as any).pre_drive_km ?? 'N/A'}</span></div>
-                      <div><span className="text-muted-foreground">Pre Fuel:</span> <span className="font-medium">{(td as any).pre_drive_fuel_level || 'N/A'}</span></div>
-                      <div><span className="text-muted-foreground">Post KM:</span> <span className="font-medium">{(td as any).post_drive_km ?? 'N/A'}</span></div>
-                      <div><span className="text-muted-foreground">Post Fuel:</span> <span className="font-medium">{(td as any).post_drive_fuel_level || 'N/A'}</span></div>
-                    </div>
-                    {(td as any).pre_drive_km && (td as any).post_drive_km && (
-                      <div><span className="text-muted-foreground">Distance:</span> <span className="font-medium">{((td as any).post_drive_km - (td as any).pre_drive_km).toFixed(1)} km</span></div>
-                    )}
-                    <div className="pt-1 border-t border-border/60 space-y-1">
-                      <p className="text-muted-foreground font-medium">Security Logs</p>
-                      {(securityLogsByDrive[td.id]?.length ?? 0) > 0 ? (
-                        <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                          {securityLogsByDrive[td.id].map((log: any, idx: number) => (
-                            <div key={`${log.eventType}-${log.happenedAt}-${idx}`} className="rounded border border-border/60 bg-background/70 p-1.5">
-                              <p className="text-foreground leading-tight">{log.label}</p>
-                              <p className="text-muted-foreground">{log.by} • {new Date(log.happenedAt).toLocaleString()}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground">No security logs available.</p>
-                      )}
-                    </div>
                   </div>
                 )}
 

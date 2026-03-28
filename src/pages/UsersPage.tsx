@@ -27,6 +27,8 @@ import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
 
 const UsersPage = () => {
   const [users, setUsers] = useState<any[]>([]);
+  const [dealers, setDealers] = useState<any[]>([]);
+  const [selectedDealerFilter, setSelectedDealerFilter] = useState<string>('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [locations, setLocations] = useState<any[]>([]);
@@ -48,19 +50,41 @@ const UsersPage = () => {
 
   useEffect(() => {
     if (!dealerLoading) {
+      if (isSuperAdmin) {
+        supabase.from('dealers').select('id, name').eq('is_active', true).order('name')
+          .then(({ data }) => setDealers(data || []));
+      }
       fetchUsers();
       let query = supabase.from('locations').select('*');
-      if (dealerId) query = query.eq('dealer_id', dealerId);
+      if (isSuperAdmin && selectedDealerFilter !== 'all') {
+        query = query.eq('dealer_id', selectedDealerFilter);
+      } else if (!isSuperAdmin && dealerId) {
+        query = query.eq('dealer_id', dealerId);
+      }
       query.then(({ data }) => setLocations(data || []));
     }
-  }, [dealerId, dealerLoading]);
+  }, [dealerId, dealerLoading, isSuperAdmin, selectedDealerFilter]);
 
   const fetchUsers = async () => {
-    const { data: profiles } = await supabase.from('profiles').select('*').order('full_name');
-    const { data: roles } = await supabase.from('user_roles').select('*');
+    const [{ data: profiles }, { data: roles }, { data: allLocations }] = await Promise.all([
+      supabase.from('profiles').select('*').order('full_name'),
+      supabase.from('user_roles').select('*'),
+      supabase.from('locations').select('id, dealer_id'),
+    ]);
+
+    const locationDealerMap = (allLocations || []).reduce((acc: Record<string, string>, loc: any) => {
+      acc[loc.id] = loc.dealer_id;
+      return acc;
+    }, {});
     
     const merged = (profiles || [])
       .filter(p => {
+        if (isSuperAdmin) {
+          if (selectedDealerFilter === 'all') return true;
+          if (!p.location_id) return p.user_id === user?.id;
+          return locationDealerMap[p.location_id] === selectedDealerFilter;
+        }
+
         if (!dealerLocationIds) return true;
         if (p.location_id && dealerLocationIds.includes(p.location_id)) return true;
         if (p.user_id === user?.id) return true;
@@ -143,6 +167,13 @@ const UsersPage = () => {
   const getLocationName = (locationId: string | null) => {
     if (!locationId) return null;
     return locations.find(l => l.id === locationId)?.name || null;
+  };
+
+  const getDealerNameByLocation = (locationId: string | null) => {
+    if (!locationId) return null;
+    const location = locations.find(l => l.id === locationId);
+    if (!location?.dealer_id) return null;
+    return dealers.find(d => d.id === location.dealer_id)?.name || null;
   };
 
   const handleToggleUserBlock = async (u: any) => {
@@ -239,9 +270,24 @@ const UsersPage = () => {
       <div className="space-y-4 sm:space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Staff Management</h1>
-          <Button onClick={() => setShowCreateDialog(true)} className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
-            <UserPlus className="h-4 w-4 mr-2" /> Add Staff
-          </Button>
+          <div className="flex w-full sm:w-auto items-center gap-2">
+            {isSuperAdmin && (
+              <Select value={selectedDealerFilter} onValueChange={setSelectedDealerFilter}>
+                <SelectTrigger className="w-full sm:w-[220px]">
+                  <SelectValue placeholder="Filter by dealer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Dealers</SelectItem>
+                  {dealers.map(d => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button onClick={() => setShowCreateDialog(true)} className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
+              <UserPlus className="h-4 w-4 mr-2" /> Add Staff
+            </Button>
+          </div>
         </div>
 
         {/* Desktop Table */}
@@ -254,6 +300,7 @@ const UsersPage = () => {
                   <th className="text-left p-3 text-muted-foreground font-medium">Email</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Role</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Location</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Dealer</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Status</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Actions</th>
                 </tr>
@@ -280,6 +327,9 @@ const UsersPage = () => {
                           {getLocationName(u.location_id)}
                         </span>
                       ) : '–'}
+                    </td>
+                    <td className="p-3 text-muted-foreground text-xs">
+                      {getDealerNameByLocation(u.location_id) || '–'}
                     </td>
                     <td className="p-3">
                       <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
@@ -360,6 +410,13 @@ const UsersPage = () => {
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <MapPin className="h-3 w-3" />
                     {getLocationName(u.location_id)}
+                  </div>
+                )}
+
+                {getDealerNameByLocation(u.location_id) && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Shield className="h-3 w-3" />
+                    Dealer: {getDealerNameByLocation(u.location_id)}
                   </div>
                 )}
 

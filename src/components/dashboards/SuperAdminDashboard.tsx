@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,7 +22,7 @@ import {
   YAxis,
   Cell,
 } from 'recharts';
-import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye } from 'lucide-react';
+import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye, MailCheck, AlertTriangle, RefreshCw } from 'lucide-react';
 import { APP_ROLE, AppRole } from '@/constants/roles';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
@@ -36,6 +36,19 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const STATUS_COLORS = ['hsl(220,80%,50%)', 'hsl(145,65%,42%)', 'hsl(38,95%,55%)', 'hsl(0,75%,55%)', 'hsl(200,80%,50%)'];
+const AUTH_EMAIL_TEMPLATES = [
+  'signup',
+  'magiclink',
+  'recovery',
+  'invite',
+  'email_change',
+  'reauthentication',
+  // Keep legacy/alternate labels so older rows are still counted.
+  'confirm_signup',
+  'magic_link',
+  'auth_emails',
+];
+const TEST_DRIVE_EMAIL_TEMPLATES = ['booking-confirmation', 'sales-follow-up'];
 
 const SuperAdminDashboard = () => {
   const { role } = useAuth();
@@ -60,6 +73,23 @@ const SuperAdminDashboard = () => {
   const [activitySessions, setActivitySessions] = useState<any[]>([]);
   const [activityEvents, setActivityEvents] = useState<any[]>([]);
   const [selectedActivityStaff, setSelectedActivityStaff] = useState<any | null>(null);
+  const [authDiagnostics, setAuthDiagnostics] = useState({
+    loading: false,
+    totalAuthEmails24h: 0,
+    sent: 0,
+    failed: 0,
+    dlq: 0,
+    pending: 0,
+    rateLimited: 0,
+    lastError: null as string | null,
+    cooldownUntil: null as string | null,
+    lastAuthEmailAt: null as string | null,
+    customerDriveSent: 0,
+    customerDriveFailed: 0,
+    customerDrivePending: 0,
+  });
+  const [failedAuthEmailLogs, setFailedAuthEmailLogs] = useState<any[]>([]);
+  const [authFailuresDialogOpen, setAuthFailuresDialogOpen] = useState(false);
 
   const [selectedDealer, setSelectedDealer] = useState(savedPrefs.selectedDealer || 'all');
   const [selectedLocation, setSelectedLocation] = useState(savedPrefs.selectedLocation || 'all');
@@ -188,6 +218,76 @@ const SuperAdminDashboard = () => {
     fetchData();
   }, [selectedLocation, selectedStaff, locations, dealerLoading, isSuperAdmin]);
 
+  const fetchAuthDiagnostics = useCallback(async () => {
+    setAuthDiagnostics((prev) => ({ ...prev, loading: true }));
+
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const [{ data: authEmailLogs }, { data: emailState }, { data: failedLogs }, { data: customerDriveLogs }] = await Promise.all([
+      supabase
+        .from('email_send_log')
+        .select('status, error_message, created_at, template_name')
+        .in('template_name', AUTH_EMAIL_TEMPLATES)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(300),
+      supabase
+        .from('email_send_state')
+        .select('retry_after_until')
+        .eq('id', 1)
+        .maybeSingle(),
+      supabase
+        .from('email_send_log')
+        .select('id, recipient_email, template_name, status, error_message, created_at')
+        .in('template_name', AUTH_EMAIL_TEMPLATES)
+        .in('status', ['failed', 'dlq', 'rate_limited'])
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(40),
+      supabase
+        .from('email_send_log')
+        .select('status, template_name, created_at')
+        .in('template_name', TEST_DRIVE_EMAIL_TEMPLATES)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(300),
+    ]);
+
+    const logs = authEmailLogs || [];
+    const sent = logs.filter((row) => row.status === 'sent').length;
+    const failed = logs.filter((row) => row.status === 'failed').length;
+    const dlq = logs.filter((row) => row.status === 'dlq').length;
+    const pending = logs.filter((row) => row.status === 'pending').length;
+    const rateLimited = logs.filter((row) => row.status === 'rate_limited').length;
+    const errored = logs.find((row) => row.error_message);
+    const driveLogs = customerDriveLogs || [];
+    const customerDriveSent = driveLogs.filter((row) => row.status === 'sent').length;
+    const customerDriveFailed = driveLogs.filter((row) => row.status === 'failed' || row.status === 'dlq').length;
+    const customerDrivePending = driveLogs.filter((row) => row.status === 'pending').length;
+
+    setAuthDiagnostics({
+      loading: false,
+      totalAuthEmails24h: logs.length,
+      sent,
+      failed,
+      dlq,
+      pending,
+      rateLimited,
+      lastError: errored?.error_message || null,
+      cooldownUntil: emailState?.retry_after_until || null,
+      lastAuthEmailAt: logs[0]?.created_at || null,
+      customerDriveSent,
+      customerDriveFailed,
+      customerDrivePending,
+    });
+    setFailedAuthEmailLogs(failedLogs || []);
+  }, []);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    void fetchAuthDiagnostics();
+  }, [isSuperAdmin, fetchAuthDiagnostics]);
+
   useEffect(() => {
     if (dealerLoading && !isSuperAdmin) return;
 
@@ -238,6 +338,7 @@ const SuperAdminDashboard = () => {
     (s) => s.role === APP_ROLE.SALES && s.is_active
   ).length;
 
+  const dealerCount = isSuperAdmin ? dealers.length : 1;
   const locationCount = locations.length;
   const userCount = filteredStaff.length;
   const brandCount = brands.length;
@@ -258,6 +359,7 @@ const SuperAdminDashboard = () => {
   ].filter((s) => s.value > 0);
 
   const statCards = [
+    { label: 'Dealers', value: dealerCount, icon: Users, color: 'text-primary', bg: 'bg-primary/10' },
     { label: 'Locations', value: locationCount, icon: MapPin, color: 'text-primary', bg: 'bg-primary/10' },
     { label: 'Users', value: userCount, icon: Users, color: 'text-accent', bg: 'bg-accent/10' },
     { label: 'Brands', value: brandCount, icon: Car, color: 'text-info', bg: 'bg-info/10' },
@@ -335,6 +437,10 @@ const SuperAdminDashboard = () => {
   };
 
   const selectedActivitySummary = selectedActivityStaff ? getStaffActivitySummary(selectedActivityStaff) : null;
+  const isEmailQueueCoolingDown = Boolean(
+    authDiagnostics.cooldownUntil && new Date(authDiagnostics.cooldownUntil).getTime() > Date.now()
+  );
+  const hasAuthEmailFailures = authDiagnostics.failed > 0 || authDiagnostics.dlq > 0;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -421,6 +527,8 @@ const SuperAdminDashboard = () => {
           );
         })}
       </div>
+
+   
 
       <Card className="shadow-card">
         <CardHeader className="space-y-3">
@@ -785,6 +893,169 @@ const SuperAdminDashboard = () => {
           </div>
         </>
       )}
+
+      {isSuperAdmin && (
+        <Card className="shadow-card border-primary/20">
+          <CardHeader>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="font-heading text-lg flex items-center gap-2">
+                <MailCheck className="h-5 w-5 text-primary" />
+                Auth Diagnostics (24h)
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void fetchAuthDiagnostics()}
+                  disabled={authDiagnostics.loading}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${authDiagnostics.loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAuthFailuresDialogOpen(true)}
+                  disabled={failedAuthEmailLogs.length === 0}
+                >
+                  View Failures
+                </Button>
+                <Badge
+                  variant="secondary"
+                  className={
+                    authDiagnostics.loading
+                      ? 'bg-muted text-muted-foreground'
+                      : hasAuthEmailFailures || isEmailQueueCoolingDown
+                        ? 'bg-warning/10 text-warning'
+                        : 'bg-success/10 text-success'
+                  }
+                >
+                  {authDiagnostics.loading
+                    ? 'Refreshing'
+                    : hasAuthEmailFailures
+                      ? 'Action Needed'
+                      : isEmailQueueCoolingDown
+                        ? 'Rate Limited'
+                        : 'Healthy'}
+                </Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Queued/Logged</p>
+                <p className="text-xl font-heading font-bold text-foreground">{authDiagnostics.totalAuthEmails24h}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Sent</p>
+                <p className="text-xl font-heading font-bold text-success">{authDiagnostics.sent}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Failed</p>
+                <p className="text-xl font-heading font-bold text-destructive">{authDiagnostics.failed}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">DLQ</p>
+                <p className="text-xl font-heading font-bold text-warning">{authDiagnostics.dlq}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Pending</p>
+                <p className="text-xl font-heading font-bold text-primary">{authDiagnostics.pending}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Rate Limited</p>
+                <p className="text-xl font-heading font-bold text-warning">{authDiagnostics.rateLimited}</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground mb-2">Customer Test-Drive Emails (24h)</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Sent</p>
+                  <p className="text-base font-semibold text-success">{authDiagnostics.customerDriveSent}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Failed/DLQ</p>
+                  <p className="text-base font-semibold text-destructive">{authDiagnostics.customerDriveFailed}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Pending</p>
+                  <p className="text-base font-semibold text-primary">{authDiagnostics.customerDrivePending}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground mb-1">Last auth email event</p>
+                <p className="text-sm text-foreground font-medium">{formatDateTime(authDiagnostics.lastAuthEmailAt)}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground mb-1">Queue cooldown</p>
+                <p className="text-sm text-foreground font-medium">
+                  {isEmailQueueCoolingDown ? `Retry after ${formatDateTime(authDiagnostics.cooldownUntil)}` : 'Not rate limited'}
+                </p>
+              </div>
+            </div>
+
+            {authDiagnostics.lastError && (
+              <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">
+                <p className="text-xs text-warning flex items-center gap-1 mb-1">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Latest error
+                </p>
+                <p className="text-sm text-foreground break-all">{authDiagnostics.lastError}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={authFailuresDialogOpen} onOpenChange={setAuthFailuresDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Auth Email Failures (Last 24h)</DialogTitle>
+            <DialogDescription>
+              Recent failed, DLQ, and rate-limited auth emails to help debug signup verification delivery.
+            </DialogDescription>
+          </DialogHeader>
+
+          {failedAuthEmailLogs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No failed auth email logs in the last 24 hours.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left p-2 text-muted-foreground font-medium">Time</th>
+                    <th className="text-left p-2 text-muted-foreground font-medium">Recipient</th>
+                    <th className="text-left p-2 text-muted-foreground font-medium">Template</th>
+                    <th className="text-left p-2 text-muted-foreground font-medium">Status</th>
+                    <th className="text-left p-2 text-muted-foreground font-medium">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {failedAuthEmailLogs.map((row) => (
+                    <tr key={row.id} className="border-b border-border/50 align-top">
+                      <td className="p-2 text-muted-foreground whitespace-nowrap">{formatDateTime(row.created_at)}</td>
+                      <td className="p-2 text-foreground">{row.recipient_email}</td>
+                      <td className="p-2 text-muted-foreground">{row.template_name}</td>
+                      <td className="p-2">
+                        <Badge variant="secondary" className={row.status === 'dlq' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive'}>
+                          {row.status}
+                        </Badge>
+                      </td>
+                      <td className="p-2 text-foreground break-all">{row.error_message || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

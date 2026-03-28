@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import {
   type LucideIcon,
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
-  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings
+  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
@@ -78,6 +78,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   });
 
   const navItems = NAV_ITEMS[role ?? DEFAULT_APP_ROLE];
+  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Staff User';
+  const displayRole = role ? getAppRoleLabel(role) : 'Staff';
 
   const handleSignOut = async () => {
     await signOut();
@@ -205,19 +207,22 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
             })}
           </nav>
 
-          <div className="p-4 border-t border-sidebar-border">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-sm font-medium text-sidebar-foreground">
-                {profile?.full_name?.[0] || 'U'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-sidebar-foreground truncate">{profile?.full_name || 'User'}</p>
-                <p className="text-xs text-sidebar-foreground/60 truncate">{profile?.email}</p>
+          <div className="p-4 border-t border-sidebar-border space-y-3">
+            <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center text-sm font-semibold text-sidebar-foreground ring-2 ring-sidebar-border/50">
+                  {displayName?.[0]?.toUpperCase() || 'U'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-sidebar-foreground truncate">{displayName}</p>
+                  <p className="text-xs text-sidebar-foreground/70 truncate">{displayRole}</p>
+                  <p className="text-[11px] text-sidebar-foreground/60 truncate">{profile?.email || user?.email}</p>
+                </div>
               </div>
             </div>
-            <Button variant="ghost" size="sm" className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground" onClick={handleSignOut}>
+            <Button variant="outline" size="sm" className="w-full justify-center border-sidebar-border text-sidebar-foreground/90 hover:text-sidebar-foreground hover:bg-sidebar-accent/40" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
+              Sign Out Securely
             </Button>
           </div>
         </div>
@@ -232,6 +237,19 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
             <Menu className="h-5 w-5 text-foreground" />
           </button>
           <div className="flex-1" />
+          <div className="hidden sm:flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
+              <UserCircle2 className="h-4 w-4 text-muted-foreground" />
+              <div className="leading-tight">
+                <p className="text-xs font-semibold text-foreground max-w-[180px] truncate">{displayName}</p>
+                <p className="text-[11px] text-muted-foreground">{displayRole}</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-1.5" />
+              Sign Out
+            </Button>
+          </div>
         </header>
         <div className="p-3 sm:p-6 animate-fade-in">
           {children}
