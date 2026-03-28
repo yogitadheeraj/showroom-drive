@@ -574,7 +574,7 @@ const SuperAdminDashboard = () => {
                         <td className="p-3 font-medium text-foreground">{c.full_name}</td>
                         <td className="p-3 text-muted-foreground">{c.phone}</td>
                         <td className="p-3 text-muted-foreground">{c.email || '-'}</td>
-                        <td className="p-3"><Badge className="bg-accent/10 text-accent-foreground">{c.total_test_drives}</Badge></td>
+                        <td className="p-3"><Badge className="bg-black text-accent-foreground">{c.total_test_drives}</Badge></td>
                       </tr>
                     ))}
                   </tbody>
