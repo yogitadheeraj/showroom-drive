@@ -18,6 +18,7 @@ import { logStaffActivity } from '@/lib/activityLogger';
 const SalesDashboard = () => {
   const { user, profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
+  const [securityEventsByDrive, setSecurityEventsByDrive] = useState<Record<string, any>>({});
   const [uploading, setUploading] = useState<string | null>(null);
   const [swapDrive, setSwapDrive] = useState<any>(null);
   const [reassignDrive, setReassignDrive] = useState<any>(null);
@@ -25,6 +26,7 @@ const SalesDashboard = () => {
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
   const [logFilter, setLogFilter] = useState<'all' | 'security' | 'status'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [inspectionViewDrive, setInspectionViewDrive] = useState<any>(null);
   const { toast } = useToast();
 
@@ -80,7 +82,61 @@ const SalesDashboard = () => {
       .select('*, customers(*), vehicles(*), locations(*)')
       .eq('assigned_sales_person_id', profile.id)
       .order('scheduled_date', { ascending: true });
-    setTestDrives(data || []);
+
+    const drives = data || [];
+    setTestDrives(drives);
+
+    if (!drives.length) {
+      setSecurityEventsByDrive({});
+      return;
+    }
+
+    const driveIds = new Set(drives.map((d) => d.id));
+    const { data: securityEvents } = await supabase
+      .from('staff_activity_events')
+      .select('event_type, event_label, happened_at, metadata, profiles:profile_id(full_name)')
+      .eq('role', 'security')
+      .in('event_type', [
+        'test_drive_check_in',
+        'test_drive_check_out',
+        'test_drive_completed',
+        'vehicle_inspection_pre',
+        'vehicle_inspection_post',
+        'license_verified',
+      ])
+      .order('happened_at', { ascending: false })
+      .limit(1000);
+
+    const perDrive: Record<string, any> = {};
+    for (const event of securityEvents || []) {
+      const testDriveId = (event as any)?.metadata?.testDriveId;
+      if (!testDriveId || !driveIds.has(testDriveId)) continue;
+
+      const fullName = (event as any)?.profiles?.full_name || 'Security';
+      if (!perDrive[testDriveId]) perDrive[testDriveId] = { logs: [] };
+
+      perDrive[testDriveId].logs.push({
+        eventType: (event as any).event_type,
+        label: (event as any).event_label || (event as any).event_type,
+        happenedAt: (event as any).happened_at,
+        by: fullName,
+      });
+
+      if ((event as any).event_type === 'test_drive_check_in' && !perDrive[testDriveId].checkInAt) {
+        perDrive[testDriveId].checkInAt = (event as any).happened_at;
+        perDrive[testDriveId].checkInBy = fullName;
+      }
+      if ((event as any).event_type === 'test_drive_check_out' && !perDrive[testDriveId].checkOutAt) {
+        perDrive[testDriveId].checkOutAt = (event as any).happened_at;
+        perDrive[testDriveId].checkOutBy = fullName;
+      }
+      if ((event as any).event_type === 'test_drive_completed' && !perDrive[testDriveId].completedAt) {
+        perDrive[testDriveId].completedAt = (event as any).happened_at;
+        perDrive[testDriveId].completedBy = fullName;
+      }
+    }
+
+    setSecurityEventsByDrive(perDrive);
   };
 
   const handleUploadLicense = async (testDriveId: string, customerId: string, file: File) => {
@@ -111,7 +167,6 @@ const SalesDashboard = () => {
   const handleGiveKeyAndStart = async (id: string) => {
     await supabase.from('test_drives').update({
       key_handed_at: new Date().toISOString(),
-      status: 'in_progress' as any,
     } as any).eq('id', id);
     if (user?.id) {
       await logStaffActivity({
@@ -120,11 +175,11 @@ const SalesDashboard = () => {
         locationId: profile?.location_id,
         role: 'sales',
         eventType: 'test_drive_started',
-        label: 'Handed over key and started test drive',
+        label: 'Assigned vehicle and handed over key',
         metadata: { testDriveId: id },
       });
     }
-    toast({ title: 'Key handed over', description: 'Test drive marked as in progress' });
+    toast({ title: 'Vehicle assigned', description: 'Key handed over. Security will start drive at gate.' });
     fetchAssignedDrives();
   };
 
@@ -182,12 +237,13 @@ const SalesDashboard = () => {
   const assignedLogs = testDrives
     .flatMap(td => {
       const logs: Array<{ type: 'security' | 'status'; at: string; message: string; driveId: string }> = [];
+      const securityMeta = securityEventsByDrive[td.id] || {};
 
       if (td.security_checked_in_at) {
         logs.push({
           type: 'security',
           at: td.security_checked_in_at,
-          message: `${td.customers?.full_name} checked in at security`,
+          message: `${td.customers?.full_name} checked in at security${securityMeta.checkInBy ? ` by ${securityMeta.checkInBy}` : ''}`,
           driveId: td.id,
         });
       }
@@ -196,7 +252,7 @@ const SalesDashboard = () => {
         logs.push({
           type: 'security',
           at: td.security_checked_out_at,
-          message: `${td.customers?.full_name} checked out at security`,
+          message: `${td.customers?.full_name} checked out at security${securityMeta.completedBy ? ` by ${securityMeta.completedBy}` : securityMeta.checkOutBy ? ` by ${securityMeta.checkOutBy}` : ''}`,
           driveId: td.id,
         });
       }
@@ -243,6 +299,12 @@ const SalesDashboard = () => {
     cancelled: 'bg-destructive/10 text-destructive',
   };
 
+  const filteredDrives = testDrives.filter((drive) => {
+    if (statusFilter === 'completed') return drive.status === 'completed';
+    if (statusFilter === 'active') return drive.status !== 'completed' && drive.status !== 'cancelled';
+    return true;
+  });
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div>
@@ -274,14 +336,41 @@ const SalesDashboard = () => {
         })}
       </div>
 
+      <Card className="shadow-card border-primary/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-heading text-sm sm:text-base">Sales SOP</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs sm:text-sm">
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">1.</span> Upload / confirm customer license.</div>
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">2.</span> Assign vehicle (key handover).</div>
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">3.</span> Track security start + active drive.</div>
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">4.</span> Complete follow-up after return alert.</div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="shadow-card">
         <CardHeader className="pb-2 sm:pb-4">
-          <CardTitle className="font-heading text-base sm:text-lg">Assigned Test Drives</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="font-heading text-base sm:text-lg">Assigned Test Drives</CardTitle>
+            <Select value={statusFilter} onValueChange={(v: 'all' | 'active' | 'completed') => setStatusFilter(v)}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Records</SelectItem>
+                <SelectItem value="active">Active Records</SelectItem>
+                <SelectItem value="completed">Completed Records</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3 sm:space-y-4">
-            {testDrives.map(td => (
-              <div key={td.id} className="p-3 sm:p-4 rounded-lg border border-border space-y-3">
+          <div className="max-h-[75vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2 sm:gap-3">
+            {filteredDrives.map(td => (
+              <div key={td.id} className="p-2.5 sm:p-3 rounded-lg border border-border space-y-2.5 bg-card/50">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <p className="font-medium text-foreground text-sm sm:text-base">{td.customers?.full_name}</p>
@@ -294,12 +383,78 @@ const SalesDashboard = () => {
                     <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>
                       {td.status.replace('_', ' ')}
                     </Badge>
+                    {td.key_handed_at && td.status !== 'in_progress' && td.status !== 'completed' && (
+                      <Badge className="text-xs bg-info/10 text-info">Vehicle Assigned</Badge>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1"><Car className="h-3 w-3" />{td.vehicles?.brand} {td.vehicles?.model}</span>
                   <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{td.scheduled_date} {td.scheduled_time}</span>
                 </div>
+
+                <div className="rounded-md border border-border/70 p-2 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">Vehicle Assigned</span>
+                    <span className="text-foreground">{td.key_handed_at ? `By ${profile?.full_name || 'Sales'} • ${new Date(td.key_handed_at).toLocaleString()}` : 'Pending'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">Security Start</span>
+                    <span className="text-foreground">{td.security_checked_in_at ? `${securityEventsByDrive[td.id]?.checkInBy || 'Security'} • ${new Date(td.security_checked_in_at).toLocaleString()}` : 'Pending'}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">Return Complete</span>
+                    <span className="text-foreground">{td.security_checked_out_at ? `${securityEventsByDrive[td.id]?.completedBy || securityEventsByDrive[td.id]?.checkOutBy || 'Security'} • ${new Date(td.security_checked_out_at).toLocaleString()}` : 'Pending'}</span>
+                  </div>
+                </div>
+
+                {td.status === 'completed' && (
+                  <div className="rounded-md border border-success/30 bg-success/5 p-2.5 space-y-2 text-xs">
+                    <p className="font-semibold text-foreground">Completed Drive Details</p>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-muted-foreground">Pre KM:</span>{' '}
+                        <span className="font-medium">{(td as any).pre_drive_km ?? 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Pre Fuel:</span>{' '}
+                        <span className="font-medium">{(td as any).pre_drive_fuel_level || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Post KM:</span>{' '}
+                        <span className="font-medium">{(td as any).post_drive_km ?? 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Post Fuel:</span>{' '}
+                        <span className="font-medium">{(td as any).post_drive_fuel_level || 'N/A'}</span>
+                      </div>
+                    </div>
+
+                    {(td as any).pre_drive_km && (td as any).post_drive_km && (
+                      <div>
+                        <span className="text-muted-foreground">Distance:</span>{' '}
+                        <span className="font-medium">{((td as any).post_drive_km - (td as any).pre_drive_km).toFixed(1)} km</span>
+                      </div>
+                    )}
+
+                    <div className="pt-1 border-t border-border/60 space-y-1">
+                      <p className="text-muted-foreground font-medium">Security Logs</p>
+                      {(securityEventsByDrive[td.id]?.logs?.length ?? 0) > 0 ? (
+                        <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                          {securityEventsByDrive[td.id].logs.map((log: any, index: number) => (
+                            <div key={`${log.eventType}-${log.happenedAt}-${index}`} className="rounded border border-border/60 bg-background/70 p-1.5">
+                              <p className="text-foreground leading-tight">{log.label}</p>
+                              <p className="text-muted-foreground">{log.by} • {new Date(log.happenedAt).toLocaleString()}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">No security logs available.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* License section */}
                 {!td.customers?.driving_license_url ? (
@@ -344,9 +499,9 @@ const SalesDashboard = () => {
                       </Button>
                     </>
                   )}
-                  {td.status === 'show' && (
+                  {td.status === 'show' && !td.key_handed_at && (
                     <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleGiveKeyAndStart(td.id)}>
-                      <Key className="h-3.5 w-3.5 mr-1" /> Give Key & Start
+                      <Key className="h-3.5 w-3.5 mr-1" /> Assign Vehicle
                     </Button>
                   )}
                   {(td.status === 'in_progress' || (td.security_checked_out_at && td.status !== 'completed')) && (
@@ -368,8 +523,9 @@ const SalesDashboard = () => {
                 </div>
               </div>
             ))}
-            {testDrives.length === 0 && (
-              <p className="text-center text-muted-foreground py-8 text-sm">No test drives assigned to you</p>
+            </div>
+            {filteredDrives.length === 0 && (
+              <p className="text-center text-muted-foreground py-8 text-sm">No test drives found for the selected filter</p>
             )}
           </div>
         </CardContent>

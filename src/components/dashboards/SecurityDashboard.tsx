@@ -8,6 +8,7 @@ import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, Clipboard
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
@@ -27,11 +28,15 @@ const SecurityDashboard = () => {
   const [reuploadingId, setReuploadingId] = useState<string | null>(null);
   const [inspectionDrive, setInspectionDrive] = useState<any>(null);
   const [inspectionType, setInspectionType] = useState<'pre' | 'post'>('pre');
+  const [pendingStartDriveId, setPendingStartDriveId] = useState<string | null>(null);
+  const [pendingCompleteDriveId, setPendingCompleteDriveId] = useState<string | null>(null);
   const [inspectionViewDrive, setInspectionViewDrive] = useState<any>(null);
   const [testDriveDocuments, setTestDriveDocuments] = useState<Record<string, any[]>>({});
   const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
   const [docViewOpen, setDocViewOpen] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<any>(null);
+  const [viewFilter, setViewFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [securityLogsByDrive, setSecurityLogsByDrive] = useState<Record<string, any[]>>({});
 
   useEffect(() => {
     fetchDrives();
@@ -67,6 +72,44 @@ const SecurityDashboard = () => {
       .order('scheduled_time', { ascending: true });
 
     setTestDrives(data || []);
+
+    if (!data?.length) {
+      setSecurityLogsByDrive({});
+      return;
+    }
+
+    const driveIds = new Set((data || []).map((d) => d.id));
+    const { data: securityEvents } = await supabase
+      .from('staff_activity_events')
+      .select('event_type, event_label, happened_at, metadata, profiles:profile_id(full_name)')
+      .eq('role', 'security')
+      .in('event_type', [
+        'test_drive_check_in',
+        'test_drive_check_out',
+        'test_drive_completed',
+        'vehicle_inspection_pre',
+        'vehicle_inspection_post',
+        'license_verified',
+        'license_rejected',
+      ])
+      .order('happened_at', { ascending: false })
+      .limit(1200);
+
+    const logsByDrive: Record<string, any[]> = {};
+    for (const event of securityEvents || []) {
+      const testDriveId = (event as any)?.metadata?.testDriveId;
+      if (!testDriveId || !driveIds.has(testDriveId)) continue;
+      if (!logsByDrive[testDriveId]) logsByDrive[testDriveId] = [];
+
+      logsByDrive[testDriveId].push({
+        eventType: (event as any).event_type,
+        label: (event as any).event_label || (event as any).event_type,
+        happenedAt: (event as any).happened_at,
+        by: (event as any)?.profiles?.full_name || 'Security',
+      });
+    }
+
+    setSecurityLogsByDrive(logsByDrive);
 
     if (data) {
       data.forEach((testDrive) => {
@@ -143,6 +186,43 @@ const SecurityDashboard = () => {
   };
 
   const checkIn = async (id: string) => {
+    let drive = testDrives.find((item) => item.id === id);
+    if (!drive || !drive.key_handed_at || !drive.customers?.driving_license_verified || !drive.pre_drive_km || !drive.pre_drive_fuel_level) {
+      const { data: freshDrive } = await supabase
+        .from('test_drives')
+        .select('*, customers(*), vehicles(*), locations(*)')
+        .eq('id', id)
+        .maybeSingle();
+      if (freshDrive) drive = freshDrive;
+    }
+
+    if (!drive?.key_handed_at) {
+      toast({
+        title: 'Vehicle not assigned yet',
+        description: 'Sales must assign vehicle and hand over key before starting in progress.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!drive?.customers?.driving_license_verified) {
+      toast({
+        title: 'License not verified',
+        description: 'Verify driving license before starting in progress.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!drive?.pre_drive_km || !drive?.pre_drive_fuel_level) {
+      toast({
+        title: 'Pre-drive inspection pending',
+        description: 'Fill mileage and fuel level before starting in progress.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     await supabase
       .from('test_drives')
       .update({ security_checked_in_at: new Date().toISOString(), status: 'in_progress' as any })
@@ -160,12 +240,39 @@ const SecurityDashboard = () => {
       });
     }
 
-    toast({ title: 'Customer checked in & test drive started' });
+    toast({ title: 'Drive started by security', description: 'Status moved to in progress' });
     void fetchDrives();
   };
 
   const checkOut = async (id: string) => {
-    const drive = testDrives.find((item) => item.id === id);
+    let drive = testDrives.find((item) => item.id === id);
+    if (!drive || !drive.key_handed_at || !drive.post_drive_km || !drive.post_drive_fuel_level) {
+      const { data: freshDrive } = await supabase
+        .from('test_drives')
+        .select('*, customers(*), vehicles(*), locations(*)')
+        .eq('id', id)
+        .maybeSingle();
+      if (freshDrive) drive = freshDrive;
+    }
+    if (!drive?.key_handed_at) {
+      toast({
+        title: 'Vehicle not assigned yet',
+        description: 'Security can complete only after key is assigned by sales.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!drive?.post_drive_km || !drive?.post_drive_fuel_level) {
+      setPendingCompleteDriveId(id);
+      openInspection(drive, 'post');
+      toast({
+        title: 'Post-drive inspection required',
+        description: 'Fill post-drive mileage and fuel level to complete return.',
+      });
+      return;
+    }
+
     const completedAt = new Date().toISOString();
 
     await supabase.from('test_drives').update({
@@ -341,9 +448,40 @@ const SecurityDashboard = () => {
   const openInspection = (testDrive: any, type: 'pre' | 'post') => {
     setInspectionDrive(testDrive);
     setInspectionType(type);
+    if (type === 'post') {
+      setPendingCompleteDriveId(testDrive.id);
+    }
+  };
+
+  const handleInspectionClose = () => {
+    setInspectionDrive(null);
+    setPendingStartDriveId(null);
+    setPendingCompleteDriveId(null);
+  };
+
+  const handleInspectionComplete = async () => {
+    await fetchDrives();
+
+    if (pendingStartDriveId) {
+      const driveId = pendingStartDriveId;
+      setPendingStartDriveId(null);
+      await checkIn(driveId);
+      return;
+    }
+
+    if (!pendingCompleteDriveId) return;
+
+    const driveId = pendingCompleteDriveId;
+    setPendingCompleteDriveId(null);
+    await checkOut(driveId);
   };
 
   const pendingCount = testDrives.filter((testDrive) => testDrive.customers?.driving_license_url && !testDrive.customers?.driving_license_verified).length;
+  const filteredDrives = testDrives.filter((drive) => {
+    if (viewFilter === 'completed') return drive.status === 'completed';
+    if (viewFilter === 'active') return drive.status !== 'completed' && drive.status !== 'cancelled';
+    return true;
+  });
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -381,14 +519,41 @@ const SecurityDashboard = () => {
         })}
       </div>
 
+      <Card className="shadow-card border-primary/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-heading text-sm sm:text-base">Security SOP</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs sm:text-sm">
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">1.</span> Verify license before movement.</div>
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">2.</span> Fill pre-drive inspection, then start in progress.</div>
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">3.</span> On return, submit post-drive inspection.</div>
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">4.</span> Return & complete to close the drive.</div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="shadow-card">
         <CardHeader className="pb-2 sm:pb-4">
-          <CardTitle className="font-heading text-base sm:text-lg">All Test Drives</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="font-heading text-base sm:text-lg">All Test Drives</CardTitle>
+            <Select value={viewFilter} onValueChange={(v: 'all' | 'active' | 'completed') => setViewFilter(v)}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Records</SelectItem>
+                <SelectItem value="active">Active Records</SelectItem>
+                <SelectItem value="completed">Completed Records</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {testDrives.map((testDrive) => (
-              <div key={testDrive.id} className="p-3 sm:p-4 rounded-lg border border-border space-y-2.5">
+          <div className="max-h-[75vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5 sm:gap-3">
+            {filteredDrives.map((testDrive) => (
+              <div key={testDrive.id} className="p-2.5 sm:p-3 rounded-lg border border-border space-y-2.5 bg-card/50">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -413,15 +578,36 @@ const SecurityDashboard = () => {
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     {!testDrive.security_checked_in_at ? (
-                      <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => void checkIn(testDrive.id)}>
-                        <CheckCircle className="h-3.5 w-3.5 mr-1" /> Check In
-                      </Button>
+                      !testDrive.key_handed_at ? (
+                        <Badge className="bg-warning/10 text-warning text-xs">Awaiting Vehicle Assignment</Badge>
+                      ) : !testDrive.customers?.driving_license_verified ? (
+                        <Badge className="bg-warning/10 text-warning text-xs">Verify License First</Badge>
+                      ) : !(testDrive as any).pre_drive_km || !(testDrive as any).pre_drive_fuel_level ? (
+                        <Button
+                          size="sm"
+                          className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
+                          onClick={() => {
+                            setPendingStartDriveId(testDrive.id);
+                            openInspection(testDrive, 'pre');
+                          }}
+                        >
+                          <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Fill Pre-Drive & Start
+                        </Button>
+                      ) : (
+                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => void checkIn(testDrive.id)}>
+                          <CheckCircle className="h-3.5 w-3.5 mr-1" /> Start In Progress
+                        </Button>
+                      )
                     ) : !testDrive.security_checked_out_at ? (
                       <div className="flex items-center gap-2">
-                        <Badge className="bg-success/10 text-success text-xs">Checked In</Badge>
-                        <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => void checkOut(testDrive.id)}>
-                          <XCircle className="h-3.5 w-3.5 mr-1" /> Return & Complete
-                        </Button>
+                        <Badge className="bg-success/10 text-success text-xs">In Progress</Badge>
+                        {testDrive.key_handed_at ? (
+                          <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => void checkOut(testDrive.id)}>
+                            <XCircle className="h-3.5 w-3.5 mr-1" /> Return & Complete
+                          </Button>
+                        ) : (
+                          <Badge className="bg-warning/10 text-warning text-xs">Awaiting Vehicle Assignment</Badge>
+                        )}
                       </div>
                     ) : (
                       <Badge className="bg-muted text-muted-foreground text-xs">Checked Out</Badge>
@@ -468,13 +654,20 @@ const SecurityDashboard = () => {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-border">
-                  {testDrive.status === 'in_progress' && !(testDrive as any).pre_drive_km && (
-                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => openInspection(testDrive, 'pre')}>
+                  {!testDrive.security_checked_in_at && testDrive.key_handed_at && !(testDrive as any).pre_drive_km && (
+                    <Button
+                      size="sm"
+                      className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
+                      onClick={() => {
+                        setPendingStartDriveId(testDrive.id);
+                        openInspection(testDrive, 'pre');
+                      }}
+                    >
                       <ClipboardCheck className="h-3 w-3 mr-1" /> Pre-Drive
                     </Button>
                   )}
                   {(testDrive as any).pre_drive_km && <Badge className="bg-primary/10 text-primary text-xs">Pre: {(testDrive as any).pre_drive_km} km</Badge>}
-                  {(testDrive.status === 'completed' || (testDrive.status === 'in_progress' && (testDrive as any).pre_drive_km)) && !(testDrive as any).post_drive_km && (
+                  {(testDrive.status === 'in_progress' && (testDrive as any).pre_drive_km) && !(testDrive as any).post_drive_km && (
                     <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => openInspection(testDrive, 'post')}>
                       <ClipboardCheck className="h-3 w-3 mr-1" /> Post-Drive
                     </Button>
@@ -487,6 +680,36 @@ const SecurityDashboard = () => {
                   )}
                   {(testDrive as any).inspection_submitted_at && <Badge className="bg-muted text-muted-foreground text-xs">Complete</Badge>}
                 </div>
+
+                {testDrive.status === 'completed' && (
+                  <div className="rounded-md border border-success/30 bg-success/5 p-2.5 space-y-2 text-xs">
+                    <p className="font-semibold text-foreground">Completed Drive Details</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><span className="text-muted-foreground">Pre KM:</span> <span className="font-medium">{(testDrive as any).pre_drive_km ?? 'N/A'}</span></div>
+                      <div><span className="text-muted-foreground">Pre Fuel:</span> <span className="font-medium">{(testDrive as any).pre_drive_fuel_level || 'N/A'}</span></div>
+                      <div><span className="text-muted-foreground">Post KM:</span> <span className="font-medium">{(testDrive as any).post_drive_km ?? 'N/A'}</span></div>
+                      <div><span className="text-muted-foreground">Post Fuel:</span> <span className="font-medium">{(testDrive as any).post_drive_fuel_level || 'N/A'}</span></div>
+                    </div>
+                    {(testDrive as any).pre_drive_km && (testDrive as any).post_drive_km && (
+                      <div><span className="text-muted-foreground">Distance:</span> <span className="font-medium">{((testDrive as any).post_drive_km - (testDrive as any).pre_drive_km).toFixed(1)} km</span></div>
+                    )}
+                    <div className="pt-1 border-t border-border/60 space-y-1">
+                      <p className="text-muted-foreground font-medium">Security Logs</p>
+                      {(securityLogsByDrive[testDrive.id]?.length ?? 0) > 0 ? (
+                        <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                          {securityLogsByDrive[testDrive.id].map((log: any, idx: number) => (
+                            <div key={`${log.eventType}-${log.happenedAt}-${idx}`} className="rounded border border-border/60 bg-background/70 p-1.5">
+                              <p className="text-foreground leading-tight">{log.label}</p>
+                              <p className="text-muted-foreground">{log.by} • {new Date(log.happenedAt).toLocaleString()}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">No security logs available.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="pt-1.5 border-t border-border">
                   <div className="flex items-center justify-between mb-2">
@@ -528,7 +751,8 @@ const SecurityDashboard = () => {
                 </div>
               </div>
             ))}
-            {testDrives.length === 0 && <p className="text-center text-muted-foreground py-8 text-sm">No test drives for your location</p>}
+            </div>
+            {filteredDrives.length === 0 && <p className="text-center text-muted-foreground py-8 text-sm">No test drives found for selected filter</p>}
           </div>
         </CardContent>
       </Card>
@@ -587,10 +811,10 @@ const SecurityDashboard = () => {
 
       <VehicleInspectionDialog
         open={!!inspectionDrive}
-        onClose={() => setInspectionDrive(null)}
+        onClose={handleInspectionClose}
         testDrive={inspectionDrive}
         type={inspectionType}
-        onComplete={fetchDrives}
+        onComplete={() => void handleInspectionComplete()}
       />
 
       <Dialog open={!!inspectionViewDrive} onOpenChange={() => setInspectionViewDrive(null)}>

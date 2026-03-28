@@ -78,8 +78,8 @@ const VehicleInspectionDialog = ({ open, onClose, testDrive, type, onComplete }:
       setScratches('');
       setNotes('');
       setFuelLevel('');
-      onClose();
       onComplete();
+      onClose();
     } catch (err: any) {
       toast({ title: 'Failed to save inspection', description: err.message, variant: 'destructive' });
     } finally {

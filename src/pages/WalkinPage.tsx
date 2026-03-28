@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { APP_ROLE } from '@/constants/roles';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +15,7 @@ import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, 
 type Step = 'customer' | 'vehicle' | 'license' | 'confirm';
 
 const WalkinPage = () => {
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
   const [locations, setLocations] = useState<any[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [step, setStep] = useState<Step>('customer');
@@ -148,16 +149,80 @@ const WalkinPage = () => {
       }
 
       const now = new Date();
-      const { error } = await supabase.from('test_drives').insert({
+      const { data: testDrive, error } = await supabase.from('test_drives').insert({
         customer_id: customerId, vehicle_id: formData.vehicleId,
         location_id: formData.locationId,
         scheduled_date: now.toISOString().split('T')[0],
         scheduled_time: now.toTimeString().slice(0, 5),
         source: 'walkin', status: 'show' as any,
-      });
+        assigned_sales_person_id: role === APP_ROLE.SALES ? profile?.id : null,
+      }).select('id').single();
       if (error) throw error;
 
-      toast({ title: 'Walk-in registered', description: `${formData.fullName} has been checked in for a test drive` });
+      const vehicleName = selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}` : 'your selected vehicle';
+      const locationName = selectedLocation?.name || 'our showroom';
+      const walkinTime = `${now.toISOString().split('T')[0]} ${now.toTimeString().slice(0, 5)}`;
+
+      // Send WhatsApp confirmation and log communication.
+      if (formData.phone) {
+        const waMessage = `✅ *Walk-in Test Drive Registered*\n\nHi ${formData.fullName},\n\nYour walk-in test drive has been registered:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n🕒 *Time:* ${walkinTime}\n\nYour sales team will guide you shortly.`;
+
+        const { error: waError } = await supabase.functions.invoke('send-whatsapp', {
+          body: {
+            to: formData.phone,
+            message: waMessage,
+            customerId,
+            testDriveId: testDrive.id,
+            purpose: 'booking_confirmed',
+          },
+        });
+
+        await supabase.from('communications').insert({
+          customer_id: customerId,
+          test_drive_id: testDrive.id,
+          type: 'whatsapp',
+          purpose: 'booking_confirmed',
+          sent_to: formData.phone,
+          subject: null,
+          body: waMessage,
+          status: waError ? 'failed' : 'sent',
+          sent_at: waError ? null : new Date().toISOString(),
+        });
+      }
+
+      // Send email confirmation and log communication.
+      if (formData.email) {
+        const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
+          body: {
+            templateName: 'booking-confirmation',
+            recipientEmail: formData.email,
+            idempotencyKey: `walkin-confirm-${testDrive.id}`,
+            templateData: {
+              customerName: formData.fullName,
+              vehicleName,
+              locationName,
+              scheduledDate: now.toISOString().split('T')[0],
+              scheduledTime: now.toTimeString().slice(0, 5),
+            },
+          },
+        });
+
+        const emailBody = `Your walk-in test drive for ${vehicleName} is registered at ${locationName} on ${walkinTime}. Please contact your sales team for help.`;
+
+        await supabase.from('communications').insert({
+          customer_id: customerId,
+          test_drive_id: testDrive.id,
+          type: 'email',
+          purpose: 'booking_confirmed',
+          sent_to: formData.email,
+          subject: 'Walk-in Test Drive Confirmation',
+          body: emailBody,
+          status: emailError ? 'failed' : 'sent',
+          sent_at: emailError ? null : new Date().toISOString(),
+        });
+      }
+
+      toast({ title: 'Walk-in registered', description: `${formData.fullName} has been checked in and communications sent` });
       setFormData({ fullName: '', phone: '', email: '', preferredContact: 'phone', locationId: profile?.location_id || '', vehicleId: '' });
       removeLicense();
       setStep('customer');
@@ -271,17 +336,15 @@ const WalkinPage = () => {
                 <CardTitle className="font-heading text-lg flex items-center gap-2">
                   <Car className="h-5 w-5 text-primary" /> Select Vehicle
                 </CardTitle>
-                <CardDescription>Choose the location and vehicle for the test drive</CardDescription>
+                <CardDescription>Location is fixed to your profile. Choose a vehicle for the test drive.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Location <span className="text-destructive">*</span></Label>
-                  <Select value={formData.locationId} onValueChange={v => setFormData(p => ({ ...p, locationId: v, vehicleId: '' }))}>
-                    <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
-                    <SelectContent>
-                      {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label>Location</Label>
+                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                    <p className="font-medium text-foreground">{selectedLocation?.name || 'Your Location'}</p>
+                    <p className="text-xs text-muted-foreground">{selectedLocation?.address || 'Default profile location is applied automatically'}</p>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Vehicle <span className="text-destructive">*</span></Label>
@@ -313,7 +376,7 @@ const WalkinPage = () => {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground py-4 text-center">
-                      {formData.locationId ? 'No vehicles available at this location' : 'Select a location first'}
+                      {formData.locationId ? 'No vehicles available at your location' : 'No default location found on your profile'}
                     </p>
                   )}
                 </div>
@@ -442,6 +505,15 @@ const WalkinPage = () => {
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Location</p>
                     <p className="font-medium text-foreground">{selectedLocation?.name || '—'}</p>
                     <p className="text-sm text-muted-foreground">{selectedLocation?.address}</p>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Assigned Sales</p>
+                    <p className="font-medium text-foreground">
+                      {role === APP_ROLE.SALES ? (profile?.full_name || 'You') : 'Will be assigned by team'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {role === APP_ROLE.SALES ? 'This walk-in will be assigned to you on submit.' : 'No self-assignment for current role.'}
+                    </p>
                   </div>
                   <div className="p-4">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Driving License</p>

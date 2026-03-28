@@ -55,6 +55,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   [APP_ROLE.SALES]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'My Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
   ],
