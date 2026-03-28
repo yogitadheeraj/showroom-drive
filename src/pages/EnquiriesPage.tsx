@@ -41,6 +41,8 @@ const statusBadge: Record<string, { label: string; className: string }> = {
 const EnquiriesPage = () => {
   const { role, profile } = useAuth();
   const [allComms, setAllComms] = useState<Enquiry[]>([]);
+  const [salesLocations, setSalesLocations] = useState<Array<{ id: string; name: string }>>([]);
+  const [locationFilter, setLocationFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -50,6 +52,9 @@ const EnquiriesPage = () => {
   const [imageUrlToShare, setImageUrlToShare] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [replying, setReplying] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const handleQuickTemplate = (template: 'booking' | 'map' | 'brochure') => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -72,7 +77,7 @@ const EnquiriesPage = () => {
 
   useEffect(() => {
     fetchEnquiries();
-  }, []);
+  }, [role, profile?.id, locationFilter]);
 
   const fetchEnquiries = async () => {
     setLoading(true);
@@ -87,16 +92,32 @@ const EnquiriesPage = () => {
 
       const { data: assignedDrives } = await supabase
         .from('test_drives')
-        .select('customer_id')
+        .select('customer_id, location_id, locations(name)')
         .eq('assigned_sales_person_id', profile.id);
 
-      customerIds = Array.from(new Set((assignedDrives || []).map(d => d.customer_id)));
+      const locationMap = new Map<string, string>();
+      (assignedDrives || []).forEach((d: any) => {
+        if (d.location_id) {
+          const name = d.locations?.name || 'Unknown Location';
+          locationMap.set(d.location_id, name);
+        }
+      });
+
+      setSalesLocations(Array.from(locationMap.entries()).map(([id, name]) => ({ id, name })));
+
+      const drivesByLocation = locationFilter === 'all'
+        ? (assignedDrives || [])
+        : (assignedDrives || []).filter((d: any) => d.location_id === locationFilter);
+
+      customerIds = Array.from(new Set(drivesByLocation.map((d: any) => d.customer_id)));
 
       if (customerIds.length === 0) {
         setAllComms([]);
         setLoading(false);
         return;
       }
+    } else {
+      setSalesLocations([]);
     }
 
     let query = supabase
@@ -126,6 +147,36 @@ const EnquiriesPage = () => {
     allComms.filter(c => c.parent_id === enquiryId).sort((a, b) =>
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
+
+  const startEditMessage = (message: Enquiry) => {
+    setEditingMessageId(message.id);
+    setEditText(message.body || '');
+  };
+
+  const cancelEditMessage = () => {
+    setEditingMessageId(null);
+    setEditText('');
+  };
+
+  const saveEditedMessage = async () => {
+    if (!editingMessageId) return;
+    setSavingEdit(true);
+    try {
+      const { error } = await supabase
+        .from('communications')
+        .update({ body: editText.trim() })
+        .eq('id', editingMessageId);
+
+      if (error) throw error;
+      toast.success('Enquiry message updated');
+      cancelEditMessage();
+      fetchEnquiries();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update enquiry');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const filtered = topLevel.filter(e => {
     const effectiveStatus = getEffectiveStatus(e);
@@ -260,6 +311,19 @@ const EnquiriesPage = () => {
             </div>
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto">
+            {role === APP_ROLE.SALES && salesLocations.length > 1 && (
+              <Select value={locationFilter} onValueChange={setLocationFilter}>
+                <SelectTrigger className="w-[170px] rounded-xl">
+                  <SelectValue placeholder="All Locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Locations</SelectItem>
+                  {salesLocations.map(loc => (
+                    <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -364,60 +428,59 @@ const EnquiriesPage = () => {
               {/* Message thread */}
               <ScrollArea className="flex-1 max-h-[350px] pr-2">
                 <div className="space-y-3">
-                  {/* Original enquiry */}
-                  <div className="p-3 rounded-xl bg-muted/50 border border-border">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-foreground flex items-center gap-1">
-                        <User className="h-3 w-3" /> {selected.customers?.full_name}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {format(new Date(selected.created_at), "dd MMM yyyy, h:mm a")}
-                      </span>
-                    </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{selected.body || 'No message'}</p>
-                    {extractUrls(selected.body).length > 0 && (
-                      <div className="mt-2 space-y-2">
-                        {extractUrls(selected.body).map((url) => (
-                          <div key={url}>
-                            {isImageUrl(url) ? (
-                              <img src={url} alt="Shared" className="max-h-40 rounded-md border border-border" />
-                            ) : (
-                              <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline break-all">
-                                {url}
-                              </a>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Replies */}
-                  {getReplies(selected.id).map(reply => (
-                    <div key={reply.id} className="p-3 rounded-xl bg-primary/5 border border-primary/10 ml-4">
+                  {[selected, ...getReplies(selected.id)].map(message => (
+                    <div key={message.id} className={`p-3 rounded-xl border ${message.parent_id ? 'bg-primary/5 border-primary/10 ml-4' : 'bg-muted/50 border-border'}`}>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-primary flex items-center gap-1">
-                          <Reply className="h-3 w-3" /> Staff Reply
+                        <span className={`text-xs font-medium flex items-center gap-1 ${message.parent_id ? 'text-primary' : 'text-foreground'}`}>
+                          {message.parent_id ? <Reply className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                          {message.parent_id ? 'Staff Reply' : selected.customers?.full_name}
                         </span>
                         <span className="text-[10px] text-muted-foreground">
-                          {format(new Date(reply.created_at), "dd MMM yyyy, h:mm a")}
+                          {format(new Date(message.created_at), "dd MMM yyyy, h:mm a")}
                         </span>
                       </div>
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{reply.body}</p>
-                      {extractUrls(reply.body).length > 0 && (
-                        <div className="mt-2 space-y-2">
-                          {extractUrls(reply.body).map((url) => (
-                            <div key={url}>
-                              {isImageUrl(url) ? (
-                                <img src={url} alt="Shared" className="max-h-40 rounded-md border border-border" />
-                              ) : (
-                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline break-all">
-                                  {url}
-                                </a>
-                              )}
-                            </div>
-                          ))}
+
+                      {editingMessageId === message.id ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={editText}
+                            onChange={e => setEditText(e.target.value)}
+                            className="min-h-[80px]"
+                            maxLength={2000}
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={saveEditedMessage} disabled={savingEdit || !editText.trim()}>
+                              {savingEdit ? 'Saving...' : 'Save'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={cancelEditMessage}>
+                              Cancel
+                            </Button>
+                          </div>
                         </div>
+                      ) : (
+                        <>
+                          <p className="text-sm text-foreground whitespace-pre-wrap">{message.body || 'No message'}</p>
+                          {extractUrls(message.body).length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {extractUrls(message.body).map((url) => (
+                                <div key={url}>
+                                  {isImageUrl(url) ? (
+                                    <img src={url} alt="Shared" className="max-h-40 rounded-md border border-border" />
+                                  ) : (
+                                    <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline break-all">
+                                      {url}
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="mt-2">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => startEditMessage(message)}>
+                              Edit
+                            </Button>
+                          </div>
+                        </>
                       )}
                     </div>
                   ))}
