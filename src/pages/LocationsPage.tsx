@@ -56,7 +56,7 @@ const LocationsPage = () => {
   const [savingPeriod, setSavingPeriod] = useState(false);
 
   // Check if user can manage schedules / breaks
-  const canManageSchedules = [APP_ROLE.GRO, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN].includes(role);
+  const canManageSchedules = [APP_ROLE.GRO, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN].includes(role as any);
 
   useEffect(() => {
     if (!dealerLoading) fetchLocations();
@@ -149,7 +149,7 @@ const LocationsPage = () => {
 
   const fetchStaffCount = async (locationId: string) => {
     try {
-      const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('location_id', locationId).neq('app_role', 'admin');
+      const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('location_id', locationId);
       setStaffCounts(prev => ({ ...prev, [locationId]: count || 0 }));
     } catch (err) {
       console.error('Error fetching staff count:', err);
