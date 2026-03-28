@@ -6,18 +6,24 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone } from 'lucide-react';
+import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone, UserCog, CalendarClock, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SalesSwapDialog from './SalesSwapDialog';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const SalesDashboard = () => {
   const { user, profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
   const [swapDrive, setSwapDrive] = useState<any>(null);
+  const [reassignDrive, setReassignDrive] = useState<any>(null);
+  const [rescheduleDrive, setRescheduleDrive] = useState<any>(null);
+  const [newDate, setNewDate] = useState('');
+  const [newTime, setNewTime] = useState('');
+  const [logFilter, setLogFilter] = useState<'all' | 'security' | 'status'>('all');
   const [inspectionViewDrive, setInspectionViewDrive] = useState<any>(null);
   const { toast } = useToast();
 
@@ -37,6 +43,14 @@ const SalesDashboard = () => {
   const handleUploadLicense = async (testDriveId: string, customerId: string, file: File) => {
     setUploading(testDriveId);
     try {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Only JPG, PNG, WEBP, or PDF files are allowed');
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('File size must be 5MB or less');
+      }
+
       const ext = file.name.split('.').pop();
       const path = `licenses/${customerId}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
@@ -65,6 +79,79 @@ const SalesDashboard = () => {
     toast({ title: 'Test drive completed' });
     fetchAssignedDrives();
   };
+
+  const handleReschedule = async () => {
+    if (!rescheduleDrive?.id || !newDate || !newTime) return;
+
+    await supabase.from('test_drives')
+      .update({
+        scheduled_date: newDate,
+        scheduled_time: `${newTime}:00`,
+        status: 'rescheduled' as any,
+        notes: `${rescheduleDrive.notes || ''}\n[${new Date().toLocaleString()}] Rescheduled by ${profile?.full_name || 'Sales'} to ${newDate} ${newTime}`.trim(),
+      })
+      .eq('id', rescheduleDrive.id);
+
+    toast({ title: 'Test drive rescheduled' });
+    setRescheduleDrive(null);
+    setNewDate('');
+    setNewTime('');
+    fetchAssignedDrives();
+  };
+
+  const assignedLogs = testDrives
+    .flatMap(td => {
+      const logs: Array<{ type: 'security' | 'status'; at: string; message: string; driveId: string }> = [];
+
+      if (td.security_checked_in_at) {
+        logs.push({
+          type: 'security',
+          at: td.security_checked_in_at,
+          message: `${td.customers?.full_name} checked in at security`,
+          driveId: td.id,
+        });
+      }
+
+      if (td.security_checked_out_at) {
+        logs.push({
+          type: 'security',
+          at: td.security_checked_out_at,
+          message: `${td.customers?.full_name} checked out at security`,
+          driveId: td.id,
+        });
+      }
+
+      if (td.status === 'no_show') {
+        logs.push({
+          type: 'status',
+          at: td.updated_at || td.created_at,
+          message: `${td.customers?.full_name} marked as no-show`,
+          driveId: td.id,
+        });
+      }
+
+      if (td.status === 'completed') {
+        logs.push({
+          type: 'status',
+          at: td.completed_at || td.updated_at || td.created_at,
+          message: `${td.customers?.full_name} test drive completed`,
+          driveId: td.id,
+        });
+      }
+
+      if (td.status === 'rescheduled') {
+        logs.push({
+          type: 'status',
+          at: td.updated_at || td.created_at,
+          message: `${td.customers?.full_name} test drive rescheduled`,
+          driveId: td.id,
+        });
+      }
+
+      return logs;
+    })
+    .filter(log => logFilter === 'all' || log.type === logFilter)
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
   const statusColor: Record<string, string> = {
     scheduled: 'bg-info/10 text-info',
@@ -127,11 +214,6 @@ const SalesDashboard = () => {
                     <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>
                       {td.status.replace('_', ' ')}
                     </Badge>
-                    {['scheduled', 'confirmed', 'show'].includes(td.status) && (
-                      <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 h-7 w-7 p-0" onClick={() => setSwapDrive(td)} title="Swap">
-                        <ArrowRightLeft className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
@@ -169,6 +251,19 @@ const SalesDashboard = () => {
 
                 {/* Action buttons */}
                 <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border">
+                  {['scheduled', 'confirmed', 'show'].includes(td.status) && (
+                    <>
+                      <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" onClick={() => setReassignDrive(td)}>
+                        <UserCog className="h-3.5 w-3.5 mr-1" /> Reassign
+                      </Button>
+                      <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs" onClick={() => setSwapDrive(td)}>
+                        <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Swap
+                      </Button>
+                      <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => { setRescheduleDrive(td); setNewDate(td.scheduled_date || ''); setNewTime((td.scheduled_time || '').substring(0, 5)); }}>
+                        <CalendarClock className="h-3.5 w-3.5 mr-1" /> Reschedule
+                      </Button>
+                    </>
+                  )}
                   {td.status === 'show' && (
                     <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleGiveKeyAndStart(td.id)}>
                       <Key className="h-3.5 w-3.5 mr-1" /> Give Key & Start
@@ -200,7 +295,73 @@ const SalesDashboard = () => {
         </CardContent>
       </Card>
 
-      <SalesSwapDialog open={!!swapDrive} onClose={() => setSwapDrive(null)} testDrive={swapDrive} onSwapped={fetchAssignedDrives} />
+      <Card className="shadow-card">
+        <CardHeader className="pb-2 sm:pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <CardTitle className="font-heading text-base sm:text-lg">Assigned Activity Logs</CardTitle>
+          <Select value={logFilter} onValueChange={(v: 'all' | 'security' | 'status') => setLogFilter(v)}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Logs</SelectItem>
+              <SelectItem value="security">Security Logs</SelectItem>
+              <SelectItem value="status">No Show / Complete / Reschedule</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardHeader>
+        <CardContent>
+          {assignedLogs.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">No logs found for your assigned test drives.</p>
+          ) : (
+            <div className="space-y-2">
+              {assignedLogs.map((log, index) => (
+                <div key={`${log.driveId}-${log.at}-${index}`} className="rounded-lg border border-border p-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm text-foreground flex items-center gap-2">
+                      {log.type === 'security' ? (
+                        <ShieldCheck className="h-4 w-4 text-info shrink-0" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+                      )}
+                      <span className="truncate">{log.message}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">Drive: {log.driveId}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground shrink-0">{new Date(log.at).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <SalesSwapDialog open={!!reassignDrive} onClose={() => setReassignDrive(null)} testDrive={reassignDrive} onSwapped={fetchAssignedDrives} mode="reassign" />
+
+      <SalesSwapDialog open={!!swapDrive} onClose={() => setSwapDrive(null)} testDrive={swapDrive} onSwapped={fetchAssignedDrives} mode="swap" />
+
+      <Dialog open={!!rescheduleDrive} onOpenChange={() => setRescheduleDrive(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-heading">Reschedule Assigned Test Drive</DialogTitle>
+            <DialogDescription>
+              {rescheduleDrive?.customers?.full_name} • {rescheduleDrive?.vehicles?.brand} {rescheduleDrive?.vehicles?.model}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Date</Label>
+              <Input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>New Time</Label>
+              <Input type="time" value={newTime} onChange={e => setNewTime(e.target.value)} />
+            </div>
+            <Button onClick={handleReschedule} className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={!newDate || !newTime}>
+              Confirm Reschedule
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Inspection Details Dialog */}
       <Dialog open={!!inspectionViewDrive} onOpenChange={() => setInspectionViewDrive(null)}>

@@ -9,9 +9,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Inbox, Search, MessageSquare, Phone, Mail, Clock, User, Send, Reply } from 'lucide-react';
+import { Inbox, Search, MessageSquare, Phone, Mail, Clock, User, Send, Reply, Link2, ImagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useAuth } from '@/hooks/useAuth';
+import { APP_ROLE } from '@/constants/roles';
 
 interface Enquiry {
   id: string;
@@ -37,13 +39,36 @@ const statusBadge: Record<string, { label: string; className: string }> = {
 };
 
 const EnquiriesPage = () => {
+  const { role, profile } = useAuth();
   const [allComms, setAllComms] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selected, setSelected] = useState<Enquiry | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [linkToShare, setLinkToShare] = useState('');
+  const [imageUrlToShare, setImageUrlToShare] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [replying, setReplying] = useState(false);
+
+  const handleQuickTemplate = (template: 'booking' | 'map' | 'brochure') => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+    if (template === 'booking') {
+      setReplyText('You can book your test drive directly from this link.');
+      setLinkToShare(`${origin}/book`);
+      return;
+    }
+
+    if (template === 'map') {
+      setReplyText('You can find our showroom location on this map link.');
+      setLinkToShare('https://www.google.com/maps/search/showroom');
+      return;
+    }
+
+    setReplyText('Please check our latest brochure from this link.');
+    setLinkToShare(`${origin}/brochure`);
+  };
 
   useEffect(() => {
     fetchEnquiries();
@@ -51,11 +76,38 @@ const EnquiriesPage = () => {
 
   const fetchEnquiries = async () => {
     setLoading(true);
-    const { data } = await supabase
+    let customerIds: string[] | null = null;
+
+    if (role === APP_ROLE.SALES) {
+      if (!profile?.id) {
+        setAllComms([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: assignedDrives } = await supabase
+        .from('test_drives')
+        .select('customer_id')
+        .eq('assigned_sales_person_id', profile.id);
+
+      customerIds = Array.from(new Set((assignedDrives || []).map(d => d.customer_id)));
+
+      if (customerIds.length === 0) {
+        setAllComms([]);
+        setLoading(false);
+        return;
+      }
+    }
+
+    let query = supabase
       .from('communications')
       .select('id, customer_id, subject, body, sent_to, status, created_at, parent_id, customers(full_name, phone, email)')
-      .eq('purpose', 'custom')
+      .in('purpose', ['custom', 'follow_up'])
       .order('created_at', { ascending: true });
+
+    if (customerIds) query = query.in('customer_id', customerIds);
+
+    const { data } = await query;
 
     setAllComms((data as unknown as Enquiry[]) || []);
     setLoading(false);
@@ -91,30 +143,101 @@ const EnquiriesPage = () => {
   const newCount = topLevel.filter(e => getEffectiveStatus(e) === 'pending').length;
 
   const handleReply = async () => {
-    if (!selected || !replyText.trim()) return;
+    if (!selected) return;
+
+    const parts = [replyText.trim()];
+    if (linkToShare.trim()) parts.push(`Link: ${linkToShare.trim()}`);
+    if (imageUrlToShare.trim()) parts.push(`Image: ${imageUrlToShare.trim()}`);
+
+    const finalMessage = parts.filter(Boolean).join('\n\n').trim();
+    if (!finalMessage) return;
+
     setReplying(true);
     try {
-      const { error } = await supabase.from('communications').insert({
+      const recipientEmail = selected.customers?.email || selected.sent_to;
+      const { data: inserted, error } = await supabase.from('communications').insert({
         customer_id: selected.customer_id,
         type: 'email' as const,
-        purpose: 'custom' as const,
-        sent_to: selected.customers?.email || selected.sent_to,
+        purpose: 'follow_up' as const,
+        sent_to: recipientEmail,
         subject: `Re: ${selected.subject || 'Website Enquiry'}`,
-        body: replyText.trim(),
-        status: 'sent',
+        body: finalMessage,
+        status: 'pending',
         parent_id: selected.id,
-      });
+      }).select('id').single();
       if (error) throw error;
+
+      if (selected.customers?.email) {
+        const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
+          body: {
+            templateName: 'sales-follow-up',
+            recipientEmail: selected.customers.email,
+            idempotencyKey: `follow-up-${inserted.id}`,
+            templateData: {
+              customerName: selected.customers.full_name,
+              message: finalMessage,
+            },
+          },
+        });
+
+        if (emailError) {
+          await supabase.from('communications').update({ status: 'failed' }).eq('id', inserted.id);
+          throw emailError;
+        }
+
+        await supabase.from('communications').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', inserted.id);
+      }
 
       toast.success('Reply added to thread');
       setReplyText('');
+      setLinkToShare('');
+      setImageUrlToShare('');
       fetchEnquiries();
     } catch {
-      toast.error('Failed to send reply');
+      toast.error('Failed to send follow-up reply');
     } finally {
       setReplying(false);
     }
   };
+
+  const handleImageUpload = async (file: File) => {
+    if (!selected) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Only JPG, PNG, and WEBP images are allowed');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be 5MB or less');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `chat-media/${selected.customer_id}/${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('documents').getPublicUrl(path);
+      setImageUrlToShare(data.publicUrl);
+      toast.success('Image ready to send');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const extractUrls = (text?: string | null) => {
+    if (!text) return [] as string[];
+    const matches = text.match(/https?:\/\/[^\s]+/g);
+    return matches || [];
+  };
+
+  const isImageUrl = (url: string) => /\.(png|jpg|jpeg|webp|gif)(\?.*)?$/i.test(url);
 
   const replyCount = selected ? getReplies(selected.id).length : 0;
 
@@ -130,7 +253,9 @@ const EnquiriesPage = () => {
             <div>
               <h1 className="text-2xl font-heading font-bold text-foreground">Enquiries Inbox</h1>
               <p className="text-sm text-muted-foreground">
-                {newCount > 0 ? `${newCount} new enquir${newCount === 1 ? 'y' : 'ies'}` : 'No new enquiries'}
+                {role === APP_ROLE.SALES
+                  ? 'Showing only contacts from your assigned test drives'
+                  : (newCount > 0 ? `${newCount} new enquir${newCount === 1 ? 'y' : 'ies'}` : 'No new enquiries')}
               </p>
             </div>
           </div>
@@ -250,6 +375,21 @@ const EnquiriesPage = () => {
                       </span>
                     </div>
                     <p className="text-sm text-foreground whitespace-pre-wrap">{selected.body || 'No message'}</p>
+                    {extractUrls(selected.body).length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {extractUrls(selected.body).map((url) => (
+                          <div key={url}>
+                            {isImageUrl(url) ? (
+                              <img src={url} alt="Shared" className="max-h-40 rounded-md border border-border" />
+                            ) : (
+                              <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline break-all">
+                                {url}
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Replies */}
@@ -264,6 +404,21 @@ const EnquiriesPage = () => {
                         </span>
                       </div>
                       <p className="text-sm text-foreground whitespace-pre-wrap">{reply.body}</p>
+                      {extractUrls(reply.body).length > 0 && (
+                        <div className="mt-2 space-y-2">
+                          {extractUrls(reply.body).map((url) => (
+                            <div key={url}>
+                              {isImageUrl(url) ? (
+                                <img src={url} alt="Shared" className="max-h-40 rounded-md border border-border" />
+                              ) : (
+                                <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline break-all">
+                                  {url}
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -271,6 +426,35 @@ const EnquiriesPage = () => {
 
               {/* Reply input */}
               <div className="space-y-2 pt-2 border-t border-border">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => handleQuickTemplate('booking')}
+                  >
+                    Share Booking Link
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => handleQuickTemplate('map')}
+                  >
+                    Share Map Link
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => handleQuickTemplate('brochure')}
+                  >
+                    Share Brochure Link
+                  </Button>
+                </div>
                 <Textarea
                   placeholder="Type your reply…"
                   value={replyText}
@@ -278,9 +462,43 @@ const EnquiriesPage = () => {
                   className="rounded-xl min-h-[70px]"
                   maxLength={2000}
                 />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Link2 className="h-3.5 w-3.5" /> Share Link
+                    </label>
+                    <Input
+                      value={linkToShare}
+                      onChange={e => setLinkToShare(e.target.value)}
+                      placeholder="https://..."
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="chat-image-upload" className="text-xs text-muted-foreground flex items-center gap-1">
+                      <ImagePlus className="h-3.5 w-3.5" /> Share Image
+                    </label>
+                    <Input
+                      id="chat-image-upload"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="h-9"
+                      disabled={uploadingImage}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file);
+                      }}
+                    />
+                  </div>
+                </div>
+                {imageUrlToShare && (
+                  <div className="text-xs text-success">
+                    Image attached successfully.
+                  </div>
+                )}
                 <Button
                   onClick={handleReply}
-                  disabled={replying || !replyText.trim()}
+                  disabled={replying || uploadingImage || (!replyText.trim() && !linkToShare.trim() && !imageUrlToShare.trim())}
                   className="gradient-primary border-0 text-primary-foreground rounded-xl"
                 >
                   {replying ? 'Sending…' : <><Send className="h-4 w-4 mr-2" />Reply</>}

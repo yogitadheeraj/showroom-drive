@@ -182,14 +182,26 @@ const UsersPage = () => {
       toast({ title: 'User deleted' });
       fetchUsers();
     } catch (err: any) {
-      const isEdgeFunctionNetworkError =
-        typeof err?.message === 'string' && err.message.toLowerCase().includes('failed to send a request to the edge function');
+      const message = typeof err?.message === 'string' ? err.message : '';
+      const normalizedMessage = message.toLowerCase();
+      const status = err?.context?.status ?? err?.status ?? null;
+
+      const isEdgeFunctionNetworkError = normalizedMessage.includes('failed to send a request to the edge function');
+      const isFunctionNotFound = status === 404 || normalizedMessage.includes('not found');
+      const isForbidden = status === 403 || normalizedMessage.includes('forbidden');
+      const isUnauthorized = status === 401 || normalizedMessage.includes('unauthorized');
 
       toast({
         title: 'Error',
-        description: isEdgeFunctionNetworkError
-          ? 'Delete service is unreachable. Please deploy/enable the delete-staff-user Edge Function and try again.'
-          : err.message,
+        description: isFunctionNotFound
+          ? 'Delete service is not deployed. Please deploy the delete-staff-user Edge Function.'
+          : isForbidden
+            ? 'Delete service deployment/access is blocked (403). Ask a project owner/admin to deploy or grant required privileges.'
+            : isUnauthorized
+              ? 'Your session is not authorized for delete service. Please log in again.'
+              : isEdgeFunctionNetworkError
+                ? 'Delete service is unreachable. Please deploy/enable the delete-staff-user Edge Function and try again.'
+                : message || 'Failed to delete user',
         variant: 'destructive',
       });
     } finally {

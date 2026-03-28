@@ -16,7 +16,7 @@ import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Phone } from 'lucide-re
 import { APP_ROLE } from '@/constants/roles';
 
 const TestDrivesPage = () => {
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
@@ -35,6 +35,15 @@ const TestDrivesPage = () => {
     let query = supabase.from('test_drives')
       .select('*, customers(*), vehicles(*), locations(*), profiles!test_drives_assigned_sales_person_id_fkey(full_name)')
       .order('scheduled_date', { ascending: false });
+
+    if (role === APP_ROLE.SALES) {
+      if (!profile?.id) {
+        setTestDrives([]);
+        return;
+      }
+      query = query.eq('assigned_sales_person_id', profile.id);
+    }
+
     if (statusFilter !== 'all') query = query.eq('status', statusFilter as any);
     if (role !== APP_ROLE.SUPERADMIN && dealerLocationIds && dealerLocationIds.length > 0) {
       query = query.in('location_id', dealerLocationIds);

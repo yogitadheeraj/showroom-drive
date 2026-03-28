@@ -98,6 +98,14 @@ const SecurityDashboard = () => {
   const handleReuploadLicense = async (customerId: string, file: File) => {
     setReuploadingId(customerId);
     try {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Only JPG, PNG, WEBP, or PDF files are allowed');
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('File size must be 5MB or less');
+      }
+
       const ext = file.name.split('.').pop();
       const path = `licenses/${customerId}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
