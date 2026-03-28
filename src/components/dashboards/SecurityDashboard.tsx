@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye, Car, Clock, Phone } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye, Car, Clock, Phone, File, Trash2, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,25 +27,113 @@ const SecurityDashboard = () => {
   const [inspectionDrive, setInspectionDrive] = useState<any>(null);
   const [inspectionType, setInspectionType] = useState<'pre' | 'post'>('pre');
   const [inspectionViewDrive, setInspectionViewDrive] = useState<any>(null);
+  const [testDriveDocuments, setTestDriveDocuments] = useState<Record<string, any[]>>({});
+  const [uploadingDocId, setUploadingDocId] = useState<string | null>(null);
+  const [docViewOpen, setDocViewOpen] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState<any>(null);
 
   useEffect(() => {
     fetchTodayDrives();
   }, [profile]);
 
+  const fetchTestDriveDocuments = async (testDriveId: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .list(`test-drives/${testDriveId}`, { limit: 100 });
+      
+      if (error) throw error;
+      setTestDriveDocuments(prev => ({
+        ...prev,
+        [testDriveId]: data || []
+      }));
+    } catch (err: any) {
+      console.error('Failed to fetch documents:', err);
+    }
+  };
+
+  const handleUploadTestDriveDoc = async (testDriveId: string, file: File) => {
+    setUploadingDocId(testDriveId);
+    try {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Only JPG, PNG, WEBP, or PDF files are allowed');
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error('File size must be 10MB or less');
+      }
+
+      const ext = file.name.split('.').pop();
+      const timestamp = Date.now();
+      const path = `test-drives/${testDriveId}/${timestamp}.${ext}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(path, file);
+      
+      if (uploadError) throw uploadError;
+      
+      toast({ title: 'Document uploaded successfully' });
+      fetchTestDriveDocuments(testDriveId);
+    } catch (err: any) {
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setUploadingDocId(null);
+    }
+  };
+
+  const handleDeleteDocument = async (testDriveId: string, filename: string) => {
+    try {
+      const { error } = await supabase.storage
+        .from('documents')
+        .remove([`test-drives/${testDriveId}/${filename}`]);
+      
+      if (error) throw error;
+      
+      toast({ title: 'Document deleted' });
+      fetchTestDriveDocuments(testDriveId);
+    } catch (err: any) {
+      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const viewDocument = async (testDriveId: string, filename: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(`test-drives/${testDriveId}/${filename}`, 300);
+      
+      if (error) throw error;
+      
+      setSelectedDoc({ url: data.signedUrl, filename });
+      setDocViewOpen(true);
+    } catch (err: any) {
+      toast({ title: 'Failed to view document', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const fetchTodayDrives = async () => {
-    const today = new Date().toISOString().split('T')[0];
     let query = supabase.from('test_drives')
       .select('*, customers(*), vehicles(*), locations(*)')
-      .eq('scheduled_date', today)
       .in('status', ['confirmed', 'show', 'in_progress', 'completed']);
     if (profile?.location_id) query = query.eq('location_id', profile.location_id);
-    const { data } = await query.order('scheduled_time', { ascending: true });
+    const { data } = await query.order('scheduled_date', { ascending: true }).order('scheduled_time', { ascending: true });
     setTestDrives(data || []);
+    
+    // Fetch documents for each test drive
+    if (data) {
+      data.forEach(td => {
+        fetchTestDriveDocuments(td.id);
+      });
+    }
   };
 
   const checkIn = async (id: string) => {
-    await supabase.from('test_drives').update({ security_checked_in_at: new Date().toISOString(), status: 'show' as any }).eq('id', id);
-    toast({ title: 'Customer checked in' });
+    await supabase.from('test_drives').update({ 
+      security_checked_in_at: new Date().toISOString(), 
+      status: 'in_progress' as any 
+    }).eq('id', id);
+    toast({ title: 'Customer checked in & test drive started' });
     fetchTodayDrives();
   };
 
@@ -129,12 +217,12 @@ const SecurityDashboard = () => {
     <div className="space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Security Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Check-ins, inspections & verification</p>
+        <p className="text-sm text-muted-foreground">Check-ins, inspections & verification for your location</p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: "Today's Visitors", value: testDrives.length, icon: Shield, color: 'text-primary', bg: 'bg-primary/10' },
+          { label: "Total Test Drives", value: testDrives.length, icon: Shield, color: 'text-primary', bg: 'bg-primary/10' },
           { label: 'Checked In', value: testDrives.filter(t => t.security_checked_in_at).length, icon: CheckCircle, color: 'text-success', bg: 'bg-success/10' },
           { label: 'License OK', value: testDrives.filter(t => t.customers?.driving_license_verified).length, icon: FileCheck, color: 'text-info', bg: 'bg-info/10' },
           { label: 'Pending', value: pendingCount, icon: AlertCircle, color: 'text-warning', bg: 'bg-warning/10', alert: pendingCount > 0 },
@@ -163,7 +251,7 @@ const SecurityDashboard = () => {
 
       <Card className="shadow-card">
         <CardHeader className="pb-2 sm:pb-4">
-          <CardTitle className="font-heading text-base sm:text-lg">Today's Appointments</CardTitle>
+          <CardTitle className="font-heading text-base sm:text-lg">All Test Drives</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -181,7 +269,7 @@ const SecurityDashboard = () => {
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
                       <span className="flex items-center gap-1"><Car className="h-3 w-3" />{td.vehicles?.brand} {td.vehicles?.model}</span>
-                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{td.scheduled_time}</span>
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{td.scheduled_date} at {td.scheduled_time}</span>
                     </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
@@ -253,10 +341,53 @@ const SecurityDashboard = () => {
                   )}
                   {(td as any).inspection_submitted_at && <Badge className="bg-muted text-muted-foreground text-xs">Complete</Badge>}
                 </div>
+
+                {/* Test Drive Documents */}
+                <div className="pt-1.5 border-t border-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-muted-foreground">Vehicle Documents</p>
+                    <Label htmlFor={`doc-upload-${td.id}`} className="cursor-pointer">
+                      <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 text-xs" asChild>
+                        <span><Upload className="h-3 w-3 mr-1" /> Add</span>
+                      </Button>
+                    </Label>
+                    <input 
+                      id={`doc-upload-${td.id}`} 
+                      type="file" 
+                      accept="image/*,.pdf"
+                      className="hidden" 
+                      disabled={uploadingDocId === td.id}
+                      onChange={(e) => { 
+                        const file = e.target.files?.[0]; 
+                        if (file) handleUploadTestDriveDoc(td.id, file); 
+                      }} 
+                    />
+                  </div>
+                  {testDriveDocuments[td.id]?.length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {testDriveDocuments[td.id].map((doc: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-muted">
+                          <File className="h-3 w-3" />
+                          <button className="text-primary hover:underline" onClick={() => viewDocument(td.id, doc.name)}>
+                            {doc.name.split('/').pop()?.substring(0, 20)}...
+                          </button>
+                          <button 
+                            className="text-destructive hover:text-destructive/80 ml-1"
+                            onClick={() => handleDeleteDocument(td.id, doc.name)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">No documents yet</p>
+                  )}
+                </div>
               </div>
             ))}
             {testDrives.length === 0 && (
-              <p className="text-center text-muted-foreground py-8 text-sm">No appointments for today</p>
+              <p className="text-center text-muted-foreground py-8 text-sm">No test drives for your location</p>
             )}
           </div>
         </CardContent>
@@ -354,6 +485,29 @@ const SecurityDashboard = () => {
           )}
           <DialogFooter>
             <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => setInspectionViewDrive(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document View Dialog */}
+      <Dialog open={docViewOpen} onOpenChange={setDocViewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Document Preview</DialogTitle>
+            <DialogDescription>{selectedDoc?.filename}</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center bg-muted rounded-lg p-4 min-h-[200px] sm:min-h-[400px]">
+            {selectedDoc?.url ? (
+              selectedDoc.filename.toLowerCase().endsWith('.pdf') ? (
+                <iframe src={selectedDoc.url} className="w-full h-[400px] rounded-lg" title="PDF Preview" />
+              ) : (
+                <img src={selectedDoc.url} alt={selectedDoc.filename} className="max-w-full max-h-[400px] rounded-lg object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.innerHTML = '<p class="text-muted-foreground">Unable to load document.</p>'; }} />
+              )
+            ) : <p className="text-muted-foreground">Loading...</p>}
+          </div>
+          <DialogFooter>
+            <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => setDocViewOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
