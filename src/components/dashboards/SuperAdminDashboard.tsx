@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import {
   YAxis,
   Cell,
 } from 'recharts';
-import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone } from 'lucide-react';
+import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye } from 'lucide-react';
 import { APP_ROLE, AppRole } from '@/constants/roles';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
@@ -56,6 +57,9 @@ const SuperAdminDashboard = () => {
   const [staffMembers, setStaffMembers] = useState<any[]>([]);
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [repeatedCustomers, setRepeatedCustomers] = useState<any[]>([]);
+  const [activitySessions, setActivitySessions] = useState<any[]>([]);
+  const [activityEvents, setActivityEvents] = useState<any[]>([]);
+  const [selectedActivityStaff, setSelectedActivityStaff] = useState<any | null>(null);
 
   const [selectedDealer, setSelectedDealer] = useState(savedPrefs.selectedDealer || 'all');
   const [selectedLocation, setSelectedLocation] = useState(savedPrefs.selectedLocation || 'all');
@@ -131,7 +135,7 @@ const SuperAdminDashboard = () => {
       const [{ data: profiles }, { data: roles }] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, user_id, full_name, location_id, is_active')
+          .select('id, user_id, full_name, location_id, is_active, last_login_at')
           .in('location_id', locationIds)
           .order('full_name'),
         supabase
@@ -182,6 +186,47 @@ const SuperAdminDashboard = () => {
       } else { setRepeatedCustomers([]); }
     };
     fetchData();
+  }, [selectedLocation, selectedStaff, locations, dealerLoading, isSuperAdmin]);
+
+  useEffect(() => {
+    if (dealerLoading && !isSuperAdmin) return;
+
+    const fetchActivityData = async () => {
+      const locationIds = selectedLocation !== 'all'
+        ? [selectedLocation]
+        : locations.map(l => l.id);
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      let sessionQuery = supabase
+        .from('staff_activity_sessions')
+        .select('*')
+        .gte('login_at', startOfDay.toISOString())
+        .order('login_at', { ascending: false });
+
+      let eventQuery = supabase
+        .from('staff_activity_events')
+        .select('*')
+        .gte('happened_at', startOfDay.toISOString())
+        .order('happened_at', { ascending: false })
+        .limit(500);
+
+      if (locationIds.length > 0) {
+        sessionQuery = sessionQuery.in('location_id', locationIds);
+        eventQuery = eventQuery.in('location_id', locationIds);
+      }
+
+      if (selectedStaff !== 'all') {
+        sessionQuery = sessionQuery.eq('user_id', selectedStaff);
+        eventQuery = eventQuery.eq('user_id', selectedStaff);
+      }
+
+      const [{ data: sessions }, { data: events }] = await Promise.all([sessionQuery, eventQuery]);
+      setActivitySessions(sessions || []);
+      setActivityEvents(events || []);
+    };
+
+    void fetchActivityData();
   }, [selectedLocation, selectedStaff, locations, dealerLoading, isSuperAdmin]);
 
   const filteredStaff = staffMembers.filter((s) => {
@@ -246,6 +291,50 @@ const SuperAdminDashboard = () => {
     .map(([date, count]) => ({ date, count }))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-14);
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return '—';
+    return new Intl.DateTimeFormat('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value));
+  };
+
+  const formatDuration = (seconds?: number | null) => {
+    const totalSeconds = seconds || 0;
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    if (hours === 0) return `${minutes}m`;
+    return `${hours}h ${minutes}m`;
+  };
+
+  const getStaffActivitySummary = (staff: any) => {
+    const sessions = activitySessions.filter((session) => session.user_id === staff.user_id);
+    const events = activityEvents.filter((event) => event.user_id === staff.user_id);
+    const latestEvent = events[0] || null;
+    const latestLogout = sessions.find((session) => session.logout_at)?.logout_at || null;
+    const totalActiveSeconds = sessions.reduce((sum, session) => sum + (session.active_seconds || 0), 0);
+    const totalIdleSeconds = sessions.reduce((sum, session) => sum + (session.idle_seconds || 0), 0);
+    const isOnline = sessions.some((session) => {
+      if (!session.is_online || session.logout_at || !session.last_seen_at) return false;
+      return Date.now() - new Date(session.last_seen_at).getTime() < 5 * 60 * 1000;
+    });
+
+    return {
+      lastLoginAt: staff.last_login_at,
+      latestLogout,
+      totalActiveSeconds,
+      totalIdleSeconds,
+      latestEvent,
+      isOnline,
+      sessions,
+      events,
+    };
+  };
+
+  const selectedActivitySummary = selectedActivityStaff ? getStaffActivitySummary(selectedActivityStaff) : null;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -522,34 +611,130 @@ const SuperAdminDashboard = () => {
                   <th className="text-left p-3 text-muted-foreground font-medium">Location</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Status</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Last Login</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Logoff</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Active</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Idle</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Latest Activity</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Logs</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredStaff.map((staff) => (
-                  <tr key={staff.user_id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                    <td className="p-3 font-medium text-foreground">{staff.full_name}</td>
-                    <td className="p-3 text-muted-foreground capitalize">{staff.role || '-'}</td>
-                    <td className="p-3 text-muted-foreground">
-                      {locations.find((l) => l.id === staff.location_id)?.name || '-'}
-                    </td>
-                    <td className="p-3">
-                      <Badge variant="secondary" className={staff.is_active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
-                        {staff.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </td>
-                    <td className="p-3 text-muted-foreground">
-                      —
-                    </td>
-                  </tr>
-                ))}
+                {filteredStaff.map((staff) => {
+                  const summary = getStaffActivitySummary(staff);
+
+                  return (
+                    <tr key={staff.user_id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                      <td className="p-3 font-medium text-foreground">{staff.full_name}</td>
+                      <td className="p-3 text-muted-foreground capitalize">{staff.role || '-'}</td>
+                      <td className="p-3 text-muted-foreground">
+                        {locations.find((l) => l.id === staff.location_id)?.name || '-'}
+                      </td>
+                      <td className="p-3">
+                        <Badge
+                          variant="secondary"
+                          className={summary.isOnline ? 'bg-success/10 text-success' : staff.is_active ? 'bg-info/10 text-info' : 'bg-muted text-muted-foreground'}
+                        >
+                          {summary.isOnline ? 'Online' : staff.is_active ? 'Available' : 'Inactive'}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-muted-foreground">{formatDateTime(summary.lastLoginAt)}</td>
+                      <td className="p-3 text-muted-foreground">{summary.isOnline ? 'Online' : formatDateTime(summary.latestLogout)}</td>
+                      <td className="p-3 text-muted-foreground">{formatDuration(summary.totalActiveSeconds)}</td>
+                      <td className="p-3 text-muted-foreground">{formatDuration(summary.totalIdleSeconds)}</td>
+                      <td className="p-3">
+                        {summary.latestEvent ? (
+                          <div>
+                            <p className="text-foreground">{summary.latestEvent.event_label}</p>
+                            <p className="text-xs text-muted-foreground">{formatDateTime(summary.latestEvent.happened_at)}</p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">No activity yet</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <Button size="sm" variant="outline" onClick={() => setSelectedActivityStaff(staff)}>
+                          <Eye className="h-3.5 w-3.5 mr-1" /> View
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filteredStaff.length === 0 && (
-                  <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No staff found for the selected filter</td></tr>
+                  <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">No staff found for the selected filter</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={!!selectedActivityStaff} onOpenChange={(open) => !open && setSelectedActivityStaff(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedActivityStaff?.full_name ? `${selectedActivityStaff.full_name} Activity Log` : 'Staff Activity Log'}
+            </DialogTitle>
+            <DialogDescription>
+              Full-day login, logout, idle, and work activity timeline for the selected staff member.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedActivityStaff && selectedActivitySummary && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Last Login</p>
+                    <p className="text-sm font-semibold text-foreground">{formatDateTime(selectedActivitySummary.lastLoginAt)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Last Logoff</p>
+                    <p className="text-sm font-semibold text-foreground">{selectedActivitySummary.isOnline ? 'Online' : formatDateTime(selectedActivitySummary.latestLogout)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Active Time</p>
+                    <p className="text-sm font-semibold text-foreground">{formatDuration(selectedActivitySummary.totalActiveSeconds)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <p className="text-xs text-muted-foreground">Idle Time</p>
+                    <p className="text-sm font-semibold text-foreground">{formatDuration(selectedActivitySummary.totalIdleSeconds)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-heading text-base">Activity Timeline</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {selectedActivitySummary.events.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No activity recorded today.</p>
+                    ) : (
+                      selectedActivitySummary.events.map((event: any) => (
+                        <div key={event.id} className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{event.event_label}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{event.event_type.replace(/_/g, ' ')}</p>
+                            {event.route && <p className="text-xs text-muted-foreground">Route: {event.route}</p>}
+                          </div>
+                          <div className="text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(event.happened_at)}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Repeat Customers */}
       {repeatedCustomers.length > 0 && (

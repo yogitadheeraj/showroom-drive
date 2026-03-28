@@ -10,6 +10,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import { ClipboardCheck, Car } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { logStaffActivity } from '@/lib/activityLogger';
 
 interface VehicleInspectionDialogProps {
   open: boolean;
@@ -23,6 +25,7 @@ const FUEL_LEVELS = ['Full', '3/4', '1/2', '1/4', 'Empty'];
 
 const VehicleInspectionDialog = ({ open, onClose, testDrive, type, onComplete }: VehicleInspectionDialogProps) => {
   const { toast } = useToast();
+  const { user, profile, role } = useAuth();
   const [km, setKm] = useState('');
   const [scratches, setScratches] = useState('');
   const [notes, setNotes] = useState('');
@@ -59,6 +62,17 @@ const VehicleInspectionDialog = ({ open, onClose, testDrive, type, onComplete }:
           };
 
       await supabase.from('test_drives').update(updateData as any).eq('id', testDrive.id);
+      if (user?.id) {
+        await logStaffActivity({
+          userId: user.id,
+          profileId: profile?.id,
+          locationId: profile?.location_id,
+          role,
+          eventType: isPre ? 'vehicle_inspection_pre' : 'vehicle_inspection_post',
+          label: isPre ? 'Recorded pre-drive inspection' : 'Recorded post-drive inspection',
+          metadata: { testDriveId: testDrive.id, odometerKm: parseFloat(km), fuelLevel: fuelLevel || null },
+        });
+      }
       toast({ title: `${isPre ? 'Pre' : 'Post'}-drive inspection saved` });
       setKm('');
       setScratches('');

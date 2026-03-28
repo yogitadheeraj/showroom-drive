@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { logStaffActivity } from '@/lib/activityLogger';
 
 type AssignmentMode = 'reassign' | 'swap';
 
@@ -83,6 +84,18 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
       .eq('id', testDrive.id);
 
     if (error) throw error;
+
+    if (profile?.user_id) {
+      await logStaffActivity({
+        userId: profile.user_id,
+        profileId: profile.id,
+        locationId: profile.location_id,
+        role: 'sales',
+        eventType: 'test_drive_reassigned',
+        label: 'Reassigned test drive to another sales person',
+        metadata: { testDriveId: testDrive.id, targetPersonId },
+      });
+    }
   };
 
   const handleSwap = async () => {
@@ -123,6 +136,18 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
       .eq('id', targetDriveId);
 
     if (targetError) throw targetError;
+
+    if (profile?.user_id) {
+      await logStaffActivity({
+        userId: profile.user_id,
+        profileId: profile.id,
+        locationId: profile.location_id,
+        role: 'sales',
+        eventType: 'test_drive_swapped',
+        label: 'Swapped test drives with another sales person',
+        metadata: { sourceDriveId, targetDriveId, targetPersonId },
+      });
+    }
   };
 
   const handleConfirm = async () => {

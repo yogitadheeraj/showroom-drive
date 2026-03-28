@@ -6,9 +6,10 @@ import {
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
   LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
 import { getAppRoleLabel } from '@/lib/roles';
+import { logStaffActivity, updateActivitySession } from '@/lib/activityLogger';
 
 interface NavItem {
   label: string;
@@ -65,10 +66,15 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
 };
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
-  const { role, profile, signOut } = useAuth();
+  const { user, role, profile, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const activityStateRef = useRef({
+    lastTickAt: Date.now(),
+    lastInteractionAt: Date.now(),
+    isIdle: false,
+  });
 
   const navItems = NAV_ITEMS[role ?? DEFAULT_APP_ROLE];
 
@@ -76,6 +82,87 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     await signOut();
     navigate('/auth');
   };
+
+  useEffect(() => {
+    if (!user || !profile?.id || !role) return;
+
+    void logStaffActivity({
+      userId: user.id,
+      profileId: profile.id,
+      locationId: profile.location_id,
+      role,
+      eventType: 'page_view',
+      label: `Visited ${location.pathname}`,
+      route: location.pathname,
+    });
+  }, [location.pathname, profile?.id, profile?.location_id, role, user]);
+
+  useEffect(() => {
+    if (!user || !profile?.id || !role) return;
+
+    const markInteraction = () => {
+      const now = Date.now();
+      const wasIdle = activityStateRef.current.isIdle;
+      activityStateRef.current.lastInteractionAt = now;
+
+      if (wasIdle) {
+        activityStateRef.current.isIdle = false;
+        void logStaffActivity({
+          userId: user.id,
+          profileId: profile.id,
+          locationId: profile.location_id,
+          role,
+          eventType: 'active_resume',
+          label: 'Returned from idle',
+          route: location.pathname,
+        });
+      }
+    };
+
+    const syncActivity = () => {
+      const now = Date.now();
+      const elapsedSeconds = Math.max(1, Math.round((now - activityStateRef.current.lastTickAt) / 1000));
+      const shouldBeIdle = document.hidden || now - activityStateRef.current.lastInteractionAt > 5 * 60 * 1000;
+
+      if (shouldBeIdle !== activityStateRef.current.isIdle) {
+        activityStateRef.current.isIdle = shouldBeIdle;
+        void logStaffActivity({
+          userId: user.id,
+          profileId: profile.id,
+          locationId: profile.location_id,
+          role,
+          eventType: shouldBeIdle ? 'idle_start' : 'active_resume',
+          label: shouldBeIdle ? 'Went idle' : 'Returned from idle',
+          route: location.pathname,
+        });
+      }
+
+      void updateActivitySession({
+        activeSeconds: shouldBeIdle ? 0 : elapsedSeconds,
+        idleSeconds: shouldBeIdle ? elapsedSeconds : 0,
+        lastSeenAt: new Date(now).toISOString(),
+        isOnline: true,
+      });
+
+      activityStateRef.current.lastTickAt = now;
+    };
+
+    activityStateRef.current.lastTickAt = Date.now();
+    activityStateRef.current.lastInteractionAt = Date.now();
+    activityStateRef.current.isIdle = false;
+
+    const intervalId = window.setInterval(syncActivity, 60_000);
+    const events: Array<keyof WindowEventMap> = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'];
+
+    events.forEach((eventName) => window.addEventListener(eventName, markInteraction, { passive: true }));
+    document.addEventListener('visibilitychange', markInteraction);
+
+    return () => {
+      window.clearInterval(intervalId);
+      events.forEach((eventName) => window.removeEventListener(eventName, markInteraction));
+      document.removeEventListener('visibilitychange', markInteraction);
+    };
+  }, [location.pathname, profile?.id, profile?.location_id, role, user]);
 
   return (
     <div className="min-h-screen flex bg-background">

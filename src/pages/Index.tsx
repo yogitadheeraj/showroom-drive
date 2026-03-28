@@ -218,7 +218,7 @@ const Index = () => {
             className="text-3xl sm:text-5xl md:text-7xl font-heading font-bold text-primary-foreground leading-[1.1] tracking-tight"
           >
             Smart Test Drive & Lead Platform
-            <span className="block mt-2 bg-clip-text text-transparent" style={{ backgroundImage: 'var(--gradient-accent)' }}>
+            <span className="text-2xl  block mt-2 bg-clip-text text-transparent" style={{ backgroundImage: 'var(--gradient-accent)' }}>
               Made Simple Test Drive Management
             </span>
           </motion.h1>

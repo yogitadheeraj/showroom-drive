@@ -14,6 +14,7 @@ import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
 import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, ChevronRight, Users, Calendar, AlertCircle, Lock } from 'lucide-react';
+import { logStaffActivity } from '@/lib/activityLogger';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -27,7 +28,7 @@ const LocationsPage = () => {
   const [savingHours, setSavingHours] = useState(false);
   const { toast } = useToast();
   const { dealerId, loading: dealerLoading } = useDealerContext();
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   
   // Device management states
   const [deviceDialog, setDeviceDialog] = useState<string | null>(null);
@@ -152,6 +153,17 @@ const LocationsPage = () => {
         }
       }
       toast({ title: 'Operating hours saved' });
+      if (profile?.user_id) {
+        await logStaffActivity({
+          userId: profile.user_id,
+          profileId: profile.id,
+          locationId: hoursDialog,
+          role,
+          eventType: 'location_hours_updated',
+          label: 'Updated location operating hours',
+          metadata: { locationId: hoursDialog },
+        });
+      }
       setHoursDialog(null);
     } catch (err: any) {
       toast({ title: 'Failed to save', description: err.message, variant: 'destructive' });
@@ -180,6 +192,17 @@ const LocationsPage = () => {
       });
       
       toast({ title: 'Device added successfully' });
+      if (profile?.user_id) {
+        await logStaffActivity({
+          userId: profile.user_id,
+          profileId: profile.id,
+          locationId: deviceDialog,
+          role,
+          eventType: 'location_device_added',
+          label: 'Added location device',
+          metadata: { locationId: deviceDialog, deviceName: newDevice.name, deviceType: newDevice.device_type },
+        });
+      }
       fetchDevices(deviceDialog);
       setDeviceDialog(null);
       setNewDevice({ name: '', device_type: 'tablet', serial_number: '', notes: '' });
@@ -194,6 +217,17 @@ const LocationsPage = () => {
     try {
       await supabase.from('location_devices').delete().eq('id', deviceId);
       toast({ title: 'Device deleted' });
+      if (profile?.user_id) {
+        await logStaffActivity({
+          userId: profile.user_id,
+          profileId: profile.id,
+          locationId,
+          role,
+          eventType: 'location_device_deleted',
+          label: 'Deleted location device',
+          metadata: { locationId, deviceId },
+        });
+      }
       fetchDevices(locationId);
     } catch (err: any) {
       toast({ title: 'Failed to delete device', description: err.message, variant: 'destructive' });

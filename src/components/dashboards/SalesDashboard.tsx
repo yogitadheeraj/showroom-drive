@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { logStaffActivity } from '@/lib/activityLogger';
 
 const SalesDashboard = () => {
   const { user, profile } = useAuth();
@@ -70,12 +71,34 @@ const SalesDashboard = () => {
       key_handed_at: new Date().toISOString(),
       status: 'in_progress' as any,
     } as any).eq('id', id);
+    if (user?.id) {
+      await logStaffActivity({
+        userId: user.id,
+        profileId: profile?.id,
+        locationId: profile?.location_id,
+        role: 'sales',
+        eventType: 'test_drive_started',
+        label: 'Handed over key and started test drive',
+        metadata: { testDriveId: id },
+      });
+    }
     toast({ title: 'Key handed over', description: 'Test drive marked as in progress' });
     fetchAssignedDrives();
   };
 
   const handleComplete = async (id: string) => {
     await supabase.from('test_drives').update({ status: 'completed' as any }).eq('id', id);
+    if (user?.id) {
+      await logStaffActivity({
+        userId: user.id,
+        profileId: profile?.id,
+        locationId: profile?.location_id,
+        role: 'sales',
+        eventType: 'test_drive_completed',
+        label: 'Marked test drive as completed',
+        metadata: { testDriveId: id },
+      });
+    }
     toast({ title: 'Test drive completed' });
     fetchAssignedDrives();
   };
@@ -91,6 +114,18 @@ const SalesDashboard = () => {
         notes: `${rescheduleDrive.notes || ''}\n[${new Date().toLocaleString()}] Rescheduled by ${profile?.full_name || 'Sales'} to ${newDate} ${newTime}`.trim(),
       })
       .eq('id', rescheduleDrive.id);
+
+    if (user?.id) {
+      await logStaffActivity({
+        userId: user.id,
+        profileId: profile?.id,
+        locationId: profile?.location_id,
+        role: 'sales',
+        eventType: 'test_drive_rescheduled',
+        label: 'Rescheduled test drive',
+        metadata: { testDriveId: rescheduleDrive.id, scheduledDate: newDate, scheduledTime: newTime },
+      });
+    }
 
     toast({ title: 'Test drive rescheduled' });
     setRescheduleDrive(null);
@@ -173,7 +208,7 @@ const SalesDashboard = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: 'Assigned', value: testDrives.length, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
-          { label: 'In Progress', value: testDrives.filter(t => t.status === 'in_progress').length, icon: Key, color: 'text-info', bg: 'bg-info/10' },
+          { label: 'In Progress', value: testDrives.filter(t => t.status === 'in_progress').length, icon: Key, color: 'text-info', bg: 'bg-green/10' },
           { label: 'Completed', value: testDrives.filter(t => t.status === 'completed').length, icon: FileCheck, color: 'text-success', bg: 'bg-success/10' },
           { label: 'Pending License', value: testDrives.filter(t => !t.customers?.driving_license_url).length, icon: Upload, color: 'text-warning', bg: 'bg-warning/10' },
         ].map(stat => {

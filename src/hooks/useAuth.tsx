@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AppRole } from '@/constants/roles';
 import { isAppRole } from '@/lib/roles';
+import { ensureActivitySession, endActivitySession } from '@/lib/activityLogger';
 
 interface AuthContextType {
   user: User | null;
@@ -35,8 +36,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
       supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
     ]);
-    setRole(isAppRole(roleData?.role) ? roleData.role : null);
+    const resolvedRole = isAppRole(roleData?.role) ? roleData.role : null;
+    setRole(resolvedRole);
     setProfile(profileData);
+
+    if (profileData) {
+      await ensureActivitySession({
+        userId,
+        profileId: profileData.id,
+        locationId: profileData.location_id,
+        role: resolvedRole,
+      });
+    }
   };
 
   useEffect(() => {
@@ -69,11 +80,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error) throw error;
 
     if (data.user) {
-      // Login tracked via auth metadata
-
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('is_active')
+        .select('id, is_active')
         .eq('user_id', data.user.id)
         .maybeSingle();
 
@@ -81,6 +90,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await supabase.auth.signOut();
         throw new Error('Your account is blocked. Contact superadmin.');
       }
+
+      await supabase
+        .from('profiles')
+        .update({ last_login_at: new Date().toISOString() } as never)
+        .eq('user_id', data.user.id);
     }
   };
 
@@ -93,6 +107,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
+    if (user) {
+      await endActivitySession({
+        userId: user.id,
+        profileId: profile?.id,
+        locationId: profile?.location_id,
+        role,
+      });
+    }
+
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
