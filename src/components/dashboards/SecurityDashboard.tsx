@@ -165,7 +165,46 @@ const SecurityDashboard = () => {
   };
 
   const checkOut = async (id: string) => {
-    await supabase.from('test_drives').update({ security_checked_out_at: new Date().toISOString() }).eq('id', id);
+    const drive = testDrives.find((item) => item.id === id);
+    const completedAt = new Date().toISOString();
+
+    await supabase.from('test_drives').update({
+      security_checked_out_at: completedAt,
+      completed_at: completedAt,
+      status: 'completed' as any,
+    }).eq('id', id);
+
+    // Send a completion email to the customer so they know next action with sales team.
+    if (drive?.customers?.email) {
+      const customerName = drive.customers.full_name || 'Customer';
+      const vehicleName = `${drive.vehicles?.brand || ''} ${drive.vehicles?.model || ''}`.trim() || 'your selected vehicle';
+      const locationName = drive.locations?.name || 'our showroom';
+      const message = [
+        `Your test drive for ${vehicleName} is now completed at ${locationName}.`,
+        'Please connect with your sales team for any specifications, pricing details, or doubts.',
+        'Thank you for visiting us.',
+      ].join(' ');
+
+      const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'sales-follow-up',
+          recipientEmail: drive.customers.email,
+          idempotencyKey: `test-drive-completed-${id}`,
+          templateData: {
+            customerName,
+            message,
+          },
+        },
+      });
+
+      if (emailError) {
+        toast({
+          title: 'Drive completed, but email failed',
+          description: 'Customer follow-up email could not be sent right now.',
+          variant: 'destructive',
+        });
+      }
+    }
 
     if (profile?.user_id) {
       await logStaffActivity({
@@ -173,13 +212,13 @@ const SecurityDashboard = () => {
         profileId: profile.id,
         locationId: profile.location_id,
         role: 'security',
-        eventType: 'test_drive_check_out',
-        label: 'Checked out customer from test drive',
+        eventType: 'test_drive_completed',
+        label: 'Marked test drive completed at return gate',
         metadata: { testDriveId: id },
       });
     }
 
-    toast({ title: 'Customer checked out' });
+    toast({ title: 'Test drive completed at return' });
     void fetchDrives();
   };
 
@@ -381,7 +420,7 @@ const SecurityDashboard = () => {
                       <div className="flex items-center gap-2">
                         <Badge className="bg-success/10 text-success text-xs">Checked In</Badge>
                         <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => void checkOut(testDrive.id)}>
-                          <XCircle className="h-3.5 w-3.5 mr-1" /> Check Out
+                          <XCircle className="h-3.5 w-3.5 mr-1" /> Return & Complete
                         </Button>
                       </div>
                     ) : (

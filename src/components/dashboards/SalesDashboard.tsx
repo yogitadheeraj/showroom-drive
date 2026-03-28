@@ -32,6 +32,48 @@ const SalesDashboard = () => {
     fetchAssignedDrives();
   }, [user]);
 
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const channel = supabase
+      .channel(`sales-completion-notify-${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'test_drives',
+          filter: `assigned_sales_person_id=eq.${profile.id}`,
+        },
+        async (payload) => {
+          const before = payload.old as any;
+          const after = payload.new as any;
+
+          if (after?.status !== 'completed' || before?.status === 'completed') return;
+
+          const { data: drive } = await supabase
+            .from('test_drives')
+            .select('id, customers(full_name)')
+            .eq('id', after.id)
+            .maybeSingle();
+
+          const customerName = drive?.customers?.full_name || 'Customer';
+
+          toast({
+            title: 'Test drive completed',
+            description: `Please take follow up from Mr. ${customerName}`,
+          });
+
+          void fetchAssignedDrives();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [profile?.id, toast]);
+
   const fetchAssignedDrives = async () => {
     if (!profile?.id) return;
     const { data } = await supabase.from('test_drives')
@@ -87,7 +129,10 @@ const SalesDashboard = () => {
   };
 
   const handleComplete = async (id: string) => {
-    await supabase.from('test_drives').update({ status: 'completed' as any }).eq('id', id);
+    await supabase.from('test_drives').update({
+      status: 'completed' as any,
+      completed_at: new Date().toISOString(),
+    }).eq('id', id);
     if (user?.id) {
       await logStaffActivity({
         userId: user.id,
@@ -304,7 +349,7 @@ const SalesDashboard = () => {
                       <Key className="h-3.5 w-3.5 mr-1" /> Give Key & Start
                     </Button>
                   )}
-                  {td.status === 'in_progress' && (
+                  {(td.status === 'in_progress' || (td.security_checked_out_at && td.status !== 'completed')) && (
                     <>
                       <Badge className="bg-primary/10 text-primary text-xs"><Key className="h-3 w-3 mr-1" /> Key Handed</Badge>
                       <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleComplete(td.id)}>
