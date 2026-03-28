@@ -557,6 +557,136 @@ export type Database = {
           },
         ]
       }
+      staff_activity_events: {
+        Row: {
+          created_at: string
+          event_label: string | null
+          event_type: string
+          happened_at: string
+          id: string
+          location_id: string | null
+          metadata: Json | null
+          profile_id: string | null
+          role: string | null
+          route: string | null
+          session_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_label?: string | null
+          event_type: string
+          happened_at?: string
+          id?: string
+          location_id?: string | null
+          metadata?: Json | null
+          profile_id?: string | null
+          role?: string | null
+          route?: string | null
+          session_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_label?: string | null
+          event_type?: string
+          happened_at?: string
+          id?: string
+          location_id?: string | null
+          metadata?: Json | null
+          profile_id?: string | null
+          role?: string | null
+          route?: string | null
+          session_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_activity_events_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_activity_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_activity_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "staff_activity_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_activity_sessions: {
+        Row: {
+          active_seconds: number
+          created_at: string
+          id: string
+          idle_seconds: number
+          is_online: boolean
+          last_seen_at: string
+          location_id: string | null
+          login_at: string
+          logout_at: string | null
+          profile_id: string | null
+          role: string | null
+          session_source: string | null
+          user_id: string
+        }
+        Insert: {
+          active_seconds?: number
+          created_at?: string
+          id?: string
+          idle_seconds?: number
+          is_online?: boolean
+          last_seen_at?: string
+          location_id?: string | null
+          login_at?: string
+          logout_at?: string | null
+          profile_id?: string | null
+          role?: string | null
+          session_source?: string | null
+          user_id: string
+        }
+        Update: {
+          active_seconds?: number
+          created_at?: string
+          id?: string
+          idle_seconds?: number
+          is_online?: boolean
+          last_seen_at?: string
+          location_id?: string | null
+          login_at?: string
+          logout_at?: string | null
+          profile_id?: string | null
+          role?: string | null
+          session_source?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_activity_sessions_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_activity_sessions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppressed_emails: {
         Row: {
           created_at: string
