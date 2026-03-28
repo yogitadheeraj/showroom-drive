@@ -334,6 +334,47 @@ export type Database = {
           },
         ]
       }
+      location_devices: {
+        Row: {
+          created_at: string
+          device_type: string
+          id: string
+          is_active: boolean
+          location_id: string
+          name: string
+          notes: string | null
+          serial_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_type?: string
+          id?: string
+          is_active?: boolean
+          location_id: string
+          name: string
+          notes?: string | null
+          serial_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_type?: string
+          id?: string
+          is_active?: boolean
+          location_id?: string
+          name?: string
+          notes?: string | null
+          serial_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_devices_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       location_operating_hours: {
         Row: {
           close_time: string
@@ -362,6 +403,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "location_operating_hours_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      location_special_periods: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          is_full_closure: boolean
+          location_id: string
+          modified_close_time: string | null
+          modified_open_time: string | null
+          name: string
+          notes: string | null
+          start_date: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          is_full_closure?: boolean
+          location_id: string
+          modified_close_time?: string | null
+          modified_open_time?: string | null
+          name: string
+          notes?: string | null
+          start_date: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          is_full_closure?: boolean
+          location_id?: string
+          modified_close_time?: string | null
+          modified_open_time?: string | null
+          name?: string
+          notes?: string | null
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_special_periods_location_id_fkey"
             columns: ["location_id"]
             isOneToOne: false
             referencedRelation: "locations"
