@@ -254,7 +254,7 @@ const LocationsPage = () => {
 
         const { error: metadataError } = await supabase
           .from('locations')
-          .update({ metadata })
+          .update({ metadata } as any)
           .eq('id', slotDurationDialog);
 
         if (metadataError) {
