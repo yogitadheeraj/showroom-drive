@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import { Plus, Trash2, Clock, Mail } from 'lucide-react';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface EmailConfig {
   id: string;
@@ -45,7 +46,8 @@ const TIMEZONES = [
 ];
 
 const ReportSettingsConfig = () => {
-  const { userData } = useDealerContext();
+  const { user, profile } = useAuth();
+  const { dealerLocationIds } = useDealerContext();
   const [emailConfigs, setEmailConfigs] = useState<EmailConfig[]>([]);
   const [scheduleConfigs, setScheduleConfigs] = useState<ScheduleConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,7 @@ const ReportSettingsConfig = () => {
   const [newScheduleDays, setNewScheduleDays] = useState<string[]>(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
   const [newScheduleTimezone, setNewScheduleTimezone] = useState('Asia/Kolkata');
 
-  const locationId = userData?.location_id;
+  const locationId = profile?.location_id || (dealerLocationIds && dealerLocationIds[0]) || null;
 
   useEffect(() => {
     if (locationId) {
