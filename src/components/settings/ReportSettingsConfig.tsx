@@ -82,8 +82,8 @@ const ReportSettingsConfig = () => {
           .order('created_at', { ascending: false }),
       ]);
 
-      if (emailRes.data) setEmailConfigs(emailRes.data);
-      if (scheduleRes.data) setScheduleConfigs(scheduleRes.data);
+      if (emailRes.data) setEmailConfigs(emailRes.data as unknown as EmailConfig[]);
+      if (scheduleRes.data) setScheduleConfigs(scheduleRes.data as unknown as ScheduleConfig[]);
     } catch (error) {
       console.error('Error fetching configs:', error);
       toast.error('Failed to load configurations');
