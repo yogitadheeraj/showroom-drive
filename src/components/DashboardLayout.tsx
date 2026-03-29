@@ -171,14 +171,11 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 gradient-dark transform transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
-          <div className="flex items-center gap-3 p-6 border-b border-sidebar-border">
-            <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center">
-              <Car className="h-5 w-5 text-primary-foreground" />
+          <div>
+            <div className="bg-white flex items-center justify-center px-4 py-1">
+              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" />
             </div>
-            <div>
-              <h1 className="text-lg font-heading font-bold text-sidebar-foreground">Omni Tracely</h1>
-              <p className="text-xs text-sidebar-foreground/60">{role ? getAppRoleLabel(role) : 'Staff'}</p>
-            </div>
+           
             <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground">
               <X className="h-5 w-5" />
             </button>
@@ -219,7 +216,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                 </div>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="w-full justify-center border-sidebar-border text-sidebar-foreground/90 hover:text-sidebar-foreground hover:bg-sidebar-accent/40" onClick={handleSignOut}>
+            <Button variant="outline" size="sm" className="w-full gradient-primary justify-center border-sidebar-border text-sidebar-foreground/90 hover:text-sidebar-foreground hover:bg-sidebar-accent/40" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out Securely
             </Button>

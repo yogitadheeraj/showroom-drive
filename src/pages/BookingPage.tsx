@@ -551,12 +551,10 @@ const BookingPage = () => {
             <ArrowLeft className="h-4 w-4" />
             <span className="text-sm font-medium">Home</span>
           </Link>
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl gradient-primary flex items-center justify-center">
-              <Car className="h-4 w-4 text-primary-foreground" />
+           <div className="bg-white flex items-center justify-center py-1">
+              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-8 w-auto" />
             </div>
-            <h1 className="text-lg font-heading font-bold text-primary-foreground">Omni Tracely</h1>
-          </div>
+
           <Link to="/auth" className="flex items-center gap-1.5 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
             <Shield className="h-4 w-4" />
             <span className="text-sm font-medium">Staff</span>

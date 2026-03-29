@@ -67,15 +67,9 @@ const AuthPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center">
-            <Car className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-heading font-bold text-foreground">Omni Tracely</h1>
-            <p className="text-sm text-muted-foreground">Smart Test Drive & Lead Platform</p>
-          </div>
-        </div>
+           <div className="flex items-center justify-center py-1">
+              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" />
+            </div>
 
         <Card className="shadow-elevated">
           <CardHeader className="text-center">

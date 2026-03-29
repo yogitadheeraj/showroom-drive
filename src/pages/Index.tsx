@@ -615,20 +615,17 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <div className="gradient-dark relative overflow-hidden">
+      <div className="relative overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute top-[-20%] left-[-10%] w-[400px] md:w-[600px] h-[400px] md:h-[600px] bg-primary/8 rounded-full blur-[120px]" />
           <div className="absolute bottom-[-30%] right-[-5%] w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-accent/6 rounded-full blur-[100px]" />
           <div className="absolute top-[40%] left-[50%] w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-info/5 rounded-full blur-[80px]" />
         </div>
 
-        <nav className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
-              <Car className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+        <nav className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-2 flex items-center justify-between">
+          <div className="bg-white flex items-center justify-center py-1">
+              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-[50px] w-full" />
             </div>
-            <span className="text-lg sm:text-xl font-heading font-bold text-primary-foreground tracking-tight">Omni Tracely</span>
-          </div>
 
           {/* Desktop Nav */}
           <div className="hidden lg:flex items-center gap-3">
@@ -694,7 +691,7 @@ const Index = () => {
         )}
 
         {/* Hero Section */}
-        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-20 sm:pb-32 text-center">
+        <div className="relative gradient-dark  z-10 mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-20 sm:pb-32 text-center">
           <motion.div
             initial="hidden"
             animate="visible"
@@ -974,12 +971,9 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border py-8 sm:py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center gap-4 sm:gap-6 md:flex-row md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-              <Car className="h-4 w-4 text-primary-foreground" />
+           <div className="bg-white flex items-center justify-center py-1">
+              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-10 w-auto" />
             </div>
-            <span className="font-heading font-semibold text-foreground">Omni Tracely</span>
-          </div>
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
             <Link to="/dealer-onboarding" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Dealer Onboarding</Link>
             <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
