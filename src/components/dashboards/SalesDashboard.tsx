@@ -34,6 +34,11 @@ const SalesDashboard = () => {
   const [securityContacts, setSecurityContacts] = useState<Array<{ id: string; full_name: string; phone: string | null }>>([]);
   const { toast } = useToast();
 
+  const formatStatusLabel = (status: string) =>
+    status
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+
   useEffect(() => {
     fetchAssignedDrives();
   }, [user]);
@@ -464,13 +469,13 @@ const SalesDashboard = () => {
         </CardHeader>
         <CardContent className="pt-0">
           {securityContacts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No active security contacts found for this location.</p>
+            <p className="text-sm text-muted-foreground">No Active Security Contacts Found For This Location.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
               {securityContacts.map((contact) => (
                 <div key={contact.id} className="rounded-md border border-border bg-muted/30 p-2">
                   <p className="font-medium text-foreground">{contact.full_name}</p>
-                  <p className="text-xs text-muted-foreground">{contact.phone || 'No phone available'}</p>
+                  <p className="text-xs text-muted-foreground">{contact.phone || 'Phone Not Available'}</p>
                 </div>
               ))}
             </div>
@@ -509,7 +514,7 @@ const SalesDashboard = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>
-                      {td.status.replace('_', ' ')}
+                      {formatStatusLabel(td.status)}
                     </Badge>
                     {td.key_handed_at && td.status !== 'in_progress' && td.status !== 'completed' && (
                       <Badge className="text-xs bg-info/10 text-info">Vehicle Assigned</Badge>
@@ -524,15 +529,15 @@ const SalesDashboard = () => {
                 <div className="rounded-md border border-border/70 p-2 space-y-1.5 text-xs">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground">Vehicle Assigned</span>
-                    <span className="text-foreground">{td.key_handed_at ? `By ${profile?.full_name || 'Sales'} • ${new Date(td.key_handed_at).toLocaleString()}` : 'Pending'}</span>
+                    <span className="text-foreground">{td.key_handed_at ? `By ${profile?.full_name || 'Sales'} • ${new Date(td.key_handed_at).toLocaleString()}` : 'Pending Confirmation'}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground">Security Start</span>
-                    <span className="text-foreground">{td.security_checked_in_at ? `${securityEventsByDrive[td.id]?.checkInBy || 'Security'} • ${new Date(td.security_checked_in_at).toLocaleString()}` : 'Pending'}</span>
+                    <span className="text-foreground">{td.security_checked_in_at ? `${securityEventsByDrive[td.id]?.checkInBy || 'Security'} • ${new Date(td.security_checked_in_at).toLocaleString()}` : 'Pending Confirmation'}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground">Return Complete</span>
-                    <span className="text-foreground">{td.security_checked_out_at ? `${securityEventsByDrive[td.id]?.completedBy || securityEventsByDrive[td.id]?.checkOutBy || 'Security'} • ${new Date(td.security_checked_out_at).toLocaleString()}` : 'Pending'}</span>
+                    <span className="text-foreground">{td.security_checked_out_at ? `${securityEventsByDrive[td.id]?.completedBy || securityEventsByDrive[td.id]?.checkOutBy || 'Security'} • ${new Date(td.security_checked_out_at).toLocaleString()}` : 'Pending Confirmation'}</span>
                   </div>
                 </div>
 
@@ -598,7 +603,7 @@ const SalesDashboard = () => {
                     <span className="text-xs text-success">License uploaded</span>
                     {!td.customers?.driving_license_verified && (
                       <>
-                        <Badge variant="outline" className="text-warning text-xs">Pending verification</Badge>
+                        <Badge variant="outline" className="text-warning text-xs">Pending Verification</Badge>
                         <Label htmlFor={`reupload-${td.id}`} className="cursor-pointer">
                           <Button size="sm" className="bg-muted text-muted-foreground hover:bg-muted/80 text-xs h-7" asChild>
                             <span><RotateCcw className="h-3 w-3 mr-1" /> Re-upload</span>
@@ -634,7 +639,7 @@ const SalesDashboard = () => {
                   )}
                   {td.status === 'key_handover_to_sales' && (
                     <>
-                      <Badge className="bg-warning/10 text-warning text-xs"><Key className="h-3 w-3 mr-1" /> Key handover pending</Badge>
+                      <Badge className="bg-warning/10 text-warning text-xs"><Key className="h-3 w-3 mr-1" /> Key Handover Pending</Badge>
                       <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleComplete(td)}>
                         <FileCheck className="h-3.5 w-3.5 mr-1" /> Key Handover To Sales
                       </Button>
@@ -653,7 +658,7 @@ const SalesDashboard = () => {
             ))}
             </div>
             {filteredDrives.length === 0 && (
-              <p className="text-center text-muted-foreground py-8 text-sm">No test drives found for the selected filter</p>
+              <p className="text-center text-muted-foreground py-8 text-sm">No Test Drives Found For The Selected Filter.</p>
             )}
           </div>
         </CardContent>
@@ -675,7 +680,7 @@ const SalesDashboard = () => {
         </CardHeader>
         <CardContent>
           {assignedLogs.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">No logs found for your assigned test drives.</p>
+            <p className="text-sm text-muted-foreground py-4">No Logs Found For Your Assigned Test Drives.</p>
           ) : (
             <div className="space-y-2">
               {assignedLogs.map((log, index) => (

@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X } from 'lucide-react';
-import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
 import showcaseGro from '@/assets/showcase-gro-assign.jpg';
 import showcaseAdmin from '@/assets/showcase-admin-dashboard.jpg';
@@ -40,30 +40,8 @@ const showcaseItems = [
   },
 ];
 
-const AUTO_CYCLE_MS = 5000;
-
 const ProductShowcase = () => {
   const [activeIndex, setActiveIndex] = useState(0);
-  const [progress, setProgress] = useState(0);
-
-  const goTo = useCallback((idx: number) => {
-    setActiveIndex(idx);
-    setProgress(0);
-  }, []);
-
-  // Auto-cycle through tabs
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 100) {
-          setActiveIndex((prev) => (prev + 1) % showcaseItems.length);
-          return 0;
-        }
-        return p + (100 / (AUTO_CYCLE_MS / 50));
-      });
-    }, 50);
-    return () => clearInterval(interval);
-  }, [activeIndex]);
 
   const current = showcaseItems[activeIndex];
 
@@ -78,50 +56,31 @@ const ProductShowcase = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
         {/* Header */}
         <div className="text-center mb-14 md:mb-20">
-          <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-5"
-          >
-            <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-5">
+            <div className="h-1.5 w-1.5 rounded-full bg-primary" />
             <span className="text-xs font-semibold text-primary uppercase tracking-wider">See it in action</span>
-          </motion.div>
-          <motion.h2
-            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
-            className="text-3xl sm:text-4xl md:text-5xl font-heading font-bold text-foreground"
-          >
+          </div>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-heading font-bold text-foreground">
             How Omni Tracely Works
-          </motion.h2>
-          <motion.p
-            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
-            className="text-muted-foreground mt-4 max-w-xl mx-auto text-sm sm:text-base"
-          >
+          </h2>
+          <p className="text-muted-foreground mt-4 max-w-xl mx-auto text-sm sm:text-base">
             From booking to test drive — experience a seamless workflow designed for modern showrooms.
-          </motion.p>
+          </p>
         </div>
 
         {/* Tabs with progress */}
-        <motion.div
-          initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
-          className="flex justify-center gap-3 mb-12 md:mb-16 flex-wrap"
-        >
+        <div className="flex justify-center gap-3 mb-12 md:mb-16 flex-wrap">
           {showcaseItems.map((item, idx) => (
             <button
               key={item.id}
-              onClick={() => goTo(idx)}
-              className={`relative flex items-center gap-2.5 px-5 py-3 rounded-2xl text-sm font-medium transition-all duration-300 overflow-hidden ${
+              onClick={() => setActiveIndex(idx)}
+              className={`relative flex items-center gap-2.5 px-5 py-3 rounded-2xl text-sm font-medium overflow-hidden ${
                 activeIndex === idx
                   ? 'bg-card text-foreground shadow-elevated border border-primary/20'
                   : 'bg-muted/50 text-muted-foreground hover:text-foreground border border-transparent hover:border-border'
               }`}
             >
-              {/* Progress bar on active tab */}
-              {activeIndex === idx && (
-                <div
-                  className="absolute bottom-0 left-0 h-0.5 bg-primary transition-none rounded-full"
-                  style={{ width: `${progress}%` }}
-                />
-              )}
-              <span className={`flex items-center justify-center h-6 w-6 rounded-lg text-xs font-bold transition-colors ${
+              <span className={`flex items-center justify-center h-6 w-6 rounded-lg text-xs font-bold ${
                 activeIndex === idx
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground'
@@ -131,50 +90,38 @@ const ProductShowcase = () => {
               {item.label}
             </button>
           ))}
-        </motion.div>
+        </div>
 
         {/* Content area */}
-        <motion.div
-          initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={3}
-          className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 items-center"
-        >
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 items-center">
           {/* Text content */}
           <div className="lg:col-span-4 order-2 lg:order-1">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={current.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
-                className="space-y-5"
-              >
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider">
-                  Step {activeIndex + 1} of {showcaseItems.length}
-                </div>
-                <h3 className="text-2xl sm:text-3xl font-heading font-bold text-foreground leading-tight">
-                  {current.title}
-                </h3>
-                <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-                  {current.description}
-                </p>
-                {activeIndex === 0 && (
-                  <Link to="/book">
-                    <Button className="gradient-primary border-0 text-primary-foreground rounded-xl mt-2 w-full sm:w-auto shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-shadow">
-                      Try Booking <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
-                )}
-              </motion.div>
-            </AnimatePresence>
+            <div className="space-y-5">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider">
+                Step {activeIndex + 1} of {showcaseItems.length}
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-heading font-bold text-foreground leading-tight">
+                {current.title}
+              </h3>
+              <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
+                {current.description}
+              </p>
+              {activeIndex === 0 && (
+                <Link to="/book">
+                  <Button className="gradient-primary border-0 text-primary-foreground rounded-xl mt-2 w-full sm:w-auto shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-shadow">
+                    Try Booking <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              )}
+            </div>
 
             {/* Dot indicators */}
             <div className="flex gap-2 mt-8">
               {showcaseItems.map((_, idx) => (
                 <button
                   key={idx}
-                  onClick={() => goTo(idx)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
+                  onClick={() => setActiveIndex(idx)}
+                  className={`h-2 rounded-full ${
                     activeIndex === idx ? 'w-8 bg-primary' : 'w-2 bg-border hover:bg-muted-foreground/40'
                   }`}
                   aria-label={`Go to step ${idx + 1}`}
@@ -190,29 +137,22 @@ const ProductShowcase = () => {
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/10 via-transparent to-accent/10 pointer-events-none" />
               
               <div className="relative rounded-xl overflow-hidden">
-                <AnimatePresence mode="wait">
-                  <motion.img
-                    key={current.id}
-                    src={current.image}
-                    alt={current.title}
-                    loading="lazy"
-                    className="w-full h-auto"
-                    initial={{ opacity: 0, scale: 1.05 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.97 }}
-                    transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                  />
-                </AnimatePresence>
+                <img
+                  src={current.image}
+                  alt={current.title}
+                  loading="lazy"
+                  className="w-full h-auto"
+                />
               </div>
 
               {/* Floating badge */}
               <div className="absolute top-4 right-4 bg-card/90 backdrop-blur-sm border border-border px-3 py-1.5 rounded-full flex items-center gap-2 shadow-card">
-                <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                <div className="h-2 w-2 rounded-full bg-success" />
                 <span className="text-xs font-medium text-foreground">Live Preview</span>
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

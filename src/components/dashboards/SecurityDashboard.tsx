@@ -38,6 +38,11 @@ const SecurityDashboard = () => {
   const [viewFilter, setViewFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [securityLogsByDrive, setSecurityLogsByDrive] = useState<Record<string, any[]>>({});
 
+  const formatStatusLabel = (status: string) =>
+    status
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+
   useEffect(() => {
     fetchDrives();
   }, [profile]);
@@ -478,7 +483,7 @@ const SecurityDashboard = () => {
           { label: 'Total Test Drives', value: testDrives.length, icon: Shield, color: 'text-primary', bg: 'bg-primary/10' },
           { label: 'Checked In', value: testDrives.filter((testDrive) => testDrive.security_checked_in_at).length, icon: CheckCircle, color: 'text-success', bg: 'bg-success/10' },
           { label: 'License OK', value: testDrives.filter((testDrive) => testDrive.customers?.driving_license_verified).length, icon: FileCheck, color: 'text-info', bg: 'bg-info/10' },
-          { label: 'Pending', value: pendingCount, icon: AlertCircle, color: 'text-warning', bg: 'bg-warning/10', alert: pendingCount > 0 },
+          { label: 'Pending Verification', value: pendingCount, icon: AlertCircle, color: 'text-warning', bg: 'bg-warning/10', alert: pendingCount > 0 },
         ].map((stat) => {
           const Icon = stat.icon;
           return (
@@ -508,10 +513,10 @@ const SecurityDashboard = () => {
         </CardHeader>
         <CardContent className="pt-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs sm:text-sm">
-            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">1.</span> Verify license before movement.</div>
-            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">2.</span> Fill pre-drive inspection, then start in progress.</div>
-            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">3.</span> On return, submit post-drive inspection.</div>
-            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">4.</span> Return & complete to close the drive.</div>
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">1.</span> Verify License Before Vehicle Movement.</div>
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">2.</span> Complete Pre-Drive Inspection, Then Start In Progress.</div>
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">3.</span> Upon Return, Submit Post-Drive Inspection.</div>
+            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">4.</span> Return And Handover To Close The Drive.</div>
           </div>
         </CardContent>
       </Card>
@@ -553,7 +558,7 @@ const SecurityDashboard = () => {
                               : 'bg-muted text-muted-foreground'
                         }`}
                       >
-                        {testDrive.status.replace('_', ' ')}
+                        {formatStatusLabel(testDrive.status)}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
@@ -561,8 +566,8 @@ const SecurityDashboard = () => {
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{testDrive.scheduled_date} at {testDrive.scheduled_time}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
-                       <span className="flex items-center gap-1"><User className="h-3 w-3" />Sales: {testDrive.profiles?.full_name || 'Not assigned'}</span>
-                       <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{testDrive.profiles?.phone || 'No phone'}</span>
+                       <span className="flex items-center gap-1"><User className="h-3 w-3" />Sales: {testDrive.profiles?.full_name || 'Unassigned'}</span>
+                       <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{testDrive.profiles?.phone || 'Phone Not Available'}</span>
                     </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
@@ -599,7 +604,7 @@ const SecurityDashboard = () => {
                         )}
                       </div>
                     ) : (
-                      <Badge className="bg-muted text-muted-foreground text-xs">Checked Out</Badge>
+                      <Badge className="bg-muted text-muted-foreground text-xs">Checked Out By Security</Badge>
                     )}
                   </div>
                 </div>
@@ -610,7 +615,7 @@ const SecurityDashboard = () => {
                       <Badge className="bg-success/10 text-success text-xs">License Verified</Badge>
                     ) : (
                       <>
-                        <Badge className="bg-warning/10 text-warning text-xs">License Pending</Badge>
+                        <Badge className="bg-warning/10 text-warning text-xs">License Verification Pending</Badge>
                         <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => void openLicensePreview(testDrive.customer_id, testDrive.customers.driving_license_url)}>
                           <FileCheck className="h-3 w-3 mr-1" /> Verify
                         </Button>

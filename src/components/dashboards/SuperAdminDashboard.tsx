@@ -88,6 +88,11 @@ const SuperAdminDashboard = () => {
     customerDriveFailed: 0,
     customerDrivePending: 0,
   });
+
+  const formatStatusLabel = (status: string) =>
+    status
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
   const [failedAuthEmailLogs, setFailedAuthEmailLogs] = useState<any[]>([]);
   const [authFailuresDialogOpen, setAuthFailuresDialogOpen] = useState(false);
 
@@ -592,7 +597,7 @@ const SuperAdminDashboard = () => {
                         <td className="p-3 text-muted-foreground">{td.locations?.name}</td>
                         <td className="p-3 text-muted-foreground">{td.scheduled_date} {td.scheduled_time}</td>
                         <td className="p-3">
-                          <Badge variant="secondary" className={statusColor[td.status] || ''}>{td.status.replace('_', ' ')}</Badge>
+                          <Badge variant="secondary" className={statusColor[td.status] || ''}>{formatStatusLabel(td.status)}</Badge>
                         </td>
                         <td className="p-3">
                           <Badge variant="outline" className="capitalize">{td.source}</Badge>
@@ -619,7 +624,7 @@ const SuperAdminDashboard = () => {
                             <Phone className="h-3 w-3" />{td.customers?.phone}
                           </div>
                         </div>
-                        <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>{td.status.replace('_', ' ')}</Badge>
+                        <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>{formatStatusLabel(td.status)}</Badge>
                       </div>
                       <div className="grid grid-cols-2 gap-1.5 text-xs">
                         <div className="flex items-center gap-1"><Car className="h-3 w-3 text-muted-foreground" /><span className="text-foreground truncate">{td.vehicles?.brand} {td.vehicles?.model}</span></div>

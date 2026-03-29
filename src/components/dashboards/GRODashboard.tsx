@@ -13,6 +13,10 @@ const GRODashboard = () => {
   const { profile } = useAuth();
   const [stats, setStats] = useState({ today: 0, upcoming: 0, completed: 0 });
   const [testDrives, setTestDrives] = useState<any[]>([]);
+  const formatStatusLabel = (status: string) =>
+    status
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
 
   useEffect(() => {
     fetchTestDrives();
@@ -111,7 +115,7 @@ const GRODashboard = () => {
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-medium text-foreground text-sm sm:text-base">{td.customers?.full_name}</p>
                           <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>
-                            {td.status.replace('_', ' ')}
+                             {formatStatusLabel(td.status)}
                           </Badge>
                           <Badge variant="outline" className="capitalize text-xs">{td.source}</Badge>
                         </div>
