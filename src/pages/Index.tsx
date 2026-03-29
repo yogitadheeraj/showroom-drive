@@ -1,12 +1,16 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
 import showcaseGro from '@/assets/showcase-gro-assign.jpg';
 import showcaseAdmin from '@/assets/showcase-admin-dashboard.jpg';
 import EnquiryWidget from '@/components/EnquiryWidget';
+import { toast } from 'sonner';
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -39,6 +43,453 @@ const showcaseItems = [
     image: showcaseAdmin,
   },
 ];
+
+type HomeBrandCard = {
+  id: string;
+  name: string;
+  description: string;
+  logoUrl: string | null;
+  dealerName: string;
+  dealerPhone: string | null;
+  dealerEmail: string | null;
+  models: Array<{ name: string; vehicleId: string | null }>;
+  recommendedModels: Array<{ name: string; brand: string }>;
+};
+
+const BrandMarketplace = () => {
+  const [brandCards, setBrandCards] = useState<HomeBrandCard[]>([]);
+  const [selectedBrandTab, setSelectedBrandTab] = useState('All Brands');
+  const [selectedCompareVehicleIds, setSelectedCompareVehicleIds] = useState<string[]>([]);
+  const [brandEnquiry, setBrandEnquiry] = useState<Record<string, { name: string; phone: string; message: string }>>({});
+  const [sendingBrandEnquiry, setSendingBrandEnquiry] = useState<Record<string, boolean>>({});
+  const [sentBrandEnquiry, setSentBrandEnquiry] = useState<Record<string, boolean>>({});
+  const [openEnquiryBrandId, setOpenEnquiryBrandId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadBrands = async () => {
+      const [{ data: brands }, { data: vehicles }, { data: dealers }, { data: allActiveVehicles }] = await Promise.all([
+        supabase
+          .from('brands')
+          .select('id, dealer_id, name, description, logo_url')
+          .eq('is_active', true)
+          .order('name', { ascending: true }),
+        supabase
+          .from('vehicles')
+          .select('id, brand, model')
+          .eq('is_active', true)
+          .eq('is_available', true),
+        supabase
+          .from('dealers')
+          .select('id, name, contact_phone, contact_email')
+          .eq('is_active', true),
+        supabase
+          .from('vehicles')
+          .select('brand, model')
+          .eq('is_active', true),
+      ]);
+
+      const dealersById = (dealers || []).reduce((acc: Record<string, any>, dealer: any) => {
+        acc[dealer.id] = dealer;
+        return acc;
+      }, {});
+
+      const modelsByBrand = new Map<string, Map<string, string>>();
+      (vehicles || []).forEach((vehicle: any) => {
+        const brandName = (vehicle.brand || '').trim();
+        const modelName = (vehicle.model || '').trim();
+        if (!brandName || !modelName) return;
+        if (!modelsByBrand.has(brandName)) modelsByBrand.set(brandName, new Map());
+        const byModel = modelsByBrand.get(brandName)!;
+        if (!byModel.has(modelName)) byModel.set(modelName, vehicle.id);
+      });
+
+      const allModelsByBrand = new Map<string, Set<string>>();
+      (allActiveVehicles || []).forEach((vehicle: any) => {
+        const brandName = (vehicle.brand || '').trim();
+        const modelName = (vehicle.model || '').trim();
+        if (!brandName || !modelName) return;
+        if (!allModelsByBrand.has(brandName)) allModelsByBrand.set(brandName, new Set());
+        allModelsByBrand.get(brandName)?.add(modelName);
+      });
+
+      const dbBrandCards = (brands || []).map((brand: any) => {
+        const availableModelNames = new Set(Array.from(modelsByBrand.get(brand.name)?.keys() || []));
+        const recommended = Array.from(allModelsByBrand.get(brand.name) || [])
+          .filter((modelName) => !availableModelNames.has(modelName))
+          .slice(0, 10)
+          .map((modelName) => ({ name: modelName, brand: brand.name }));
+
+        return {
+        id: brand.id,
+        name: brand.name,
+        description: brand.description || `Explore ${brand.name} models and book your test drive instantly.`,
+        logoUrl: brand.logo_url || null,
+        dealerName: dealersById[brand.dealer_id]?.name || 'Dealer Not Available',
+        dealerPhone: dealersById[brand.dealer_id]?.contact_phone || null,
+        dealerEmail: dealersById[brand.dealer_id]?.contact_email || null,
+        models: Array.from(modelsByBrand.get(brand.name)?.entries() || []).map(([modelName, vehicleId]) => ({
+          name: modelName,
+          vehicleId: vehicleId || null,
+        })),
+        recommendedModels: recommended,
+      };
+      });
+
+      const knownBrandNames = new Set(dbBrandCards.map((brand) => brand.name));
+      const fallbackCards = Array.from(modelsByBrand.entries())
+        .filter(([brandName]) => !knownBrandNames.has(brandName))
+        .map(([brandName, models], index) => ({
+          id: `fallback-${index}-${brandName.toLowerCase().replace(/\s+/g, '-')}`,
+          name: brandName,
+          description: `Discover ${brandName} models available for test drives near you.`,
+          logoUrl: null,
+          dealerName: 'Dealer Not Available',
+          dealerPhone: null,
+          dealerEmail: null,
+          models: Array.from(models.entries()).map(([modelName, vehicleId]) => ({
+            name: modelName,
+            vehicleId: vehicleId || null,
+          })),
+          recommendedModels: Array.from(allModelsByBrand.get(brandName) || [])
+            .filter((modelName) => !models.has(modelName))
+            .slice(0, 10)
+            .map((modelName) => ({ name: modelName, brand: brandName })),
+        }));
+
+      setBrandCards([...dbBrandCards, ...fallbackCards]);
+    };
+
+    void loadBrands();
+  }, []);
+
+  const brandTabs = ['All Brands', ...Array.from(new Set(brandCards.map((brand) => brand.name))).sort((a, b) => a.localeCompare(b))];
+
+  useEffect(() => {
+    if (!brandTabs.includes(selectedBrandTab)) {
+      setSelectedBrandTab('All Brands');
+    }
+  }, [brandTabs, selectedBrandTab]);
+
+  const visibleBrandCards = selectedBrandTab === 'All Brands'
+    ? brandCards
+    : brandCards.filter((brand) => brand.name === selectedBrandTab);
+
+  const toggleCompareVehicle = (vehicleId: string) => {
+    setSelectedCompareVehicleIds((prev) => {
+      if (prev.includes(vehicleId)) {
+        return prev.filter((id) => id !== vehicleId);
+      }
+      if (prev.length >= 4) {
+        toast.error('You Can Compare Up To 4 Vehicles.');
+        return prev;
+      }
+      return [...prev, vehicleId];
+    });
+  };
+
+  const updateBrandEnquiry = (brandId: string, field: 'name' | 'phone' | 'message', value: string) => {
+    setBrandEnquiry((prev) => ({
+      ...prev,
+      [brandId]: {
+        name: prev[brandId]?.name || '',
+        phone: prev[brandId]?.phone || '',
+        message: prev[brandId]?.message || '',
+        [field]: value,
+      },
+    }));
+  };
+
+  const submitBrandEnquiry = async (brand: HomeBrandCard) => {
+    const payload = brandEnquiry[brand.id] || { name: '', phone: '', message: '' };
+    if (!payload.name.trim() || !payload.phone.trim() || !payload.message.trim()) {
+      toast.error('Please fill name, phone and message.');
+      return;
+    }
+
+    setSendingBrandEnquiry((prev) => ({ ...prev, [brand.id]: true }));
+
+    try {
+      let { data: customer } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('phone', payload.phone.trim())
+        .maybeSingle();
+
+      if (!customer) {
+        const { data: newCustomer, error: createErr } = await supabase
+          .from('customers')
+          .insert({
+            full_name: payload.name.trim(),
+            phone: payload.phone.trim(),
+          })
+          .select('id')
+          .single();
+
+        if (createErr) throw createErr;
+        customer = newCustomer;
+      }
+
+      const { error } = await supabase.from('communications').insert({
+        customer_id: customer.id,
+        type: 'email',
+        purpose: 'custom',
+        sent_to: payload.phone.trim(),
+        subject: `Marketplace Enquiry - ${brand.name}`,
+        body: payload.message.trim(),
+        status: 'pending',
+      });
+
+      if (error) throw error;
+
+      setSentBrandEnquiry((prev) => ({ ...prev, [brand.id]: true }));
+      setBrandEnquiry((prev) => ({
+        ...prev,
+        [brand.id]: { name: '', phone: '', message: '' },
+      }));
+      toast.success('Enquiry Sent Successfully.');
+    } catch {
+      toast.error('Unable To Send Enquiry. Please Try Again.');
+    } finally {
+      setSendingBrandEnquiry((prev) => ({ ...prev, [brand.id]: false }));
+    }
+  };
+
+  if (brandCards.length === 0) return null;
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="text-center mb-10 md:mb-14">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground">
+          Test Drives By Brand
+        </h2>
+        <p className="text-sm sm:text-base text-muted-foreground mt-4 max-w-2xl mx-auto">
+          Explore brand-wise listings like a marketplace, compare available models, and book your preferred test drive instantly.
+        </p>
+
+        <div className="mt-6 flex gap-2 overflow-x-auto pb-1 justify-start sm:justify-center">
+          {brandTabs.map((brandTab) => (
+            <button
+              key={brandTab}
+              type="button"
+              onClick={() => setSelectedBrandTab(brandTab)}
+              className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs sm:text-sm transition-colors ${
+                selectedBrandTab === brandTab
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5'
+              }`}
+            >
+              {brandTab}
+            </button>
+          ))}
+        </div>
+
+        {selectedCompareVehicleIds.length > 0 && (
+          <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-foreground">
+              {selectedCompareVehicleIds.length} Vehicle{selectedCompareVehicleIds.length > 1 ? 's' : ''} Selected For Compare
+            </p>
+            <div className="flex gap-2">
+              <Link to={`/compare?ids=${selectedCompareVehicleIds.join(',')}`}>
+                <Button size="sm" className="gap-2">
+                  <GitCompareArrows className="h-4 w-4" />
+                  Compare Selected
+                </Button>
+              </Link>
+              <Button size="sm" variant="outline" onClick={() => setSelectedCompareVehicleIds([])}>
+                Clear
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        {visibleBrandCards.map((brand) => {
+          const featuredModel = brand.models[0];
+          const quickModels = brand.models.slice(0, 4);
+          const recommendationModels = brand.recommendedModels.slice(0, 8);
+          const compareIds = brand.models
+            .map((model) => model.vehicleId)
+            .filter((id): id is string => Boolean(id))
+            .slice(0, 4);
+
+          return (
+            <div key={brand.id} className="p-5 sm:p-6 rounded-2xl border border-border bg-card shadow-card hover:shadow-elevated transition-all duration-300 h-full flex flex-col">
+              <div className="flex items-center gap-3 mb-4">
+                {brand.logoUrl ? (
+                  <img src={brand.logoUrl} alt={`${brand.name} logo`} className="h-11 w-11 rounded-lg object-contain border border-border bg-background p-1" loading="lazy" />
+                ) : (
+                  <div className="h-11 w-11 rounded-lg bg-primary/10 text-primary font-bold flex items-center justify-center">
+                    {brand.name.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg">{brand.name}</h3>
+                  <p className="text-xs text-muted-foreground">{brand.models.length} Models Available</p>
+                </div>
+              </div>
+
+              <div className="flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed min-h-[40px]">{brand.description}</p>
+
+                <div className="mt-3 rounded-lg border border-border bg-muted/20 p-2.5 space-y-1.5">
+                  <p className="text-xs text-foreground font-medium">Dealer: {brand.dealerName}</p>
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Phone className="h-3 w-3" />
+                      {brand.dealerPhone || 'Phone Not Available'}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Mail className="h-3 w-3" />
+                      {brand.dealerEmail || 'Email Not Available'}
+                    </span>
+                  </div>
+                </div>
+
+                {quickModels.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {quickModels.map((model) => (
+                      <div key={`${brand.id}-${model.name}`} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2 py-1">
+                        <Link to={`/book?modelname=${encodeURIComponent(`${brand.name} ${model.name}`)}`}>
+                          <span className="text-[11px] text-foreground hover:text-primary transition-colors">
+                            {model.name}
+                          </span>
+                        </Link>
+                        {model.vehicleId && (
+                          <button
+                            type="button"
+                            onClick={() => toggleCompareVehicle(model.vehicleId!)}
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] border transition-colors ${
+                              selectedCompareVehicleIds.includes(model.vehicleId)
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
+                            }`}
+                          >
+                            {selectedCompareVehicleIds.includes(model.vehicleId) ? 'Added' : 'Add'}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {quickModels.length === 0 && (
+                  <div className="mt-4">
+                    {recommendationModels.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs font-medium text-foreground mb-2">You May Be Interested In</p>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                          {recommendationModels.map((model) => (
+                            <Link
+                              key={`${brand.id}-rec-${model.name}`}
+                              to={`/book?modelname=${encodeURIComponent(`${model.brand} ${model.name}`)}`}
+                              className="min-w-[140px] rounded-lg border border-border bg-background px-2.5 py-2 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                            >
+                              <p className="text-[11px] text-muted-foreground">{model.brand}</p>
+                              <p className="text-xs font-medium text-foreground truncate">{model.name}</p>
+                              <p className="text-[10px] text-primary mt-1">Book Test Drive</p>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {openEnquiryBrandId === brand.id && (
+                      <div className="rounded-xl border border-border bg-muted/20 p-3 sm:p-4">
+                        <div className="flex items-start gap-2 mb-3">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                            <MessageCircle className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">No Models Available Right Now</p>
+                            <p className="text-xs text-muted-foreground">Share your details and our team will reach out.</p>
+                          </div>
+                        </div>
+
+                        {sentBrandEnquiry[brand.id] ? (
+                          <p className="text-xs text-success font-medium">Thanks! Your enquiry has been shared with our team.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            <Input
+                              value={brandEnquiry[brand.id]?.name || ''}
+                              onChange={(event) => updateBrandEnquiry(brand.id, 'name', event.target.value)}
+                              placeholder="Your Name"
+                              className="h-9"
+                            />
+                            <Input
+                              value={brandEnquiry[brand.id]?.phone || ''}
+                              onChange={(event) => updateBrandEnquiry(brand.id, 'phone', event.target.value)}
+                              placeholder="Phone Number"
+                              className="h-9"
+                            />
+                            <Textarea
+                              value={brandEnquiry[brand.id]?.message || ''}
+                              onChange={(event) => updateBrandEnquiry(brand.id, 'message', event.target.value)}
+                              placeholder={`I want a ${brand.name} test drive when models are available.`}
+                              className="min-h-[72px]"
+                            />
+                            <Button
+                              className="w-full rounded-xl gap-2"
+                              onClick={() => void submitBrandEnquiry(brand)}
+                              disabled={Boolean(sendingBrandEnquiry[brand.id])}
+                            >
+                              <Send className="h-4 w-4" />
+                              {sendingBrandEnquiry[brand.id] ? 'Sending...' : 'Send Enquiry'}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-border/60 space-y-2">
+                {quickModels.length > 0 && compareIds.length >= 2 && (
+                  <Link to={`/compare?ids=${compareIds.join(',')}`}>
+                    <Button variant="outline" className="w-full rounded-xl gap-2">
+                      <GitCompareArrows className="h-4 w-4" />
+                      Compare From List
+                    </Button>
+                  </Link>
+                )}
+
+                {featuredModel ? (
+                  <Link to={`/book?modelname=${encodeURIComponent(`${brand.name} ${featuredModel.name}`)}`}>
+                    <Button className="w-full gradient-primary border-0 text-primary-foreground rounded-xl gap-2">
+                      Book From Marketplace
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                ) : (
+                  <>
+                    <Button
+                      className="w-full rounded-xl gap-2"
+                      variant={openEnquiryBrandId === brand.id ? 'outline' : 'default'}
+                      onClick={() => setOpenEnquiryBrandId((prev) => (prev === brand.id ? null : brand.id))}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      {openEnquiryBrandId === brand.id ? 'Close Enquiry' : 'Enquiry For This Brand'}
+                    </Button>
+                    <Button className="w-full rounded-xl" variant="outline" disabled>
+                      Booking Opens When Models Are Live
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {visibleBrandCards.length === 0 && (
+        <div className="mt-6 rounded-xl border border-border bg-muted/20 p-6 text-center">
+          <p className="text-sm text-muted-foreground">No Brands Found For The Selected Tab.</p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ProductShowcase = () => {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -372,6 +823,9 @@ const Index = () => {
           })}
         </div>
       </div>
+
+      {/* Brand Marketplace */}
+      <BrandMarketplace />
 
       {/* Product Showcase */}
       <ProductShowcase />

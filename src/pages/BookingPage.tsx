@@ -8,14 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import VehicleSpecCard from '@/components/booking/VehicleSpecCard';
-import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows, Map as MapIcon, ExternalLink, CalendarIcon } from 'lucide-react';
+import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows, Map as MapIcon, ExternalLink } from 'lucide-react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { format, isBefore, startOfDay } from 'date-fns';
-import { cn } from '@/lib/utils';
 import { checkAndReleaseNoShowBookings, getAvailableTimeSlots, getAvailableVehicles } from '@/lib/slotAvailability';
 
 const STEPS = [
@@ -52,6 +50,14 @@ const getLocationSlotDuration = (location: any) => {
   return 30;
 };
 
+const normalizeModelToken = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const QUICK_LOCATION_PAGE_SIZE = 4;
+
 const BookingPage = () => {
   const [searchParams] = useSearchParams();
   const [step, setStep] = useState(0);
@@ -71,12 +77,12 @@ const BookingPage = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(30);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
   const [timeSlots, setTimeSlots] = useState<Array<{ startTime: string; endTime: string }>>([]);
   const [availableVehiclesForSlot, setAvailableVehiclesForSlot] = useState<any[]>([]);
   const [loadingVehiclesForSlot, setLoadingVehiclesForSlot] = useState(false);
+  const [quickLocationPage, setQuickLocationPage] = useState(0);
   const { toast } = useToast();
 
   // Auto-select vehicle from URL (coming from compare page)
@@ -92,6 +98,27 @@ const BookingPage = () => {
           locationId: v.location_id,
         }));
       }
+    }
+
+    const modelName = searchParams.get('modelname') || searchParams.get('modelName');
+    if (!modelName || allVehicles.length === 0) return;
+
+    const normalizedParam = normalizeModelToken(decodeURIComponent(modelName));
+    const matched = allVehicles.find((vehicle) => {
+      const modelOnly = normalizeModelToken(vehicle.model || '');
+      const brandAndModel = normalizeModelToken(`${vehicle.brand || ''} ${vehicle.model || ''}`);
+      return modelOnly === normalizedParam || brandAndModel === normalizedParam;
+    });
+
+    if (matched) {
+      setFormData((prev) => ({
+        ...prev,
+        selectedModel: `${matched.brand}|${matched.model}`,
+        locationId: '',
+        vehicleId: '',
+        scheduledDate: prev.scheduledDate,
+      }));
+      setStep((prevStep) => (prevStep < 1 ? 1 : prevStep));
     }
   }, [searchParams, allVehicles]);
 
@@ -322,6 +349,53 @@ const BookingPage = () => {
     });
   }, [availableLocations, formData.scheduledDate, operatingHours, specialPeriods]);
 
+  const quickLocationTotalPages = Math.max(1, Math.ceil(openLocationsForDate.length / QUICK_LOCATION_PAGE_SIZE));
+  const pagedQuickLocations = useMemo(() => {
+    const startIndex = quickLocationPage * QUICK_LOCATION_PAGE_SIZE;
+    return openLocationsForDate.slice(startIndex, startIndex + QUICK_LOCATION_PAGE_SIZE);
+  }, [openLocationsForDate, quickLocationPage]);
+
+  useEffect(() => {
+    setQuickLocationPage(0);
+  }, [formData.scheduledDate, formData.selectedModel]);
+
+  useEffect(() => {
+    if (quickLocationPage > quickLocationTotalPages - 1) {
+      setQuickLocationPage(Math.max(0, quickLocationTotalPages - 1));
+    }
+  }, [quickLocationPage, quickLocationTotalPages]);
+
+  const quickPreviewTimeSlots = useMemo(() => {
+    if (!formData.scheduledDate || openLocationsForDate.length === 0) return [] as string[];
+
+    const slotSet = new Set<string>();
+
+    openLocationsForDate.forEach((loc: any) => {
+      const hours = getEffectiveHoursForDate(loc.id, formData.scheduledDate);
+      if (!hours || hours.is_closed || !hours.open_time || !hours.close_time) return;
+
+      const [openHour, openMinute] = hours.open_time.substring(0, 5).split(':').map(Number);
+      const [closeHour, closeMinute] = hours.close_time.substring(0, 5).split(':').map(Number);
+      const openTotal = (openHour * 60) + openMinute;
+      const closeTotal = (closeHour * 60) + closeMinute;
+      const duration = getLocationSlotDuration(loc);
+
+      for (let mins = openTotal; mins + duration <= closeTotal; mins += duration) {
+        const hh = String(Math.floor(mins / 60)).padStart(2, '0');
+        const mm = String(mins % 60).padStart(2, '0');
+        slotSet.add(`${hh}:${mm}`);
+      }
+    });
+
+    return Array.from(slotSet)
+      .sort((a, b) => {
+        const [ah, am] = a.split(':').map(Number);
+        const [bh, bm] = b.split(':').map(Number);
+        return (ah * 60 + am) - (bh * 60 + bm);
+      })
+      .slice(0, 24);
+  }, [formData.scheduledDate, openLocationsForDate, operatingHours, specialPeriods]);
+
   const hasOpenLocationOnSelectedDate = useMemo(() => {
     if (!formData.scheduledDate) return false;
     return openLocationsForDate.length > 0;
@@ -530,7 +604,7 @@ const BookingPage = () => {
             </CardTitle>
             <CardDescription>
               {step === 0 && 'Browse available models and select one to test drive'}
-              {step === 1 && 'When would you like to visit?'}
+              {step === 1 && 'Pick a date and quickly choose location and time directly from the calendar view'}
               {step === 2 && 'Select the showroom nearest to you'}
               {step === 3 && 'Available time slots for your selected date'}
               {step === 4 && 'Fill in your contact details to confirm'}
@@ -611,43 +685,24 @@ const BookingPage = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="date">Preferred Date</Label>
-                  <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="date"
-                        variant="outline"
-                        className={cn(
-                          'w-full justify-start text-left font-normal text-base',
-                          !formData.scheduledDate && 'text-muted-foreground'
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formData.scheduledDate
-                          ? format(new Date(`${formData.scheduledDate}T00:00:00`), 'PPP')
-                          : 'Pick a date'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={formData.scheduledDate ? new Date(`${formData.scheduledDate}T00:00:00`) : undefined}
-                        onSelect={(d) => {
-                          if (!d) return;
-                          setFormData(p => ({
-                            ...p,
-                            scheduledDate: format(d, 'yyyy-MM-dd'),
-                            scheduledTime: '',
-                            locationId: '',
-                            vehicleId: '',
-                          }));
-                          setDatePickerOpen(false);
-                        }}
-                        disabled={isDateUnavailable}
-                        initialFocus
-                        className={cn('p-3 pointer-events-auto')}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <div className="rounded-xl border border-border bg-card p-2">
+                    <Calendar
+                      mode="single"
+                      selected={formData.scheduledDate ? new Date(`${formData.scheduledDate}T00:00:00`) : undefined}
+                      onSelect={(d) => {
+                        if (!d) return;
+                        setFormData(p => ({
+                          ...p,
+                          scheduledDate: format(d, 'yyyy-MM-dd'),
+                          scheduledTime: '',
+                          locationId: '',
+                          vehicleId: '',
+                        }));
+                      }}
+                      disabled={isDateUnavailable}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Dates are enabled only when at least one location is open (including special schedules).
                   </p>
@@ -664,12 +719,192 @@ const BookingPage = () => {
                     All locations are closed on this date. Please choose another date.
                   </p>
                 )}
+
+                {formData.scheduledDate && hasOpenLocationOnSelectedDate && (
+                  <div className="space-y-4 pt-1">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label>Quick Select Location</Label>
+                        {quickLocationTotalPages > 1 && (
+                          <div className="flex items-center gap-2 text-xs">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2"
+                              onClick={() => setQuickLocationPage((page) => Math.max(0, page - 1))}
+                              disabled={quickLocationPage === 0}
+                            >
+                              Previous Locations
+                            </Button>
+                            <span className="text-muted-foreground">
+                              {quickLocationPage + 1}/{quickLocationTotalPages}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2"
+                              onClick={() => setQuickLocationPage((page) => Math.min(quickLocationTotalPages - 1, page + 1))}
+                              disabled={quickLocationPage >= quickLocationTotalPages - 1}
+                            >
+                              Next Locations
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid gap-2">
+                        {pagedQuickLocations.map((loc) => {
+                          const isSelected = formData.locationId === loc.id;
+                          const locVehicles = modelVehicles.filter((v) => v.location_id === loc.id);
+                          const hours = getEffectiveHoursForDate(loc.id, formData.scheduledDate);
+
+                          return (
+                            <button
+                              key={loc.id}
+                              type="button"
+                              onClick={() => {
+                                const firstVehicle = locVehicles[0];
+                                setFormData((p) => ({
+                                  ...p,
+                                  locationId: loc.id,
+                                  vehicleId: firstVehicle?.id || '',
+                                  scheduledTime: '',
+                                }));
+                              }}
+                              className={`w-full text-left p-3 rounded-xl border transition-all ${
+                                isSelected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/30 bg-card'
+                              }`}
+                            >
+                              <p className="font-medium text-foreground text-sm">{loc.name}</p>
+                              <p className="text-xs text-muted-foreground">{loc.address}, {loc.city}</p>
+                              {hours && !hours.is_closed && (
+                                <p className="text-[11px] text-muted-foreground mt-1">
+                                  Hours: {hours.open_time?.substring(0, 5)} - {hours.close_time?.substring(0, 5)}
+                                </p>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {formData.locationId && (
+                      <div className="space-y-2">
+                        <Label>Quick Select Time</Label>
+                        {loadingTimeSlots ? (
+                          <p className="text-sm text-muted-foreground">Loading available slots...</p>
+                        ) : timeSlots.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No available time slots for this location on the selected date.</p>
+                        ) : (
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                            {timeSlots.map((slot) => {
+                              const isSelected = formData.scheduledTime === slot.startTime;
+                              const [h] = slot.startTime.split(':').map(Number);
+                              const period = h < 12 ? 'AM' : 'PM';
+                              const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                              const displayTime = `${displayH}:${slot.startTime.split(':')[1]} ${period}`;
+
+                              return (
+                                <button
+                                  key={slot.startTime}
+                                  type="button"
+                                  onClick={() => setFormData((p) => ({ ...p, scheduledTime: slot.startTime }))}
+                                  className={`py-2.5 px-3 rounded-lg text-sm font-medium transition-all ${
+                                    isSelected ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground border border-border'
+                                  }`}
+                                >
+                                  {displayTime}
+                                  <span className="block text-[10px] opacity-80">until {slot.endTime}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {formData.locationId && (
+                          <button
+                            type="button"
+                            onClick={() => setStep(3)}
+                            className="text-left text-xs text-primary hover:underline"
+                          >
+                            Need More Time Options? View Full Time List
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {!formData.locationId && quickPreviewTimeSlots.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Quick Select Time</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Preview time options shown below. Select a location to confirm exact slot availability.
+                        </p>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {quickPreviewTimeSlots.map((startTime) => {
+                            const [h, m] = startTime.split(':').map(Number);
+                            const period = h < 12 ? 'AM' : 'PM';
+                            const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                            const displayTime = `${displayH}:${String(m).padStart(2, '0')} ${period}`;
+
+                            return (
+                              <button
+                                key={startTime}
+                                type="button"
+                                disabled
+                                className="py-2.5 px-3 rounded-lg text-sm font-medium bg-muted text-muted-foreground border border-border opacity-80"
+                              >
+                                {displayTime}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Select a location above to unlock full time-list view.
+                        </p>
+                      </div>
+                    )}
+
+                    {formData.locationId && formData.scheduledTime && (
+                      <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                        <Button type="button" className="gradient-primary border-0 text-primary-foreground" onClick={() => setStep(4)}>
+                          Continue To Your Info
+                        </Button>
+                        <Button type="button" variant="outline" onClick={() => setStep(3)}>
+                          View Full Time Selection
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
             {/* Step 2: Location & Variant Selection */}
             {step === 2 && (
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Preferred Date</Label>
+                  <div className="rounded-xl border border-border bg-card p-2">
+                    <Calendar
+                      mode="single"
+                      selected={formData.scheduledDate ? new Date(`${formData.scheduledDate}T00:00:00`) : undefined}
+                      onSelect={(d) => {
+                        if (!d) return;
+                        setFormData((p) => ({
+                          ...p,
+                          scheduledDate: format(d, 'yyyy-MM-dd'),
+                          scheduledTime: '',
+                          locationId: '',
+                          vehicleId: '',
+                        }));
+                      }}
+                      disabled={isDateUnavailable}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </div>
+                </div>
+
                 {openLocationsForDate.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No locations have this model available. Try a different model.</p>
                 ) : (
@@ -771,6 +1006,32 @@ const BookingPage = () => {
             {/* Step 3: Time Selection */}
             {step === 3 && (
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Preferred Date</Label>
+                  <div className="rounded-xl border border-border bg-card p-2">
+                    <Calendar
+                      mode="single"
+                      selected={formData.scheduledDate ? new Date(`${formData.scheduledDate}T00:00:00`) : undefined}
+                      onSelect={(d) => {
+                        if (!d) return;
+                        setFormData((p) => ({
+                          ...p,
+                          scheduledDate: format(d, 'yyyy-MM-dd'),
+                          scheduledTime: '',
+                          locationId: '',
+                          vehicleId: '',
+                        }));
+                        setStep(2);
+                      }}
+                      disabled={isDateUnavailable}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Changing date reloads locations and slot availability.
+                  </p>
+                </div>
+
                 {formData.scheduledDate && (
                   <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
                     <p className="text-sm font-medium text-foreground">

@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Car, X, Plus, ArrowLeft, ArrowRight, Gauge, Zap, Battery, Fuel, Users, Timer, ArrowUpRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import { Car, X, Plus, ArrowLeft, ArrowRight, Gauge, Zap, Battery, Fuel, Users, Timer, ArrowUpRight, Send } from 'lucide-react';
 
 const MAX_COMPARE = 4;
 
@@ -31,6 +34,10 @@ const ComparePage = () => {
   const navigate = useNavigate();
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [openEnquiryVehicleId, setOpenEnquiryVehicleId] = useState<string | null>(null);
+  const [availabilityEnquiry, setAvailabilityEnquiry] = useState<Record<string, { name: string; phone: string; message: string }>>({});
+  const [sendingAvailabilityEnquiry, setSendingAvailabilityEnquiry] = useState<Record<string, boolean>>({});
+  const [sentAvailabilityEnquiry, setSentAvailabilityEnquiry] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     supabase.from('vehicles').select('*, locations(name)').eq('is_active', true).order('brand').then(({ data }) => {
@@ -49,6 +56,14 @@ const ComparePage = () => {
     [selectedIds, allVehicles]
   );
 
+  const visibleVehicles = useMemo(
+    () =>
+      openEnquiryVehicleId
+        ? selectedVehicles.filter((v: any) => v.id === openEnquiryVehicleId)
+        : selectedVehicles,
+    [selectedVehicles, openEnquiryVehicleId]
+  );
+
   const availableToAdd = useMemo(() =>
     allVehicles.filter(v => !selectedIds.includes(v.id)),
     [allVehicles, selectedIds]
@@ -60,6 +75,75 @@ const ComparePage = () => {
 
   const removeVehicle = (id: string) => {
     setSelectedIds(prev => prev.filter(i => i !== id));
+  };
+
+  const updateAvailabilityEnquiry = (vehicleId: string, field: 'name' | 'phone' | 'message', value: string) => {
+    setAvailabilityEnquiry((prev) => ({
+      ...prev,
+      [vehicleId]: {
+        name: prev[vehicleId]?.name || '',
+        phone: prev[vehicleId]?.phone || '',
+        message: prev[vehicleId]?.message || '',
+        [field]: value,
+      },
+    }));
+  };
+
+  const submitAvailabilityEnquiry = async (vehicle: any) => {
+    if (sendingAvailabilityEnquiry[vehicle.id]) return;
+
+    const payload = availabilityEnquiry[vehicle.id] || { name: '', phone: '', message: '' };
+    if (!payload.name.trim() || !payload.phone.trim() || !payload.message.trim()) {
+      toast.error('Please fill name, phone and message.');
+      return;
+    }
+
+    setSendingAvailabilityEnquiry((prev) => ({ ...prev, [vehicle.id]: true }));
+
+    try {
+      let { data: customer } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('phone', payload.phone.trim())
+        .maybeSingle();
+
+      if (!customer) {
+        const { data: createdCustomer, error: createCustomerError } = await supabase
+          .from('customers')
+          .insert({
+            full_name: payload.name.trim(),
+            phone: payload.phone.trim(),
+          })
+          .select('id')
+          .single();
+
+        if (createCustomerError) throw createCustomerError;
+        customer = createdCustomer;
+      }
+
+      const { error: commError } = await supabase.from('communications').insert({
+        customer_id: customer.id,
+        type: 'sms',
+        purpose: 'custom',
+        sent_to: payload.phone.trim(),
+        subject: `Availability Enquiry - ${vehicle.brand} ${vehicle.model}`,
+        body: payload.message.trim(),
+        status: 'pending',
+      });
+
+      if (commError) throw commError;
+
+      setSentAvailabilityEnquiry((prev) => ({ ...prev, [vehicle.id]: true }));
+      setAvailabilityEnquiry((prev) => ({
+        ...prev,
+        [vehicle.id]: { name: '', phone: '', message: '' },
+      }));
+      toast.success('Enquiry submitted successfully.');
+    } catch {
+      toast.error('Unable to submit enquiry. Please try again.');
+    } finally {
+      setSendingAvailabilityEnquiry((prev) => ({ ...prev, [vehicle.id]: false }));
+    }
   };
 
   return (
@@ -122,7 +206,7 @@ const ComparePage = () => {
                 <thead>
                   <tr>
                     <th className="text-left p-3 min-w-[140px] text-sm font-medium text-muted-foreground">Specification</th>
-                    {selectedVehicles.map((v: any) => (
+                    {visibleVehicles.map((v: any) => (
                       <th key={v.id} className="p-3 min-w-[200px]">
                         <Card className="shadow-card">
                           <CardContent className="p-4 relative">
@@ -146,18 +230,66 @@ const ComparePage = () => {
                               </Badge>
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">📍 {v.locations?.name}</p>
-                            {v.available_units > 0 && (
+                            {v.available_units > 0 ? (
                               <Link to={`/book?vehicleId=${v.id}`}>
                                 <Button size="sm" className="w-full mt-3 gradient-primary border-0 text-primary-foreground text-xs">
                                   Book Test Drive
                                 </Button>
                               </Link>
+                            ) : (
+                              <div className="mt-3 space-y-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => setOpenEnquiryVehicleId((prev) => (prev === v.id ? null : v.id))}
+                                  className="w-full text-xs bg-muted text-muted-foreground border border-border hover:bg-muted/80"
+                                >
+                                  {openEnquiryVehicleId === v.id ? 'Close Enquiry' : 'Enquiry for Availability'}
+                                </Button>
+
+                                {openEnquiryVehicleId === v.id && (
+                                  <div className="rounded-lg border border-border bg-muted/20 p-2.5 space-y-2 text-left">
+                                    {sentAvailabilityEnquiry[v.id] ? (
+                                      <p className="text-xs text-success font-medium">Thanks! Your enquiry has been submitted.</p>
+                                    ) : (
+                                      <>
+                                        <Input
+                                          value={availabilityEnquiry[v.id]?.name || ''}
+                                          onChange={(event) => updateAvailabilityEnquiry(v.id, 'name', event.target.value)}
+                                          placeholder="Your Name"
+                                          className="h-8 text-xs"
+                                        />
+                                        <Input
+                                          value={availabilityEnquiry[v.id]?.phone || ''}
+                                          onChange={(event) => updateAvailabilityEnquiry(v.id, 'phone', event.target.value)}
+                                          placeholder="Phone Number"
+                                          className="h-8 text-xs"
+                                        />
+                                        <Textarea
+                                          value={availabilityEnquiry[v.id]?.message || ''}
+                                          onChange={(event) => updateAvailabilityEnquiry(v.id, 'message', event.target.value)}
+                                          placeholder={`I want availability update for ${v.brand} ${v.model}.`}
+                                          className="min-h-[64px] text-xs"
+                                        />
+                                        <Button
+                                          size="sm"
+                                          onClick={() => void submitAvailabilityEnquiry(v)}
+                                          disabled={Boolean(sendingAvailabilityEnquiry[v.id])}
+                                          className="w-full text-xs gap-2"
+                                        >
+                                          <Send className="h-3.5 w-3.5" />
+                                          {sendingAvailabilityEnquiry[v.id] ? 'Submitting Enquiry...' : 'Send Enquiry'}
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </CardContent>
                         </Card>
                       </th>
                     ))}
-                    {selectedVehicles.length < MAX_COMPARE && (
+                    {!openEnquiryVehicleId && selectedVehicles.length < MAX_COMPARE && (
                       <th className="p-3 min-w-[200px]">
                         <div className="border-2 border-dashed border-border rounded-xl h-48 flex flex-col items-center justify-center text-muted-foreground">
                           <Plus className="h-8 w-8 mb-2" />
@@ -169,7 +301,7 @@ const ComparePage = () => {
                 </thead>
                 <tbody>
                   {specFields.map(spec => {
-                    const hasValue = selectedVehicles.some((v: any) => v[spec.key] != null && v[spec.key] !== '');
+                    const hasValue = visibleVehicles.some((v: any) => v[spec.key] != null && v[spec.key] !== '');
                     if (!hasValue) return null;
                     const Icon = spec.icon;
                     return (
@@ -180,12 +312,12 @@ const ComparePage = () => {
                             <span className="text-sm font-medium text-foreground">{spec.label}</span>
                           </div>
                         </td>
-                        {selectedVehicles.map((v: any) => {
+                        {visibleVehicles.map((v: any) => {
                           const val = v[spec.key];
                           const display = spec.format ? spec.format(val) : (val || '—');
                           // Highlight best value
                           const isNumeric = spec.key === 'horsepower' || spec.key === 'range_km' || spec.key === 'seating_capacity' || spec.key === 'available_units';
-                          const allNums = selectedVehicles.map((sv: any) => Number(sv[spec.key]) || 0);
+                          const allNums = visibleVehicles.map((sv: any) => Number(sv[spec.key]) || 0);
                           const maxNum = Math.max(...allNums);
                           const isBest = isNumeric && Number(val) === maxNum && maxNum > 0;
                           return (
@@ -196,7 +328,7 @@ const ComparePage = () => {
                             </td>
                           );
                         })}
-                        {selectedVehicles.length < MAX_COMPARE && <td className="p-3" />}
+                        {!openEnquiryVehicleId && selectedVehicles.length < MAX_COMPARE && <td className="p-3" />}
                       </tr>
                     );
                   })}
