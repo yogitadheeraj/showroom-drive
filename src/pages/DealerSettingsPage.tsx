@@ -26,9 +26,6 @@ const DealerSettingsPage = () => {
             <TabsTrigger value="brands" className="gap-2">
               <Palette className="h-4 w-4" /> Brand Settings
             </TabsTrigger>
-            <TabsTrigger value="hours" className="gap-2">
-              <Clock className="h-4 w-4" /> Operating Hours
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
