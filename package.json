@@ -19,7 +19,11 @@
     "lint:api": "npm run lint --workspace @showroom/api",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "supabase:link": "set -a; . ./.env; set +a; SUPABASE_ACCESS_TOKEN=\"${SUPABASE_ACCESS_TOKEN:-$SUPABASE_ACCESS_TOKENs}\" npx -y supabase@latest link --project-ref \"$VITE_SUPABASE_PROJECT_ID\"",
+    "supabase:db:push": "set -a; . ./.env; set +a; SUPABASE_ACCESS_TOKEN=\"${SUPABASE_ACCESS_TOKEN:-$SUPABASE_ACCESS_TOKENs}\" npx -y supabase@latest db push --linked --include-all",
+    "supabase:db:push:debug": "set -a; . ./.env; set +a; SUPABASE_ACCESS_TOKEN=\"${SUPABASE_ACCESS_TOKEN:-$SUPABASE_ACCESS_TOKENs}\" npx -y supabase@latest db push --linked --include-all --debug",
+    "supabase:repair:columns": "cat supabase/sql/repair_locations_slot_columns.sql"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

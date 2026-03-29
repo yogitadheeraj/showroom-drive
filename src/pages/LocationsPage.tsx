@@ -18,6 +18,26 @@ import { logStaffActivity } from '@/lib/activityLogger';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+const isMissingSlotDurationColumnError = (error: any) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('slot_duration_minutes') && message.includes('schema cache');
+};
+
+const isMissingMetadataColumnError = (error: any) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('metadata') && message.includes('schema cache');
+};
+
+const getLocationSlotDuration = (location: any) => {
+  const fromColumn = Number(location?.slot_duration_minutes);
+  if (Number.isFinite(fromColumn) && fromColumn > 0) return fromColumn;
+
+  const fromMetadata = Number(location?.metadata?.slot_duration_minutes);
+  if (Number.isFinite(fromMetadata) && fromMetadata > 0) return fromMetadata;
+
+  return 30;
+};
+
 const LocationsPage = () => {
   const [locations, setLocations] = useState<any[]>([]);
   const [showDialog, setShowDialog] = useState(false);
@@ -82,7 +102,7 @@ const LocationsPage = () => {
     if (data) {
       const durations: Record<string, number> = {};
       data.forEach(loc => {
-        durations[loc.id] = Number(loc.slot_duration_minutes || 30);
+        durations[loc.id] = getLocationSlotDuration(loc);
       });
       setSlotDurations(durations);
     }
@@ -218,13 +238,37 @@ const LocationsPage = () => {
   const saveSlotDuration = async () => {
     if (!slotDurationDialog) return;
     try {
-      await supabase
+      const { error } = await supabase
         .from('locations')
         .update({ slot_duration_minutes: slotDuration })
         .eq('id', slotDurationDialog);
+
+      if (error) {
+        if (!isMissingSlotDurationColumnError(error)) throw error;
+
+        const location = locations.find((loc) => loc.id === slotDurationDialog);
+        const metadata = {
+          ...(location?.metadata || {}),
+          slot_duration_minutes: slotDuration,
+        };
+
+        const { error: metadataError } = await supabase
+          .from('locations')
+          .update({ metadata })
+          .eq('id', slotDurationDialog);
+
+        if (metadataError) {
+          if (isMissingMetadataColumnError(metadataError)) {
+            throw new Error('Database schema is outdated. Run: npm run supabase:repair:columns and execute SQL in Supabase SQL Editor.');
+          }
+          throw metadataError;
+        }
+      }
+
       setSlotDurations((prev) => ({ ...prev, [slotDurationDialog]: slotDuration }));
       toast({ title: 'Slot duration saved successfully', description: `${slotDuration} minutes per slot` });
       setSlotDurationDialog(null);
+      fetchLocations();
     } catch (err: any) {
       toast({ title: 'Failed to save slot duration', description: err.message, variant: 'destructive' });
     }
@@ -599,7 +643,7 @@ const LocationsPage = () => {
                   {/* KPI Grid */}
                   <div>
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Performance Metrics</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-2 gap-2.5">
                       {[
                         { label: 'Total Drives', value: testDriveCounts[loc.id] || 0, color: 'primary', icon: '📊' },
                         { label: 'Today', value: testDriveTodayCounts[loc.id] || 0, color: 'primary', icon: '📅' },
@@ -751,7 +795,7 @@ const LocationsPage = () => {
                 Hours — {hoursLocationName}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-2 sm:space-y-3 p-10">
+            <div className="grid grid-cols-1 gap-2">
               {hours.map((h, i) => (
                 <div key={i} className={`flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg border transition-colors ${h.is_closed ? 'bg-muted/50 border-border' : 'bg-card border-border'}`}>
                   <div className="w-full sm:w-24 flex items-center justify-between sm:block">

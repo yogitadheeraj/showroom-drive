@@ -1043,6 +1043,7 @@ export type Database = {
         | "show"
         | "no_show"
         | "in_progress"
+        | "key_handover_to_sales"
         | "completed"
         | "cancelled"
         | "rescheduled"
@@ -1190,6 +1191,7 @@ export const Constants = {
         "show",
         "no_show",
         "in_progress",
+        "key_handover_to_sales",
         "completed",
         "cancelled",
         "rescheduled",

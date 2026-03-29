@@ -63,7 +63,6 @@ const SecurityDashboard = () => {
     let query = supabase
       .from('test_drives')
       .select('*, customers(*), vehicles(*), locations(*)')
-      .in('status', ['confirmed', 'show', 'in_progress', 'completed']);
 
     if (profile?.location_id) query = query.eq('location_id', profile.location_id);
 
@@ -277,41 +276,8 @@ const SecurityDashboard = () => {
 
     await supabase.from('test_drives').update({
       security_checked_out_at: completedAt,
-      completed_at: completedAt,
-      status: 'completed' as any,
+      status: 'key_handover_to_sales' as any,
     }).eq('id', id);
-
-    // Send a completion email to the customer so they know next action with sales team.
-    if (drive?.customers?.email) {
-      const customerName = drive.customers.full_name || 'Customer';
-      const vehicleName = `${drive.vehicles?.brand || ''} ${drive.vehicles?.model || ''}`.trim() || 'your selected vehicle';
-      const locationName = drive.locations?.name || 'our showroom';
-      const message = [
-        `Your test drive for ${vehicleName} is now completed at ${locationName}.`,
-        'Please connect with your sales team for any specifications, pricing details, or doubts.',
-        'Thank you for visiting us.',
-      ].join(' ');
-
-      const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
-        body: {
-          templateName: 'sales-follow-up',
-          recipientEmail: drive.customers.email,
-          idempotencyKey: `test-drive-completed-${id}`,
-          templateData: {
-            customerName,
-            message,
-          },
-        },
-      });
-
-      if (emailError) {
-        toast({
-          title: 'Drive completed, but email failed',
-          description: 'Customer follow-up email could not be sent right now.',
-          variant: 'destructive',
-        });
-      }
-    }
 
     if (profile?.user_id) {
       await logStaffActivity({
@@ -319,13 +285,13 @@ const SecurityDashboard = () => {
         profileId: profile.id,
         locationId: profile.location_id,
         role: 'security',
-        eventType: 'test_drive_completed',
-        label: 'Marked test drive completed at return gate',
+        eventType: 'test_drive_check_out',
+        label: 'Completed return and handed over key to sales',
         metadata: { testDriveId: id },
       });
     }
 
-    toast({ title: 'Test drive completed at return' });
+    toast({ title: 'Vehicle returned', description: 'Handed over to sales for customer follow-up and closure.' });
     void fetchDrives();
   };
 
@@ -563,6 +529,8 @@ const SecurityDashboard = () => {
                         className={`text-xs ${
                           testDrive.status === 'completed'
                             ? 'bg-success/10 text-success'
+                            : testDrive.status === 'key_handover_to_sales'
+                              ? 'bg-warning/10 text-warning'
                             : testDrive.status === 'in_progress'
                               ? 'bg-primary/10 text-primary'
                               : 'bg-muted text-muted-foreground'
@@ -579,7 +547,7 @@ const SecurityDashboard = () => {
                   <div className="flex gap-2 flex-wrap">
                     {!testDrive.security_checked_in_at ? (
                       !testDrive.key_handed_at ? (
-                        <Badge className="bg-warning/10 text-warning text-xs">Awaiting Vehicle Assignment</Badge>
+                        <Badge className="bg-warning/10 text-warning text-xs">Awaiting Key Assignment</Badge>
                       ) : !testDrive.customers?.driving_license_verified ? (
                         <Badge className="bg-warning/10 text-warning text-xs">Verify License First</Badge>
                       ) : !(testDrive as any).pre_drive_km || !(testDrive as any).pre_drive_fuel_level ? (
@@ -603,7 +571,7 @@ const SecurityDashboard = () => {
                         <Badge className="bg-success/10 text-success text-xs">In Progress</Badge>
                         {testDrive.key_handed_at ? (
                           <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => void checkOut(testDrive.id)}>
-                            <XCircle className="h-3.5 w-3.5 mr-1" /> Return & Complete
+                            <XCircle className="h-3.5 w-3.5 mr-1" /> Return & Handover
                           </Button>
                         ) : (
                           <Badge className="bg-warning/10 text-warning text-xs">Awaiting Vehicle Assignment</Badge>

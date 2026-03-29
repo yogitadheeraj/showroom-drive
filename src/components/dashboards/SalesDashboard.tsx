@@ -51,7 +51,7 @@ const SalesDashboard = () => {
           const before = payload.old as any;
           const after = payload.new as any;
 
-          if (after?.status !== 'completed' || before?.status === 'completed') return;
+          if (after?.status !== 'key_handover_to_sales' || before?.status === 'key_handover_to_sales') return;
 
           const { data: drive } = await supabase
             .from('test_drives')
@@ -62,8 +62,8 @@ const SalesDashboard = () => {
           const customerName = drive?.customers?.full_name || 'Customer';
 
           toast({
-            title: 'Test drive completed',
-            description: `Please take follow up from Mr. ${customerName}`,
+            title: 'Key handover to sales',
+            description: `Please take follow up from Mr. ${customerName} and close the drive.`,
           });
 
           void fetchAssignedDrives();
@@ -183,11 +183,44 @@ const SalesDashboard = () => {
     fetchAssignedDrives();
   };
 
-  const handleComplete = async (id: string) => {
+  const handleComplete = async (td: any) => {
+    const id = td.id;
     await supabase.from('test_drives').update({
       status: 'completed' as any,
       completed_at: new Date().toISOString(),
     }).eq('id', id);
+
+    if (td?.customers?.email) {
+      const customerName = td.customers.full_name || 'Customer';
+      const vehicleName = `${td.vehicles?.brand || ''} ${td.vehicles?.model || ''}`.trim() || 'your selected vehicle';
+      const locationName = td.locations?.name || 'our showroom';
+      const message = [
+        `Your test drive for ${vehicleName} is now completed at ${locationName}.`,
+        'Please connect with your sales team for any specifications, pricing details, or doubts.',
+        'Thank you for visiting us.',
+      ].join(' ');
+
+      const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'sales-follow-up',
+          recipientEmail: td.customers.email,
+          idempotencyKey: `test-drive-completed-${id}`,
+          templateData: {
+            customerName,
+            message,
+          },
+        },
+      });
+
+      if (emailError) {
+        toast({
+          title: 'Completed, but email failed',
+          description: 'Customer follow-up email could not be sent right now.',
+          variant: 'destructive',
+        });
+      }
+    }
+
     if (user?.id) {
       await logStaffActivity({
         userId: user.id,
@@ -195,11 +228,11 @@ const SalesDashboard = () => {
         locationId: profile?.location_id,
         role: 'sales',
         eventType: 'test_drive_completed',
-        label: 'Marked test drive as completed',
+        label: 'Accepted key handover and closed test drive',
         metadata: { testDriveId: id },
       });
     }
-    toast({ title: 'Test drive completed' });
+    toast({ title: 'Test drive completed', description: 'Key handover accepted and follow-up initiated.' });
     fetchAssignedDrives();
   };
 
@@ -275,6 +308,15 @@ const SalesDashboard = () => {
         });
       }
 
+      if (td.status === 'key_handover_to_sales') {
+        logs.push({
+          type: 'status',
+          at: td.security_checked_out_at || td.updated_at || td.created_at,
+          message: `${td.customers?.full_name} key handed over to sales`,
+          driveId: td.id,
+        });
+      }
+
       if (td.status === 'rescheduled') {
         logs.push({
           type: 'status',
@@ -295,6 +337,7 @@ const SalesDashboard = () => {
     show: 'bg-success/10 text-success',
     no_show: 'bg-warning/10 text-warning',
     in_progress: 'bg-accent/10 text-accent-foreground',
+    key_handover_to_sales: 'bg-warning/10 text-warning',
     completed: 'bg-success/10 text-success',
     cancelled: 'bg-destructive/10 text-destructive',
   };
@@ -321,14 +364,14 @@ const SalesDashboard = () => {
         ].map(stat => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="shadow-card h-full min-w-0">
-              <CardContent className="p-3 sm:p-4 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">
-                <div className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
-                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
+            <Card key={stat.label} className="shadow-card min-w-0">
+              <CardContent className="p-3 sm:p-5 flex items-center gap-2.5 sm:gap-4">
+                <div className={`h-9 w-9 sm:h-12 sm:w-12 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-4 w-4 sm:h-6 sm:w-6 ${stat.color}`} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-lg sm:text-2xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
-                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight break-words mt-1">{stat.label}</p>
+                  <p className="text-[11px] sm:text-sm text-muted-foreground leading-tight break-words">{stat.label}</p>
+                  <p className="text-lg sm:text-2xl font-heading font-bold text-foreground">{stat.value}</p>
                 </div>
               </CardContent>
             </Card>
@@ -499,16 +542,16 @@ const SalesDashboard = () => {
                       </Button>
                     </>
                   )}
-                  {td.status === 'show' && !td.key_handed_at && (
+                  {(td.status === 'show' || td.status === 'scheduled') && !td.key_handed_at && (
                     <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleGiveKeyAndStart(td.id)}>
                       <Key className="h-3.5 w-3.5 mr-1" /> Assign Vehicle
                     </Button>
                   )}
-                  {(td.status === 'in_progress' || (td.security_checked_out_at && td.status !== 'completed')) && (
+                  {td.status === 'key_handover_to_sales' && (
                     <>
-                      <Badge className="bg-primary/10 text-primary text-xs"><Key className="h-3 w-3 mr-1" /> Key Handed</Badge>
-                      <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleComplete(td.id)}>
-                        <FileCheck className="h-3.5 w-3.5 mr-1" /> Complete
+                      <Badge className="bg-warning/10 text-warning text-xs"><Key className="h-3 w-3 mr-1" /> Key handover pending</Badge>
+                      <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleComplete(td)}>
+                        <FileCheck className="h-3.5 w-3.5 mr-1" /> Key Handover To Sales
                       </Button>
                     </>
                   )}

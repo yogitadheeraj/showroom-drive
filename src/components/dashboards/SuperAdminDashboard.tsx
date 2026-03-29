@@ -93,8 +93,6 @@ const SuperAdminDashboard = () => {
 
   const [selectedDealer, setSelectedDealer] = useState(savedPrefs.selectedDealer || 'all');
   const [selectedLocation, setSelectedLocation] = useState(savedPrefs.selectedLocation || 'all');
-  const [selectedStaff, setSelectedStaff] = useState(savedPrefs.selectedStaff || 'all');
-  const [selectedRole, setSelectedRole] = useState(savedPrefs.selectedRole || 'all');
   const [testDriveView, setTestDriveView] = useState<'grid' | 'chart'>(() => (savedPrefs.testDriveView === 'chart' ? 'chart' : 'grid'));
   const [testDriveChartType, setTestDriveChartType] = useState<'pie' | 'line' | 'bar'>(() => {
     const type = savedPrefs.testDriveChartType;
@@ -112,13 +110,11 @@ const SuperAdminDashboard = () => {
       JSON.stringify({
         selectedDealer,
         selectedLocation,
-        selectedStaff,
-        selectedRole,
         testDriveView,
         testDriveChartType,
       })
     );
-  }, [selectedDealer, selectedLocation, selectedStaff, selectedRole, testDriveView, testDriveChartType]);
+  }, [selectedDealer, selectedLocation, testDriveView, testDriveChartType]);
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -139,8 +135,6 @@ const SuperAdminDashboard = () => {
     };
     fetchLocations();
     setSelectedLocation('all');
-    setSelectedStaff('all');
-    setSelectedRole('all');
   }, [activeDealerId, dealerLoading, isSuperAdmin]);
 
   useEffect(() => {
@@ -184,7 +178,6 @@ const SuperAdminDashboard = () => {
       setStaffMembers(merged);
     };
     fetchStaff();
-    setSelectedStaff('all');
   }, [selectedLocation, locations, dealerLoading, isSuperAdmin]);
 
   useEffect(() => {
@@ -198,7 +191,6 @@ const SuperAdminDashboard = () => {
       }
       let query = supabase.from('test_drives').select('*, customers(*), vehicles(*), locations(*)');
       if (locationIds.length > 0) query = query.in('location_id', locationIds);
-      if (selectedStaff !== 'all') query = query.or(`assigned_gro_id.eq.${selectedStaff},assigned_sales_person_id.eq.${selectedStaff}`);
       const { data: td } = await query.order('scheduled_date', { ascending: false }).limit(500);
       setTestDrives(td || []);
       const total = td?.length || 0;
@@ -216,7 +208,7 @@ const SuperAdminDashboard = () => {
       } else { setRepeatedCustomers([]); }
     };
     fetchData();
-  }, [selectedLocation, selectedStaff, locations, dealerLoading, isSuperAdmin]);
+  }, [selectedLocation, locations, dealerLoading, isSuperAdmin]);
 
   const fetchAuthDiagnostics = useCallback(async () => {
     setAuthDiagnostics((prev) => ({ ...prev, loading: true }));
@@ -295,30 +287,25 @@ const SuperAdminDashboard = () => {
       const locationIds = selectedLocation !== 'all'
         ? [selectedLocation]
         : locations.map(l => l.id);
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
+      const activitySince = new Date();
+      activitySince.setDate(activitySince.getDate() - 7);
 
       let sessionQuery = supabase
         .from('staff_activity_sessions')
         .select('*')
-        .gte('login_at', startOfDay.toISOString())
+        .gte('login_at', activitySince.toISOString())
         .order('login_at', { ascending: false });
 
       let eventQuery = supabase
         .from('staff_activity_events')
         .select('*')
-        .gte('happened_at', startOfDay.toISOString())
+        .gte('happened_at', activitySince.toISOString())
         .order('happened_at', { ascending: false })
-        .limit(500);
+        .limit(1000);
 
       if (locationIds.length > 0) {
         sessionQuery = sessionQuery.in('location_id', locationIds);
         eventQuery = eventQuery.in('location_id', locationIds);
-      }
-
-      if (selectedStaff !== 'all') {
-        sessionQuery = sessionQuery.eq('user_id', selectedStaff);
-        eventQuery = eventQuery.eq('user_id', selectedStaff);
       }
 
       const [{ data: sessions }, { data: events }] = await Promise.all([sessionQuery, eventQuery]);
@@ -327,12 +314,9 @@ const SuperAdminDashboard = () => {
     };
 
     void fetchActivityData();
-  }, [selectedLocation, selectedStaff, locations, dealerLoading, isSuperAdmin]);
+  }, [selectedLocation, locations, dealerLoading, isSuperAdmin]);
 
-  const filteredStaff = staffMembers.filter((s) => {
-    if (selectedRole !== 'all' && s.role !== selectedRole) return false;
-    return true;
-  });
+  const filteredStaff = staffMembers;
 
   const activeSalesCount = filteredStaff.filter(
     (s) => s.role === APP_ROLE.SALES && s.is_active
@@ -413,10 +397,16 @@ const SuperAdminDashboard = () => {
   };
 
   const getStaffActivitySummary = (staff: any) => {
-    const sessions = activitySessions.filter((session) => session.user_id === staff.user_id);
-    const events = activityEvents.filter((event) => event.user_id === staff.user_id);
+    const sessions = activitySessions
+      .filter((session) => session.user_id === staff.user_id || session.profile_id === staff.id)
+      .sort((left, right) => new Date(right.login_at).getTime() - new Date(left.login_at).getTime());
+    const events = activityEvents
+      .filter((event) => event.user_id === staff.user_id || event.profile_id === staff.id)
+      .sort((left, right) => new Date(right.happened_at).getTime() - new Date(left.happened_at).getTime());
     const latestEvent = events[0] || null;
-    const latestLogout = sessions.find((session) => session.logout_at)?.logout_at || null;
+    const latestLogout = sessions
+      .filter((session) => session.logout_at)
+      .sort((left, right) => new Date(right.logout_at).getTime() - new Date(left.logout_at).getTime())[0]?.logout_at || null;
     const totalActiveSeconds = sessions.reduce((sum, session) => sum + (session.active_seconds || 0), 0);
     const totalIdleSeconds = sessions.reduce((sum, session) => sum + (session.idle_seconds || 0), 0);
     const isOnline = sessions.some((session) => {
@@ -425,7 +415,7 @@ const SuperAdminDashboard = () => {
     });
 
     return {
-      lastLoginAt: staff.last_login_at,
+      lastLoginAt: sessions[0]?.login_at || staff.last_login_at,
       latestLogout,
       totalActiveSeconds,
       totalIdleSeconds,
@@ -441,6 +431,10 @@ const SuperAdminDashboard = () => {
     authDiagnostics.cooldownUntil && new Date(authDiagnostics.cooldownUntil).getTime() > Date.now()
   );
   const hasAuthEmailFailures = authDiagnostics.failed > 0 || authDiagnostics.dlq > 0;
+  const hasRecentStaffActivity = filteredStaff.some((staff) => {
+    const summary = getStaffActivitySummary(staff);
+    return summary.sessions.length > 0 || summary.events.length > 0;
+  });
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -483,28 +477,6 @@ const SuperAdminDashboard = () => {
             </SelectContent>
           </Select>
 
-          <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-            <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm">
-              <SelectValue placeholder="All Staff" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Staff</SelectItem>
-              {staffMembers.map(s => <SelectItem key={s.user_id} value={s.user_id}>{s.full_name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Select value={selectedRole} onValueChange={setSelectedRole}>
-            <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm">
-              <SelectValue placeholder="All Roles" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
-              <SelectItem value={APP_ROLE.DEALER_ADMIN}>Dealer Admin</SelectItem>
-              <SelectItem value={APP_ROLE.GRO}>GRO</SelectItem>
-              <SelectItem value={APP_ROLE.SALES}>Sales</SelectItem>
-              <SelectItem value={APP_ROLE.SECURITY}>Security</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
@@ -710,6 +682,11 @@ const SuperAdminDashboard = () => {
           <CardTitle className="font-heading text-lg">Staff Activity Grid</CardTitle>
         </CardHeader>
         <CardContent>
+          {!hasRecentStaffActivity && filteredStaff.length > 0 && (
+            <div className="mb-4 rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+              No recent staff activity found in the last 7 days for the selected location.
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -727,7 +704,7 @@ const SuperAdminDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredStaff.map((staff) => {
+                {staffMembers.map((staff) => {
                   const summary = getStaffActivitySummary(staff);
 
                   return (
@@ -768,7 +745,7 @@ const SuperAdminDashboard = () => {
                   );
                 })}
                 {filteredStaff.length === 0 && (
-                  <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">No staff found for the selected filter</td></tr>
+                  <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">No staff found for the selected location</td></tr>
                 )}
               </tbody>
             </table>

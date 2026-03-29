@@ -42,6 +42,16 @@ const isMissingSpecialPeriodsTableError = (error: any) => {
   return message.includes("location_special_periods") && message.includes('schema cache');
 };
 
+const getLocationSlotDuration = (location: any) => {
+  const fromColumn = Number(location?.slot_duration_minutes);
+  if (Number.isFinite(fromColumn) && fromColumn > 0) return fromColumn;
+
+  const fromMetadata = Number(location?.metadata?.slot_duration_minutes);
+  if (Number.isFinite(fromMetadata) && fromMetadata > 0) return fromMetadata;
+
+  return 30;
+};
+
 const BookingPage = () => {
   const [searchParams] = useSearchParams();
   const [step, setStep] = useState(0);
@@ -215,7 +225,7 @@ const BookingPage = () => {
       setLoadingTimeSlots(true);
 
       const location = locations.find((l: any) => l.id === formData.locationId);
-      const configuredDuration = Number(location?.slot_duration_minutes || 30);
+      const configuredDuration = getLocationSlotDuration(location);
       setSlotDurationMinutes(configuredDuration);
 
       await checkAndReleaseNoShowBookings(formData.locationId, formData.scheduledDate);
@@ -701,7 +711,7 @@ const BookingPage = () => {
                                   </span>
                                 )}
                                 <Badge variant="secondary" className="text-[10px]">
-                                  Slot: {Number(loc.slot_duration_minutes || 30)}m
+                                  Slot: {getLocationSlotDuration(loc)}m
                                 </Badge>
                                 {hours?.source === 'special' && hours?.source_name && (
                                   <Badge variant="outline" className="text-[10px]">{hours.source_name}</Badge>
