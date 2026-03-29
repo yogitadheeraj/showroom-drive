@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X } from 'lucide-react';
-import { motion, type Variants } from 'framer-motion';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
 import showcaseGro from '@/assets/showcase-gro-assign.jpg';
 import showcaseAdmin from '@/assets/showcase-admin-dashboard.jpg';
