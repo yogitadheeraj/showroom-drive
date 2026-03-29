@@ -220,7 +220,7 @@ export async function checkAndReleaseNoShowBookings(
     if (noShowBookings.length > 0) {
       const { error } = await supabase
         .from('test_drives')
-        .update({ status: 'no_show', no_show_checked_at: now.toISOString() })
+        .update({ status: 'no_show' as any })
         .in(
           'id',
           noShowBookings.map(b => b.id)
