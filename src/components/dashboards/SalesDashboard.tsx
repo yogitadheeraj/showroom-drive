@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { logStaffActivity } from '@/lib/activityLogger';
+import { APP_ROLE } from '@/constants/roles';
 
 const SalesDashboard = () => {
   const { user, profile } = useAuth();
@@ -28,6 +29,9 @@ const SalesDashboard = () => {
   const [logFilter, setLogFilter] = useState<'all' | 'security' | 'status'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [inspectionViewDrive, setInspectionViewDrive] = useState<any>(null);
+  const [inspectionDocsByDrive, setInspectionDocsByDrive] = useState<Record<string, any[]>>({});
+  const [inspectionDocView, setInspectionDocView] = useState<{ url: string; filename: string } | null>(null);
+  const [securityContacts, setSecurityContacts] = useState<Array<{ id: string; full_name: string; phone: string | null }>>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -86,6 +90,54 @@ const SalesDashboard = () => {
     const drives = data || [];
     setTestDrives(drives);
 
+    const locationIds = Array.from(new Set(drives.map((drive: any) => drive.location_id).filter(Boolean)));
+    if (locationIds.length > 0) {
+      const { data: securityProfiles } = await supabase
+        .from('profiles')
+        .select('id, user_id, full_name, phone, location_id, is_active')
+        .in('location_id', locationIds)
+        .eq('is_active', true)
+        .order('full_name');
+
+      const profiles = securityProfiles || [];
+      const userIds = profiles.map((profileRow: any) => profileRow.user_id).filter(Boolean);
+
+      if (userIds.length > 0) {
+        const { data: securityRoles } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .eq('role', APP_ROLE.SECURITY)
+          .in('user_id', userIds);
+
+        const securityUserIds = new Set((securityRoles || []).map((row: any) => row.user_id));
+        const uniqueContacts = profiles
+          .filter((profileRow: any) => securityUserIds.has(profileRow.user_id))
+          .reduce((acc: Array<{ id: string; full_name: string; phone: string | null }>, profileRow: any) => {
+            if (!acc.some((entry) => entry.id === profileRow.id)) {
+              acc.push({ id: profileRow.id, full_name: profileRow.full_name, phone: profileRow.phone || null });
+            }
+            return acc;
+          }, []);
+
+        setSecurityContacts(uniqueContacts);
+      } else {
+        setSecurityContacts([]);
+      }
+    } else {
+      setSecurityContacts([]);
+    }
+
+    if (drives.length > 0) {
+      await Promise.all(
+        drives.map(async (drive) => {
+          const { data: docs } = await supabase.storage.from('documents').list(`test-drives/${drive.id}`, { limit: 200 });
+          setInspectionDocsByDrive((prev) => ({ ...prev, [drive.id]: docs || [] }));
+        })
+      );
+    } else {
+      setInspectionDocsByDrive({});
+    }
+
     if (!drives.length) {
       setSecurityEventsByDrive({});
       return;
@@ -137,6 +189,19 @@ const SalesDashboard = () => {
     }
 
     setSecurityEventsByDrive(perDrive);
+  };
+
+  const getInspectionMedia = (testDriveId: string, type: 'pre' | 'post') => {
+    return (inspectionDocsByDrive[testDriveId] || []).filter((doc: any) => doc.name.startsWith(`inspection-${type}-`));
+  };
+
+  const viewInspectionMedia = async (testDriveId: string, filename: string) => {
+    const { data, error } = await supabase.storage.from('documents').createSignedUrl(`test-drives/${testDriveId}/${filename}`, 300);
+    if (error || !data?.signedUrl) {
+      toast({ title: 'Failed to open media', description: error?.message || 'Unable to generate preview URL', variant: 'destructive' });
+      return;
+    }
+    setInspectionDocView({ url: data.signedUrl, filename });
   };
 
   const handleUploadLicense = async (testDriveId: string, customerId: string, file: File) => {
@@ -390,6 +455,26 @@ const SalesDashboard = () => {
             <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">3.</span> Track security start + active drive.</div>
             <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">4.</span> Complete follow-up after return alert.</div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-card border-info/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-heading text-sm sm:text-base">Available Security Contacts</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {securityContacts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No active security contacts found for this location.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
+              {securityContacts.map((contact) => (
+                <div key={contact.id} className="rounded-md border border-border bg-muted/30 p-2">
+                  <p className="font-medium text-foreground">{contact.full_name}</p>
+                  <p className="text-xs text-muted-foreground">{contact.phone || 'No phone available'}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -660,6 +745,18 @@ const SalesDashboard = () => {
                   </div>
                   {(inspectionViewDrive as any).pre_drive_scratches && <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> {(inspectionViewDrive as any).pre_drive_scratches}</div>}
                   {(inspectionViewDrive as any).pre_drive_notes && <div className="text-sm"><span className="text-muted-foreground">Notes:</span> {(inspectionViewDrive as any).pre_drive_notes}</div>}
+                  {getInspectionMedia(inspectionViewDrive.id, 'pre').length > 0 && (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-xs text-muted-foreground">Media</p>
+                      <div className="flex flex-wrap gap-1">
+                        {getInspectionMedia(inspectionViewDrive.id, 'pre').map((doc: any, idx: number) => (
+                          <Button key={`${doc.name}-${idx}`} size="sm" variant="outline" className="h-7 text-xs" onClick={() => void viewInspectionMedia(inspectionViewDrive.id, doc.name)}>
+                            <Eye className="h-3 w-3 mr-1" /> {doc.name.split('/').pop()?.slice(0, 18)}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {(inspectionViewDrive as any).post_drive_km && (
@@ -671,6 +768,18 @@ const SalesDashboard = () => {
                   </div>
                   {(inspectionViewDrive as any).post_drive_scratches && <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> {(inspectionViewDrive as any).post_drive_scratches}</div>}
                   {(inspectionViewDrive as any).post_drive_notes && <div className="text-sm"><span className="text-muted-foreground">Notes:</span> {(inspectionViewDrive as any).post_drive_notes}</div>}
+                  {getInspectionMedia(inspectionViewDrive.id, 'post').length > 0 && (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-xs text-muted-foreground">Media</p>
+                      <div className="flex flex-wrap gap-1">
+                        {getInspectionMedia(inspectionViewDrive.id, 'post').map((doc: any, idx: number) => (
+                          <Button key={`${doc.name}-${idx}`} size="sm" variant="outline" className="h-7 text-xs" onClick={() => void viewInspectionMedia(inspectionViewDrive.id, doc.name)}>
+                            <Eye className="h-3 w-3 mr-1" /> {doc.name.split('/').pop()?.slice(0, 18)}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {(inspectionViewDrive as any).pre_drive_km && (inspectionViewDrive as any).post_drive_km && (
@@ -682,6 +791,29 @@ const SalesDashboard = () => {
           )}
           <DialogFooter>
             <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => setInspectionViewDrive(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!inspectionDocView} onOpenChange={() => setInspectionDocView(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Inspection Media</DialogTitle>
+            <DialogDescription>{inspectionDocView?.filename}</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center bg-muted rounded-lg p-4 min-h-[220px]">
+            {inspectionDocView?.url ? (
+              inspectionDocView.filename.toLowerCase().match(/\.(mp4|webm|mov|m4v|avi)$/) ? (
+                <video controls className="max-w-full max-h-[420px] rounded-lg" src={inspectionDocView.url} />
+              ) : (
+                <img src={inspectionDocView.url} alt={inspectionDocView.filename} className="max-w-full max-h-[420px] rounded-lg object-contain" />
+              )
+            ) : (
+              <p className="text-muted-foreground">Loading...</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => setInspectionDocView(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

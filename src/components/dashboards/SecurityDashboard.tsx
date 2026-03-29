@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye, Car, Clock, File, Trash2 } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye, Car, Clock, File, Trash2, Phone, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -62,15 +62,23 @@ const SecurityDashboard = () => {
   const fetchDrives = async () => {
     let query = supabase
       .from('test_drives')
-      .select('*, customers(*), vehicles(*), locations(*)')
+        .select('*, customers(*), vehicles(*), locations(*), profiles!test_drives_assigned_sales_person_id_fkey(id, full_name, phone)');
 
     if (profile?.location_id) query = query.eq('location_id', profile.location_id);
-
     const { data } = await query
       .order('scheduled_date', { ascending: true })
       .order('scheduled_time', { ascending: true });
 
     setTestDrives(data || []);
+      console.log('Fetching test drives with query:', data);
+      // Debug: Check if assigned_sales_profile is populated
+      if (data?.length) {
+        console.log('First drive:', {
+          id: data[0].id,
+          assigned_sales_person_id: data[0].assigned_sales_person_id,
+            profiles: data[0].profiles,
+        });
+      }
 
     if (!data?.length) {
       setSecurityLogsByDrive({});
@@ -78,10 +86,9 @@ const SecurityDashboard = () => {
     }
 
     const driveIds = new Set((data || []).map((d) => d.id));
-    const { data: securityEvents } = await supabase
+    const { data: activityEvents } = await supabase
       .from('staff_activity_events')
-      .select('event_type, event_label, happened_at, metadata, profiles:profile_id(full_name)')
-      .eq('role', 'security')
+      .select('event_type, event_label, happened_at, role, metadata, profiles:profile_id(full_name, phone)')
       .in('event_type', [
         'test_drive_check_in',
         'test_drive_check_out',
@@ -90,21 +97,27 @@ const SecurityDashboard = () => {
         'vehicle_inspection_post',
         'license_verified',
         'license_rejected',
+        'test_drive_started',
       ])
       .order('happened_at', { ascending: false })
       .limit(1200);
 
     const logsByDrive: Record<string, any[]> = {};
-    for (const event of securityEvents || []) {
+    for (const event of activityEvents || []) {
       const testDriveId = (event as any)?.metadata?.testDriveId;
       if (!testDriveId || !driveIds.has(testDriveId)) continue;
       if (!logsByDrive[testDriveId]) logsByDrive[testDriveId] = [];
+
+      const actor = (event as any)?.profiles;
+      const byName = actor?.full_name || ((event as any)?.role === 'sales' ? 'Sales' : 'Security');
+      const byPhone = actor?.phone || null;
 
       logsByDrive[testDriveId].push({
         eventType: (event as any).event_type,
         label: (event as any).event_label || (event as any).event_type,
         happenedAt: (event as any).happened_at,
-        by: (event as any)?.profiles?.full_name || 'Security',
+        by: byName,
+        phone: byPhone,
       });
     }
 
@@ -419,6 +432,10 @@ const SecurityDashboard = () => {
     }
   };
 
+  const getInspectionMedia = (testDriveId: string, type: 'pre' | 'post') => {
+    return (testDriveDocuments[testDriveId] || []).filter((doc: any) => doc.name.startsWith(`inspection-${type}-`));
+  };
+
   const handleInspectionClose = () => {
     setInspectionDrive(null);
     setPendingStartDriveId(null);
@@ -543,6 +560,10 @@ const SecurityDashboard = () => {
                       <span className="flex items-center gap-1"><Car className="h-3 w-3" />{testDrive.vehicles?.brand} {testDrive.vehicles?.model}</span>
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{testDrive.scheduled_date} at {testDrive.scheduled_time}</span>
                     </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
+                       <span className="flex items-center gap-1"><User className="h-3 w-3" />Sales: {testDrive.profiles?.full_name || 'Not assigned'}</span>
+                       <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{testDrive.profiles?.phone || 'No phone'}</span>
+                    </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     {!testDrive.security_checked_in_at ? (
@@ -653,7 +674,7 @@ const SecurityDashboard = () => {
                           {securityLogsByDrive[testDrive.id].map((log: any, idx: number) => (
                             <div key={`${log.eventType}-${log.happenedAt}-${idx}`} className="rounded border border-border/60 bg-background/70 p-1.5">
                               <p className="text-foreground leading-tight">{log.label}</p>
-                              <p className="text-muted-foreground">{log.by} • {new Date(log.happenedAt).toLocaleString()}</p>
+                              <p className="text-muted-foreground">{log.by}{log.phone ? ` (${log.phone})` : ''} • {new Date(log.happenedAt).toLocaleString()}</p>
                             </div>
                           ))}
                         </div>
@@ -785,6 +806,18 @@ const SecurityDashboard = () => {
                     <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_km} km</span></div>
                     <div><span className="text-muted-foreground">Fuel:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_fuel_level || 'N/A'}</span></div>
                   </div>
+                  {getInspectionMedia(inspectionViewDrive.id, 'pre').length > 0 && (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-xs text-muted-foreground">Media</p>
+                      <div className="flex flex-wrap gap-1">
+                        {getInspectionMedia(inspectionViewDrive.id, 'pre').map((doc: any, idx: number) => (
+                          <Button key={`${doc.name}-${idx}`} size="sm" variant="outline" className="h-7 text-xs" onClick={() => void viewDocument(inspectionViewDrive.id, doc.name)}>
+                            <Eye className="h-3 w-3 mr-1" /> {doc.name.split('/').pop()?.slice(0, 18)}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {(inspectionViewDrive as any).post_drive_km && (
@@ -794,6 +827,18 @@ const SecurityDashboard = () => {
                     <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_km} km</span></div>
                     <div><span className="text-muted-foreground">Fuel:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_fuel_level || 'N/A'}</span></div>
                   </div>
+                  {getInspectionMedia(inspectionViewDrive.id, 'post').length > 0 && (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-xs text-muted-foreground">Media</p>
+                      <div className="flex flex-wrap gap-1">
+                        {getInspectionMedia(inspectionViewDrive.id, 'post').map((doc: any, idx: number) => (
+                          <Button key={`${doc.name}-${idx}`} size="sm" variant="outline" className="h-7 text-xs" onClick={() => void viewDocument(inspectionViewDrive.id, doc.name)}>
+                            <Eye className="h-3 w-3 mr-1" /> {doc.name.split('/').pop()?.slice(0, 18)}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {(inspectionViewDrive as any).pre_drive_km && (inspectionViewDrive as any).post_drive_km && (
