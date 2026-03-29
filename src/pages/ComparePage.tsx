@@ -622,7 +622,7 @@ const ComparePage = () => {
                             </td>
                             {selectedVehicles.map((vehicle: any) => {
                               const rawValue = vehicle?.[spec.key];
-                              const displayValue = spec.format ? spec.format(rawValue) : (rawValue || '—');
+                              const displayValue = (spec as any).format ? (spec as any).format(rawValue) : (rawValue || '—');
                               const isBest = numericKeys.includes(spec.key) && Number(rawValue) === maxValue && maxValue > 0;
 
                               return (

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import { Plus, Trash2, Clock, Mail } from 'lucide-react';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { useAuth } from '@/hooks/useAuth';
 
 interface EmailConfig {
   id: string;
@@ -45,7 +46,8 @@ const TIMEZONES = [
 ];
 
 const ReportSettingsConfig = () => {
-  const { userData } = useDealerContext();
+  const { user, profile } = useAuth();
+  const { dealerLocationIds } = useDealerContext();
   const [emailConfigs, setEmailConfigs] = useState<EmailConfig[]>([]);
   const [scheduleConfigs, setScheduleConfigs] = useState<ScheduleConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,7 @@ const ReportSettingsConfig = () => {
   const [newScheduleDays, setNewScheduleDays] = useState<string[]>(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
   const [newScheduleTimezone, setNewScheduleTimezone] = useState('Asia/Kolkata');
 
-  const locationId = userData?.location_id;
+  const locationId = profile?.location_id || (dealerLocationIds && dealerLocationIds[0]) || null;
 
   useEffect(() => {
     if (locationId) {
@@ -80,8 +82,8 @@ const ReportSettingsConfig = () => {
           .order('created_at', { ascending: false }),
       ]);
 
-      if (emailRes.data) setEmailConfigs(emailRes.data);
-      if (scheduleRes.data) setScheduleConfigs(scheduleRes.data);
+      if (emailRes.data) setEmailConfigs(emailRes.data as unknown as EmailConfig[]);
+      if (scheduleRes.data) setScheduleConfigs(scheduleRes.data as unknown as ScheduleConfig[]);
     } catch (error) {
       console.error('Error fetching configs:', error);
       toast.error('Failed to load configurations');
@@ -124,6 +126,7 @@ const ReportSettingsConfig = () => {
         email_address: email,
         report_type: newEmailReportType,
         is_enabled: true,
+        user_id: user?.id || null,
       }));
 
       const { error } = await supabase.from('report_email_config').upsert(payload, { onConflict: 'location_id,email_address,report_type', ignoreDuplicates: true });
