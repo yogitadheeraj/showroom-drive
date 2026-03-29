@@ -176,7 +176,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
               <Car className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-lg font-heading font-bold text-sidebar-foreground">TestDriveSync</h1>
+              <h1 className="text-lg font-heading font-bold text-sidebar-foreground">Omni Tracely</h1>
               <p className="text-xs text-sidebar-foreground/60">{role ? getAppRoleLabel(role) : 'Staff'}</p>
             </div>
             <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground">

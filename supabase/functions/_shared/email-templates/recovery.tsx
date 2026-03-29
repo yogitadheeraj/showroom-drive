@@ -29,7 +29,7 @@ export const RecoveryEmail = ({
     <Body style={main}>
       <Container style={container}>
         <Section style={headerSection}>
-          <Text style={logoText}>🚗 TestDriveSync</Text>
+          <Text style={logoText}>🚗 Omni Tracely</Text>
         </Section>
         <Heading style={h1}>Reset your password</Heading>
         <Text style={text}>

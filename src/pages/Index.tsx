@@ -58,7 +58,7 @@ const ProductShowcase = () => {
             initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
             className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground mt-3"
           >
-            How TestDriveSync Works
+            How Omni Tracely Works
           </motion.h2>
         </div>
 
@@ -131,7 +131,7 @@ const Index = () => {
             <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl gradient-primary flex items-center justify-center shadow-lg">
               <Car className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
             </div>
-            <span className="text-lg sm:text-xl font-heading font-bold text-primary-foreground tracking-tight">TestDriveSync</span>
+            <span className="text-lg sm:text-xl font-heading font-bold text-primary-foreground tracking-tight">Omni Tracely</span>
           </div>
 
           {/* Desktop Nav */}
@@ -293,7 +293,7 @@ const Index = () => {
             initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
             className="text-sm sm:text-base text-muted-foreground mt-4 max-w-xl mx-auto"
           >
-            From booking to completion, TestDriveSync handles the entire test drive lifecycle with precision.
+            From booking to completion, Omni Tracely handles the entire test drive lifecycle with precision.
           </motion.p>
         </div>
 
@@ -479,14 +479,14 @@ const Index = () => {
             <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
               <Car className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-heading font-semibold text-foreground">TestDriveSync</span>
+            <span className="font-heading font-semibold text-foreground">Omni Tracely</span>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
             <Link to="/dealer-onboarding" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Dealer Onboarding</Link>
             <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
             <Link to="/auth" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
           </div>
-          <p className="text-xs sm:text-sm text-muted-foreground text-center">© {new Date().getFullYear()} TestDriveSync — Smart Test Drive & Lead Platform</p>
+          <p className="text-xs sm:text-sm text-muted-foreground text-center">© {new Date().getFullYear()} Omni Tracely — Smart Test Drive & Lead Platform</p>
         </div>
       </footer>
       <EnquiryWidget />

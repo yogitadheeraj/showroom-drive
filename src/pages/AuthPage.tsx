@@ -72,7 +72,7 @@ const AuthPage = () => {
             <Car className="h-6 w-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-2xl font-heading font-bold text-foreground">TestDriveSync</h1>
+            <h1 className="text-2xl font-heading font-bold text-foreground">Omni Tracely</h1>
             <p className="text-sm text-muted-foreground">Smart Test Drive & Lead Platform</p>
           </div>
         </div>

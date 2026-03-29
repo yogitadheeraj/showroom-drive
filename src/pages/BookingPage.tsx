@@ -418,7 +418,7 @@ const BookingPage = () => {
       const locationName = selectedLocation?.name || 'our showroom';
 
       // Always send WhatsApp confirmation
-      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}\n\nPlease bring a valid driving license. See you there!\n\n— TestDriveSync`;
+      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}\n\nPlease bring a valid driving license. See you there!\n\n— Omni Tracely`;
       supabase.functions.invoke('send-whatsapp', {
         body: { to: formData.phone, message: confirmationMsg, customerId, testDriveId: tdData.id, purpose: 'booking_confirmed' },
       }).catch(err => console.error('WhatsApp send failed:', err));
@@ -481,7 +481,7 @@ const BookingPage = () => {
             <div className="h-9 w-9 rounded-xl gradient-primary flex items-center justify-center">
               <Car className="h-4 w-4 text-primary-foreground" />
             </div>
-            <h1 className="text-lg font-heading font-bold text-primary-foreground">TestDriveSync</h1>
+            <h1 className="text-lg font-heading font-bold text-primary-foreground">Omni Tracely</h1>
           </div>
           <Link to="/auth" className="flex items-center gap-1.5 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
             <Shield className="h-4 w-4" />

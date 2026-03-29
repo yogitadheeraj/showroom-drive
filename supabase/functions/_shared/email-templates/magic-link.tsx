@@ -29,7 +29,7 @@ export const MagicLinkEmail = ({
     <Body style={main}>
       <Container style={container}>
         <Section style={headerSection}>
-          <Text style={logoText}>🚗 TestDriveSync</Text>
+          <Text style={logoText}>🚗 Omni Tracely</Text>
         </Section>
         <Heading style={h1}>Your login link</Heading>
         <Text style={text}>

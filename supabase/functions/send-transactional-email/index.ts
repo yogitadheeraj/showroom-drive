@@ -4,7 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { TEMPLATES } from '../_shared/transactional-email-templates/registry.ts'
 
 // Configuration baked in at scaffold time
-const SITE_NAME = "Test Drive Sync"
+const SITE_NAME = "Omni Tracely"
 const SENDER_DOMAIN = "notify.tottalesapp.com"
 const FROM_DOMAIN = "tottalesapp.com"
 
