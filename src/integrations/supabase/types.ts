@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_report_logs: {
+        Row: {
+          created_at: string
+          event_breakdown: Json | null
+          id: string
+          location_id: string | null
+          report_date: string
+          role_wise_activity: Json | null
+          sent_at: string | null
+          staff_activity_summary: Json | null
+        }
+        Insert: {
+          created_at?: string
+          event_breakdown?: Json | null
+          id?: string
+          location_id?: string | null
+          report_date: string
+          role_wise_activity?: Json | null
+          sent_at?: string | null
+          staff_activity_summary?: Json | null
+        }
+        Update: {
+          created_at?: string
+          event_breakdown?: Json | null
+          id?: string
+          location_id?: string | null
+          report_date?: string
+          role_wise_activity?: Json | null
+          sent_at?: string | null
+          staff_activity_summary?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_report_logs_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           created_at: string
@@ -166,6 +207,72 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      daily_test_drive_reports: {
+        Row: {
+          activity_summary: Json | null
+          created_at: string
+          dealer_id: string | null
+          email_sent_to: string | null
+          gro_stats: Json | null
+          id: string
+          location_id: string | null
+          report_date: string
+          sales_person_stats: Json | null
+          security_stats: Json | null
+          sent_at: string | null
+          status_breakdown: Json | null
+          total_test_drives: number
+          updated_at: string
+        }
+        Insert: {
+          activity_summary?: Json | null
+          created_at?: string
+          dealer_id?: string | null
+          email_sent_to?: string | null
+          gro_stats?: Json | null
+          id?: string
+          location_id?: string | null
+          report_date: string
+          sales_person_stats?: Json | null
+          security_stats?: Json | null
+          sent_at?: string | null
+          status_breakdown?: Json | null
+          total_test_drives?: number
+          updated_at?: string
+        }
+        Update: {
+          activity_summary?: Json | null
+          created_at?: string
+          dealer_id?: string | null
+          email_sent_to?: string | null
+          gro_stats?: Json | null
+          id?: string
+          location_id?: string | null
+          report_date?: string
+          sales_person_stats?: Json | null
+          security_stats?: Json | null
+          sent_at?: string | null
+          status_breakdown?: Json | null
+          total_test_drives?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_test_drive_reports_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_test_drive_reports_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       dealers: {
         Row: {
@@ -556,6 +663,104 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "profiles_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_email_config: {
+        Row: {
+          created_at: string
+          dealer_id: string | null
+          email_address: string
+          id: string
+          is_enabled: boolean
+          location_id: string
+          report_type: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          dealer_id?: string | null
+          email_address: string
+          id?: string
+          is_enabled?: boolean
+          location_id: string
+          report_type: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          dealer_id?: string | null
+          email_address?: string
+          id?: string
+          is_enabled?: boolean
+          location_id?: string
+          report_type?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_email_config_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_email_config_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_schedule_config: {
+        Row: {
+          created_at: string
+          days_of_week: string[]
+          id: string
+          is_enabled: boolean
+          last_sent_at: string | null
+          location_id: string
+          report_type: string
+          schedule_time: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          days_of_week?: string[]
+          id?: string
+          is_enabled?: boolean
+          last_sent_at?: string | null
+          location_id: string
+          report_type: string
+          schedule_time: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          days_of_week?: string[]
+          id?: string
+          is_enabled?: boolean
+          last_sent_at?: string | null
+          location_id?: string
+          report_type?: string
+          schedule_time?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_schedule_config_location_id_fkey"
             columns: ["location_id"]
             isOneToOne: false
             referencedRelation: "locations"
@@ -991,6 +1196,42 @@ export type Database = {
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
+      }
+      get_activity_daily_summary: {
+        Args: { location_id: string; report_date: string }
+        Returns: {
+          eventtypes: Json
+          roleactivity: Json
+          totalevents: number
+        }[]
+      }
+      get_gro_daily_stats: {
+        Args: { location_id: string; report_date: string }
+        Returns: {
+          assigned: number
+          completed: number
+          id: string
+          name: string
+        }[]
+      }
+      get_sales_person_daily_stats: {
+        Args: { location_id: string; report_date: string }
+        Returns: {
+          assigned: number
+          completed: number
+          id: string
+          name: string
+          no_show: number
+        }[]
+      }
+      get_security_daily_stats: {
+        Args: { location_id: string; report_date: string }
+        Returns: {
+          checked_in: number
+          checked_out: number
+          id: string
+          name: string
+        }[]
       }
       get_user_dealer_id: { Args: { _user_id: string }; Returns: string }
       get_user_location_id: { Args: { _user_id: string }; Returns: string }
