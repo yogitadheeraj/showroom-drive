@@ -126,6 +126,7 @@ const ReportSettingsConfig = () => {
         email_address: email,
         report_type: newEmailReportType,
         is_enabled: true,
+        user_id: user?.id || null,
       }));
 
       const { error } = await supabase.from('report_email_config').upsert(payload, { onConflict: 'location_id,email_address,report_type', ignoreDuplicates: true });
