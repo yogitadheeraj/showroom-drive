@@ -159,7 +159,7 @@ const SuperAdminDashboard = () => {
       const [{ data: profiles }, { data: roles }] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, user_id, full_name, location_id, is_active, last_login_at')
+          .select('id, user_id, full_name, location_id, is_active')
           .in('location_id', locationIds)
           .order('full_name'),
         supabase
