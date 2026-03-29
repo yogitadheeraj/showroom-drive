@@ -467,6 +467,7 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean
+          metadata: Json | null
           name: string
           phone: string | null
           slot_duration_minutes: number
@@ -482,6 +483,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          metadata?: Json | null
           name: string
           phone?: string | null
           slot_duration_minutes?: number
@@ -497,6 +499,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          metadata?: Json | null
           name?: string
           phone?: string | null
           slot_duration_minutes?: number
@@ -726,6 +729,7 @@ export type Database = {
           inspection_submitted_at: string | null
           key_handed_at: string | null
           location_id: string
+          metadata: Json | null
           notes: string | null
           post_drive_fuel_level: string | null
           post_drive_km: number | null
@@ -740,6 +744,7 @@ export type Database = {
           scheduled_time: string
           security_checked_in_at: string | null
           security_checked_out_at: string | null
+          slot_duration_minutes: number
           source: string
           started_at: string | null
           status: Database["public"]["Enums"]["test_drive_status"]
@@ -757,6 +762,7 @@ export type Database = {
           inspection_submitted_at?: string | null
           key_handed_at?: string | null
           location_id: string
+          metadata?: Json | null
           notes?: string | null
           post_drive_fuel_level?: string | null
           post_drive_km?: number | null
@@ -771,6 +777,7 @@ export type Database = {
           scheduled_time: string
           security_checked_in_at?: string | null
           security_checked_out_at?: string | null
+          slot_duration_minutes?: number
           source?: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["test_drive_status"]
@@ -788,6 +795,7 @@ export type Database = {
           inspection_submitted_at?: string | null
           key_handed_at?: string | null
           location_id?: string
+          metadata?: Json | null
           notes?: string | null
           post_drive_fuel_level?: string | null
           post_drive_km?: number | null
@@ -802,6 +810,7 @@ export type Database = {
           scheduled_time?: string
           security_checked_in_at?: string | null
           security_checked_out_at?: string | null
+          slot_duration_minutes?: number
           source?: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["test_drive_status"]
@@ -1043,10 +1052,10 @@ export type Database = {
         | "show"
         | "no_show"
         | "in_progress"
-        | "key_handover_to_sales"
         | "completed"
         | "cancelled"
         | "rescheduled"
+        | "key_handover_to_sales"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1191,10 +1200,10 @@ export const Constants = {
         "show",
         "no_show",
         "in_progress",
-        "key_handover_to_sales",
         "completed",
         "cancelled",
         "rescheduled",
+        "key_handover_to_sales",
       ],
     },
   },
