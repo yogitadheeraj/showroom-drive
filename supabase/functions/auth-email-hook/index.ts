@@ -79,6 +79,33 @@ const SAMPLE_DATA: Record<string, object> = {
   },
 }
 
+async function triggerEmailQueueProcessing(supabaseUrl: string, serviceRoleKey: string) {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/process-email-queue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({ source: 'auth-email-hook' }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Failed to trigger process-email-queue', {
+        status: response.status,
+        errorText,
+      })
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error triggering process-email-queue', { error })
+    return false
+  }
+}
+
 // Preview endpoint handler - returns rendered HTML without sending email
 async function handlePreview(req: Request): Promise<Response> {
   const previewCorsHeaders = {
@@ -239,6 +266,8 @@ async function handleWebhook(req: Request): Promise<Response> {
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   )
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 
   const messageId = crypto.randomUUID()
 
@@ -281,6 +310,10 @@ async function handleWebhook(req: Request): Promise<Response> {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
+
+  // Trigger the email worker immediately so verification emails do not depend
+  // on an external cron job being configured correctly.
+  await triggerEmailQueueProcessing(supabaseUrl, serviceRoleKey)
 
   console.log('Auth email enqueued', { emailType, email: payload.data.email, run_id })
 
