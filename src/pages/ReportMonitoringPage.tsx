@@ -56,7 +56,7 @@ const ReportMonitoringDashboard = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      setAttempts(data || []);
+      setAttempts((data || []) as unknown as SendAttempt[]);
     } catch (error) {
       console.error('Error fetching attempts:', error);
       toast.error('Failed to load report monitoring data');
