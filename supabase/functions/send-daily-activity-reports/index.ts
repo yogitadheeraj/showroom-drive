@@ -312,6 +312,7 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const reportDate = body.reportDate || new Date().toISOString().split('T')[0]
     const locationIds = body.locationIds // Optional: specific locations. If not provided, send to all
+    const recipientEmails = body.recipientEmails // Optional: specific recipient emails (for retries)
 
     // Get all locations
     let locationQuery = supabase.from('locations').select('id, name, email')
@@ -334,6 +335,9 @@ Deno.serve(async (req) => {
     const results = []
 
     for (const location of locations) {
+      let errorMessage: string | null = null
+      let errorCode: string | null = null
+
       try {
         const activityReport = await fetchActivityReport(supabase, location.id, reportDate)
 
@@ -353,56 +357,152 @@ Deno.serve(async (req) => {
 
         const adminEmails = admins?.map((a: any) => a.email).filter(Boolean) || []
 
-        if (adminEmails.length === 0) {
-          results.push({ location: location.name, status: 'failed', reason: 'No admin email found' })
+        // If recipientEmails specified, filter to only those
+        const targetEmails = recipientEmails ? adminEmails.filter((e: string) => recipientEmails.includes(e)) : adminEmails
+
+        if (targetEmails.length === 0) {
+          if (recipientEmails) {
+            console.log(`No matching recipient emails for location ${location.id}`)
+            continue
+          }
+          errorMessage = 'No admin email found'
+          errorCode = 'NO_RECIPIENTS'
+
+          results.push({ location: location.name, status: 'failed', reason: errorMessage })
           continue
         }
 
-        // Send to all admins
-        for (const email of adminEmails) {
-          const sendEmailResponse = await fetch(`${supabaseUrl}/functions/v1/send-transactional-email`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({
-              recipientEmail: email,
-              templateName: 'custom_html',
-              templateData: {
-                subject: `Daily Activity Report - ${location.name} - ${reportDate}`,
-                html: emailHTML,
-                previewText: `${activityReport.totalEvents} staff activities recorded - ${reportDate}`,
-              },
-            }),
-          })
+        // Send to all admin emails
+        let locationSentCount = 0
+        let locationFailedCount = 0
 
-          if (sendEmailResponse.ok) {
-            // Store activity report in database
-            await supabase.from('activity_report_logs').insert({
-              location_id: location.id,
-              report_date: reportDate,
-              staff_activity_summary: {
-                totalSessions: activityReport.totalSessions,
-                totalEvents: activityReport.totalEvents,
-                totalActiveSessions: activityReport.totalActiveSessions,
+        for (const email of targetEmails) {
+          let sendErrorMessage: string | null = null
+          let sendErrorCode: string | null = null
+
+          try {
+            const sendEmailResponse = await fetch(`${supabaseUrl}/functions/v1/send-transactional-email`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${supabaseServiceKey}`,
               },
-              event_breakdown: activityReport.eventBreakdown,
-              role_wise_activity: activityReport.roleActivity,
-              sent_at: new Date().toISOString(),
+              body: JSON.stringify({
+                recipientEmail: email,
+                templateName: 'custom_html',
+                templateData: {
+                  subject: `Daily Activity Report - ${location.name} - ${reportDate}`,
+                  html: emailHTML,
+                  previewText: `${activityReport.totalEvents} staff activities recorded - ${reportDate}`,
+                },
+              }),
             })
 
-            sentCount++
-            console.log(`Activity report sent to ${email}`)
-          } else {
+            if (sendEmailResponse.ok) {
+              // Store activity report in database
+              await supabase.from('activity_report_logs').insert({
+                location_id: location.id,
+                report_date: reportDate,
+                staff_activity_summary: {
+                  totalSessions: activityReport.totalSessions,
+                  totalEvents: activityReport.totalEvents,
+                  totalActiveSessions: activityReport.totalActiveSessions,
+                },
+                event_breakdown: activityReport.eventBreakdown,
+                role_wise_activity: activityReport.roleActivity,
+                sent_at: new Date().toISOString(),
+              })
+
+              // Log successful send
+              await supabase.rpc('log_report_send_attempt', {
+                p_location_id: location.id,
+                p_report_type: 'activity_daily',
+                p_recipient_email: email,
+                p_report_date: reportDate,
+                p_status: 'success',
+                p_error_message: null,
+                p_error_code: null,
+              })
+
+              locationSentCount++
+              sentCount++
+              console.log(`Activity report sent to ${email}`)
+            } else {
+              const errorResponse = await sendEmailResponse.text()
+              sendErrorMessage = `HTTP ${sendEmailResponse.status}: ${errorResponse.substring(0, 200)}`
+              sendErrorCode = `EMAIL_SEND_ERROR_${sendEmailResponse.status}`
+
+              // Log failed send
+              await supabase.rpc('log_report_send_attempt', {
+                p_location_id: location.id,
+                p_report_type: 'activity_daily',
+                p_recipient_email: email,
+                p_report_date: reportDate,
+                p_status: 'failed',
+                p_error_message: sendErrorMessage,
+                p_error_code: sendErrorCode,
+              })
+
+              locationFailedCount++
+              failedCount++
+              console.error(`Failed to send activity report to ${email}: ${sendErrorMessage}`)
+            }
+          } catch (emailError) {
+            sendErrorMessage = emailError instanceof Error ? emailError.message : 'Unknown error'
+            sendErrorCode = 'EMAIL_SEND_EXCEPTION'
+
+            // Log exception
+            try {
+              await supabase.rpc('log_report_send_attempt', {
+                p_location_id: location.id,
+                p_report_type: 'activity_daily',
+                p_recipient_email: email,
+                p_report_date: reportDate,
+                p_status: 'failed',
+                p_error_message: sendErrorMessage,
+                p_error_code: sendErrorCode,
+              })
+            } catch (logError) {
+              console.error('Failed to log error:', logError)
+            }
+
+            locationFailedCount++
             failedCount++
+            console.error(`Error sending to ${email}:`, emailError)
           }
         }
 
-        results.push({ location: location.name, status: 'sent', recipients: adminEmails.length })
+        results.push({
+          location: location.name,
+          status: locationFailedCount === 0 ? 'sent' : locationSentCount > 0 ? 'partial' : 'failed',
+          recipients: targetEmails.length,
+          sent: locationSentCount,
+          failed: locationFailedCount,
+        })
       } catch (error) {
+        errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        errorCode = 'REPORT_PROCESSING_ERROR'
+
+        // Try to log the error
+        try {
+          const targetEmails = recipientEmails || []
+          for (const email of targetEmails) {
+            await supabase.rpc('log_report_send_attempt', {
+              p_location_id: location.id,
+              p_report_type: 'activity_daily',
+              p_recipient_email: email,
+              p_report_date: reportDate,
+              p_status: 'failed',
+              p_error_message: errorMessage,
+              p_error_code: errorCode,
+            })
+          }
+        } catch (logError) {
+          console.error('Failed to log error:', logError)
+        }
+
         failedCount++
-        results.push({ location: location.id, status: 'failed', error: error instanceof Error ? error.message : 'Unknown error' })
+        results.push({ location: location.id, status: 'failed', error: errorMessage })
         console.error(`Error processing location ${location.id}:`, error)
       }
     }

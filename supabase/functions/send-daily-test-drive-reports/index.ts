@@ -411,12 +411,18 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const reportDate = body.reportDate || new Date().toISOString().split('T')[0]
     const dealerIds = body.dealerIds // Optional: specific dealers. If not provided, send to all
+    const locationIds = body.locationIds // Optional: specific locations
+    const recipientEmails = body.recipientEmails // Optional: specific recipient emails (for retries)
 
     // Get all dealers/locations
     let dealerQuery = supabase.from('profiles').select('id, location_id, email').eq('is_active', true)
 
     if (dealerIds && Array.isArray(dealerIds)) {
       dealerQuery = dealerQuery.in('id', dealerIds)
+    }
+
+    if (locationIds && Array.isArray(locationIds)) {
+      dealerQuery = dealerQuery.in('location_id', locationIds)
     }
 
     const { data: dealers } = await dealerQuery
@@ -435,6 +441,14 @@ Deno.serve(async (req) => {
     for (const dealer of dealers) {
       if (!dealer.location_id) continue
 
+      // If recipientEmails specified, only send to those specific emails
+      if (recipientEmails && !recipientEmails.includes(dealer.email)) {
+        continue
+      }
+
+      let errorMessage: string | null = null
+      let errorCode: string | null = null
+
       try {
         const reportData = await fetchTestDriveReport(supabase, dealer.id, dealer.location_id, reportDate)
 
@@ -446,22 +460,27 @@ Deno.serve(async (req) => {
         const emailHTML = generateEmailHTML(reportData)
 
         // Send email via transactional email function
-        const sendEmailResponse = await fetch(`${supabaseUrl}/functions/v1/send-transactional-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({
-            recipientEmail: reportData.dealer.email,
-            templateName: 'custom_html',
-            templateData: {
-              subject: `Daily Test Drive Report - ${reportData.location.name} - ${reportDate}`,
-              html: emailHTML,
-              previewText: `Daily Report: ${reportData.totalTestDrives} test drives for ${reportDate}`,
+        let sendEmailResponse: Response
+        try {
+          sendEmailResponse = await fetch(`${supabaseUrl}/functions/v1/send-transactional-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${supabaseServiceKey}`,
             },
-          }),
-        })
+            body: JSON.stringify({
+              recipientEmail: reportData.dealer.email,
+              templateName: 'custom_html',
+              templateData: {
+                subject: `Daily Test Drive Report - ${reportData.location.name} - ${reportDate}`,
+                html: emailHTML,
+                previewText: `Daily Report: ${reportData.totalTestDrives} test drives for ${reportDate}`,
+              },
+            }),
+          })
+        } catch (fetchError) {
+          throw new Error(`Email service unavailable: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`)
+        }
 
         if (sendEmailResponse.ok) {
           // Store report in database
@@ -479,17 +498,61 @@ Deno.serve(async (req) => {
             sent_at: new Date().toISOString(),
           })
 
+          // Log successful send attempt
+          await supabase.rpc('log_report_send_attempt', {
+            p_location_id: reportData.location.id,
+            p_report_type: 'test_drive_daily',
+            p_recipient_email: reportData.dealer.email,
+            p_report_date: reportDate,
+            p_status: 'success',
+            p_error_message: null,
+            p_error_code: null,
+          })
+
           sentCount++
           results.push({ dealer: reportData.dealer.name, status: 'sent', location: reportData.location.name })
           console.log(`Report sent to ${reportData.dealer.email}`)
         } else {
+          const errorResponse = await sendEmailResponse.text()
+          errorMessage = `HTTP ${sendEmailResponse.status}: ${errorResponse.substring(0, 200)}`
+          errorCode = `EMAIL_SEND_ERROR_${sendEmailResponse.status}`
+
+          // Log failed send attempt
+          await supabase.rpc('log_report_send_attempt', {
+            p_location_id: reportData.location.id,
+            p_report_type: 'test_drive_daily',
+            p_recipient_email: reportData.dealer.email,
+            p_report_date: reportDate,
+            p_status: 'failed',
+            p_error_message: errorMessage,
+            p_error_code: errorCode,
+          })
+
           failedCount++
-          results.push({ dealer: reportData.dealer.name, status: 'failed', error: 'Email send failed' })
-          console.error(`Failed to send email to ${reportData.dealer.email}`)
+          results.push({ dealer: reportData.dealer.name, status: 'failed', error: errorMessage })
+          console.error(`Failed to send email to ${reportData.dealer.email}: ${errorMessage}`)
         }
       } catch (error) {
+        errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        errorCode = 'REPORT_PROCESSING_ERROR'
+
+        // Log processing error
+        try {
+          await supabase.rpc('log_report_send_attempt', {
+            p_location_id: dealer.location_id,
+            p_report_type: 'test_drive_daily',
+            p_recipient_email: dealer.email,
+            p_report_date: reportDate,
+            p_status: 'failed',
+            p_error_message: errorMessage,
+            p_error_code: errorCode,
+          })
+        } catch (logError) {
+          console.error('Failed to log error:', logError)
+        }
+
         failedCount++
-        results.push({ dealer: dealer.id, status: 'failed', error: error instanceof Error ? error.message : 'Unknown error' })
+        results.push({ dealer: dealer.id, status: 'failed', error: errorMessage })
         console.error(`Error processing dealer ${dealer.id}:`, error)
       }
     }
