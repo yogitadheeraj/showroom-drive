@@ -768,6 +768,65 @@ export type Database = {
           },
         ]
       }
+      report_send_attempts: {
+        Row: {
+          attempt_number: number
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          id: string
+          location_id: string
+          next_retry_at: string | null
+          recipient_email: string
+          report_date: string
+          report_type: string
+          sent_at: string | null
+          status: string
+          superadmin_notified_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempt_number?: number
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          location_id: string
+          next_retry_at?: string | null
+          recipient_email: string
+          report_date: string
+          report_type: string
+          sent_at?: string | null
+          status?: string
+          superadmin_notified_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempt_number?: number
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          location_id?: string
+          next_retry_at?: string | null
+          recipient_email?: string
+          report_date?: string
+          report_type?: string
+          sent_at?: string | null
+          status?: string
+          superadmin_notified_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_send_attempts_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_activity_events: {
         Row: {
           created_at: string
@@ -1205,6 +1264,20 @@ export type Database = {
           totalevents: number
         }[]
       }
+      get_failed_reports_for_retry: {
+        Args: never
+        Returns: {
+          attempt_number: number
+          error_message: string
+          id: string
+          location_id: string
+          next_retry_at: string
+          recipient_email: string
+          report_date: string
+          report_type: string
+          status: string
+        }[]
+      }
       get_gro_daily_stats: {
         Args: { location_id: string; report_date: string }
         Returns: {
@@ -1245,6 +1318,18 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      log_report_send_attempt: {
+        Args: {
+          p_error_code?: string
+          p_error_message?: string
+          p_location_id: string
+          p_recipient_email: string
+          p_report_date: string
+          p_report_type: string
+          p_status: string
+        }
+        Returns: string
       }
       move_to_dlq: {
         Args: {
