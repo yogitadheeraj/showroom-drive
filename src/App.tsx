@@ -23,6 +23,8 @@ import EnquiriesPage from "./pages/EnquiriesPage.tsx";
 import ComparePage from "./pages/ComparePage.tsx";
 import DealerOnboardingPage from "./pages/DealerOnboardingPage.tsx";
 import DealerSettingsPage from "./pages/DealerSettingsPage.tsx";
+
+import ReportMonitoringPage from "./pages/ReportMonitoringPage.tsx";
 import { ROUTE_ALLOWED_ROLES } from "@/constants/roles";
 
 const queryClient = new QueryClient();
@@ -52,6 +54,7 @@ const App = () => (
             <Route path="/dealer-onboarding" element={<DealerOnboardingPage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="/waiting-board" element={<WaitingBoardPage />} />
+            <Route path="/reports/monitoring" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.REPORTS_MONITORING]}><ReportMonitoringPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

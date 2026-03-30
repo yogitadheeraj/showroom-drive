@@ -1,6 +1,8 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+
+
 import {
   type LucideIcon,
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
@@ -27,7 +29,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
-    { label: 'Data Center', path: '/data-center', icon: BarChart3 }
+    { label: 'Data Center', path: '/data-center', icon: BarChart3 },
+       { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
   ],
   [APP_ROLE.DEALER_ADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -41,6 +44,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
+       { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
   ],
   [APP_ROLE.GRO]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -57,6 +61,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
+     { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
   ],
   [APP_ROLE.SECURITY]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
