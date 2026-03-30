@@ -14,7 +14,7 @@ export async function triggerTestDriveReports(options: ReportTriggerOptions = {}
     const response = await supabase.functions.invoke('send-daily-test-drive-reports', {
       body: {
         reportDate: options.reportDate || new Date().toISOString().split('T')[0],
-        dealerIds: options.locationIds,
+        locationIds: options.locationIds,
       },
     })
 

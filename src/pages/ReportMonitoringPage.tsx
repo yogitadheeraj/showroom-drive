@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { RefreshCw, AlertCircle, CheckCircle, Clock, Mail, RotateCcw } from 'lucide-react';
+import { RefreshCw, AlertCircle, CheckCircle, Clock, Mail, RotateCcw, Send } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useDealerContext } from '@/hooks/useDealerContext';
 
@@ -26,17 +26,32 @@ interface SendAttempt {
   updated_at: string;
 }
 
+interface ReportSchedule {
+  id: string;
+  location_id: string;
+  report_type: 'test_drive_daily' | 'activity_daily';
+  schedule_time: string;
+  days_of_week: string[];
+  timezone: string;
+  is_enabled: boolean;
+}
+
 const ReportMonitoringDashboard = () => {
   const { dealerLocationIds } = useDealerContext();
   const [attempts, setAttempts] = useState<SendAttempt[]>([]);
+  const [schedules, setSchedules] = useState<ReportSchedule[]>([]);
+  const [locationNames, setLocationNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'failed' | 'pending'>('all');
   const [filterEmail, setFilterEmail] = useState('');
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [sendingNow, setSendingNow] = useState<string | null>(null);
 
   useEffect(() => {
     if (dealerLocationIds && dealerLocationIds.length > 0) {
       fetchAttempts();
+      fetchSchedules();
     }
   }, [dealerLocationIds]);
 
@@ -62,6 +77,71 @@ const ReportMonitoringDashboard = () => {
       toast.error('Failed to load report monitoring data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSchedules = async () => {
+    if (!dealerLocationIds || dealerLocationIds.length === 0) return;
+
+    try {
+      setScheduleLoading(true);
+
+      const [scheduleRes, locationRes] = await Promise.all([
+        supabase
+          .from('report_schedule_config')
+          .select('id, location_id, report_type, schedule_time, days_of_week, timezone, is_enabled')
+          .in('location_id', dealerLocationIds)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('locations')
+          .select('id, name')
+          .in('id', dealerLocationIds),
+      ]);
+
+      if (scheduleRes.error) throw scheduleRes.error;
+      if (locationRes.error) throw locationRes.error;
+
+      const names: Record<string, string> = {};
+      (locationRes.data || []).forEach((loc) => {
+        names[loc.id] = loc.name;
+      });
+
+      setSchedules((scheduleRes.data || []) as ReportSchedule[]);
+      setLocationNames(names);
+    } catch (error) {
+      console.error('Error fetching report schedules:', error);
+      toast.error('Failed to load report schedules');
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  const sendScheduleNow = async (schedule: ReportSchedule) => {
+    try {
+      setSendingNow(schedule.id);
+      const today = new Date().toISOString().split('T')[0];
+
+      const functionName =
+        schedule.report_type === 'test_drive_daily'
+          ? 'send-daily-test-drive-reports'
+          : 'send-daily-activity-reports';
+
+      const { error } = await supabase.functions.invoke(functionName, {
+        body: {
+          reportDate: today,
+          locationIds: [schedule.location_id],
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success('Report sent immediately');
+      setTimeout(() => fetchAttempts(), 1000);
+    } catch (error) {
+      console.error('Error sending report immediately:', error);
+      toast.error('Failed to send report immediately');
+    } finally {
+      setSendingNow(null);
     }
   };
 
@@ -253,6 +333,79 @@ const ReportMonitoringDashboard = () => {
                 </Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* All Report Schedules */}
+        <Card>
+          <CardHeader>
+            <CardTitle>All Report Schedules</CardTitle>
+            <CardDescription>View schedules for all dealer locations and send any report immediately</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {scheduleLoading ? (
+              <div className="text-center py-8">Loading schedules...</div>
+            ) : schedules.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">No report schedules found</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-border/70 bg-muted/50">
+                    <tr>
+                      <th className="text-left py-3 px-4 font-medium text-foreground">Location</th>
+                      <th className="text-left py-3 px-4 font-medium text-foreground">Type</th>
+                      <th className="text-left py-3 px-4 font-medium text-foreground">Time</th>
+                      <th className="text-left py-3 px-4 font-medium text-foreground">Days</th>
+                      <th className="text-center py-3 px-4 font-medium text-foreground">Status</th>
+                      <th className="text-center py-3 px-4 font-medium text-foreground">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schedules.map((schedule) => (
+                      <tr key={schedule.id} className="border-b border-border/40 hover:bg-muted/25 transition">
+                        <td className="py-3 px-4">
+                          <span className="text-xs font-medium">
+                            {locationNames[schedule.location_id] || schedule.location_id}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant="outline" className="text-xs">
+                            {schedule.report_type === 'test_drive_daily' ? 'Test Drive' : 'Activity'}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-xs text-muted-foreground">
+                            {schedule.schedule_time} ({schedule.timezone})
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-xs text-muted-foreground">
+                            {schedule.days_of_week?.join(', ') || 'N/A'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <Badge className={schedule.is_enabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
+                            {schedule.is_enabled ? 'Enabled' : 'Disabled'}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => sendScheduleNow(schedule)}
+                            disabled={sendingNow === schedule.id}
+                            className="gap-1"
+                          >
+                            <Send className={`h-3 w-3 ${sendingNow === schedule.id ? 'animate-pulse' : ''}`} />
+                            {sendingNow === schedule.id ? 'Sending...' : 'Send Now'}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
