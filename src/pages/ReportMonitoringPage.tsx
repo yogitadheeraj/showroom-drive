@@ -29,7 +29,7 @@ interface SendAttempt {
 const ReportMonitoringDashboard = () => {
   const { dealerLocationIds } = useDealerContext();
   const [attempts, setAttempts] = useState<SendAttempt[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'failed' | 'pending'>('all');
   const [filterEmail, setFilterEmail] = useState('');
   const [retrying, setRetrying] = useState<string | null>(null);
