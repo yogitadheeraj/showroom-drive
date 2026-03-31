@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
 import VehicleSpecCard from '@/components/booking/VehicleSpecCard';
-import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows, Map as MapIcon, ExternalLink } from 'lucide-react';
+import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows, Map as MapIcon, ExternalLink, Mail, ShieldCheck, KeyRound, ClipboardCheck, MessageSquare } from 'lucide-react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { format, isBefore, startOfDay } from 'date-fns';
@@ -22,6 +22,57 @@ const STEPS = [
   { id: 'location', label: 'Location', icon: MapPin },
   { id: 'time', label: 'Time', icon: Clock },
   { id: 'info', label: 'Your Info', icon: User },
+];
+
+const JOURNEY_PREVIEW_STEPS = [
+  {
+    id: 1,
+    icon: Mail,
+    title: 'Booking Confirmation',
+    description: 'You receive confirmation updates via WhatsApp and email after booking.',
+  },
+  {
+    id: 2,
+    icon: Shield,
+    title: 'License Upload',
+    description: 'Upload your driving license before arriving if it is not already uploaded.',
+  },
+  {
+    id: 3,
+    icon: ShieldCheck,
+    title: 'Security Verification',
+    description: 'Security team verifies your license details at the showroom.',
+  },
+  {
+    id: 4,
+    icon: KeyRound,
+    title: 'Key Handover',
+    description: 'Assigned sales team briefs you and hands over vehicle keys.',
+  },
+  {
+    id: 5,
+    icon: ClipboardCheck,
+    title: 'Pre & Post Inspection',
+    description: 'Security records inspection before and after the test drive with notes.',
+  },
+  {
+    id: 6,
+    icon: CheckCircle,
+    title: 'Formalities Complete',
+    description: 'Security marks formalities complete and updates the status trail.',
+  },
+  {
+    id: 7,
+    icon: Car,
+    title: 'Return Key To Sales',
+    description: 'Return keys to assigned sales executive to complete your journey.',
+  },
+  {
+    id: 8,
+    icon: MessageSquare,
+    title: 'Feedback & Purchase Help',
+    description: 'Share feedback and ask sales team about purchase, finance, and offers.',
+  },
 ];
 
 const bookingSchema = z.object({
@@ -520,24 +571,60 @@ const BookingPage = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md shadow-elevated animate-fade-in text-center">
-          <CardContent className="p-8">
-            <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="h-8 w-8 text-success" />
-            </div>
-            <h2 className="text-xl font-heading font-bold text-foreground mb-2">Test Drive Booked!</h2>
-            <p className="text-muted-foreground mb-6">We'll send you a confirmation shortly.</p>
-            <div className="flex flex-col gap-3">
-              <Button onClick={() => { setSuccess(false); setStep(0); setFormData({ fullName: '', email: '', phone: '', preferredContact: 'phone', locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '', selectedModel: '' }); }}>
-                Book Another
-              </Button>
-              <Link to="/">
-                <Button variant="outline" className="w-full">Back to Home</Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background p-4 md:p-6">
+        <div className="mx-auto max-w-4xl space-y-4">
+          <Card className="w-full shadow-elevated animate-fade-in text-center">
+            <CardContent className="p-8">
+              <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="h-8 w-8 text-success" />
+              </div>
+              <h2 className="text-2xl font-heading font-bold text-foreground mb-2">Test Drive Booked!</h2>
+              <p className="text-muted-foreground mb-2">Thank you for booking with Omni Tracely.</p>
+              <p className="text-sm text-muted-foreground mb-6">We have sent your confirmation and below is your complete journey flow.</p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button onClick={() => { setSuccess(false); setStep(0); setFormData({ fullName: '', email: '', phone: '', preferredContact: 'phone', locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '', selectedModel: '' }); }}>
+                  Book Another
+                </Button>
+                <Link to="/">
+                  <Button variant="outline" className="w-full sm:w-auto">Back to Home</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-background to-blue-50/60 shadow-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="font-heading text-lg">Your Test Drive Journey Steps</CardTitle>
+              <CardDescription>
+                Keep this as your checklist when you visit the showroom.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {JOURNEY_PREVIEW_STEPS.map((step) => {
+                  const Icon = step.icon;
+                  return (
+                    <div key={step.id} className="rounded-xl border border-primary/20 bg-card p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
+                          {step.id}
+                        </span>
+                        <Icon className="h-4 w-4 text-primary" />
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-foreground">{step.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{step.description}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-dashed border-primary/30">
+            <CardContent className="p-4 text-sm text-muted-foreground">
+              Need help before your visit? Contact your assigned sales team from the confirmation message and they will guide you.
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

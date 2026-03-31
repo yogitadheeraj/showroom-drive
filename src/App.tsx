@@ -13,6 +13,7 @@ import DashboardPage from "./pages/DashboardPage.tsx";
 import BookingPage from "./pages/BookingPage.tsx";
 import WalkinPage from "./pages/WalkinPage.tsx";
 import TestDrivesPage from "./pages/TestDrivesPage.tsx";
+import TestDriveFeedbackPage from "./pages/TestDriveFeedbackPage.tsx";
 import CommunicationsPage from "./pages/CommunicationsPage.tsx";
 import LocationsPage from "./pages/LocationsPage.tsx";
 import VehiclesPage from "./pages/VehiclesPage.tsx";
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/walkin" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.WALKIN]}><WalkinPage /></ProtectedRoute>} />
             <Route path="/test-drives" element={<ProtectedRoute><TestDrivesPage /></ProtectedRoute>} />
+            <Route path="/test-drive-feedback" element={<TestDriveFeedbackPage />} />
             <Route path="/communications" element={<ProtectedRoute><CommunicationsPage /></ProtectedRoute>} />
             <Route path="/enquiries" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.ENQUIRIES]}><EnquiriesPage /></ProtectedRoute>} />
             <Route path="/locations" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.LOCATIONS]}><LocationsPage /></ProtectedRoute>} />
