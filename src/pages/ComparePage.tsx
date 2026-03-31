@@ -568,7 +568,7 @@ const ComparePage = () => {
                       <div className="mt-4 space-y-2">
                         {vehicle.available_units > 0 ? (
                           <Link to={`/book?vehicleId=${vehicle.id}`}>
-                            <Button className="w-full rounded-xl gradient-primary border-0 text-primary-foreground">Book Test Drive</Button>
+                            <Button className="w-full rounded-xl primary border-0 text-primary-foreground">Book Test Drive</Button>
                           </Link>
                         ) : (
                           <Button

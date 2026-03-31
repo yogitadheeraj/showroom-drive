@@ -444,7 +444,7 @@ const BrandMarketplace = () => {
                 )}
               </div>
 
-              <div className="mt-5 pt-4 border-t border-border/60 space-y-2">
+              <div className="mt-5 bg-secondary/10 pt-4 border-t border-border/60 space-y-2 flex flex-col gap-2">
                 {quickModels.length > 0 && compareIds.length >= 2 && (
                   <Link to={`/compare?ids=${compareIds.join(',')}`}>
                     <Button variant="outline" className="w-full rounded-xl gap-2">
@@ -635,12 +635,12 @@ const Index = () => {
               </Button>
             </Link>
             <Link to="/book">
-              <Button size="lg" className="gradient-accent border-0 text-accent-foreground rounded-xl font-semibold shadow-lg shadow-accent/30 hover:shadow-xl hover:shadow-accent/40 transition-shadow px-5">
+              <Button size="lg" className="primary border-0 text-accent-foreground rounded-xl font-semibold shadow-lg shadow-accent/30 hover:shadow-xl hover:shadow-accent/40 transition-shadow px-5">
                 🚗 Book Test Drive
               </Button>
             </Link>
             <Link to="/dealer-onboarding">
-              <Button size="lg" className="bg-success text-success-foreground rounded-xl font-semibold hover:bg-success/90 transition-all px-5">
+              <Button size="lg" className="primary text-success-foreground rounded-xl font-semibold hover:bg-success/90 transition-all px-5">
                 <Building2 className="mr-2 h-4 w-4" /> For Dealers
               </Button>
             </Link>
@@ -734,7 +734,7 @@ const Index = () => {
             className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4 sm:px-0"
           >
             <Link to="/book" className="w-full sm:w-auto">
-              <Button size="lg" className="w-full sm:w-auto gradient-primary border-0 text-primary-foreground text-base px-8 h-12 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-shadow">
+              <Button size="lg" className="w-full sm:w-auto primary border-0 text-primary-foreground text-base px-8 h-12 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-shadow">
                 Book a Test Drive <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>

@@ -58,7 +58,7 @@
     --font-heading: 'Space Grotesk', sans-serif;
     --font-body: 'DM Sans', sans-serif;
     --sidebar-white: 0 0% 100%;
-    --gradient-primary: linear-gradient(135deg, hsl(215, 90%, 42%), hsl(199, 89%, 48%));
+    --gradient-primary: linear-gradient(135deg, hsl(140deg 55% 32%), hsl(140deg 55% 32%));
     --gradient-accent: linear-gradient(135deg, hsl(25, 95%, 53%), hsl(15, 90%, 50%));
     --gradient-dark: linear-gradient(135deg, hsl(222, 47%, 11%), hsl(215, 35%, 18%));
     --shadow-card: 0 1px 3px hsl(222 47% 11% / 0.05), 0 1px 2px hsl(222 47% 11% / 0.03);
