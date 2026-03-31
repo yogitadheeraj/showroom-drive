@@ -21,7 +21,7 @@ export const APP_ROLE_LABELS: Record<AppRole, string> = {
 
 export const APP_ROLE_BADGE_CLASS: Record<AppRole, string> = {
   [APP_ROLE.SUPERADMIN]: 'bg-destructive/10 text-destructive',
-  [APP_ROLE.DEALER_ADMIN]: 'bg-accent/10 text-accent-foreground',
+  [APP_ROLE.DEALER_ADMIN]: 'bg-secondary/10 text-secondary-foreground',
   [APP_ROLE.GRO]: 'bg-primary/10 text-primary',
   [APP_ROLE.SALES]: 'bg-info/10 text-info',
   [APP_ROLE.SECURITY]: 'bg-warning/10 text-warning',

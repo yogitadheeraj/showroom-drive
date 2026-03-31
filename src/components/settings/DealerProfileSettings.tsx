@@ -134,7 +134,7 @@ const DealerProfileSettings = () => {
         </div>
 
         <div className="flex justify-end pt-2">
-          <Button onClick={handleSave} disabled={saving || !form.name.trim() || !form.contact_email.trim()} className="gradient-primary border-0 text-primary-foreground gap-2">
+          <Button onClick={handleSave} disabled={saving || !form.name.trim() || !form.contact_email.trim()} className="primary border-0 text-primary-foreground gap-2">
             <Save className="h-4 w-4" />
             {saving ? 'Saving...' : 'Save Changes'}
           </Button>

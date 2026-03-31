@@ -14,5 +14,5 @@ export const getAppRoleLabel = (role: string | null | undefined): string => {
 };
 
 export const getAppRoleBadgeClass = (role: string | null | undefined): string => {
-  return isAppRole(role) ? APP_ROLE_BADGE_CLASS[role] : 'bg-muted text-muted-foreground';
+  return isAppRole(role) ? APP_ROLE_BADGE_CLASS[role] : 'bg-primary text-black';
 };

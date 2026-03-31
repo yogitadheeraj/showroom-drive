@@ -174,7 +174,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 gradient-dark transform transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 gradient-white transform transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           <div>
             <div className="bg-white flex items-center justify-center px-4 py-1">
@@ -221,7 +221,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                 </div>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="w-full gradient-primary justify-center border-sidebar-border text-sidebar-foreground/90 hover:text-sidebar-foreground hover:bg-sidebar-accent/40" onClick={handleSignOut}>
+            <Button variant="outline" size="sm" className="w-full  justify-center text-destructive hover:text-red-600 hover:bg-red-50" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out Securely
             </Button>

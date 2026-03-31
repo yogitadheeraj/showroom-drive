@@ -63,10 +63,9 @@ const AuthPage = () => {
 
       <div className="relative mx-auto flex min-h-screen max-w-7xl items-center px-4 py-8 sm:px-6 lg:px-8">
         <div className="grid w-full gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12">
-          <section className="hidden rounded-[2rem] border border-white/60 bg-[linear-gradient(145deg,rgba(14,35,64,0.96),rgba(18,59,110,0.92))] p-8 text-white shadow-[0_30px_90px_-24px_rgba(16,43,79,0.55)] lg:flex lg:min-h-[760px] lg:flex-col lg:justify-between">
+          <section className="hidden rounded-[2rem] border border-white/60 bg-[linear-gradient(145deg,rgba(40,126,67,0.92),rgba(18,59,110,0.92))] p-8 text-white shadow-[0_30px_90px_-24px_rgba(16,43,79,0.55)] lg:flex lg:min-h-[760px] lg:flex-col lg:justify-between">
             <div className="space-y-8">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/70">Omni Tracely</p>
                 <h1 className="font-heading text-3xl font-bold tracking-tight">Professional retail operations for modern showrooms</h1>
               </div>
 
