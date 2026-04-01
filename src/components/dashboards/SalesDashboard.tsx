@@ -39,6 +39,74 @@ const SalesDashboard = () => {
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (char) => char.toUpperCase());
 
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return 'Pending';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'Pending';
+    return parsed.toLocaleString();
+  };
+
+  const getJourneyDurationMinutes = (td: any, completedAtOverride?: string) => {
+    const start = td.security_checked_in_at || td.started_at || td.key_handed_at;
+    const end = td.security_checked_out_at || td.completed_at || completedAtOverride;
+    if (!start || !end) return null;
+
+    const startAt = new Date(start).getTime();
+    const endAt = new Date(end).getTime();
+    if (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt < startAt) return null;
+
+    return Math.max(1, Math.round((endAt - startAt) / 60000));
+  };
+
+  const buildTraceabilityMessage = (td: any, completedAtOverride?: string) => {
+    const vehicleName = `${td.vehicles?.brand || ''} ${td.vehicles?.model || ''}`.trim() || 'your selected vehicle';
+    const locationName = td.locations?.name || 'our showroom';
+    const securityMeta = securityEventsByDrive[td.id] || {};
+    const securityLogs = securityMeta.logs || [];
+
+    const preInspectionLog = securityLogs.find((log: any) => log.eventType === 'vehicle_inspection_pre');
+    const postInspectionLog = securityLogs.find((log: any) => log.eventType === 'vehicle_inspection_post');
+    const checkInLog = securityLogs.find((log: any) => log.eventType === 'test_drive_check_in');
+    const checkOutLog = securityLogs.find((log: any) => log.eventType === 'test_drive_check_out');
+
+    const preKm = (td as any).pre_drive_km;
+    const postKm = (td as any).post_drive_km;
+    const hasDistance = Number.isFinite(preKm) && Number.isFinite(postKm);
+    const distanceDriven = hasDistance ? Math.max(0, Number(postKm) - Number(preKm)) : null;
+
+    const journeyDurationMinutes = getJourneyDurationMinutes(td, completedAtOverride);
+
+    const lines = [
+      `Your test drive for ${vehicleName} at ${locationName} is now completed.`,
+      '',
+      'End-to-End Journey Traceability:',
+      `1. Customer reached showroom: ${formatDateTime(td.security_checked_in_at || checkInLog?.happenedAt)}${securityMeta.checkInBy ? ` (verified by ${securityMeta.checkInBy})` : ''}`,
+      `2. Key assigned / vehicle handover by sales: ${formatDateTime(td.key_handed_at)}`,
+      `3. Security started drive process: ${formatDateTime(td.started_at || td.security_checked_in_at || checkInLog?.happenedAt)}`,
+      `4. Pre-inspection started: ${formatDateTime(preInspectionLog?.happenedAt)}${preInspectionLog?.by ? ` (by ${preInspectionLog.by})` : ''}`,
+      `5. Post-inspection completed: ${formatDateTime(postInspectionLog?.happenedAt)}${postInspectionLog?.by ? ` (by ${postInspectionLog.by})` : ''}`,
+      `6. Vehicle returned / checkout at security: ${formatDateTime(td.security_checked_out_at || checkOutLog?.happenedAt)}${securityMeta.completedBy ? ` (by ${securityMeta.completedBy})` : securityMeta.checkOutBy ? ` (by ${securityMeta.checkOutBy})` : ''}`,
+      `7. Sales marked completion: ${formatDateTime(completedAtOverride || td.completed_at)}`,
+      `8. Total showroom journey time: ${journeyDurationMinutes ? `${journeyDurationMinutes} minutes` : 'Not available'}`,
+      '',
+      'Inspection Summary:',
+      `- Pre KM: ${preKm ?? 'N/A'}`,
+      `- Pre Fuel: ${(td as any).pre_drive_fuel_level || 'N/A'}`,
+      `- Post KM: ${postKm ?? 'N/A'}`,
+      `- Post Fuel: ${(td as any).post_drive_fuel_level || 'N/A'}`,
+      `- Distance driven: ${distanceDriven !== null ? `${distanceDriven.toFixed(1)} km` : 'N/A'}`,
+      `- Pre scratches: ${(td as any).pre_drive_scratches || 'None reported'}`,
+      `- Post scratches: ${(td as any).post_drive_scratches || 'None reported'}`,
+      `- Pre notes: ${(td as any).pre_drive_notes || 'N/A'}`,
+      `- Post notes: ${(td as any).post_drive_notes || 'N/A'}`,
+      '',
+      'Please connect with your sales team for pricing, offers, and next steps.',
+      'Thank you for visiting us.',
+    ];
+
+    return lines.join('\n');
+  };
+
   useEffect(() => {
     fetchAssignedDrives();
   }, [user]);
@@ -255,20 +323,15 @@ const SalesDashboard = () => {
 
   const handleComplete = async (td: any) => {
     const id = td.id;
+    const completedAt = new Date().toISOString();
     await supabase.from('test_drives').update({
       status: 'completed' as any,
-      completed_at: new Date().toISOString(),
+      completed_at: completedAt,
     }).eq('id', id);
 
     if (td?.customers?.email) {
       const customerName = td.customers.full_name || 'Customer';
-      const vehicleName = `${td.vehicles?.brand || ''} ${td.vehicles?.model || ''}`.trim() || 'your selected vehicle';
-      const locationName = td.locations?.name || 'our showroom';
-      const message = [
-        `Your test drive for ${vehicleName} is now completed at ${locationName}.`,
-        'Please connect with your sales team for any specifications, pricing details, or doubts.',
-        'Thank you for visiting us.',
-      ].join(' ');
+      const message = buildTraceabilityMessage(td, completedAt);
 
       const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
         body: {
@@ -632,9 +695,9 @@ const SalesDashboard = () => {
                       </Button>
                     </>
                   )}
-                  {(td.status === 'show' || td.status === 'scheduled') && !td.key_handed_at && (
-                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleGiveKeyAndStart(td.id)}>
-                      <Key className="h-3.5 w-3.5 mr-1" /> Assign Vehicle
+                  {(td.status === 'show' || td.status === 'scheduled') && !td.key_handed_at && td?.customers?.driving_license_verified && (
+                    <Button size="sm" className={`bg-primary text-primary-foreground hover:bg-primary/90 text-xs`} onClick={() => handleGiveKeyAndStart(td.id)}>
+                      <Key className="h-3.5 w-3.5 mr-1" /> Assign key
                     </Button>
                   )}
                   {td.status === 'key_handover_to_sales' && (

@@ -1,12 +1,13 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
 
 import {
   type LucideIcon,
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
-  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2
+  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
@@ -75,6 +76,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [newLeadCount, setNewLeadCount] = useState(0);
   const activityStateRef = useRef({
     lastTickAt: Date.now(),
     lastInteractionAt: Date.now(),
@@ -90,6 +92,11 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     navigate('/auth');
   };
 
+  const handleOpenLeadNotifications = () => {
+    setNewLeadCount(0);
+    navigate('/test-drives');
+  };
+
   useEffect(() => {
     if (!user || !profile?.id || !role) return;
 
@@ -103,6 +110,34 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
       route: location.pathname,
     });
   }, [location.pathname, profile?.id, profile?.location_id, role, user]);
+
+  useEffect(() => {
+    if (!user || !role) return;
+
+    const locationFilter = role === APP_ROLE.SUPERADMIN || !profile?.location_id
+      ? undefined
+      : `location_id=eq.${profile.location_id}`;
+
+    const channel = supabase
+      .channel(`new-lead-notifications-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'test_drives',
+          ...(locationFilter ? { filter: locationFilter } : {}),
+        },
+        () => {
+          setNewLeadCount((count) => Math.min(count + 1, 99));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.location_id, role, user]);
 
   useEffect(() => {
     if (!user || !profile?.id || !role) return;
@@ -215,7 +250,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                   {displayName?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-sidebar-foreground truncate">{displayName}</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground/70 truncate">{displayName}</p>
                   <p className="text-xs text-sidebar-foreground/70 truncate">{displayRole}</p>
                   <p className="text-[11px] text-sidebar-foreground/60 truncate">{profile?.email || user?.email}</p>
                 </div>
@@ -238,6 +273,20 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
             <Menu className="h-5 w-5 text-foreground" />
           </button>
           <div className="flex-1" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="relative"
+            onClick={handleOpenLeadNotifications}
+          >
+            <Bell className="h-4 w-4 mr-1.5" />
+            New Leads
+            {newLeadCount > 0 && (
+              <span className="ml-1.5 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
+                {newLeadCount > 99 ? '99+' : newLeadCount}
+              </span>
+            )}
+          </Button>
           <div className="hidden sm:flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
               <UserCircle2 className="h-4 w-4 text-muted-foreground" />

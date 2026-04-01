@@ -1,17 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
 import VehicleSpecCard from '@/components/booking/VehicleSpecCard';
-import { Car, CheckCircle, Zap, ArrowLeft, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows, Map as MapIcon, ExternalLink, Mail, ShieldCheck, KeyRound, ClipboardCheck, MessageSquare } from 'lucide-react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { Car, CheckCircle, Zap, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows, Map as MapIcon, ExternalLink, Mail, ShieldCheck, KeyRound, ClipboardCheck, MessageSquare, Building2, Menu, X , ArrowLeft} from 'lucide-react';
 import { z } from 'zod';
 import { format, isBefore, startOfDay } from 'date-fns';
 import { checkAndReleaseNoShowBookings, getAvailableTimeSlots, getAvailableVehicles } from '@/lib/slotAvailability';
@@ -111,6 +111,7 @@ const QUICK_LOCATION_PAGE_SIZE = 4;
 
 const BookingPage = () => {
   const [searchParams] = useSearchParams();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -569,10 +570,74 @@ const BookingPage = () => {
     }
   };
 
+  const renderHomeStyleHeader = () => (
+    <div className="relative overflow-hidden">
+      <div className="absolute inset-0">
+        <div className="absolute top-[-20%] left-[-10%] w-[400px] md:w-[600px] h-[400px] md:h-[600px] bg-primary/8 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-30%] right-[-5%] w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-accent/6 rounded-full blur-[100px]" />
+        <div className="absolute top-[40%] left-[50%] w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-info/5 rounded-full blur-[80px]" />
+      </div>
+
+      <nav className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-2 flex items-center justify-between">
+      <a href="/" >
+        <div className="flex items-center justify-center py-1">
+          <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-[50px] w-full" />
+        </div>
+        </a>
+
+        <div className="hidden lg:flex items-center gap-3">
+          <Link to="/compare">
+            <Button size="lg" className="bg-info text-info-foreground rounded-xl font-semibold hover:bg-info/90 transition-all px-5">
+              <Car className="mr-2 h-4 w-4" /> Compare
+            </Button>
+          </Link>
+          <Link to="/auth">
+            <Button size="lg" className="primary text-white rounded-xl font-semibold shadow-lg hover:bg-primary-foreground/90 hover:text-black transition-all px-5">
+              Staff Login →
+            </Button>
+          </Link>
+        </div>
+
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="lg:hidden p-2 rounded-lg bg-primary-foreground/10 text-primary-foreground"
+        >
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </nav>
+
+      {mobileMenuOpen && (
+        <div className="relative z-20 lg:hidden px-4 pb-4 space-y-2">
+          <Link to="/compare" onClick={() => setMobileMenuOpen(false)}>
+            <Button className="w-full bg-info text-info-foreground rounded-xl font-semibold hover:bg-info/90 justify-start gap-2 h-11">
+              <Car className="h-4 w-4" /> Compare Vehicles
+            </Button>
+          </Link>
+          <Link to="/book" onClick={() => setMobileMenuOpen(false)}>
+            <Button className="w-full gradient-accent border-0 text-accent-foreground rounded-xl font-semibold justify-start gap-2 h-11 mt-2">
+              🚗 Book Test Drive
+            </Button>
+          </Link>
+          <Link to="/dealer-onboarding" onClick={() => setMobileMenuOpen(false)}>
+            <Button className="w-full bg-success text-success-foreground rounded-xl font-semibold hover:bg-success/90 justify-start gap-2 h-11 mt-2">
+              <Building2 className="h-4 w-4" /> For Dealers
+            </Button>
+          </Link>
+          <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+            <Button className="w-full bg-primary-foreground text-foreground rounded-xl font-semibold justify-start gap-2 h-11 mt-2">
+              Staff Login →
+            </Button>
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+
   if (success) {
     return (
-      <div className="min-h-screen bg-background p-4 md:p-6">
-        <div className="mx-auto max-w-4xl space-y-4">
+      <div className="min-h-screen bg-background">
+        {renderHomeStyleHeader()}
+        <div className="mx-auto max-w-4xl space-y-4 p-4 md:p-6">
           <Card className="w-full shadow-elevated animate-fade-in text-center">
             <CardContent className="p-8">
               <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-4">
@@ -632,22 +697,7 @@ const BookingPage = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="gradient-dark py-6 px-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
-            <ArrowLeft className="h-4 w-4" />
-            <span className="text-sm font-medium">Home</span>
-          </Link>
-           <div className="bg-white flex items-center justify-center py-1">
-              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-8 w-auto" />
-            </div>
-
-          <Link to="/auth" className="flex items-center gap-1.5 text-primary-foreground/70 hover:text-primary-foreground transition-colors">
-            <Shield className="h-4 w-4" />
-            <span className="text-sm font-medium">Staff</span>
-          </Link>
-        </div>
-      </div>
+      {renderHomeStyleHeader()}
 
       {/* Step Indicator */}
       <div className="max-w-2xl mx-auto px-4 pt-6">
@@ -707,11 +757,11 @@ const BookingPage = () => {
                       <GitCompareArrows className="h-4 w-4 inline mr-1.5" />
                       {compareIds.length} vehicles selected for comparison
                     </span>
-                    <RouterLink to={`/compare?ids=${compareIds.join(',')}`}>
+                    <Link to={`/compare?ids=${compareIds.join(',')}`}>
                       <Button size="sm" className="gradient-primary border-0 text-primary-foreground text-xs">
                         Compare Now
                       </Button>
-                    </RouterLink>
+                    </Link>
                   </div>
                 )}
                 {modelGroups.ev.length > 0 && (

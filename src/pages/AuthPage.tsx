@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -6,17 +6,61 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowRight, BadgeCheck, Building2, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Bell, Building2, ShieldCheck, Sparkles } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [newLeadCount, setNewLeadCount] = useState(0);
+  const [canOpenLeadPage, setCanOpenLeadPage] = useState(false);
   const { signIn, resendVerificationEmail } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const logoUrl = 'https://res.cloudinary.com/totalesworld/image/upload/v1774900050/logo_acnpcu_Nero_AI_Background_Remover_transparent_1_srpzwi.png';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!isMounted) return;
+      setCanOpenLeadPage(Boolean(data.session));
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCanOpenLeadPage(Boolean(session));
+    });
+
+    return () => {
+      isMounted = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!canOpenLeadPage) return;
+
+    const channel = supabase
+      .channel('auth-page-lead-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'test_drives',
+        },
+        () => {
+          setNewLeadCount((count) => Math.min(count + 1, 99));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [canOpenLeadPage]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +97,20 @@ const AuthPage = () => {
     }
   };
 
+  const handleOpenLeadNotifications = () => {
+    if (!canOpenLeadPage) {
+      toast({
+        title: 'Sign in required',
+        description: 'Please sign in to open Test Drives notifications.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setNewLeadCount(0);
+    navigate('/test-drives');
+  };
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#eef6ff_0%,#f7fbff_38%,#fffdf8_100%)] text-foreground">
       <div className="absolute inset-0 overflow-hidden">
@@ -85,17 +143,17 @@ const AuthPage = () => {
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-2xl border border-white/12 bg-white/8 p-5 backdrop-blur-sm">
-                <BadgeCheck className="mb-4 h-5 w-5 text-accent" />
+                <BadgeCheck className="mb-4 h-5 w-5 text-white" />
                 <p className="text-2xl font-bold">Fast</p>
                 <p className="mt-2 text-sm text-white/70">Instant booking, confirmation, and reporting flows.</p>
               </div>
               <div className="rounded-2xl border border-white/12 bg-white/8 p-5 backdrop-blur-sm">
-                <Building2 className="mb-4 h-5 w-5 text-accent" />
+                <Building2 className="mb-4 h-5 w-5 text-white" />
                 <p className="text-2xl font-bold">Unified</p>
                 <p className="mt-2 text-sm text-white/70">Dealer locations, teams, and inventory in one system.</p>
               </div>
               <div className="rounded-2xl border border-white/12 bg-white/8 p-5 backdrop-blur-sm">
-                <ShieldCheck className="mb-4 h-5 w-5 text-accent" />
+                <ShieldCheck className="mb-4 h-5 w-5 text-white" />
                 <p className="text-2xl font-bold">Trusted</p>
                 <p className="mt-2 text-sm text-white/70">Role-based access and operational visibility by design.</p>
               </div>
@@ -165,9 +223,20 @@ const AuthPage = () => {
                       </Button>
                     </div>
 
-                    <Button asChild variant="link" className="h-auto w-full text-sm text-primary">
-                      <Link to="/dealer-onboarding">New dealer? Start onboarding</Link>
-                    </Button>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={handleOpenLeadNotifications}>
+                        <Bell className="mr-2 h-4 w-4" />
+                        New Leads
+                        {newLeadCount > 0 && (
+                          <span className="ml-2 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
+                            {newLeadCount > 99 ? '99+' : newLeadCount}
+                          </span>
+                        )}
+                      </Button>
+                      <Button asChild variant="link" className="h-11 w-full text-sm text-primary">
+                        <Link to="/dealer-onboarding">New dealer? Start onboarding</Link>
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

@@ -623,9 +623,12 @@ const Index = () => {
         </div>
 
         <nav className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-2 flex items-center justify-between">
+         <a href="/" >
+         
           <div className="flex items-center justify-center py-1">
               <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-[50px] w-full" />
             </div>
+          </a>
 
           {/* Desktop Nav */}
           <div className="hidden lg:flex items-center gap-3">
@@ -971,9 +974,13 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border py-8 sm:py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center gap-4 sm:gap-6 md:flex-row md:justify-between">
-           <div className="flex items-center justify-center py-1">
-              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-10 w-auto" />
+            <a href="/" >
+         
+          <div className="flex items-center justify-center py-1">
+              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-[50px] w-full" />
             </div>
+          </a>
+
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
             <Link to="/dealer-onboarding" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Dealer Onboarding</Link>
             <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
