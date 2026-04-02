@@ -8,6 +8,9 @@ import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock
 import { motion, type Variants } from 'framer-motion';
 import EnquiryWidget from '@/components/EnquiryWidget';
 import { toast } from 'sonner';
+import showcaseAdminDashboard from '@/assets/showcase-admin-dashboard.jpg';
+import showcaseBooking from '@/assets/showcase-booking.jpg';
+import showcaseGroAssign from '@/assets/showcase-gro-assign.jpg';
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -473,17 +476,17 @@ const Index = () => {
     {
       title: 'Control Every Test Drive From One Dashboard',
       subtitle: 'Live ops visibility for bookings, handovers, inspections, and completion.',
-      image: 'https://placehold.co/1280x820/e6edf7/1a2538?text=Omni+Tracely+Dashboard+Preview',
+      image: showcaseAdminDashboard,
     },
     {
       title: 'Deliver Premium Booking Experience',
       subtitle: 'Fast booking journeys for online and walk-in customers with cleaner data capture.',
-      image: 'https://placehold.co/1280x820/dceefe/0f2742?text=Omni+Tracely+Booking+Flow+Preview',
+      image: showcaseBooking,
     },
     {
       title: 'Assign GRO & Sales Without Delays',
       subtitle: 'Location-aware assignment flow with real-time accountability at each checkpoint.',
-      image: 'https://placehold.co/1280x820/f3e9df/2a1f16?text=Omni+Tracely+Assignment+Preview',
+      image: showcaseGroAssign,
     },
   ];
 
@@ -666,7 +669,7 @@ const Index = () => {
         )}
 
         {/* Hero Section */}
-        <div className="relative z-10 mx-auto max-w-full bg-primary px-4 sm:px-6 pt-10 sm:pt-14 pb-14 sm:pb-20">
+        <div className="relative z-10 mx-auto max-w-full bg-primary/20 px-4 sm:px-6 pt-10 sm:pt-14 pb-14 sm:pb-20">
           <motion.div
             initial="hidden"
             animate="visible"
@@ -679,10 +682,10 @@ const Index = () => {
                 <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-primary/80">Omni Tracely</p>
                 <h1 className="mt-3 text-3xl sm:text-5xl lg:text-6xl font-heading font-bold text-foreground leading-[1.03]">
                   One Stop Solution
-                  <span className="block">For Test Drive Operations</span>
+                  <span className="block">For All Omni Operations</span>
                 </h1>
                 <h2 className="mt-5 text-lg sm:text-2xl font-heading font-semibold text-foreground/90 leading-tight">
-                  Trusted Booking, Assignment, Security Check-In, And Follow-Up In One Workflow.
+                Trusted Booking, Assignment, Security Check-In, And Follow-Up In One Workflow, Walkin Test Drive.
                 </h2>
                 <p className="mt-4 text-sm sm:text-base text-foreground/70 max-w-2xl leading-relaxed">
                   Designed for dealerships that need speed on the floor and clarity in reports. From enquiry to closure, every event is traceable.
@@ -769,7 +772,7 @@ const Index = () => {
               { title: 'One Click Sales Assignment', subtitle: 'GRO to Sales to Security handover without manual confusion' },
               { title: 'From Drive To Opportunity', subtitle: 'Mark hot/cold lead and create follow-up tasks instantly' },
             ].map((item) => (
-              <div key={item.title} className="rounded-2xl border border-primary-foreground/10 bg-primary-foreground/5 px-4 py-3.5">
+              <div key={item.title} className="rounded-2xl border border-primary-foreground/10 bg-primary px-4 py-3.5">
                 <p className="text-sm font-semibold text-primary-foreground">{item.title}</p>
                 <p className="text-xs text-primary-foreground/65 mt-1">{item.subtitle}</p>
               </div>
