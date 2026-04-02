@@ -366,7 +366,7 @@ const SuperAdminDashboard = () => {
     confirmed: 'bg-primary/10 text-primary',
     show: 'bg-success/10 text-success',
     no_show: 'bg-warning/10 text-warning',
-    in_progress: 'bg-accent/10 text-accent-foreground',
+    in_progress: 'bg-accent text-accent-foreground',
     completed: 'bg-success/10 text-success',
     cancelled: 'bg-destructive/10 text-destructive',
     rescheduled: 'bg-muted text-muted-foreground',

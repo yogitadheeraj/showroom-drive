@@ -140,6 +140,19 @@ const BookingPage = () => {
   // Auto-select vehicle from URL (coming from compare page)
   useEffect(() => {
     const vehicleId = searchParams.get('vehicleId');
+    const deepLinkedDate = searchParams.get('scheduledDate');
+    const deepLinkedTime = searchParams.get('scheduledTime');
+    const deepLinkedLocationId = searchParams.get('locationId');
+
+    if (deepLinkedDate || deepLinkedTime || deepLinkedLocationId) {
+      setFormData((prev) => ({
+        ...prev,
+        scheduledDate: deepLinkedDate || prev.scheduledDate,
+        scheduledTime: deepLinkedTime || prev.scheduledTime,
+        locationId: deepLinkedLocationId || prev.locationId,
+      }));
+    }
+
     if (vehicleId && allVehicles.length > 0) {
       const v = allVehicles.find(veh => veh.id === vehicleId);
       if (v) {
@@ -153,7 +166,12 @@ const BookingPage = () => {
     }
 
     const modelName = searchParams.get('modelname') || searchParams.get('modelName');
-    if (!modelName || allVehicles.length === 0) return;
+    if (!modelName || allVehicles.length === 0) {
+      if (deepLinkedDate || deepLinkedTime || deepLinkedLocationId) {
+        setStep(0);
+      }
+      return;
+    }
 
     const normalizedParam = normalizeModelToken(decodeURIComponent(modelName));
     const matched = allVehicles.find((vehicle) => {
@@ -163,14 +181,31 @@ const BookingPage = () => {
     });
 
     if (matched) {
+      const matchedModelKey = `${matched.brand}|${matched.model}`;
+      const locationMatchedVehicle = deepLinkedLocationId
+        ? allVehicles.find((vehicle) =>
+            vehicle.location_id === deepLinkedLocationId && `${vehicle.brand}|${vehicle.model}` === matchedModelKey
+          )
+        : null;
+
       setFormData((prev) => ({
         ...prev,
-        selectedModel: `${matched.brand}|${matched.model}`,
-        locationId: '',
-        vehicleId: '',
-        scheduledDate: prev.scheduledDate,
+        selectedModel: matchedModelKey,
+        locationId: locationMatchedVehicle?.location_id || '',
+        vehicleId: locationMatchedVehicle?.id || '',
+        scheduledDate: deepLinkedDate || prev.scheduledDate,
+        scheduledTime: deepLinkedTime || '',
       }));
-      setStep((prevStep) => (prevStep < 1 ? 1 : prevStep));
+
+      if (deepLinkedDate && deepLinkedTime && locationMatchedVehicle?.location_id) {
+        setStep(4);
+      } else if (deepLinkedDate && locationMatchedVehicle?.location_id) {
+        setStep(3);
+      } else if (deepLinkedDate) {
+        setStep((prevStep) => (prevStep < 2 ? 2 : prevStep));
+      } else {
+        setStep((prevStep) => (prevStep < 1 ? 1 : prevStep));
+      }
     }
   }, [searchParams, allVehicles]);
 
@@ -245,6 +280,30 @@ const BookingPage = () => {
   // Selected vehicle (specific variant at location)
   const selectedVehicle = allVehicles.find(v => v.id === formData.vehicleId);
   const selectedLocation = locations.find(l => l.id === formData.locationId);
+
+  const handleModelSelect = (modelKey: string) => {
+    const matchedVehicleAtLocation = formData.locationId
+      ? allVehicles.find((vehicle) => vehicle.location_id === formData.locationId && `${vehicle.brand}|${vehicle.model}` === modelKey)
+      : null;
+
+    setFormData((prev) => ({
+      ...prev,
+      selectedModel: modelKey,
+      vehicleId: matchedVehicleAtLocation?.id || '',
+    }));
+
+    if (formData.scheduledDate && formData.locationId) {
+      setStep(3);
+      return;
+    }
+
+    if (formData.scheduledDate) {
+      setStep(2);
+      return;
+    }
+
+    setStep(1);
+  };
 
   const getEffectiveHoursForDate = (locationId: string, dateStr: string) => {
     if (!locationId || !dateStr) return null;
@@ -774,7 +833,7 @@ const BookingPage = () => {
                       {modelGroups.ev.map(m => (
                         <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
                           compareIds={compareIds} onToggleCompare={(id) => setCompareIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : prev.length < 4 ? [...prev, id] : prev)}
-                          onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
+                          onClick={() => handleModelSelect(`${m.brand}|${m.model}`)} />
                       ))}
                     </div>
                   </div>
@@ -788,7 +847,7 @@ const BookingPage = () => {
                       {modelGroups.hybrid.map(m => (
                         <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
                           compareIds={compareIds} onToggleCompare={(id) => setCompareIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : prev.length < 4 ? [...prev, id] : prev)}
-                          onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
+                          onClick={() => handleModelSelect(`${m.brand}|${m.model}`)} />
                       ))}
                     </div>
                   </div>
@@ -802,7 +861,7 @@ const BookingPage = () => {
                       {modelGroups.ice.map(m => (
                         <ModelCard key={`${m.brand}|${m.model}`} model={m} selected={selectedModelKey === `${m.brand}|${m.model}`}
                           compareIds={compareIds} onToggleCompare={(id) => setCompareIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : prev.length < 4 ? [...prev, id] : prev)}
-                          onClick={() => setFormData(p => ({ ...p, selectedModel: `${m.brand}|${m.model}`, vehicleId: '', locationId: '' }))} />
+                          onClick={() => handleModelSelect(`${m.brand}|${m.model}`)} />
                       ))}
                     </div>
                   </div>
@@ -835,7 +894,7 @@ const BookingPage = () => {
                         }));
                       }}
                       disabled={isDateUnavailable}
-                      className="p-3 pointer-events-auto"
+                      className="p-3 pointer-events-auto w-full rounded-md border-0 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:bg-secondary"
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">

@@ -6,9 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
-import showcaseBooking from '@/assets/showcase-booking.jpg';
-import showcaseGro from '@/assets/showcase-gro-assign.jpg';
-import showcaseAdmin from '@/assets/showcase-admin-dashboard.jpg';
 import EnquiryWidget from '@/components/EnquiryWidget';
 import { toast } from 'sonner';
 
@@ -19,30 +16,6 @@ const fadeUp: Variants = {
     transition: { duration: 0.5, delay: i * 0.1 },
   }),
 };
-
-const showcaseItems = [
-  {
-    id: 'booking',
-    label: 'Customer Booking',
-    title: 'Easy Online Booking',
-    description: 'Customers book test drives in seconds — pick a showroom, choose a vehicle, select a date and time. Confirmation sent via WhatsApp or email instantly.',
-    image: showcaseBooking,
-  },
-  {
-    id: 'gro',
-    label: 'GRO Assignment',
-    title: 'Smart Sales Assignment',
-    description: 'GRO receptionist views all bookings on a calendar, assigns the right sales person with one click, and manages the day\'s schedule effortlessly.',
-    image: showcaseGro,
-  },
-  {
-    id: 'admin',
-    label: 'Admin Dashboard',
-    title: 'Complete Visibility',
-    description: 'Super Admin and Sales Leads see everything — KPIs, trends, vehicle popularity, team performance, and every test drive across all locations.',
-    image: showcaseAdmin,
-  },
-];
 
 type HomeBrandCard = {
   id: string;
@@ -491,126 +464,125 @@ const BrandMarketplace = () => {
   );
 };
 
-const ProductShowcase = () => {
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  const current = showcaseItems[activeIndex];
-
-  return (
-    <div className="py-20 md:py-32 relative overflow-hidden">
-      {/* Subtle background accents */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-accent/5 rounded-full blur-[100px]" />
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
-        {/* Header */}
-        <div className="text-center mb-14 md:mb-20">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-5">
-            <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-            <span className="text-xs font-semibold text-primary uppercase tracking-wider">See it in action</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-heading font-bold text-foreground">
-            How Omni Tracely Works
-          </h2>
-          <p className="text-muted-foreground mt-4 max-w-xl mx-auto text-sm sm:text-base">
-            From booking to test drive — experience a seamless workflow designed for modern showrooms.
-          </p>
-        </div>
-
-        {/* Tabs with progress */}
-        <div className="flex justify-center gap-3 mb-12 md:mb-16 flex-wrap">
-          {showcaseItems.map((item, idx) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveIndex(idx)}
-              className={`relative flex items-center gap-2.5 px-5 py-3 rounded-2xl text-sm font-medium overflow-hidden ${
-                activeIndex === idx
-                  ? 'bg-card text-foreground shadow-elevated border border-primary/20'
-                  : 'bg-muted/50 text-muted-foreground hover:text-foreground border border-transparent hover:border-border'
-              }`}
-            >
-              <span className={`flex items-center justify-center h-6 w-6 rounded-lg text-xs font-bold ${
-                activeIndex === idx
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground'
-              }`}>
-                {idx + 1}
-              </span>
-              {item.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Content area */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 items-center">
-          {/* Text content */}
-          <div className="lg:col-span-4 order-2 lg:order-1">
-            <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider">
-                Step {activeIndex + 1} of {showcaseItems.length}
-              </div>
-              <h3 className="text-2xl sm:text-3xl font-heading font-bold text-foreground leading-tight">
-                {current.title}
-              </h3>
-              <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-                {current.description}
-              </p>
-              {activeIndex === 0 && (
-                <Link to="/book">
-                  <Button className="gradient-primary border-0 text-primary-foreground rounded-xl mt-2 w-full sm:w-auto shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-shadow">
-                    Try Booking <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-              )}
-            </div>
-
-            {/* Dot indicators */}
-            <div className="flex gap-2 mt-8">
-              {showcaseItems.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setActiveIndex(idx)}
-                  className={`h-2 rounded-full ${
-                    activeIndex === idx ? 'w-8 bg-primary' : 'w-2 bg-border hover:bg-muted-foreground/40'
-                  }`}
-                  aria-label={`Go to step ${idx + 1}`}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Image with animated transition */}
-          <div className="lg:col-span-8 order-1 lg:order-2">
-            <div className="relative rounded-2xl overflow-hidden shadow-elevated border border-border bg-card p-1.5">
-              {/* Decorative gradient border effect */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/10 via-transparent to-accent/10 pointer-events-none" />
-              
-              <div className="relative rounded-xl overflow-hidden">
-                <img
-                  src={current.image}
-                  alt={current.title}
-                  loading="lazy"
-                  className="w-full h-auto"
-                />
-              </div>
-
-              {/* Floating badge */}
-              <div className="absolute top-4 right-4 bg-card/90 backdrop-blur-sm border border-border px-3 py-1.5 rounded-full flex items-center gap-2 shadow-card">
-                <div className="h-2 w-2 rounded-full bg-success" />
-                <span className="text-xs font-medium text-foreground">Live Preview</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const Index = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeHeroSlide, setActiveHeroSlide] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const heroSlides = [
+    {
+      title: 'Control Every Test Drive From One Dashboard',
+      subtitle: 'Live ops visibility for bookings, handovers, inspections, and completion.',
+      image: 'https://placehold.co/1280x820/e6edf7/1a2538?text=Omni+Tracely+Dashboard+Preview',
+    },
+    {
+      title: 'Deliver Premium Booking Experience',
+      subtitle: 'Fast booking journeys for online and walk-in customers with cleaner data capture.',
+      image: 'https://placehold.co/1280x820/dceefe/0f2742?text=Omni+Tracely+Booking+Flow+Preview',
+    },
+    {
+      title: 'Assign GRO & Sales Without Delays',
+      subtitle: 'Location-aware assignment flow with real-time accountability at each checkpoint.',
+      image: 'https://placehold.co/1280x820/f3e9df/2a1f16?text=Omni+Tracely+Assignment+Preview',
+    },
+  ];
+
+  useEffect(() => {
+    const slideInterval = setInterval(() => {
+      setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 3600);
+
+    return () => clearInterval(slideInterval);
+  }, [heroSlides.length]);
+
+  const goToSlide = (index: number) => setActiveHeroSlide(index);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (active) {
+        setIsLoggedIn(!!session);
+      }
+    };
+
+    void loadSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
+
+  const aiModules = [
+    {
+      icon: Building2,
+      title: 'Dealer Management',
+      desc: 'Manage dealer onboarding, activation, access controls, and performance visibility from one command center.',
+    },
+    {
+      icon: CalendarCheck,
+      title: 'Test Drive Management',
+      desc: 'Handle booking lifecycle, assignment, key handover, completion states, and conversion tracking in real time.',
+    },
+    {
+      icon: Car,
+      title: 'Vehicle Management',
+      desc: 'Track vehicle availability, location, maintenance windows, and test drive readiness across all branches.',
+    },
+    {
+      icon: MessageCircle,
+      title: 'Communication After Booking',
+      desc: 'Automate confirmations, reminders, and post-drive follow-ups through structured communication workflows.',
+    },
+    {
+      icon: MapPin,
+      title: 'Manage Location',
+      desc: 'Operate multi-location showrooms with localized slots, staff mapping, and branch-level reporting controls.',
+    },
+    {
+      icon: Users,
+      title: 'Manage Staffs',
+      desc: 'Control staff profiles, roles, assignment logic, and accountability checkpoints for every operational step.',
+    },
+    {
+      icon: Clock,
+      title: 'Manage Operation Timing',
+      desc: 'Define booking windows, team shifts, SLA timing, and process deadlines with configurable timing rules.',
+    },
+    {
+      icon: Shield,
+      title: 'Trace Staff Login & Logoff Insights',
+      desc: 'Capture staff session activity with secure login/logoff traces and operational visibility for audits.',
+    },
+    {
+      icon: CheckCircle2,
+      title: 'Block Test Drive By Day/Time',
+      desc: 'Apply blackout controls for specific days, dates, or time blocks to prevent invalid bookings instantly.',
+    },
+    {
+      icon: BarChart3,
+      title: 'Dashboard',
+      desc: 'Get AI-assisted KPIs for bookings, completion ratios, utilization, conversion trends, and team productivity.',
+    },
+    {
+      icon: Send,
+      title: 'Enquiry Management',
+      desc: 'Collect, route, prioritize, and convert enquiries with lead scoring and action-oriented next-step tracking.',
+    },
+    {
+      icon: GitCompareArrows,
+      title: 'Customer Test Drive Flow Tracking',
+      desc: 'Track complete customer journey from enquiry to showroom arrival, drive steps, feedback, and closure.',
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -647,7 +619,7 @@ const Index = () => {
                 <Building2 className="mr-2 h-4 w-4" /> For Dealers
               </Button>
             </Link>
-            <Link to="/auth">
+            <Link to={staffEntryPath}>
               <Button size="lg" className="bg-primary-foreground text-foreground rounded-xl font-semibold shadow-lg hover:bg-primary-foreground/90 transition-all px-5">
                 Staff Login →
               </Button>
@@ -685,7 +657,7 @@ const Index = () => {
                 <Building2 className="h-4 w-4" /> For Dealers
               </Button>
             </Link>
-            <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+            <Link to={staffEntryPath} onClick={() => setMobileMenuOpen(false)}>
               <Button className="w-full bg-primary-foreground text-foreground rounded-xl font-semibold justify-start gap-2 h-11 mt-2">
                 Staff Login →
               </Button>
@@ -694,106 +666,198 @@ const Index = () => {
         )}
 
         {/* Hero Section */}
-        <div className="relative gradient-dark  z-10 mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-20 sm:pb-32 text-center">
+        <div className="relative z-10 mx-auto max-w-full bg-primary px-4 sm:px-6 pt-10 sm:pt-14 pb-14 sm:pb-20">
           <motion.div
             initial="hidden"
             animate="visible"
             variants={fadeUp}
             custom={0}
-            className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full bg-primary-foreground/10 border border-primary-foreground/15 mb-6 sm:mb-8"
+            className="rounded-[28px] border border-primary/15 bg-white/80 backdrop-blur-sm p-6 sm:p-10"
           >
-            <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-            <span className="text-xs sm:text-sm font-medium text-primary-foreground/80">Trusted by leading automotive showrooms</span>
+            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 lg:gap-10 items-start">
+              <div>
+                <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-primary/80">Omni Tracely</p>
+                <h1 className="mt-3 text-3xl sm:text-5xl lg:text-6xl font-heading font-bold text-foreground leading-[1.03]">
+                  One Stop Solution
+                  <span className="block">For Test Drive Operations</span>
+                </h1>
+                <h2 className="mt-5 text-lg sm:text-2xl font-heading font-semibold text-foreground/90 leading-tight">
+                  Trusted Booking, Assignment, Security Check-In, And Follow-Up In One Workflow.
+                </h2>
+                <p className="mt-4 text-sm sm:text-base text-foreground/70 max-w-2xl leading-relaxed">
+                  Designed for dealerships that need speed on the floor and clarity in reports. From enquiry to closure, every event is traceable.
+                </p>
+
+                <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                  <Link to="/book" className="w-full sm:w-auto">
+                    <Button size="lg" className="w-full sm:w-auto primary border-0 text-primary-foreground px-8 h-12 rounded-xl">
+                      Start Booking <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link to="/dealer-onboarding" className="w-full sm:w-auto">
+                    <Button size="lg" className="w-full sm:w-auto bg-primary-foreground/90 text-foreground px-8 h-12 rounded-xl font-semibold hover:bg-primary-foreground">
+                      For Dealerships
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="relative rounded-2xl overflow-hidden border border-primary-foreground/20 min-h-[280px] sm:min-h-[320px] shadow-2xl shadow-black/20">
+                  {heroSlides.map((slide, idx) => (
+                    <img
+                      key={slide.title}
+                      src={slide.image}
+                      alt={slide.title}
+                      className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+                        idx === activeHeroSlide ? 'opacity-100' : 'opacity-0'
+                      }`}
+                    />
+                  ))}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/35 to-black/10" />
+
+                  <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 text-white">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-white/75 font-semibold">Omni Tracely Insights</p>
+                    <p className="mt-1 text-base sm:text-lg font-heading font-semibold leading-tight">
+                      {heroSlides[activeHeroSlide].title}
+                    </p>
+                    <p className="mt-1 text-xs sm:text-sm text-white/85 leading-relaxed">
+                      {heroSlides[activeHeroSlide].subtitle}
+                    </p>
+                    <div className="mt-3 flex items-center gap-2">
+                      {heroSlides.map((slide, idx) => (
+                        <button
+                          key={slide.title}
+                          type="button"
+                          onClick={() => goToSlide(idx)}
+                          className={`h-2 rounded-full transition-all ${idx === activeHeroSlide ? 'w-7 bg-white' : 'w-2 bg-white/55 hover:bg-white/80'}`}
+                          aria-label={`Go to hero slide ${idx + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border/70 bg-white/95 p-4 sm:p-5 text-foreground shadow-xl shadow-black/10">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Quick Booking Panel</p>
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <Input type="date" className="h-11 rounded-xl bg-card" />
+                    <Input type="date" className="h-11 rounded-xl bg-card" />
+                  </div>
+                  <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+                    <Link to="/compare">
+                      <Button variant="outline" className="w-full h-11 rounded-xl">Compare</Button>
+                    </Link>
+                    <Link to="/book">
+                      <Button className="w-full h-11 rounded-xl gradient-primary border-0 text-primary-foreground">Search & Book</Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
           </motion.div>
 
-          <motion.h1
+          <motion.div
             initial="hidden"
             animate="visible"
             variants={fadeUp}
             custom={1}
-            className="text-3xl sm:text-5xl md:text-7xl font-heading font-bold text-primary-foreground leading-[1.1] tracking-tight"
-          >
-            Smart Test Drive & Lead Platform
-            <span className="text-2xl  block mt-2 bg-clip-text text-transparent" style={{ backgroundImage: 'var(--gradient-accent)' }}>
-              Made Simple Test Drive Management
-            </span>
-          </motion.h1>
-
-          <motion.p
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            custom={2}
-            className="mt-4 sm:mt-6 text-base sm:text-lg md:text-xl text-primary-foreground/60 max-w-2xl mx-auto leading-relaxed px-2"
-          >
-            The complete platform for automotive showrooms. Manage bookings, walk-ins, vehicle availability, staff assignments, and customer communications — all in one place.
-          </motion.p>
-
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            custom={3}
-            className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4 sm:px-0"
-          >
-            <Link to="/book" className="w-full sm:w-auto">
-              <Button size="lg" className="w-full sm:w-auto primary border-0 text-primary-foreground text-base px-8 h-12 rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-shadow">
-                Book a Test Drive <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-            <Link to="/auth" className="w-full sm:w-auto">
-              <Button size="lg" className="w-full sm:w-auto bg-primary-foreground text-foreground text-base px-8 h-12 rounded-xl font-semibold shadow-lg hover:bg-primary-foreground/90 transition-all">
-                Staff Portal →
-              </Button>
-            </Link>
-          </motion.div>
-
-          {/* Stats */}
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            custom={4}
-            className="mt-12 sm:mt-16 grid grid-cols-3 gap-4 sm:gap-8 max-w-lg mx-auto"
+            className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2.5"
           >
             {[
-              { value: '500+', label: 'Test Drives' },
-              { value: '98%', label: 'On-Time Rate' },
-              { value: '4.9★', label: 'Satisfaction' },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-xl sm:text-2xl md:text-3xl font-heading font-bold text-primary-foreground">{stat.value}</div>
-                <div className="text-[10px] sm:text-xs text-primary-foreground/50 mt-1">{stat.label}</div>
+              { title: 'Trusted Commercial & Passenger Test Drive Workflow', subtitle: 'Online and walk-in journeys managed in a single dashboard' },
+              { title: 'One Click Sales Assignment', subtitle: 'GRO to Sales to Security handover without manual confusion' },
+              { title: 'From Drive To Opportunity', subtitle: 'Mark hot/cold lead and create follow-up tasks instantly' },
+            ].map((item) => (
+              <div key={item.title} className="rounded-2xl border border-primary-foreground/10 bg-primary-foreground/5 px-4 py-3.5">
+                <p className="text-sm font-semibold text-primary-foreground">{item.title}</p>
+                <p className="text-xs text-primary-foreground/65 mt-1">{item.subtitle}</p>
               </div>
             ))}
           </motion.div>
         </div>
       </div>
 
+      {/* AI Operations Modules */}
+      <div className="py-14 md:py-20 bg-[linear-gradient(180deg,#ffffff_0%,#f7fbff_100%)] border-y border-border/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-10 md:mb-12">
+            <motion.span
+              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
+              className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
+            >
+              AI Driven Omni Tracely
+            </motion.span>
+            <motion.h2
+              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
+              className="mt-4 text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground leading-tight"
+            >
+              Manage Complete Showroom Operations On One Home Platform
+            </motion.h2>
+            <motion.p
+              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
+              className="mt-4 text-sm sm:text-base text-muted-foreground max-w-3xl mx-auto"
+            >
+              Built to centralize dealer operations, test drive lifecycle, staff actions, and customer journey traceability with AI-guided workflow decisions.
+            </motion.p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+            {aiModules.map((module, index) => {
+              const Icon = module.icon;
+              return (
+                <motion.div
+                  key={module.title}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true }}
+                  variants={fadeUp}
+                  custom={index % 6}
+                  className="group rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
+                >
+                  <div className="flex items-center gap-3 mb-3 min-w-0">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="text-sm sm:text-base font-heading font-semibold text-foreground leading-none whitespace-nowrap overflow-hidden text-ellipsis min-w-0">
+                      {index + 1}. {module.title}
+                    </h3>
+                  </div>
+                  <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    {module.desc}
+                  </p>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       {/* Features */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24">
-        <div className="text-center mb-10 md:mb-16">
+      <div className="py-16 md:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="text-center mb-10 md:mb-14">
           <motion.span
             initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-            className="text-sm font-semibold text-primary uppercase tracking-wider"
+            className="text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
           >
             Features
           </motion.span>
           <motion.h2
             initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
-            className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground mt-3"
+            className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground mt-3 leading-tight"
           >
-            Everything Your Showroom Needs
+            Built For High-Volume Showroom Operations
           </motion.h2>
           <motion.p
             initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
-            className="text-sm sm:text-base text-muted-foreground mt-4 max-w-xl mx-auto"
+            className="text-sm sm:text-base text-muted-foreground mt-4 max-w-2xl mx-auto"
           >
-            From booking to completion, Omni Tracely handles the entire test drive lifecycle with precision.
+            Capture every checkpoint from booking to closure with fewer manual calls, faster assignments, and cleaner conversion tracking.
           </motion.p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {[
             { icon: CalendarCheck, title: 'Smart Scheduling', desc: 'Online booking with phone/email validation, walk-in registration, and automatic vehicle availability checks.', color: 'bg-primary/10 text-primary' },
             { icon: Users, title: 'Role-Based Access', desc: 'Dedicated dashboards for GRO, Sales, Security, and Super Admin roles with tailored permissions.', color: 'bg-accent/10 text-accent' },
@@ -811,7 +875,7 @@ const Index = () => {
                 viewport={{ once: true }}
                 variants={fadeUp}
                 custom={i}
-                className="group p-5 sm:p-6 rounded-2xl border border-border bg-card hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
+                className="group p-5 sm:p-6 rounded-2xl border border-border bg-[linear-gradient(160deg,#ffffff_0%,#f7fbff_100%)] hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
               >
                 <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-xl ${f.color} flex items-center justify-center mb-3 sm:mb-4 transition-transform group-hover:scale-110`}>
                   <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -822,21 +886,19 @@ const Index = () => {
             );
           })}
         </div>
+        </div>
       </div>
 
       {/* Brand Marketplace */}
       <BrandMarketplace />
 
-      {/* Product Showcase */}
-      <ProductShowcase />
-
       {/* How It Works */}
-      <div className="bg-muted/50 py-16 md:py-24">
+      <div className="bg-[linear-gradient(180deg,#f8fbff_0%,#eef5ff_100%)] py-16 md:py-24 border-y border-border/60">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10 md:mb-16">
+          <div className="text-center mb-10 md:mb-14">
             <motion.span
               initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-              className="text-sm font-semibold text-primary uppercase tracking-wider"
+              className="text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
             >
               How it works
             </motion.span>
@@ -844,11 +906,12 @@ const Index = () => {
               initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
               className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground mt-3"
             >
-              Book in 3 Simple Steps
+              3-Step Guest Journey
             </motion.h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+          <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
+            <div className="hidden sm:block absolute left-0 right-0 top-[52px] h-px bg-primary/20" />
             {[
               { step: '01', icon: MapPin, title: 'Choose Location & Vehicle', desc: 'Select your nearest showroom and pick the car you want to experience.' },
               { step: '02', icon: Clock, title: 'Pick a Date & Time', desc: 'Choose a convenient slot from available dates. We\'ll confirm instantly.' },
@@ -861,10 +924,10 @@ const Index = () => {
                 viewport={{ once: true }}
                 variants={fadeUp}
                 custom={i}
-                className="relative text-center"
+                className="relative text-center rounded-2xl border border-primary/15 bg-white/80 p-5 shadow-sm"
               >
-                <div className="text-5xl sm:text-6xl font-heading font-bold text-primary/10 mb-3 sm:mb-4">{s.step}</div>
-                <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-lg shadow-primary/20">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/70 mb-2">Step {s.step}</div>
+                <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-lg shadow-primary/20 relative z-10">
                   <s.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
                 </div>
                 <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg mb-2">{s.title}</h3>
@@ -941,7 +1004,7 @@ const Index = () => {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-            className="p-8 sm:p-12 rounded-3xl gradient-dark relative overflow-hidden"
+            className="p-8 sm:p-12 rounded-3xl gradient-dark relative overflow-hidden border border-primary-foreground/15"
           >
             <div className="absolute inset-0">
               <div className="absolute top-0 right-0 w-48 sm:w-64 h-48 sm:h-64 bg-primary/10 rounded-full blur-[80px]" />
@@ -949,10 +1012,10 @@ const Index = () => {
             </div>
             <div className="relative z-10">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-primary-foreground mb-4">
-                Ready to Experience Your Dream Car?
+                Ready To Scale Test Drives Like A Premium Brand?
               </h2>
               <p className="text-sm sm:text-base text-primary-foreground/60 mb-6 sm:mb-8 max-w-md mx-auto">
-                Book your test drive today. It only takes a minute to get started.
+                Launch customer bookings and staff workflow in minutes with complete visibility at every handover.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
                 <Link to="/book" className="w-full sm:w-auto">
@@ -965,6 +1028,20 @@ const Index = () => {
                     <Building2 className="mr-2 h-4 w-4" /> Register as Dealer
                   </Button>
                 </Link>
+              </div>
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left">
+                <div className="rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-3">
+                  <p className="text-xs text-primary-foreground/70">Customer Flow</p>
+                  <p className="text-sm font-semibold text-primary-foreground">Bookings + Reminders + Feedback</p>
+                </div>
+                <div className="rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-3">
+                  <p className="text-xs text-primary-foreground/70">Ops Control</p>
+                  <p className="text-sm font-semibold text-primary-foreground">GRO + Sales + Security Timeline</p>
+                </div>
+                <div className="rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-3">
+                  <p className="text-xs text-primary-foreground/70">Conversion Ready</p>
+                  <p className="text-sm font-semibold text-primary-foreground">Hot/Cold Lead + Task Creation</p>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -984,7 +1061,7 @@ const Index = () => {
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
             <Link to="/dealer-onboarding" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Dealer Onboarding</Link>
             <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
-            <Link to="/auth" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
+            <Link to={staffEntryPath} className="text-sm text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground text-center">© {new Date().getFullYear()} Omni Tracely — Smart Test Drive & Lead Platform</p>
         </div>

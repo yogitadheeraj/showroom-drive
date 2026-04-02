@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { logStaffActivity } from '@/lib/activityLogger';
 import { APP_ROLE } from '@/constants/roles';
 
+type LeadTemperature = 'hot' | 'cold';
+
 const SalesDashboard = () => {
   const { user, profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
@@ -32,6 +34,12 @@ const SalesDashboard = () => {
   const [inspectionDocsByDrive, setInspectionDocsByDrive] = useState<Record<string, any[]>>({});
   const [inspectionDocView, setInspectionDocView] = useState<{ url: string; filename: string } | null>(null);
   const [securityContacts, setSecurityContacts] = useState<Array<{ id: string; full_name: string; phone: string | null }>>([]);
+  const [completionLeadDialogDrive, setCompletionLeadDialogDrive] = useState<any>(null);
+  const [leadTemperature, setLeadTemperature] = useState<LeadTemperature>('cold');
+  const [followUpTaskTitle, setFollowUpTaskTitle] = useState('');
+  const [followUpTaskDueAt, setFollowUpTaskDueAt] = useState('');
+  const [salesOpportunities, setSalesOpportunities] = useState<any[]>([]);
+  const [salesTasks, setSalesTasks] = useState<any[]>([]);
   const { toast } = useToast();
 
   const formatStatusLabel = (status: string) =>
@@ -110,6 +118,10 @@ const SalesDashboard = () => {
   useEffect(() => {
     fetchAssignedDrives();
   }, [user]);
+
+  useEffect(() => {
+    void fetchLeadWorkspace();
+  }, [profile?.id]);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -264,6 +276,120 @@ const SalesDashboard = () => {
     setSecurityEventsByDrive(perDrive);
   };
 
+  const fetchLeadWorkspace = async () => {
+    if (!profile?.id) return;
+
+    const [opportunityRes, taskRes] = await Promise.all([
+      (supabase as any)
+        .from('sales_opportunities')
+        .select('id, customer_id, latest_test_drive_id, temperature, stage, updated_at, customers(full_name, phone), test_drives!sales_opportunities_latest_test_drive_id_fkey(scheduled_date, vehicles(brand, model))')
+        .eq('owner_profile_id', profile.id)
+        .order('updated_at', { ascending: false })
+        .limit(12),
+      (supabase as any)
+        .from('sales_tasks')
+        .select('id, title, due_at, status, priority, created_at, customers(full_name)')
+        .eq('assigned_to_profile_id', profile.id)
+        .eq('status', 'open')
+        .order('due_at', { ascending: true, nullsFirst: false })
+        .limit(12),
+    ]);
+
+    if (opportunityRes.error) {
+      setSalesOpportunities([]);
+    } else {
+      setSalesOpportunities(opportunityRes.data || []);
+    }
+
+    if (taskRes.error) {
+      setSalesTasks([]);
+    } else {
+      setSalesTasks(taskRes.data || []);
+    }
+  };
+
+  const upsertOpportunityAndTask = async (
+    td: any,
+    completedAt: string,
+    selectedTemperature: LeadTemperature,
+    taskTitle: string,
+    taskDueAt?: string
+  ) => {
+    if (!profile?.id || !td?.customer_id) return;
+
+    const stage = selectedTemperature === 'hot' ? 'qualified' : 'new';
+    const statusNote = `[${new Date().toLocaleString()}] Lead marked ${selectedTemperature.toUpperCase()} after test drive completion.`;
+
+    const { data: existingOpportunity } = await (supabase as any)
+      .from('sales_opportunities')
+      .select('id, notes')
+      .eq('customer_id', td.customer_id)
+      .eq('owner_profile_id', profile.id)
+      .eq('location_id', td.location_id)
+      .not('stage', 'in', '(won,lost)')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let opportunityId: string;
+    if (existingOpportunity?.id) {
+      const mergedNotes = `${existingOpportunity.notes || ''}\n${statusNote}`.trim();
+      const { error: updateError } = await (supabase as any)
+        .from('sales_opportunities')
+        .update({
+          latest_test_drive_id: td.id,
+          temperature: selectedTemperature,
+          stage,
+          notes: mergedNotes,
+          updated_at: completedAt,
+        })
+        .eq('id', existingOpportunity.id);
+
+      if (updateError) throw updateError;
+      opportunityId = existingOpportunity.id;
+    } else {
+      const { data: insertedOpportunity, error: insertError } = await (supabase as any)
+        .from('sales_opportunities')
+        .insert({
+          customer_id: td.customer_id,
+          latest_test_drive_id: td.id,
+          location_id: td.location_id,
+          owner_profile_id: profile.id,
+          temperature: selectedTemperature,
+          stage,
+          notes: statusNote,
+        })
+        .select('id')
+        .single();
+
+      if (insertError || !insertedOpportunity?.id) throw insertError || new Error('Unable to create opportunity');
+      opportunityId = insertedOpportunity.id;
+    }
+
+    const finalTaskTitle = (taskTitle || '').trim() || (selectedTemperature === 'hot'
+      ? 'Call customer for booking amount and finance options'
+      : 'Follow up after test drive and capture objections');
+
+    const dueAt = taskDueAt
+      ? new Date(taskDueAt).toISOString()
+      : new Date(Date.now() + (selectedTemperature === 'hot' ? 24 : 72) * 60 * 60 * 1000).toISOString();
+
+    const { error: taskError } = await (supabase as any)
+      .from('sales_tasks')
+      .insert({
+        opportunity_id: opportunityId,
+        test_drive_id: td.id,
+        customer_id: td.customer_id,
+        assigned_to_profile_id: profile.id,
+        title: finalTaskTitle,
+        due_at: dueAt,
+        status: 'open',
+        priority: selectedTemperature === 'hot' ? 'high' : 'medium',
+      });
+
+    if (taskError) throw taskError;
+  };
+
   const getInspectionMedia = (testDriveId: string, type: 'pre' | 'post') => {
     return (inspectionDocsByDrive[testDriveId] || []).filter((doc: any) => doc.name.startsWith(`inspection-${type}-`));
   };
@@ -321,7 +447,10 @@ const SalesDashboard = () => {
     fetchAssignedDrives();
   };
 
-  const handleComplete = async (td: any) => {
+  const handleComplete = async (
+    td: any,
+    options?: { leadTemperature?: LeadTemperature; taskTitle?: string; taskDueAt?: string }
+  ) => {
     const id = td.id;
     const completedAt = new Date().toISOString();
     await supabase.from('test_drives').update({
@@ -354,6 +483,22 @@ const SalesDashboard = () => {
       }
     }
 
+    try {
+      await upsertOpportunityAndTask(
+        td,
+        completedAt,
+        options?.leadTemperature || 'cold',
+        options?.taskTitle || '',
+        options?.taskDueAt,
+      );
+    } catch (leadError: any) {
+      toast({
+        title: 'Lead/task update failed',
+        description: leadError?.message || 'Opportunity and task were not saved.',
+        variant: 'destructive',
+      });
+    }
+
     if (user?.id) {
       await logStaffActivity({
         userId: user.id,
@@ -362,11 +507,12 @@ const SalesDashboard = () => {
         role: 'sales',
         eventType: 'test_drive_completed',
         label: 'Accepted key handover and closed test drive',
-        metadata: { testDriveId: id },
+        metadata: { testDriveId: id, leadTemperature: options?.leadTemperature || 'cold' },
       });
     }
-    toast({ title: 'Test drive completed', description: 'Key handover accepted and follow-up initiated.' });
+    toast({ title: 'Test drive completed', description: 'Lead and follow-up task created with traceability.' });
     fetchAssignedDrives();
+    void fetchLeadWorkspace();
   };
 
   const handleReschedule = async () => {
@@ -398,6 +544,21 @@ const SalesDashboard = () => {
     setNewDate('');
     setNewTime('');
     fetchAssignedDrives();
+  };
+
+  const handleCompleteWithLead = async () => {
+    if (!completionLeadDialogDrive) return;
+
+    await handleComplete(completionLeadDialogDrive, {
+      leadTemperature,
+      taskTitle: followUpTaskTitle,
+      taskDueAt: followUpTaskDueAt || undefined,
+    });
+
+    setCompletionLeadDialogDrive(null);
+    setLeadTemperature('cold');
+    setFollowUpTaskTitle('');
+    setFollowUpTaskDueAt('');
   };
 
   const assignedLogs = testDrives
@@ -469,7 +630,7 @@ const SalesDashboard = () => {
     confirmed: 'bg-primary/10 text-primary',
     show: 'bg-success/10 text-success',
     no_show: 'bg-warning/10 text-warning',
-    in_progress: 'bg-accent/10 text-accent-foreground',
+    in_progress: 'bg-accent text-accent-foreground',
     key_handover_to_sales: 'bg-warning/10 text-warning',
     completed: 'bg-success/10 text-success',
     cancelled: 'bg-destructive/10 text-destructive',
@@ -545,6 +706,49 @@ const SalesDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4">
+        <Card className="shadow-card border-destructive/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-heading text-sm sm:text-base">My Opportunities</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-2 max-h-72 overflow-y-auto">
+            {salesOpportunities.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No opportunities created yet.</p>
+            ) : salesOpportunities.map((opportunity) => (
+              <div key={opportunity.id} className="rounded-md border border-border p-2.5 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-foreground truncate">{opportunity.customers?.full_name || 'Customer'}</p>
+                  <Badge className={opportunity.temperature === 'hot' ? 'bg-destructive/10 text-destructive text-xs' : 'bg-muted text-muted-foreground text-xs'}>
+                    {String(opportunity.temperature || 'cold').toUpperCase()}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 truncate">
+                  {opportunity.test_drives?.vehicles?.brand} {opportunity.test_drives?.vehicles?.model}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">Stage: {formatStatusLabel(opportunity.stage || 'new')}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card border-primary/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-heading text-sm sm:text-base">Open Follow-up Tasks</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-2 max-h-72 overflow-y-auto">
+            {salesTasks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No open tasks.</p>
+            ) : salesTasks.map((task) => (
+              <div key={task.id} className="rounded-md border border-border p-2.5 text-sm">
+                <p className="font-medium text-foreground truncate">{task.title}</p>
+                <p className="text-xs text-muted-foreground mt-1">Customer: {task.customers?.full_name || 'Customer'}</p>
+                <p className="text-xs text-muted-foreground">Due: {task.due_at ? new Date(task.due_at).toLocaleString() : 'Not set'}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card className="shadow-card">
         <CardHeader className="pb-2 sm:pb-4">
@@ -703,7 +907,16 @@ const SalesDashboard = () => {
                   {td.status === 'key_handover_to_sales' && (
                     <>
                       <Badge className="bg-warning/10 text-warning text-xs"><Key className="h-3 w-3 mr-1" /> Key Handover Pending</Badge>
-                      <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleComplete(td)}>
+                      <Button
+                        size="sm"
+                        className="bg-success text-success-foreground hover:bg-success/90 text-xs"
+                        onClick={() => {
+                          setCompletionLeadDialogDrive(td);
+                          setLeadTemperature('cold');
+                          setFollowUpTaskTitle('');
+                          setFollowUpTaskDueAt('');
+                        }}
+                      >
                         <FileCheck className="h-3.5 w-3.5 mr-1" /> Key Handover To Sales
                       </Button>
                     </>
@@ -790,6 +1003,48 @@ const SalesDashboard = () => {
             </div>
             <Button onClick={handleReschedule} className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={!newDate || !newTime}>
               Confirm Reschedule
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!completionLeadDialogDrive} onOpenChange={(open) => !open && setCompletionLeadDialogDrive(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-heading">Close Test Drive As Opportunity</DialogTitle>
+            <DialogDescription>
+              {completionLeadDialogDrive?.customers?.full_name} • {completionLeadDialogDrive?.vehicles?.brand} {completionLeadDialogDrive?.vehicles?.model}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Lead Temperature</Label>
+              <Select value={leadTemperature} onValueChange={(value: LeadTemperature) => setLeadTemperature(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select lead temperature" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hot">Hot Lead (customer wants to buy)</SelectItem>
+                  <SelectItem value="cold">Cold Lead (follow up later)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Follow-up Task Title</Label>
+              <Input
+                value={followUpTaskTitle}
+                onChange={(event) => setFollowUpTaskTitle(event.target.value)}
+                placeholder={leadTemperature === 'hot'
+                  ? 'Call customer for booking amount and finance options'
+                  : 'Follow up after test drive and capture objections'}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Task Due At</Label>
+              <Input type="datetime-local" value={followUpTaskDueAt} onChange={(event) => setFollowUpTaskDueAt(event.target.value)} />
+            </div>
+            <Button onClick={handleCompleteWithLead} className="w-full bg-success text-success-foreground hover:bg-success/90">
+              Complete Drive + Create Opportunity + Task
             </Button>
           </div>
         </DialogContent>

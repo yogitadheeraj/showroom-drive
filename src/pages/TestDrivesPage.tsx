@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -43,6 +43,8 @@ const durationBadgeClass: Record<DurationBadge, string> = {
   'Premium Attention': 'bg-violet-100 text-violet-700 border-violet-300',
 };
 
+type LeadTemperature = 'hot' | 'cold';
+
 const TestDrivesPage = () => {
   const { role, profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
@@ -53,8 +55,13 @@ const TestDrivesPage = () => {
   const [newTime, setNewTime] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [journeyDrive, setJourneyDrive] = useState<any | null>(null);
+  const [leadDialogDrive, setLeadDialogDrive] = useState<any | null>(null);
+  const [leadTemperature, setLeadTemperature] = useState<LeadTemperature>('cold');
+  const [followUpTaskTitle, setFollowUpTaskTitle] = useState('');
+  const [followUpTaskDueAt, setFollowUpTaskDueAt] = useState('');
   const { toast } = useToast();
   const { dealerLocationIds, loading: dealerLoading } = useDealerContext();
+  const canCreateOpportunity = role === APP_ROLE.SALES || role === APP_ROLE.SUPERADMIN || role === APP_ROLE.DEALER_ADMIN;
 
   useEffect(() => {
     if (!dealerLoading) fetchTestDrives();
@@ -125,6 +132,91 @@ const TestDrivesPage = () => {
     fetchTestDrives();
   };
 
+  const handleCreateOpportunity = async () => {
+    if (!leadDialogDrive?.customer_id || !profile?.id) return;
+
+    try {
+      const stage = leadTemperature === 'hot' ? 'qualified' : 'new';
+      const statusNote = `[${new Date().toLocaleString()}] Lead marked ${leadTemperature.toUpperCase()} from Test Drives page.`;
+
+      const { data: existingOpportunity } = await (supabase as any)
+        .from('sales_opportunities')
+        .select('id, notes')
+        .eq('customer_id', leadDialogDrive.customer_id)
+        .eq('owner_profile_id', profile.id)
+        .eq('location_id', leadDialogDrive.location_id)
+        .not('stage', 'in', '(won,lost)')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let opportunityId = '';
+      if (existingOpportunity?.id) {
+        const { error: updateError } = await (supabase as any)
+          .from('sales_opportunities')
+          .update({
+            latest_test_drive_id: leadDialogDrive.id,
+            temperature: leadTemperature,
+            stage,
+            notes: `${existingOpportunity.notes || ''}\n${statusNote}`.trim(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingOpportunity.id);
+
+        if (updateError) throw updateError;
+        opportunityId = existingOpportunity.id;
+      } else {
+        const { data: createdOpportunity, error: createError } = await (supabase as any)
+          .from('sales_opportunities')
+          .insert({
+            customer_id: leadDialogDrive.customer_id,
+            latest_test_drive_id: leadDialogDrive.id,
+            location_id: leadDialogDrive.location_id,
+            owner_profile_id: profile.id,
+            temperature: leadTemperature,
+            stage,
+            notes: statusNote,
+          })
+          .select('id')
+          .single();
+
+        if (createError || !createdOpportunity?.id) throw createError || new Error('Unable to create opportunity');
+        opportunityId = createdOpportunity.id;
+      }
+
+      const taskTitle = (followUpTaskTitle || '').trim() || (leadTemperature === 'hot'
+        ? 'Call customer for booking amount and finance options'
+        : 'Follow up after test drive and capture objections');
+
+      const dueAt = followUpTaskDueAt
+        ? new Date(followUpTaskDueAt).toISOString()
+        : new Date(Date.now() + (leadTemperature === 'hot' ? 24 : 72) * 60 * 60 * 1000).toISOString();
+
+      const { error: taskError } = await (supabase as any)
+        .from('sales_tasks')
+        .insert({
+          opportunity_id: opportunityId,
+          test_drive_id: leadDialogDrive.id,
+          customer_id: leadDialogDrive.customer_id,
+          assigned_to_profile_id: profile.id,
+          title: taskTitle,
+          due_at: dueAt,
+          status: 'open',
+          priority: leadTemperature === 'hot' ? 'high' : 'medium',
+        });
+
+      if (taskError) throw taskError;
+
+      toast({ title: 'Opportunity created', description: 'Lead and follow-up task saved successfully.' });
+      setLeadDialogDrive(null);
+      setLeadTemperature('cold');
+      setFollowUpTaskTitle('');
+      setFollowUpTaskDueAt('');
+    } catch (error: any) {
+      toast({ title: 'Failed to create opportunity', description: error?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
   const statusColor: Record<string, string> = {
     scheduled: 'bg-info/10 text-info border-info/20',
     confirmed: 'bg-primary/10 text-primary border-primary/20',
@@ -161,7 +253,7 @@ const TestDrivesPage = () => {
             </SelectContent>
           </Select>
         </div>
-
+{console.log(testDrives)}
         <Card className="shadow-card hidden lg:block">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -175,6 +267,7 @@ const TestDrivesPage = () => {
                     <th className="text-left p-3 text-muted-foreground font-medium">Status</th>
                     <th className="text-left p-3 text-muted-foreground font-medium">Journey Time</th>
                     <th className="text-left p-3 text-muted-foreground font-medium">Sales Person</th>
+                     <th className="text-left p-3 text-muted-foreground font-medium">Created On</th>
                     <th className="text-left p-3 text-muted-foreground font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -210,6 +303,8 @@ const TestDrivesPage = () => {
                           )}
                         </td>
                         <td className="p-3 text-muted-foreground">{td.profiles?.full_name || '-'}</td>
+                           <td className="p-3 text-muted-foreground">{td.created_at ? new Date(td.created_at).toLocaleString() : '-'}</td>
+                     
                         <td className="p-3">
                           <div className="flex gap-1">
                             <Button
@@ -230,6 +325,22 @@ const TestDrivesPage = () => {
                                   <CalendarX className="h-3 w-3" />
                                 </Button>
                               </>
+                            )}
+                            {canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-warning/40 text-warning hover:bg-warning/10"
+                                title="Create Opportunity"
+                                onClick={() => {
+                                  setLeadDialogDrive(td);
+                                  setLeadTemperature('cold');
+                                  setFollowUpTaskTitle('');
+                                  setFollowUpTaskDueAt('');
+                                }}
+                              >
+                                Create Lead
+                              </Button>
                             )}
                           </div>
                         </td>
@@ -322,6 +433,21 @@ const TestDrivesPage = () => {
                           </Button>
                         </>
                       )}
+                      {canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-warning/40 text-warning hover:bg-warning/10"
+                          onClick={() => {
+                            setLeadDialogDrive(td);
+                            setLeadTemperature('cold');
+                            setFollowUpTaskTitle('');
+                            setFollowUpTaskDueAt('');
+                          }}
+                        >
+                          Create Lead
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -360,6 +486,48 @@ const TestDrivesPage = () => {
                 <Textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Optional reason..." />
               </div>
               <Button onClick={handleCancel} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm Cancellation</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!leadDialogDrive} onOpenChange={(open) => !open && setLeadDialogDrive(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-heading">Create Opportunity + Task</DialogTitle>
+              <DialogDescription>
+                {leadDialogDrive?.customers?.full_name} • {leadDialogDrive?.vehicles?.brand} {leadDialogDrive?.vehicles?.model}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Lead Temperature</Label>
+                <Select value={leadTemperature} onValueChange={(value: LeadTemperature) => setLeadTemperature(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select lead temperature" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hot">Hot Lead (ready to buy)</SelectItem>
+                    <SelectItem value="cold">Cold Lead (follow up later)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Follow-up Task</Label>
+                <Input
+                  value={followUpTaskTitle}
+                  onChange={(e) => setFollowUpTaskTitle(e.target.value)}
+                  placeholder={leadTemperature === 'hot'
+                    ? 'Call customer for booking amount and finance options'
+                    : 'Follow up after test drive and capture objections'}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Task Due At</Label>
+                <Input type="datetime-local" value={followUpTaskDueAt} onChange={(e) => setFollowUpTaskDueAt(e.target.value)} />
+              </div>
+              <Button onClick={handleCreateOpportunity} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                Save Opportunity + Task
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

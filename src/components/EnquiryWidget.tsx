@@ -69,7 +69,7 @@ const EnquiryWidget = () => {
             animate={{ scale: 1 }}
             exit={{ scale: 0 }}
             onClick={() => { setOpen(true); setSubmitted(false); }}
-            className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full gradient-accent shadow-xl shadow-accent/30 flex items-center justify-center hover:shadow-2xl hover:shadow-accent/40 transition-shadow"
+            className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-info shadow-xl shadow-accent/30 flex items-center justify-center hover:shadow-2xl hover:shadow-accent/40 transition-shadow"
           >
             <MessageCircle className="h-6 w-6 text-accent-foreground" />
           </motion.button>
