@@ -312,7 +312,7 @@ const UsersPage = () => {
                     <td className="p-3 text-muted-foreground">{u.email}</td>
                     <td className="p-3">
                       {u.user_roles?.map((r: any) => (
-                        <Badge key={r.role} variant="primary" className={getAppRoleBadgeClass(r.role)}>
+                        <Badge key={r.role} variant="secondary" className={getAppRoleBadgeClass(r.role)}>
                           {getAppRoleLabel(r.role)}
                         </Badge>
                       ))}

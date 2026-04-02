@@ -830,6 +830,145 @@ export type Database = {
           },
         ]
       }
+      sales_opportunities: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          latest_test_drive_id: string | null
+          location_id: string | null
+          notes: string | null
+          owner_profile_id: string | null
+          stage: Database["public"]["Enums"]["opportunity_stage"]
+          temperature: Database["public"]["Enums"]["lead_temperature"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          latest_test_drive_id?: string | null
+          location_id?: string | null
+          notes?: string | null
+          owner_profile_id?: string | null
+          stage?: Database["public"]["Enums"]["opportunity_stage"]
+          temperature?: Database["public"]["Enums"]["lead_temperature"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          latest_test_drive_id?: string | null
+          location_id?: string | null
+          notes?: string | null
+          owner_profile_id?: string | null
+          stage?: Database["public"]["Enums"]["opportunity_stage"]
+          temperature?: Database["public"]["Enums"]["lead_temperature"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_opportunities_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_opportunities_latest_test_drive_id_fkey"
+            columns: ["latest_test_drive_id"]
+            isOneToOne: false
+            referencedRelation: "test_drives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_opportunities_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_opportunities_owner_profile_id_fkey"
+            columns: ["owner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_tasks: {
+        Row: {
+          assigned_to_profile_id: string | null
+          created_at: string
+          customer_id: string
+          due_at: string | null
+          id: string
+          opportunity_id: string
+          priority: string
+          status: Database["public"]["Enums"]["task_status"]
+          test_drive_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to_profile_id?: string | null
+          created_at?: string
+          customer_id: string
+          due_at?: string | null
+          id?: string
+          opportunity_id: string
+          priority?: string
+          status?: Database["public"]["Enums"]["task_status"]
+          test_drive_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to_profile_id?: string | null
+          created_at?: string
+          customer_id?: string
+          due_at?: string | null
+          id?: string
+          opportunity_id?: string
+          priority?: string
+          status?: Database["public"]["Enums"]["task_status"]
+          test_drive_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_tasks_assigned_to_profile_id_fkey"
+            columns: ["assigned_to_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_tasks_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_tasks_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "sales_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_tasks_test_drive_id_fkey"
+            columns: ["test_drive_id"]
+            isOneToOne: false
+            referencedRelation: "test_drives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_activity_events: {
         Row: {
           created_at: string
@@ -992,14 +1131,13 @@ export type Database = {
           customer_name: string
           customer_phone: string | null
           enquiry_id: string | null
-          experience_badge: string
+          experience_badge: string | null
           feedback_text: string | null
           id: string
           rating: number
-          submitted_at: string
           test_drive_id: string
           total_duration_minutes: number | null
-          would_recommend: boolean
+          would_recommend: boolean | null
         }
         Insert: {
           created_at?: string
@@ -1008,14 +1146,13 @@ export type Database = {
           customer_name: string
           customer_phone?: string | null
           enquiry_id?: string | null
-          experience_badge: string
+          experience_badge?: string | null
           feedback_text?: string | null
           id?: string
-          rating: number
-          submitted_at?: string
+          rating?: number
           test_drive_id: string
           total_duration_minutes?: number | null
-          would_recommend?: boolean
+          would_recommend?: boolean | null
         }
         Update: {
           created_at?: string
@@ -1024,14 +1161,13 @@ export type Database = {
           customer_name?: string
           customer_phone?: string | null
           enquiry_id?: string | null
-          experience_badge?: string
+          experience_badge?: string | null
           feedback_text?: string | null
           id?: string
           rating?: number
-          submitted_at?: string
           test_drive_id?: string
           total_duration_minutes?: number | null
-          would_recommend?: boolean
+          would_recommend?: boolean | null
         }
         Relationships: [
           {
@@ -1441,6 +1577,9 @@ export type Database = {
         | "follow_up"
         | "custom"
       communication_type: "email" | "whatsapp" | "sms"
+      lead_temperature: "hot" | "cold"
+      opportunity_stage: "new" | "qualified" | "proposal" | "won" | "lost"
+      task_status: "open" | "done" | "cancelled"
       test_drive_status:
         | "scheduled"
         | "confirmed"
@@ -1589,6 +1728,9 @@ export const Constants = {
         "custom",
       ],
       communication_type: ["email", "whatsapp", "sms"],
+      lead_temperature: ["hot", "cold"],
+      opportunity_stage: ["new", "qualified", "proposal", "won", "lost"],
+      task_status: ["open", "done", "cancelled"],
       test_drive_status: [
         "scheduled",
         "confirmed",
