@@ -1226,18 +1226,6 @@ const SalesDashboard = () => {
                   </div>
                   {(inspectionViewDrive as any).pre_drive_scratches && <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> {(inspectionViewDrive as any).pre_drive_scratches}</div>}
                   {(inspectionViewDrive as any).pre_drive_notes && <div className="text-sm"><span className="text-muted-foreground">Notes:</span> {(inspectionViewDrive as any).pre_drive_notes}</div>}
-                  {viewInspectionMedia && false && (
-                    <div className="space-y-1 pt-1">
-                      <p className="text-xs text-muted-foreground">Media</p>
-                      <div className="flex flex-wrap gap-1">
-                        {getInspectionMedia(inspectionViewDrive.id, 'pre').map((doc: any, idx: number) => (
-                          <Button key={`${doc.name}-${idx}`} size="sm" variant="outline" className="h-7 text-xs" onClick={() => void viewInspectionMedia(inspectionViewDrive.id, doc.name)}>
-                            <Eye className="h-3 w-3 mr-1" /> {doc.name.split('/').pop()?.slice(0, 18)}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
               {(inspectionViewDrive as any).post_drive_km && (
