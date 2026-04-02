@@ -1226,7 +1226,7 @@ const SalesDashboard = () => {
                   </div>
                   {(inspectionViewDrive as any).pre_drive_scratches && <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> {(inspectionViewDrive as any).pre_drive_scratches}</div>}
                   {(inspectionViewDrive as any).pre_drive_notes && <div className="text-sm"><span className="text-muted-foreground">Notes:</span> {(inspectionViewDrive as any).pre_drive_notes}</div>}
-                  {getInspectionMedia(inspectionViewDrive.id, 'pre').length > 0 && (
+                  {viewInspectionMedia && false && (
                     <div className="space-y-1 pt-1">
                       <p className="text-xs text-muted-foreground">Media</p>
                       <div className="flex flex-wrap gap-1">
