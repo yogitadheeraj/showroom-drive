@@ -282,29 +282,45 @@ const SalesDashboard = () => {
     const [opportunityRes, taskRes] = await Promise.all([
       (supabase as any)
         .from('sales_opportunities')
-        .select('id, customer_id, latest_test_drive_id, temperature, stage, updated_at, customers(full_name, phone), test_drives!sales_opportunities_latest_test_drive_id_fkey(scheduled_date, vehicles(brand, model))')
+        .select('id, customer_id, latest_test_drive_id, temperature, stage, updated_at, customers(id, full_name, phone, email), test_drives!sales_opportunities_latest_test_drive_id_fkey(id, scheduled_date, vehicles(brand, model))')
         .eq('owner_profile_id', profile.id)
         .order('updated_at', { ascending: false })
-        .limit(12),
+        .limit(50),
       (supabase as any)
         .from('sales_tasks')
-        .select('id, title, due_at, status, priority, created_at, customers(full_name)')
+        .select('id, title, due_at, status, priority, test_drive_id, created_at, customers(id, full_name, phone, email)')
         .eq('assigned_to_profile_id', profile.id)
         .eq('status', 'open')
         .order('due_at', { ascending: true, nullsFirst: false })
-        .limit(12),
+        .limit(50),
     ]);
 
     if (opportunityRes.error) {
       setSalesOpportunities([]);
     } else {
-      setSalesOpportunities(opportunityRes.data || []);
+      // Deduplicate opportunities by customer_id + latest_test_drive_id to prevent duplicates
+      const seenCombo = new Set<string>();
+      const uniqueOpportunities = (opportunityRes.data || []).filter((opp: any) => {
+        const key = `${opp.customer_id}-${opp.latest_test_drive_id}`;
+        if (seenCombo.has(key)) return false;
+        seenCombo.add(key);
+        return true;
+      }).slice(0, 12);
+      setSalesOpportunities(uniqueOpportunities);
     }
 
     if (taskRes.error) {
       setSalesTasks([]);
     } else {
-      setSalesTasks(taskRes.data || []);
+      // Deduplicate tasks by test_drive_id + title to prevent duplicates
+      const seenCombo = new Set<string>();
+      const uniqueTasks = (taskRes.data || []).filter((task: any) => {
+        const key = `${task.test_drive_id}-${task.title}`;
+        if (seenCombo.has(key)) return false;
+        seenCombo.add(key);
+        return true;
+      }).slice(0, 12);
+      setSalesTasks(uniqueTasks);
     }
   };
 
@@ -374,20 +390,32 @@ const SalesDashboard = () => {
       ? new Date(taskDueAt).toISOString()
       : new Date(Date.now() + (selectedTemperature === 'hot' ? 24 : 72) * 60 * 60 * 1000).toISOString();
 
-    const { error: taskError } = await (supabase as any)
+    // Check if task already exists for this test drive to prevent duplicates
+    const { data: existingTask } = await (supabase as any)
       .from('sales_tasks')
-      .insert({
-        opportunity_id: opportunityId,
-        test_drive_id: td.id,
-        customer_id: td.customer_id,
-        assigned_to_profile_id: profile.id,
-        title: finalTaskTitle,
-        due_at: dueAt,
-        status: 'open',
-        priority: selectedTemperature === 'hot' ? 'high' : 'medium',
-      });
+      .select('id')
+      .eq('test_drive_id', td.id)
+      .eq('assigned_to_profile_id', profile.id)
+      .eq('status', 'open')
+      .maybeSingle();
 
-    if (taskError) throw taskError;
+    // Only insert task if it doesn't already exist
+    if (!existingTask?.id) {
+      const { error: taskError } = await (supabase as any)
+        .from('sales_tasks')
+        .insert({
+          opportunity_id: opportunityId,
+          test_drive_id: td.id,
+          customer_id: td.customer_id,
+          assigned_to_profile_id: profile.id,
+          title: finalTaskTitle,
+          due_at: dueAt,
+          status: 'open',
+          priority: selectedTemperature === 'hot' ? 'high' : 'medium',
+        });
+
+      if (taskError) throw taskError;
+    }
   };
 
   const getInspectionMedia = (testDriveId: string, type: 'pre' | 'post') => {
@@ -716,17 +744,20 @@ const SalesDashboard = () => {
             {salesOpportunities.length === 0 ? (
               <p className="text-sm text-muted-foreground">No opportunities created yet.</p>
             ) : salesOpportunities.map((opportunity) => (
-              <div key={opportunity.id} className="rounded-md border border-border p-2.5 text-sm">
+              <div key={`opp-${opportunity.id}-${opportunity.latest_test_drive_id}`} className="rounded-md border border-border p-2.5 text-sm space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-medium text-foreground truncate">{opportunity.customers?.full_name || 'Customer'}</p>
                   <Badge className={opportunity.temperature === 'hot' ? 'bg-destructive/10 text-destructive text-xs' : 'bg-muted text-muted-foreground text-xs'}>
                     {String(opportunity.temperature || 'cold').toUpperCase()}
                   </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 truncate">
-                  {opportunity.test_drives?.vehicles?.brand} {opportunity.test_drives?.vehicles?.model}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">Stage: {formatStatusLabel(opportunity.stage || 'new')}</p>
+                <div className="text-xs text-muted-foreground space-y-0.5">
+                  <p>Test Drive: <span className="text-foreground font-medium">#{opportunity.latest_test_drive_id?.slice(0, 8)}</span></p>
+                  <p>Vehicle: <span className="text-foreground font-medium">{opportunity.test_drives?.vehicles?.brand} {opportunity.test_drives?.vehicles?.model}</span></p>
+                  <p>Email: <span className="text-foreground font-medium truncate">{opportunity.customers?.email || 'N/A'}</span></p>
+                  <p>Phone: <span className="text-foreground font-medium">{opportunity.customers?.phone || 'N/A'}</span></p>
+                  <p>Stage: <span className="text-foreground font-medium">{formatStatusLabel(opportunity.stage || 'new')}</span></p>
+                </div>
               </div>
             ))}
           </CardContent>
@@ -740,10 +771,15 @@ const SalesDashboard = () => {
             {salesTasks.length === 0 ? (
               <p className="text-sm text-muted-foreground">No open tasks.</p>
             ) : salesTasks.map((task) => (
-              <div key={task.id} className="rounded-md border border-border p-2.5 text-sm">
-                <p className="font-medium text-foreground truncate">{task.title}</p>
-                <p className="text-xs text-muted-foreground mt-1">Customer: {task.customers?.full_name || 'Customer'}</p>
-                <p className="text-xs text-muted-foreground">Due: {task.due_at ? new Date(task.due_at).toLocaleString() : 'Not set'}</p>
+              <div key={`task-${task.id}-${task.test_drive_id}`} className="rounded-md border border-border p-2.5 text-sm space-y-1.5">
+                <p className="font-medium text-foreground truncate text-xs">{task.title}</p>
+                <div className="text-xs text-muted-foreground space-y-0.5">
+                  <p>Test Drive: <span className="text-foreground font-medium">#{task.test_drive_id?.slice(0, 8)}</span></p>
+                  <p>Customer: <span className="text-foreground font-medium truncate">{task.customers?.full_name || 'Customer'}</span></p>
+                  <p>Email: <span className="text-foreground font-medium truncate">{task.customers?.email || 'N/A'}</span></p>
+                  <p>Phone: <span className="text-foreground font-medium">{task.customers?.phone || 'N/A'}</span></p>
+                  <p>Due: <span className="text-foreground font-medium">{task.due_at ? new Date(task.due_at).toLocaleString() : 'Not set'}</span></p>
+                </div>
               </div>
             ))}
           </CardContent>
