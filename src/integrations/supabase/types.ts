@@ -1123,6 +1123,69 @@ export type Database = {
         }
         Relationships: []
       }
+      test_drive_feedback: {
+        Row: {
+          created_at: string
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string | null
+          enquiry_id: string | null
+          experience_badge: string | null
+          feedback_text: string | null
+          id: string
+          rating: number
+          test_drive_id: string
+          total_duration_minutes: number | null
+          would_recommend: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          enquiry_id?: string | null
+          experience_badge?: string | null
+          feedback_text?: string | null
+          id?: string
+          rating?: number
+          test_drive_id: string
+          total_duration_minutes?: number | null
+          would_recommend?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          enquiry_id?: string | null
+          experience_badge?: string | null
+          feedback_text?: string | null
+          id?: string
+          rating?: number
+          test_drive_id?: string
+          total_duration_minutes?: number | null
+          would_recommend?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_drive_feedback_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "test_drive_feedback_test_drive_id_fkey"
+            columns: ["test_drive_id"]
+            isOneToOne: false
+            referencedRelation: "test_drives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       test_drives: {
         Row: {
           assigned_gro_id: string | null
