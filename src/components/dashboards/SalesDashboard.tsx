@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone, UserCog, CalendarClock, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SalesSwapDialog from './SalesSwapDialog';
@@ -40,6 +41,10 @@ const SalesDashboard = () => {
   const [followUpTaskDueAt, setFollowUpTaskDueAt] = useState('');
   const [salesOpportunities, setSalesOpportunities] = useState<any[]>([]);
   const [salesTasks, setSalesTasks] = useState<any[]>([]);
+  const [oppNotesDialog, setOppNotesDialog] = useState<{ open: boolean; opportunityId: string | null }>({ open: false, opportunityId: null });
+  const [oppNoteText, setOppNoteText] = useState('');
+  const [taskNotesDialog, setTaskNotesDialog] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
+  const [taskNoteText, setTaskNoteText] = useState('');
   const { toast } = useToast();
 
   const formatStatusLabel = (status: string) =>
@@ -282,13 +287,13 @@ const SalesDashboard = () => {
     const [opportunityRes, taskRes] = await Promise.all([
       (supabase as any)
         .from('sales_opportunities')
-        .select('id, customer_id, latest_test_drive_id, temperature, stage, updated_at, customers(id, full_name, phone, email), test_drives!sales_opportunities_latest_test_drive_id_fkey(id, scheduled_date, vehicles(brand, model))')
+        .select('id, customer_id, latest_test_drive_id, temperature, stage, updated_at, notes, customers(id, full_name, phone, email), test_drives!sales_opportunities_latest_test_drive_id_fkey(id, scheduled_date, vehicles(brand, model))')
         .eq('owner_profile_id', profile.id)
         .order('updated_at', { ascending: false })
         .limit(50),
       (supabase as any)
         .from('sales_tasks')
-        .select('id, title, due_at, status, priority, test_drive_id, created_at, customers(id, full_name, phone, email)')
+          .select('id, title, due_at, status, priority, test_drive_id, created_at, customers(id, full_name, phone, email)')
         .eq('assigned_to_profile_id', profile.id)
         .eq('status', 'open')
         .order('due_at', { ascending: true, nullsFirst: false })
@@ -418,8 +423,46 @@ const SalesDashboard = () => {
     }
   };
 
-  const getInspectionMedia = (testDriveId: string, type: 'pre' | 'post') => {
-    return (inspectionDocsByDrive[testDriveId] || []).filter((doc: any) => doc.name.startsWith(`inspection-${type}-`));
+  const handleSaveOppNote = async () => {
+    if (!oppNotesDialog.opportunityId || !oppNoteText.trim()) return;
+
+    try {
+      const { data: opp } = await (supabase as any)
+        .from('sales_opportunities')
+        .select('notes')
+        .eq('id', oppNotesDialog.opportunityId)
+        .maybeSingle();
+
+      const timestamp = new Date().toLocaleString();
+      const newNote = `[${timestamp}] ${oppNoteText.trim()}`;
+      const updatedNotes = opp?.notes ? `${opp.notes}\n\n${newNote}` : newNote;
+
+      const { error } = await (supabase as any)
+        .from('sales_opportunities')
+        .update({ notes: updatedNotes })
+        .eq('id', oppNotesDialog.opportunityId);
+
+      if (error) throw error;
+
+      toast({ title: 'Note added successfully' });
+      setOppNotesDialog({ open: false, opportunityId: null });
+      setOppNoteText('');
+      void fetchLeadWorkspace();
+    } catch (err: any) {
+      toast({ title: 'Failed to save note', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleSaveTaskNote = async () => {
+    if (!taskNotesDialog.taskId || !taskNoteText.trim()) return;
+
+    try {
+        toast({ title: 'Task notes feature not available', description: 'Notes are currently only available for opportunities.', variant: 'default' });
+        setTaskNotesDialog({ open: false, taskId: null });
+        setTaskNoteText('');
+    } catch (err: any) {
+      toast({ title: 'Failed to save note', description: err.message, variant: 'destructive' });
+    }
   };
 
   const viewInspectionMedia = async (testDriveId: string, filename: string) => {
@@ -489,6 +532,7 @@ const SalesDashboard = () => {
     if (td?.customers?.email) {
       const customerName = td.customers.full_name || 'Customer';
       const message = buildTraceabilityMessage(td, completedAt);
+      const surveyLink = 'https://survey.showroom-drive.com/feedback'; // Replace with actual survey link
 
       const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
         body: {
@@ -498,6 +542,8 @@ const SalesDashboard = () => {
           templateData: {
             customerName,
             message,
+            surveyLink,
+            thankYouMessage: 'Thank you for choosing us for your test drive experience!',
           },
         },
       });
@@ -744,7 +790,7 @@ const SalesDashboard = () => {
             {salesOpportunities.length === 0 ? (
               <p className="text-sm text-muted-foreground">No opportunities created yet.</p>
             ) : salesOpportunities.map((opportunity) => (
-              <div key={`opp-${opportunity.id}-${opportunity.latest_test_drive_id}`} className="rounded-md border border-border p-2.5 text-sm space-y-1.5">
+              <div key={`opp-${opportunity.id}-${opportunity.latest_test_drive_id}`} className="rounded-md border border-border p-2.5 text-sm space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-medium text-foreground truncate">{opportunity.customers?.full_name || 'Customer'}</p>
                   <Badge className={opportunity.temperature === 'hot' ? 'bg-destructive/10 text-destructive text-xs' : 'bg-muted text-muted-foreground text-xs'}>
@@ -758,6 +804,23 @@ const SalesDashboard = () => {
                   <p>Phone: <span className="text-foreground font-medium">{opportunity.customers?.phone || 'N/A'}</span></p>
                   <p>Stage: <span className="text-foreground font-medium">{formatStatusLabel(opportunity.stage || 'new')}</span></p>
                 </div>
+                {opportunity.notes && (
+                  <div className="rounded-md bg-muted/40 p-1.5 text-xs max-h-20 overflow-y-auto">
+                    <p className="text-muted-foreground font-medium mb-1">Notes:</p>
+                    <p className="text-foreground whitespace-pre-wrap text-[11px]">{opportunity.notes}</p>
+                  </div>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs h-7"
+                  onClick={() => {
+                    setOppNotesDialog({ open: true, opportunityId: opportunity.id });
+                    setOppNoteText('');
+                  }}
+                >
+                  + Add Follow-up Note
+                </Button>
               </div>
             ))}
           </CardContent>
@@ -771,7 +834,7 @@ const SalesDashboard = () => {
             {salesTasks.length === 0 ? (
               <p className="text-sm text-muted-foreground">No open tasks.</p>
             ) : salesTasks.map((task) => (
-              <div key={`task-${task.id}-${task.test_drive_id}`} className="rounded-md border border-border p-2.5 text-sm space-y-1.5">
+              <div key={`task-${task.id}-${task.test_drive_id}`} className="rounded-md border border-border p-2.5 text-sm space-y-2">
                 <p className="font-medium text-foreground truncate text-xs">{task.title}</p>
                 <div className="text-xs text-muted-foreground space-y-0.5">
                   <p>Test Drive: <span className="text-foreground font-medium">#{task.test_drive_id?.slice(0, 8)}</span></p>
@@ -780,6 +843,17 @@ const SalesDashboard = () => {
                   <p>Phone: <span className="text-foreground font-medium">{task.customers?.phone || 'N/A'}</span></p>
                   <p>Due: <span className="text-foreground font-medium">{task.due_at ? new Date(task.due_at).toLocaleString() : 'Not set'}</span></p>
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs h-7"
+                  onClick={() => {
+                    setTaskNotesDialog({ open: true, taskId: task.id });
+                    setTaskNoteText('');
+                  }}
+                >
+                    + Add Follow-up Note (Coming Soon)
+                </Button>
               </div>
             ))}
           </CardContent>
@@ -1015,6 +1089,54 @@ const SalesDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Opportunity Notes Dialog */}
+      <Dialog open={oppNotesDialog.open} onOpenChange={(open) => !open && setOppNotesDialog({ open: false, opportunityId: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-heading">Add Follow-up Note to Opportunity</DialogTitle>
+            <DialogDescription>Track your progress and next steps for this customer</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Note</Label>
+              <Textarea
+                value={oppNoteText}
+                onChange={(e) => setOppNoteText(e.target.value)}
+                placeholder="Add your follow-up comment, observations, or next steps..."
+                className="min-h-24"
+              />
+            </div>
+            <Button onClick={handleSaveOppNote} className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={!oppNoteText.trim()}>
+              Save Note
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Task Notes Dialog */}
+      <Dialog open={taskNotesDialog.open} onOpenChange={(open) => !open && setTaskNotesDialog({ open: false, taskId: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-heading">Add Follow-up Note to Task</DialogTitle>
+            <DialogDescription>Track task progress and important updates</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Note</Label>
+              <Textarea
+                value={taskNoteText}
+                onChange={(e) => setTaskNoteText(e.target.value)}
+                placeholder="Add task update or follow-up comment..."
+                className="min-h-24"
+              />
+            </div>
+            <Button onClick={handleSaveTaskNote} className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={!taskNoteText.trim()}>
+              Save Note
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <SalesSwapDialog open={!!reassignDrive} onClose={() => setReassignDrive(null)} testDrive={reassignDrive} onSwapped={fetchAssignedDrives} mode="reassign" />
 
