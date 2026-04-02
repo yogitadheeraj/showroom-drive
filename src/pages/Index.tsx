@@ -473,17 +473,17 @@ const Index = () => {
     {
       title: 'Control Every Test Drive From One Dashboard',
       subtitle: 'Live ops visibility for bookings, handovers, inspections, and completion.',
-      image: 'https://placehold.co/1280x820/e6edf7/1a2538?text=Omni+Tracely+Dashboard+Preview',
+      image: '/images/hero-dashboard.png',
     },
     {
       title: 'Deliver Premium Booking Experience',
       subtitle: 'Fast booking journeys for online and walk-in customers with cleaner data capture.',
-      image: 'https://placehold.co/1280x820/dceefe/0f2742?text=Omni+Tracely+Booking+Flow+Preview',
+      image: '/images/hero-test-drives.png',
     },
     {
-      title: 'Assign GRO & Sales Without Delays',
+      title: 'Manage Multi-Location Showrooms',
       subtitle: 'Location-aware assignment flow with real-time accountability at each checkpoint.',
-      image: 'https://placehold.co/1280x820/f3e9df/2a1f16?text=Omni+Tracely+Assignment+Preview',
+      image: '/images/hero-locations.png',
     },
   ];
 
