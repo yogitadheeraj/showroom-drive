@@ -476,17 +476,17 @@ const Index = () => {
     {
       title: 'Control Every Test Drive From One Dashboard',
       subtitle: 'Live ops visibility for bookings, handovers, inspections, and completion.',
-      image: showcaseAdminDashboard,
+      image: '/images/hero-dashboard.png',
     },
     {
       title: 'Deliver Premium Booking Experience',
       subtitle: 'Fast booking journeys for online and walk-in customers with cleaner data capture.',
-      image: showcaseBooking,
+      image: '/images/hero-test-drives.png',
     },
     {
-      title: 'Assign GRO & Sales Without Delays',
+      title: 'Manage Multi-Location Showrooms',
       subtitle: 'Location-aware assignment flow with real-time accountability at each checkpoint.',
-      image: showcaseGroAssign,
+      image: '/images/hero-locations.png',
     },
   ];
 

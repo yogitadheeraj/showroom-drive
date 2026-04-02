@@ -253,7 +253,7 @@ const TestDrivesPage = () => {
             </SelectContent>
           </Select>
         </div>
-{console.log(testDrives)}
+
         <Card className="shadow-card hidden lg:block">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
