@@ -750,19 +750,19 @@ const Index = () => {
               initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
               className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
             >
-              AI Driven Omni Tracely
+              Complete DMS Platform
             </motion.span>
             <motion.h2
               initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
               className="mt-4 text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground leading-tight"
             >
-              Manage Complete Showroom Operations On One Home Platform
+              AI Powered DMS For A Seamless, Friction-Free Digital Experience
             </motion.h2>
             <motion.p
               initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
               className="mt-4 text-sm sm:text-base text-muted-foreground max-w-3xl mx-auto"
             >
-              Built to centralize dealer operations, test drive lifecycle, staff actions, and customer journey traceability with AI-guided workflow decisions.
+              21+ integrated modules covering every aspect of dealership operations — from vehicle management to loan & leasing, all in one platform.
             </motion.p>
           </div>
 
