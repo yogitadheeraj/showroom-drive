@@ -85,6 +85,23 @@ const AuthPage = () => {
 
     setIsResending(true);
     try {
+      // Check if user/profile exists before attempting resend
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        toast({
+          title: 'User not found',
+          description: 'No account exists with this email. Please sign up first.',
+          variant: 'destructive',
+        });
+        setIsResending(false);
+        return;
+      }
+
       await resendVerificationEmail(normalizedEmail);
       toast({
         title: 'Verification email sent',
