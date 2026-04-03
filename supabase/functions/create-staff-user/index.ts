@@ -38,6 +38,23 @@ const DEALER_ADMIN_CREATEABLE_ROLES: AppRole[] = [
   ROLE.SECURITY,
 ]
 
+function normalizeRole(input: unknown): AppRole | null {
+  const raw = String(input ?? '').trim().toLowerCase()
+  if (!raw) return null
+
+  const normalized = raw.replace(/[-\s]+/g, '_')
+
+  if (CREATEABLE_ROLES.includes(normalized as AppRole)) {
+    return normalized as AppRole
+  }
+
+  if (normalized === 'branch_admin' || normalized === 'branchadmin' || normalized === 'salesadmin') {
+    return ROLE.SALES_ADMIN
+  }
+
+  return null
+}
+
 function parseJwtClaims(token: string): Record<string, unknown> | null {
   const parts = token.split('.')
   if (parts.length < 2) return null
@@ -98,7 +115,10 @@ Deno.serve(async (req) => {
     email = String(body.email ?? '').trim().toLowerCase()
     password = String(body.password ?? '')
     fullName = String(body.fullName ?? '').trim()
-    const requestedRole = String(body.role ?? '') as AppRole
+    const requestedRole = normalizeRole(body.role)
+    if (!requestedRole) {
+      return response({ error: 'Invalid role' }, 400)
+    }
     role = requestedRole
     locationId = body.locationId ? String(body.locationId) : null
   } catch {
@@ -122,7 +142,7 @@ Deno.serve(async (req) => {
     return response({ error: 'Unable to verify caller role' }, 500)
   }
 
-  const callerRoles = new Set((callerRoleRows ?? []).map((r) => r.role as AppRole))
+  const callerRoles = new Set((callerRoleRows ?? []).map((r: { role: string }) => r.role as AppRole))
   const isSuperAdmin = callerRoles.has(ROLE.SUPERADMIN)
   const isDealerAdmin = callerRoles.has(ROLE.DEALER_ADMIN)
 
