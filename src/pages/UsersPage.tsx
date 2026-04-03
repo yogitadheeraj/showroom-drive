@@ -22,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, type AppRole } from '@/constants/roles';
+import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, DEALER_ASSIGNABLE_ROLES, type AppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
 
 const UsersPage = () => {
@@ -465,11 +465,10 @@ const UsersPage = () => {
               <div className="space-y-2"><Label>Password *</Label><Input type="password" value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} minLength={6} /></div>
               <div className="space-y-2">
                 <Label>Role *</Label>
-                <Select value={createForm.role} onValueChange={(v: string) => setCreateForm(p => ({ ...p, role: v as AppRole }))}>
+<Select value={createForm.role} onValueChange={(v: string) => setCreateForm(p => ({ ...p, role: v as AppRole }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {STAFF_ROLE_OPTIONS
-                      .filter(r => isSuperAdmin || r.value !== APP_ROLE.DEALER_ADMIN)
+                    {(isSuperAdmin ? STAFF_ROLE_OPTIONS : DEALER_ASSIGNABLE_ROLES)
                       .map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -500,11 +499,10 @@ const UsersPage = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Role</Label>
-                <Select value={editForm.role} onValueChange={v => setEditForm(p => ({ ...p, role: v }))}>
+<Select value={editForm.role} onValueChange={v => setEditForm(p => ({ ...p, role: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
                   <SelectContent>
-                    {STAFF_ROLE_OPTIONS
-                      .filter(r => isSuperAdmin || r.value !== APP_ROLE.DEALER_ADMIN)
+                    {(isSuperAdmin ? STAFF_ROLE_OPTIONS : DEALER_ASSIGNABLE_ROLES)
                       .map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                   </SelectContent>
                 </Select>

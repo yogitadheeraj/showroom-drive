@@ -22,13 +22,14 @@ import {
   YAxis,
   Cell,
 } from 'recharts';
-import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye, MailCheck, AlertTriangle, RefreshCw } from 'lucide-react';
+import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye, MailCheck, AlertTriangle, RefreshCw, LayoutDashboard, ShieldCheck } from 'lucide-react';
 import { APP_ROLE, AppRole } from '@/constants/roles';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
 const ROLE_COLORS: Record<string, string> = {
   [APP_ROLE.DEALER_ADMIN]: 'hsl(220,80%,50%)',
+  [APP_ROLE.SALES_ADMIN]: 'hsl(270,70%,55%)',
   [APP_ROLE.GRO]: 'hsl(145,65%,42%)',
   [APP_ROLE.SALES]: 'hsl(38,95%,55%)',
   [APP_ROLE.SECURITY]: 'hsl(0,75%,55%)',
@@ -443,26 +444,28 @@ const SuperAdminDashboard = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col gap-3">
+
+      {/* ── Header row: title + inline filters ── */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">
-            {isSuperAdmin ? 'Super Admin Dashboard' : 'Sales Lead Dashboard'}
+          <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground tracking-tight flex items-center gap-2">
+            <LayoutDashboard className="h-5 w-5 text-primary" />
+            {isSuperAdmin ? 'Super Admin Dashboard' : 'Dealer Admin Dashboard'}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {isSuperAdmin ? 'Overview of all dealerships & test drives' : 'Overview of your dealership test drives'}
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {isSuperAdmin ? 'Overview across all dealerships & test drives' : 'Overview of your dealership test drives'}
           </p>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 p-3 sm:p-4 rounded-lg bg-muted/30 border border-border">
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <Filter className="h-4 w-4" />
-            <span className="hidden sm:inline">Filters:</span>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Filter by:</span>
           </div>
 
           {isSuperAdmin && (
             <Select value={selectedDealer} onValueChange={setSelectedDealer}>
-              <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm">
+              <SelectTrigger className="w-[150px] h-9 text-sm font-medium">
                 <SelectValue placeholder="All Dealers" />
               </SelectTrigger>
               <SelectContent>
@@ -473,7 +476,7 @@ const SuperAdminDashboard = () => {
           )}
 
           <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-            <SelectTrigger className="w-full sm:w-[160px] h-9 text-sm">
+            <SelectTrigger className="w-[150px] h-9 text-sm font-medium">
               <SelectValue placeholder="All Locations" />
             </SelectTrigger>
             <SelectContent>
@@ -481,23 +484,22 @@ const SuperAdminDashboard = () => {
               {locations.map(loc => <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>)}
             </SelectContent>
           </Select>
-
         </div>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+      {/* ── KPI Stat Cards ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {statCards.map(stat => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="shadow-card h-full min-w-0">
+            <Card key={stat.label} className={`shadow-card min-w-0 border ${stat.bg.replace('bg-', 'border-').replace('/10', '/30')}`}>
               <CardContent className="p-3 sm:p-4 min-w-0 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">
-                <div className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
-                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
+                <div className={`h-10 w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-5 w-5 ${stat.color}`} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-lg sm:text-2xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
-                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight break-words mt-1">{stat.label}</p>
+                  <p className="text-2xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-tight mt-1 break-words">{stat.label}</p>
                 </div>
               </CardContent>
             </Card>
@@ -510,7 +512,11 @@ const SuperAdminDashboard = () => {
       <Card className="shadow-card">
         <CardHeader className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle className="font-heading text-lg">Test Drives</CardTitle>
+            <CardTitle className="font-heading text-lg flex items-center gap-2">
+              <CalendarCheck className="h-5 w-5 text-primary" />
+              Test Drives
+              <Badge variant="secondary" className="text-xs font-normal">{testDrives.length}</Badge>
+            </CardTitle>
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
@@ -644,7 +650,9 @@ const SuperAdminDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle className="font-heading text-lg">Drive Status Breakdown</CardTitle>
+            <CardTitle className="font-heading text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" /> Drive Status Breakdown
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
@@ -665,7 +673,9 @@ const SuperAdminDashboard = () => {
 
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle className="font-heading text-lg">Staff Role Distribution</CardTitle>
+            <CardTitle className="font-heading text-lg flex items-center gap-2">
+              <Users className="h-5 w-5 text-info" /> Staff Role Distribution
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
@@ -684,7 +694,9 @@ const SuperAdminDashboard = () => {
 
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle className="font-heading text-lg">Staff Activity Grid</CardTitle>
+          <CardTitle className="font-heading text-lg flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-success" /> Staff Activity Grid
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {!hasRecentStaffActivity && filteredStaff.length > 0 && (
@@ -831,7 +843,12 @@ const SuperAdminDashboard = () => {
         <>
           {/* Desktop */}
           <Card className="shadow-card hidden lg:block">
-            <CardHeader><CardTitle className="font-heading text-lg">Repeat Customers</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="font-heading text-lg flex items-center gap-2">
+                <Users className="h-5 w-5 text-warning" /> Repeat Customers
+                <Badge variant="secondary" className="text-xs font-normal ml-1">{repeatedCustomers.length}</Badge>
+              </CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

@@ -14,6 +14,7 @@ const jsonHeaders = {
 const ROLE = {
   SUPERADMIN: 'superadmin',
   DEALER_ADMIN: 'dealer_admin',
+  SALES_ADMIN: 'sales_admin',
   GRO: 'gro',
   SALES: 'sales',
   SECURITY: 'security',
@@ -23,6 +24,15 @@ type AppRole = (typeof ROLE)[keyof typeof ROLE]
 
 const CREATEABLE_ROLES: AppRole[] = [
   ROLE.DEALER_ADMIN,
+  ROLE.SALES_ADMIN,
+  ROLE.GRO,
+  ROLE.SALES,
+  ROLE.SECURITY,
+]
+
+// Roles that a dealer_admin is allowed to create (cannot create dealer_admin or superadmin)
+const DEALER_ADMIN_CREATEABLE_ROLES: AppRole[] = [
+  ROLE.SALES_ADMIN,
   ROLE.GRO,
   ROLE.SALES,
   ROLE.SECURITY,
@@ -120,8 +130,8 @@ Deno.serve(async (req) => {
     return response({ error: 'Forbidden' }, 403)
   }
 
-  if (isDealerAdmin && role === ROLE.DEALER_ADMIN) {
-    return response({ error: 'Dealer admin cannot create dealer admin users' }, 403)
+  if (isDealerAdmin && !DEALER_ADMIN_CREATEABLE_ROLES.includes(role)) {
+    return response({ error: 'Dealer admin cannot create users with this role' }, 403)
   }
 
   if (isDealerAdmin) {

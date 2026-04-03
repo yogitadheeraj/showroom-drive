@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone, UserCog, CalendarClock, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone, UserCog, CalendarClock, ShieldCheck, AlertTriangle, TrendingUp, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SalesSwapDialog from './SalesSwapDialog';
 import {
@@ -718,28 +718,48 @@ const SalesDashboard = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Sales Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Your assigned test drives</p>
+
+      {/* ── Header row: title + filter ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground tracking-tight">Sales Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {profile?.full_name ? `Welcome, ${profile.full_name} · ` : ''}Your assigned test drives
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Select value={statusFilter} onValueChange={(v: 'all' | 'active' | 'completed') => setStatusFilter(v)}>
+            <SelectTrigger className="w-[170px] sm:w-[200px] h-9 text-sm font-medium">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Records</SelectItem>
+              <SelectItem value="active">Active Records</SelectItem>
+              <SelectItem value="completed">Completed Records</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+      {/* ── KPI stats ── */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: 'Assigned', value: testDrives.length, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
-          { label: 'In Progress', value: testDrives.filter(t => t.status === 'in_progress').length, icon: Key, color: 'text-info', bg: 'bg-green/10' },
-          { label: 'Completed', value: testDrives.filter(t => t.status === 'completed').length, icon: FileCheck, color: 'text-success', bg: 'bg-success/10' },
-          { label: 'Pending License', value: testDrives.filter(t => !t.customers?.driving_license_url).length, icon: Upload, color: 'text-warning', bg: 'bg-warning/10' },
+          { label: 'Total Assigned', value: testDrives.length, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10', border: 'border-primary/20' },
+          { label: 'In Progress', value: testDrives.filter(t => t.status === 'in_progress').length, icon: Key, color: 'text-info', bg: 'bg-info/10', border: 'border-info/20' },
+          { label: 'Completed', value: testDrives.filter(t => t.status === 'completed').length, icon: FileCheck, color: 'text-success', bg: 'bg-success/10', border: 'border-success/20' },
+          { label: 'Pending License', value: testDrives.filter(t => !t.customers?.driving_license_url).length, icon: Upload, color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/20' },
         ].map(stat => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="shadow-card min-w-0">
-              <CardContent className="p-3 sm:p-5 flex items-center gap-2.5 sm:gap-4">
-                <div className={`h-9 w-9 sm:h-12 sm:w-12 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
-                  <Icon className={`h-4 w-4 sm:h-6 sm:w-6 ${stat.color}`} />
+            <Card key={stat.label} className={`shadow-card min-w-0 border ${stat.border}`}>
+              <CardContent className="p-3 sm:p-5 flex items-center gap-3 sm:gap-4">
+                <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${stat.color}`} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] sm:text-sm text-muted-foreground leading-tight break-words">{stat.label}</p>
-                  <p className="text-lg sm:text-2xl font-heading font-bold text-foreground">{stat.value}</p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight font-medium uppercase tracking-wide">{stat.label}</p>
+                  <p className="text-2xl sm:text-3xl font-heading font-bold text-foreground">{stat.value}</p>
                 </div>
               </CardContent>
             </Card>
@@ -747,33 +767,54 @@ const SalesDashboard = () => {
         })}
       </div>
 
-      <Card className="shadow-card border-primary/20">
+      <Card className="shadow-card border-primary/20 bg-primary/5">
         <CardHeader className="pb-2">
-          <CardTitle className="font-heading text-sm sm:text-base">Sales SOP</CardTitle>
+          <CardTitle className="font-heading text-sm sm:text-base flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" /> Sales Process Guide
+          </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs sm:text-sm">
-            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">1.</span> Upload / confirm customer license.</div>
-            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">2.</span> Assign vehicle (key handover).</div>
-            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">3.</span> Track security start + active drive.</div>
-            <div className="rounded-md bg-muted/40 p-2"><span className="font-medium">4.</span> Complete follow-up after return alert.</div>
+            <div className="rounded-lg bg-background border border-primary/10 p-2.5 flex gap-2 items-start">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold">1</span>
+              <span>Upload / confirm customer license.</span>
+            </div>
+            <div className="rounded-lg bg-background border border-primary/10 p-2.5 flex gap-2 items-start">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold">2</span>
+              <span>Assign vehicle (key handover).</span>
+            </div>
+            <div className="rounded-lg bg-background border border-primary/10 p-2.5 flex gap-2 items-start">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold">3</span>
+              <span>Track security start + active drive.</span>
+            </div>
+            <div className="rounded-lg bg-background border border-primary/10 p-2.5 flex gap-2 items-start">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold">4</span>
+              <span>Complete follow-up after return alert.</span>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       <Card className="shadow-card border-info/20">
         <CardHeader className="pb-2">
-          <CardTitle className="font-heading text-sm sm:text-base">Available Security Contacts</CardTitle>
+          <CardTitle className="font-heading text-sm sm:text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-info" /> Security Contacts
+          </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {securityContacts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No Active Security Contacts Found For This Location.</p>
+            <p className="text-sm text-muted-foreground">No active security contacts found for this location.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
               {securityContacts.map((contact) => (
-                <div key={contact.id} className="rounded-md border border-border bg-muted/30 p-2">
-                  <p className="font-medium text-foreground">{contact.full_name}</p>
-                  <p className="text-xs text-muted-foreground">{contact.phone || 'Phone Not Available'}</p>
+                <div key={contact.id} className="rounded-lg border border-info/20 bg-info/5 p-2.5 flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-full bg-info/10 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="h-4 w-4 text-info" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground text-sm leading-tight">{contact.full_name}</p>
+                    <p className="text-xs text-muted-foreground">{contact.phone || 'Phone not available'}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -784,7 +825,12 @@ const SalesDashboard = () => {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4">
         <Card className="shadow-card border-destructive/20">
           <CardHeader className="pb-2">
-            <CardTitle className="font-heading text-sm sm:text-base">My Opportunities</CardTitle>
+            <CardTitle className="font-heading text-sm sm:text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-destructive" /> My Opportunities
+              {salesOpportunities.length > 0 && (
+                <Badge className="ml-1 bg-destructive/10 text-destructive text-xs font-normal">{salesOpportunities.length}</Badge>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-2 max-h-72 overflow-y-auto">
             {salesOpportunities.length === 0 ? (
@@ -828,7 +874,12 @@ const SalesDashboard = () => {
 
         <Card className="shadow-card border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="font-heading text-sm sm:text-base">Open Follow-up Tasks</CardTitle>
+            <CardTitle className="font-heading text-sm sm:text-base flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4 text-primary" /> Open Follow-up Tasks
+              {salesTasks.length > 0 && (
+                <Badge className="ml-1 bg-primary/10 text-primary text-xs font-normal">{salesTasks.length}</Badge>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-2 max-h-72 overflow-y-auto">
             {salesTasks.length === 0 ? (
@@ -862,19 +913,11 @@ const SalesDashboard = () => {
 
       <Card className="shadow-card">
         <CardHeader className="pb-2 sm:pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <CardTitle className="font-heading text-base sm:text-lg">Assigned Test Drives</CardTitle>
-            <Select value={statusFilter} onValueChange={(v: 'all' | 'active' | 'completed') => setStatusFilter(v)}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Records</SelectItem>
-                <SelectItem value="active">Active Records</SelectItem>
-                <SelectItem value="completed">Completed Records</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <CardTitle className="font-heading text-base sm:text-lg flex items-center gap-2">
+            <CalendarCheck className="h-5 w-5 text-primary" />
+            Assigned Test Drives
+            <Badge variant="secondary" className="ml-1 text-xs font-normal">{filteredDrives.length}</Badge>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="max-h-[75vh] overflow-y-auto pr-1">
