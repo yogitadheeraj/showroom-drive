@@ -473,21 +473,15 @@ const Index = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const heroSlides = [
-    {
-      title: 'Control Every Test Drive From One Dashboard',
-      subtitle: 'Live ops visibility for bookings, handovers, inspections, and completion.',
-      image: '/images/hero-dashboard.png',
-    },
-    {
-      title: 'Deliver Premium Booking Experience',
-      subtitle: 'Fast booking journeys for online and walk-in customers with cleaner data capture.',
-      image: '/images/hero-test-drives.png',
-    },
-    {
-      title: 'Manage Multi-Location Showrooms',
-      subtitle: 'Location-aware assignment flow with real-time accountability at each checkpoint.',
-      image: '/images/hero-locations.png',
-    },
+    { title: 'Admin Dashboard', subtitle: 'Complete operational command center with live KPIs', image: '/images/hero-1.png' },
+    { title: 'Test Drive Management', subtitle: 'Track every booking from schedule to completion', image: '/images/hero-2.png' },
+    { title: 'GRO Assignment Flow', subtitle: 'One-click handover from GRO to Sales team', image: '/images/hero-3.png' },
+    { title: 'Vehicle Tracking', subtitle: 'Real-time vehicle availability across locations', image: '/images/hero-4.png' },
+    { title: 'Security Gate', subtitle: 'Check-in, license verification, and exit logging', image: '/images/hero-5.png' },
+    { title: 'Data Center', subtitle: 'AI-powered analytics with conversion insights', image: '/images/hero-6.png' },
+    { title: 'Communications', subtitle: 'Automated WhatsApp, Email & SMS workflows', image: '/images/hero-7.png' },
+    { title: 'Multi-Location Ops', subtitle: 'Branch-level controls with unified reporting', image: '/images/hero-8.png' },
+    { title: 'Enquiry Pipeline', subtitle: 'Lead scoring and action-oriented follow-ups', image: '/images/hero-9.png' },
   ];
 
   useEffect(() => {
