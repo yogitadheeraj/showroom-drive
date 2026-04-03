@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail } from 'lucide-react';
+import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail, Warehouse, CreditCard, FileText, Package, Receipt, ClipboardList, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
 import EnquiryWidget from '@/components/EnquiryWidget';
 import { toast } from 'sonner';
@@ -525,66 +525,27 @@ const Index = () => {
   const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
 
   const aiModules = [
-    {
-      icon: Building2,
-      title: 'Dealer Management',
-      desc: 'Manage dealer onboarding, activation, access controls, and performance visibility from one command center.',
-    },
-    {
-      icon: CalendarCheck,
-      title: 'Test Drive Management',
-      desc: 'Handle booking lifecycle, assignment, key handover, completion states, and conversion tracking in real time.',
-    },
-    {
-      icon: Car,
-      title: 'Vehicle Management',
-      desc: 'Track vehicle availability, location, maintenance windows, and test drive readiness across all branches.',
-    },
-    {
-      icon: MessageCircle,
-      title: 'Communication After Booking',
-      desc: 'Automate confirmations, reminders, and post-drive follow-ups through structured communication workflows.',
-    },
-    {
-      icon: MapPin,
-      title: 'Manage Location',
-      desc: 'Operate multi-location showrooms with localized slots, staff mapping, and branch-level reporting controls.',
-    },
-    {
-      icon: Users,
-      title: 'Manage Staffs',
-      desc: 'Control staff profiles, roles, assignment logic, and accountability checkpoints for every operational step.',
-    },
-    {
-      icon: Clock,
-      title: 'Manage Operation Timing',
-      desc: 'Define booking windows, team shifts, SLA timing, and process deadlines with configurable timing rules.',
-    },
-    {
-      icon: Shield,
-      title: 'Trace Staff Login & Logoff Insights',
-      desc: 'Capture staff session activity with secure login/logoff traces and operational visibility for audits.',
-    },
-    {
-      icon: CheckCircle2,
-      title: 'Block Test Drive By Day/Time',
-      desc: 'Apply blackout controls for specific days, dates, or time blocks to prevent invalid bookings instantly.',
-    },
-    {
-      icon: BarChart3,
-      title: 'Dashboard',
-      desc: 'Get AI-assisted KPIs for bookings, completion ratios, utilization, conversion trends, and team productivity.',
-    },
-    {
-      icon: Send,
-      title: 'Enquiry Management',
-      desc: 'Collect, route, prioritize, and convert enquiries with lead scoring and action-oriented next-step tracking.',
-    },
-    {
-      icon: GitCompareArrows,
-      title: 'Customer Test Drive Flow Tracking',
-      desc: 'Track complete customer journey from enquiry to showroom arrival, drive steps, feedback, and closure.',
-    },
+    { icon: Car, title: 'Vehicle Management System', desc: 'Complete vehicle lifecycle management — inventory, availability, location tracking, and test drive readiness across all branches.' },
+    { icon: Users, title: 'Dealer CRM', desc: 'Unified customer relationship management with lead scoring, interaction history, and conversion tracking for every dealership.' },
+    { icon: CalendarCheck, title: 'Test Drive Management System', desc: 'End-to-end booking lifecycle — assignment, key handover, inspection, completion states, and real-time conversion tracking.' },
+    { icon: GitCompareArrows, title: 'Trade-In Management', desc: 'Streamline vehicle trade-in evaluations, appraisals, and offers with structured workflows and pricing rules.' },
+    { icon: Warehouse, title: 'Vehicle Inventory', desc: 'Real-time inventory visibility across locations with stock levels, variant tracking, and availability management.' },
+    { icon: CreditCard, title: 'CPQ – Configure, Price, Quote', desc: 'Configure vehicles, apply pricing rules, and generate accurate quotes instantly for faster deal closure.' },
+    { icon: Tag, title: 'Vehicle Reservation', desc: 'Allow customers to reserve vehicles with deposit management, hold timers, and automated follow-ups.' },
+    { icon: Receipt, title: 'RTP – Request To Pay', desc: 'Digital payment request workflows with tracking, reminders, and reconciliation for seamless transactions.' },
+    { icon: ClipboardList, title: 'Order Management', desc: 'Track orders from placement to delivery with status updates, ETA management, and customer notifications.' },
+    { icon: MessageCircle, title: 'Communication Module', desc: 'Multi-channel communication via WhatsApp, Email, and SMS — automated confirmations, reminders, and follow-ups.' },
+    { icon: FolderOpen, title: 'Intelligent Deal File Management', desc: 'AI-powered document management for deal files with auto-classification, version control, and compliance checks.' },
+    { icon: BarChart3, title: 'Standard Role Based Reports', desc: 'Pre-built reports tailored for each role — GRO, Sales, Security, and Admin with actionable KPIs.' },
+    { icon: PieChart, title: 'Realtime Data Analytics and BI', desc: 'Live dashboards with AI-assisted insights for bookings, conversions, utilization trends, and team productivity.' },
+    { icon: Smartphone, title: 'Showroom Sales App', desc: 'Mobile-first app for sales teams on the floor — instant access to inventory, leads, and customer history.' },
+    { icon: DollarSign, title: 'F&I Module', desc: 'Finance and Insurance module with product bundling, margin tracking, and compliance-ready documentation.' },
+    { icon: Building2, title: 'Autobeanz ERP', desc: 'Enterprise resource planning backbone connecting all dealership operations into one unified platform.' },
+    { icon: Package, title: 'Accessories', desc: 'Manage accessory catalog, pricing, fitment scheduling, and attach accessories to vehicle orders seamlessly.' },
+    { icon: ShieldCheck, title: 'Insurance Products', desc: 'Integrated insurance product offerings with comparison, policy generation, and renewal tracking.' },
+    { icon: Layers, title: 'Integrated PIM', desc: 'Product Information Management for centralized vehicle specs, media assets, and content across all channels.' },
+    { icon: FileText, title: 'Pricing Rules', desc: 'Configurable pricing engine with discount rules, promotional pricing, and approval workflows.' },
+    { icon: Landmark, title: 'Loan & Leasing', desc: 'End-to-end loan and leasing management with EMI calculators, lender integration, and application tracking.' },
   ];
 
   return (
@@ -789,23 +750,23 @@ const Index = () => {
               initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
               className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
             >
-              AI Driven Omni Tracely
+              Complete DMS Platform
             </motion.span>
             <motion.h2
               initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
               className="mt-4 text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground leading-tight"
             >
-              Manage Complete Showroom Operations On One Home Platform
+              AI Powered DMS For A Seamless, Friction-Free Digital Experience
             </motion.h2>
             <motion.p
               initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
               className="mt-4 text-sm sm:text-base text-muted-foreground max-w-3xl mx-auto"
             >
-              Built to centralize dealer operations, test drive lifecycle, staff actions, and customer journey traceability with AI-guided workflow decisions.
+              21+ integrated modules covering every aspect of dealership operations — from vehicle management to loan & leasing, all in one platform.
             </motion.p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
             {aiModules.map((module, index) => {
               const Icon = module.icon;
               return (
