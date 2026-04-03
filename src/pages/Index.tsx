@@ -473,27 +473,21 @@ const Index = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const heroSlides = [
-    {
-      title: 'Control Every Test Drive From One Dashboard',
-      subtitle: 'Live ops visibility for bookings, handovers, inspections, and completion.',
-      image: '/images/hero-dashboard.png',
-    },
-    {
-      title: 'Deliver Premium Booking Experience',
-      subtitle: 'Fast booking journeys for online and walk-in customers with cleaner data capture.',
-      image: '/images/hero-test-drives.png',
-    },
-    {
-      title: 'Manage Multi-Location Showrooms',
-      subtitle: 'Location-aware assignment flow with real-time accountability at each checkpoint.',
-      image: '/images/hero-locations.png',
-    },
+    { title: 'Admin Dashboard', subtitle: 'Complete operational command center with live KPIs', image: '/images/hero-1.png' },
+    { title: 'Test Drive Management', subtitle: 'Track every booking from schedule to completion', image: '/images/hero-2.png' },
+    { title: 'GRO Assignment Flow', subtitle: 'One-click handover from GRO to Sales team', image: '/images/hero-3.png' },
+    { title: 'Vehicle Tracking', subtitle: 'Real-time vehicle availability across locations', image: '/images/hero-4.png' },
+    { title: 'Security Gate', subtitle: 'Check-in, license verification, and exit logging', image: '/images/hero-5.png' },
+    { title: 'Data Center', subtitle: 'AI-powered analytics with conversion insights', image: '/images/hero-6.png' },
+    { title: 'Communications', subtitle: 'Automated WhatsApp, Email & SMS workflows', image: '/images/hero-7.png' },
+    { title: 'Multi-Location Ops', subtitle: 'Branch-level controls with unified reporting', image: '/images/hero-8.png' },
+    { title: 'Enquiry Pipeline', subtitle: 'Lead scoring and action-oriented follow-ups', image: '/images/hero-9.png' },
   ];
 
   useEffect(() => {
     const slideInterval = setInterval(() => {
       setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
-    }, 3600);
+    }, 4000);
 
     return () => clearInterval(slideInterval);
   }, [heroSlides.length]);
@@ -630,110 +624,143 @@ const Index = () => {
         )}
 
         {/* Hero Section */}
-        <div className="relative z-10 mx-auto max-w-full bg-primary/20 px-4 sm:px-6 pt-10 sm:pt-14 pb-14 sm:pb-20">
+        <div className="relative z-10 mx-auto max-w-full px-4 sm:px-6 pt-10 sm:pt-16 pb-8 sm:pb-12">
+          {/* Hero Text — Centered */}
           <motion.div
             initial="hidden"
             animate="visible"
             variants={fadeUp}
             custom={0}
-            className="rounded-[28px] border border-primary/15 bg-white/80 backdrop-blur-sm p-6 sm:p-10"
+            className="text-center max-w-4xl mx-auto"
           >
-            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 lg:gap-10 items-start">
-              <div>
-                <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-primary/80">Omni Tracely</p>
-                <h1 className="mt-3 text-3xl sm:text-5xl lg:text-6xl font-heading font-bold text-foreground leading-[1.03]">
-                  One Stop Solution
-                  <span className="block">For All Omni Operations</span>
-                </h1>
-                <h2 className="mt-5 text-lg sm:text-2xl font-heading font-semibold text-foreground/90 leading-tight">
-                Trusted Booking, Assignment, Security Check-In, And Follow-Up In One Workflow, Walkin Test Drive.
-                </h2>
-                <p className="mt-4 text-sm sm:text-base text-foreground/70 max-w-2xl leading-relaxed">
-                  Designed for dealerships that need speed on the floor and clarity in reports. From enquiry to closure, every event is traceable.
-                </p>
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]">
+              AI-Powered DMS Platform
+            </span>
+            <h1 className="mt-5 text-3xl sm:text-5xl lg:text-[3.5rem] font-heading font-bold text-foreground leading-[1.08]">
+              One Platform For All
+              <span className="block text-primary">Dealership Operations</span>
+            </h1>
+            <p className="mt-5 text-base sm:text-lg text-foreground/70 max-w-2xl mx-auto leading-relaxed">
+              From test drive booking to deal closure — manage every checkpoint with speed, clarity, and AI-powered insights.
+            </p>
 
-                <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                  <Link to="/book" className="w-full sm:w-auto">
-                    <Button size="lg" className="w-full sm:w-auto primary border-0 text-primary-foreground px-8 h-12 rounded-xl">
-                      Start Booking <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
-                  <Link to="/dealer-onboarding" className="w-full sm:w-auto">
-                    <Button size="lg" className="w-full sm:w-auto bg-primary-foreground/90 text-foreground px-8 h-12 rounded-xl font-semibold hover:bg-primary-foreground">
-                      For Dealerships
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="relative rounded-2xl overflow-hidden border border-primary-foreground/20 min-h-[280px] sm:min-h-[320px] shadow-2xl shadow-black/20">
-                  {heroSlides.map((slide, idx) => (
-                    <img
-                      key={slide.title}
-                      src={slide.image}
-                      alt={slide.title}
-                      className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
-                        idx === activeHeroSlide ? 'opacity-100' : 'opacity-0'
-                      }`}
-                    />
-                  ))}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/35 to-black/10" />
-
-                  <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 text-white">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-white/75 font-semibold">Omni Tracely Insights</p>
-                    <p className="mt-1 text-base sm:text-lg font-heading font-semibold leading-tight">
-                      {heroSlides[activeHeroSlide].title}
-                    </p>
-                    <p className="mt-1 text-xs sm:text-sm text-white/85 leading-relaxed">
-                      {heroSlides[activeHeroSlide].subtitle}
-                    </p>
-                    <div className="mt-3 flex items-center gap-2">
-                      {heroSlides.map((slide, idx) => (
-                        <button
-                          key={slide.title}
-                          type="button"
-                          onClick={() => goToSlide(idx)}
-                          className={`h-2 rounded-full transition-all ${idx === activeHeroSlide ? 'w-7 bg-white' : 'w-2 bg-white/55 hover:bg-white/80'}`}
-                          aria-label={`Go to hero slide ${idx + 1}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-border/70 bg-white/95 p-4 sm:p-5 text-foreground shadow-xl shadow-black/10">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Quick Booking Panel</p>
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <Input type="date" className="h-11 rounded-xl bg-card" />
-                    <Input type="date" className="h-11 rounded-xl bg-card" />
-                  </div>
-                  <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-                    <Link to="/compare">
-                      <Button variant="outline" className="w-full h-11 rounded-xl">Compare</Button>
-                    </Link>
-                    <Link to="/book">
-                      <Button className="w-full h-11 rounded-xl gradient-primary border-0 text-primary-foreground">Search & Book</Button>
-                    </Link>
-                  </div>
-                </div>
-              </div>
+            <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
+              <Link to="/book">
+                <Button size="lg" className="px-8 h-13 rounded-xl bg-primary text-primary-foreground text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/35 transition-all">
+                  Start Booking <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+              <Link to="/dealer-onboarding">
+                <Button size="lg" variant="outline" className="px-8 h-13 rounded-xl text-base font-semibold border-2">
+                  <Building2 className="mr-2 h-4 w-4" /> For Dealerships
+                </Button>
+              </Link>
             </div>
           </motion.div>
 
+          {/* Hero Screenshot Showcase */}
           <motion.div
             initial="hidden"
             animate="visible"
             variants={fadeUp}
             custom={1}
-            className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2.5"
+            className="mt-12 sm:mt-16 max-w-6xl mx-auto"
+          >
+            {/* Main Featured Screenshot */}
+            <div className="relative rounded-2xl overflow-hidden border border-border/40 shadow-2xl shadow-black/15 bg-muted/30">
+              {/* Browser Chrome Bar */}
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/60 border-b border-border/40">
+                <div className="flex gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-destructive/60" />
+                  <div className="w-3 h-3 rounded-full bg-warning/60" />
+                  <div className="w-3 h-3 rounded-full bg-success/60" />
+                </div>
+                <div className="flex-1 mx-4">
+                  <div className="h-6 rounded-md bg-background/80 border border-border/30 max-w-xs mx-auto flex items-center justify-center">
+                    <span className="text-[10px] text-muted-foreground/60 font-mono">app.omnitracely.com</span>
+                  </div>
+                </div>
+              </div>
+              {/* Screenshot */}
+              <div className="relative aspect-[16/9] sm:aspect-[16/8.5]">
+                {heroSlides.map((slide, idx) => (
+                  <img
+                    key={slide.title}
+                    src={slide.image}
+                    alt={slide.title}
+                    className={`absolute inset-0 h-full w-full object-cover object-top transition-all duration-700 ${
+                      idx === activeHeroSlide ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.02]'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Slide Info + Navigation */}
+            <div className="mt-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-center sm:text-left">
+                <p className="text-sm sm:text-base font-heading font-semibold text-foreground">
+                  {heroSlides[activeHeroSlide].title}
+                </p>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                  {heroSlides[activeHeroSlide].subtitle}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {heroSlides.map((slide, idx) => (
+                  <button
+                    key={slide.title}
+                    type="button"
+                    onClick={() => goToSlide(idx)}
+                    className={`rounded-full transition-all duration-300 ${
+                      idx === activeHeroSlide
+                        ? 'w-8 h-2.5 bg-primary'
+                        : 'w-2.5 h-2.5 bg-border hover:bg-primary/40'
+                    }`}
+                    aria-label={`Go to slide ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Thumbnail Strip */}
+            <div className="mt-6 grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+              {heroSlides.map((slide, idx) => (
+                <button
+                  key={slide.title}
+                  type="button"
+                  onClick={() => goToSlide(idx)}
+                  className={`relative rounded-lg overflow-hidden border-2 transition-all duration-300 aspect-[16/10] ${
+                    idx === activeHeroSlide
+                      ? 'border-primary shadow-md shadow-primary/20 scale-[1.03]'
+                      : 'border-border/40 opacity-60 hover:opacity-90 hover:border-primary/30'
+                  }`}
+                >
+                  <img
+                    src={slide.image}
+                    alt={slide.title}
+                    className="w-full h-full object-cover object-top"
+                    loading="lazy"
+                  />
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Stats Strip */}
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={fadeUp}
+            custom={2}
+            className="mt-8 sm:mt-10 grid grid-cols-1 md:grid-cols-3 gap-3 max-w-5xl mx-auto"
           >
             {[
-              { title: 'Trusted Commercial & Passenger Test Drive Workflow', subtitle: 'Online and walk-in journeys managed in a single dashboard' },
-              { title: 'One Click Sales Assignment', subtitle: 'GRO to Sales to Security handover without manual confusion' },
-              { title: 'From Drive To Opportunity', subtitle: 'Mark hot/cold lead and create follow-up tasks instantly' },
+              { title: 'Trusted Test Drive Workflow', subtitle: 'Online and walk-in journeys in one dashboard' },
+              { title: 'One-Click Sales Assignment', subtitle: 'GRO → Sales → Security without confusion' },
+              { title: 'From Drive To Opportunity', subtitle: 'Mark leads and create follow-ups instantly' },
             ].map((item) => (
-              <div key={item.title} className="rounded-2xl border border-primary-foreground/10 bg-primary px-4 py-3.5">
+              <div key={item.title} className="rounded-2xl border border-primary/15 bg-primary px-5 py-4 text-center">
                 <p className="text-sm font-semibold text-primary-foreground">{item.title}</p>
                 <p className="text-xs text-primary-foreground/65 mt-1">{item.subtitle}</p>
               </div>
