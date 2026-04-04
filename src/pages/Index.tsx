@@ -534,7 +534,7 @@ const Index = () => {
     { icon: PieChart, title: 'Realtime Data Analytics and BI', desc: 'Live dashboards with AI-assisted insights for bookings, conversions, utilization trends, and team productivity.' },
     { icon: Smartphone, title: 'Showroom Sales App', desc: 'Mobile-first app for sales teams on the floor — instant access to inventory, leads, and customer history.' },
     { icon: DollarSign, title: 'F&I Module', desc: 'Finance and Insurance module with product bundling, margin tracking, and compliance-ready documentation.' },
-    { icon: Building2, title: 'Autobeanz ERP', desc: 'Enterprise resource planning backbone connecting all dealership operations into one unified platform.' },
+    { icon: Building2, title: 'Omni Tracely ERP', desc: 'Enterprise resource planning backbone connecting all dealership operations into one unified platform.' },
     { icon: Package, title: 'Accessories', desc: 'Manage accessory catalog, pricing, fitment scheduling, and attach accessories to vehicle orders seamlessly.' },
     { icon: ShieldCheck, title: 'Insurance Products', desc: 'Integrated insurance product offerings with comparison, policy generation, and renewal tracking.' },
     { icon: Layers, title: 'Integrated PIM', desc: 'Product Information Management for centralized vehicle specs, media assets, and content across all channels.' },

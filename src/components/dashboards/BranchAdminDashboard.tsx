@@ -41,6 +41,9 @@ const BranchAdminDashboard = () => {
   const [allDrives, setAllDrives] = useState<any[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedPerson, setSelectedPerson] = useState<string>('all');
+  const [insightRoleFilter, setInsightRoleFilter] = useState<'all' | 'sales' | 'gro'>('all');
+  const [insightWindow, setInsightWindow] = useState<'all' | 'today' | 'week' | 'month'>('month');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -87,7 +90,7 @@ const BranchAdminDashboard = () => {
       // All test drives for this location
       const { data: drives } = await supabase
         .from('test_drives')
-        .select('*, customers(*), vehicles(*), profiles!assigned_sales_person_id(id, full_name), gro_profile:profiles!gro_id(id, full_name)')
+        .select('*, customers(*), vehicles(*), profiles!test_drives_assigned_sales_person_id_fkey(id, full_name), gro_profile:profiles!test_drives_assigned_gro_id_fkey(id, full_name)')
         .eq('location_id', locationId)
         .order('scheduled_date', { ascending: false })
         .limit(300);
@@ -107,6 +110,109 @@ const BranchAdminDashboard = () => {
   const activeDrives = allDrives.filter(d =>
     ['scheduled', 'confirmed', 'show', 'in_progress', 'key_handover_to_sales'].includes(d.status)
   );
+
+  const isDriveInInsightWindow = (drive: any) => {
+    if (insightWindow === 'all') return true;
+
+    const now = new Date();
+    const driveDate = new Date(`${drive.scheduled_date}T00:00:00`);
+    if (Number.isNaN(driveDate.getTime())) return false;
+
+    if (insightWindow === 'today') {
+      return driveDate.toDateString() === now.toDateString();
+    }
+
+    if (insightWindow === 'week') {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(now.getDate() - 7);
+      weekAgo.setHours(0, 0, 0, 0);
+      return driveDate >= weekAgo;
+    }
+
+    const monthAgo = new Date(now);
+    monthAgo.setDate(now.getDate() - 30);
+    monthAgo.setHours(0, 0, 0, 0);
+    return driveDate >= monthAgo;
+  };
+
+  const getJourneyMinutes = (drive: any) => {
+    const start = drive.started_at || drive.security_checked_in_at || drive.key_handed_at;
+    const end = drive.completed_at || drive.security_checked_out_at;
+    if (!start || !end) return null;
+    const s = new Date(start).getTime();
+    const e = new Date(end).getTime();
+    if (!Number.isFinite(s) || !Number.isFinite(e) || e < s) return null;
+    return Math.round((e - s) / 60000);
+  };
+
+  const buildUserInsight = (member: any, roleType: 'sales' | 'gro') => {
+    const memberDrives = allDrives.filter((drive) => {
+      const isAssigned = roleType === 'sales'
+        ? drive.assigned_sales_person_id === member.id
+        : drive.assigned_gro_id === member.id;
+      return isAssigned && isDriveInInsightWindow(drive);
+    });
+
+    const completed = memberDrives.filter(d => d.status === 'completed').length;
+    const active = memberDrives.filter(d => ['scheduled', 'confirmed', 'show', 'in_progress', 'key_handover_to_sales'].includes(d.status)).length;
+    const noShow = memberDrives.filter(d => d.status === 'no_show').length;
+    const cancelled = memberDrives.filter(d => d.status === 'cancelled').length;
+    const rescheduled = memberDrives.filter(d => d.status === 'rescheduled').length;
+
+    const journeyMinutes = memberDrives
+      .map(getJourneyMinutes)
+      .filter((v: number | null): v is number => typeof v === 'number');
+    const avgJourneyMinutes = journeyMinutes.length > 0
+      ? Math.round(journeyMinutes.reduce((sum, v) => sum + v, 0) / journeyMinutes.length)
+      : null;
+
+    const completionRate = memberDrives.length > 0
+      ? Math.round((completed / memberDrives.length) * 100)
+      : 0;
+
+    const noShowRate = memberDrives.length > 0
+      ? Math.round((noShow / memberDrives.length) * 100)
+      : 0;
+
+    const latestDriveAt = memberDrives.length > 0
+      ? memberDrives
+          .map((d) => new Date(`${d.scheduled_date}T${d.scheduled_time || '00:00:00'}`).getTime())
+          .filter((v) => Number.isFinite(v))
+          .sort((a, b) => b - a)[0]
+      : null;
+
+    return {
+      id: member.id,
+      name: member.full_name || 'Staff',
+      role: roleType,
+      total: memberDrives.length,
+      completed,
+      active,
+      noShow,
+      cancelled,
+      rescheduled,
+      completionRate,
+      noShowRate,
+      avgJourneyMinutes,
+      latestDriveAt,
+    };
+  };
+
+  const userWiseInsights = [
+    ...salesStaff.map((member) => buildUserInsight(member, 'sales')),
+    ...groStaff.map((member) => buildUserInsight(member, 'gro')),
+  ]
+    .filter((row) => insightRoleFilter === 'all' || row.role === insightRoleFilter)
+    .sort((a, b) => b.total - a.total);
+
+  const topPerformer = userWiseInsights[0] || null;
+  const avgCompletionRate = userWiseInsights.length > 0
+    ? Math.round(userWiseInsights.reduce((sum, row) => sum + row.completionRate, 0) / userWiseInsights.length)
+    : 0;
+  const avgNoShowRate = userWiseInsights.length > 0
+    ? Math.round(userWiseInsights.reduce((sum, row) => sum + row.noShowRate, 0) / userWiseInsights.length)
+    : 0;
+  const totalUserwiseDrives = userWiseInsights.reduce((sum, row) => sum + row.total, 0);
 
   // Drives per sales person
   const salesPersonStats = salesStaff.map(s => {
@@ -140,20 +246,35 @@ const BranchAdminDashboard = () => {
     }, {})
   ).map(([name, value]) => ({ name: formatStatus(name), value }));
 
-  // Chart: sales bar chart (assigned drives per person)
-  const salesBarData = salesPersonStats.map(s => ({
-    name: s.full_name?.split(' ')[0] || 'Sales',
-    Completed: s.completed,
-    Active: s.active,
+  const userPerformanceChartData = userWiseInsights.map((row) => ({
+    name: row.name?.split(' ').slice(0, 2).join(' ') || (row.role === 'sales' ? 'Sales' : 'GRO'),
+    Assigned: row.total,
+    Completed: row.completed,
+    Active: row.active,
   }));
+
+  const personOptions = [
+    ...salesStaff.map((s) => ({ value: `sales:${s.id}`, label: s.full_name || 'Sales', role: 'sales' as const })),
+    ...groStaff.map((g) => ({ value: `gro:${g.id}`, label: g.full_name || 'GRO', role: 'gro' as const })),
+  ].sort((a, b) => a.label.localeCompare(b.label));
 
   // Filtered drives for the drives table
   const filteredDrives = allDrives.filter(d => {
     const roleMatch = selectedRole === 'all'
       || (selectedRole === 'sales' && d.profiles?.id)
       || (selectedRole === 'gro' && d.gro_profile?.id);
+
+    const personMatch = (() => {
+      if (selectedPerson === 'all') return true;
+      const [personRole, personId] = selectedPerson.split(':');
+      if (!personRole || !personId) return true;
+      if (personRole === 'sales') return d.assigned_sales_person_id === personId;
+      if (personRole === 'gro') return d.assigned_gro_id === personId;
+      return true;
+    })();
+
     const statusMatch = selectedStatus === 'all' || d.status === selectedStatus;
-    return roleMatch && statusMatch;
+    return roleMatch && personMatch && statusMatch;
   });
 
   if (loading) {
@@ -215,6 +336,114 @@ const BranchAdminDashboard = () => {
           );
         })}
       </div>
+
+      {/* ── USER-WISE INSIGHTS (single rich component) ─────── */}
+      <Card className="shadow-card border-primary/20">
+        <CardHeader className="pb-2">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <CardTitle className="text-base sm:text-lg font-heading flex items-center gap-2">
+              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+              User-wise Test Drive Insights
+              <Badge variant="secondary" className="text-xs font-normal ml-1">{userWiseInsights.length} users</Badge>
+            </CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={insightRoleFilter} onValueChange={(v: 'all' | 'sales' | 'gro') => setInsightRoleFilter(v)}>
+                <SelectTrigger className="w-[130px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  <SelectItem value="sales">Sales Only</SelectItem>
+                  <SelectItem value="gro">GRO Only</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={insightWindow} onValueChange={(v: 'all' | 'today' | 'week' | 'month') => setInsightWindow(v)}>
+                <SelectTrigger className="w-[130px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+            <div className="rounded-lg border border-info/20 bg-info/5 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Total Drives</p>
+              <p className="text-xl font-heading font-bold">{totalUserwiseDrives}</p>
+            </div>
+            <div className="rounded-lg border border-success/20 bg-success/5 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Avg Completion Rate</p>
+              <p className="text-xl font-heading font-bold text-success">{avgCompletionRate}%</p>
+            </div>
+            <div className="rounded-lg border border-warning/20 bg-warning/5 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Avg No-show Rate</p>
+              <p className="text-xl font-heading font-bold text-warning">{avgNoShowRate}%</p>
+            </div>
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Top Performer</p>
+              <p className="text-sm font-semibold text-foreground truncate">{topPerformer?.name || 'N/A'}</p>
+              <p className="text-xs text-muted-foreground">{topPerformer ? `${topPerformer.completed} completed` : 'No data'}</p>
+            </div>
+          </div>
+
+          {userWiseInsights.length === 0 ? (
+            <div className="rounded-lg border border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+              No user-wise drive data found for selected filters.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[920px] text-sm">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground">
+                    <th className="text-left py-2 px-2 font-medium">User</th>
+                    <th className="text-left py-2 px-2 font-medium">Role</th>
+                    <th className="text-right py-2 px-2 font-medium">Assigned</th>
+                    <th className="text-right py-2 px-2 font-medium">Completed</th>
+                    <th className="text-right py-2 px-2 font-medium">Active</th>
+                    <th className="text-right py-2 px-2 font-medium">No-show</th>
+                    <th className="text-right py-2 px-2 font-medium">Cancelled</th>
+                    <th className="text-right py-2 px-2 font-medium">Completion %</th>
+                    <th className="text-right py-2 px-2 font-medium">Avg Journey</th>
+                    <th className="text-left py-2 px-2 font-medium">Last Drive</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userWiseInsights.map((row) => (
+                    <tr key={`${row.role}-${row.id}`} className="border-b border-border/60 hover:bg-muted/20">
+                      <td className="py-2 px-2 font-medium text-foreground">{row.name}</td>
+                      <td className="py-2 px-2">
+                        <Badge className={row.role === 'sales' ? 'bg-info/10 text-info text-[10px]' : 'bg-success/10 text-success text-[10px]'}>
+                          {row.role === 'sales' ? 'Sales' : 'GRO'}
+                        </Badge>
+                      </td>
+                      <td className="py-2 px-2 text-right">{row.total}</td>
+                      <td className="py-2 px-2 text-right text-success font-medium">{row.completed}</td>
+                      <td className="py-2 px-2 text-right text-info font-medium">{row.active}</td>
+                      <td className="py-2 px-2 text-right text-warning font-medium">{row.noShow}</td>
+                      <td className="py-2 px-2 text-right text-destructive font-medium">{row.cancelled}</td>
+                      <td className="py-2 px-2 text-right">
+                        <Badge className={row.completionRate >= 70 ? 'bg-success/10 text-success text-[10px]' : row.completionRate >= 40 ? 'bg-warning/10 text-warning text-[10px]' : 'bg-destructive/10 text-destructive text-[10px]'}>
+                          {row.completionRate}%
+                        </Badge>
+                      </td>
+                      <td className="py-2 px-2 text-right">{row.avgJourneyMinutes ? `${row.avgJourneyMinutes}m` : 'N/A'}</td>
+                      <td className="py-2 px-2 text-xs text-muted-foreground">
+                        {row.latestDriveAt ? new Date(row.latestDriveAt).toLocaleString() : 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── Tabs ───────────────────────────────────── */}
       <Tabs defaultValue="staff-overview">
@@ -378,6 +607,19 @@ const BranchAdminDashboard = () => {
                       <SelectItem value="gro">GRO</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={selectedPerson} onValueChange={setSelectedPerson}>
+                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                      <SelectValue placeholder="All People" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All People</SelectItem>
+                      {personOptions.map((person) => (
+                        <SelectItem key={person.value} value={person.value}>
+                          {person.label} ({person.role === 'sales' ? 'Sales' : 'GRO'})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                     <SelectTrigger className="w-[140px] h-8 text-xs">
                       <SelectValue />
@@ -412,22 +654,23 @@ const BranchAdminDashboard = () => {
             <Card className="shadow-card">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-heading flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-info" /> Sales Team Performance
+                  <TrendingUp className="h-4 w-4 text-info" /> Test Drives by Person
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {salesBarData.length === 0 ? (
+                {userPerformanceChartData.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">No sales data available.</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={salesBarData}>
+                    <BarChart data={userPerformanceChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,15%,88%)" />
                       <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                       <Tooltip />
                       <Legend />
+                      <Bar dataKey="Assigned" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="Completed" fill="#10b981" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Active" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Active" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}

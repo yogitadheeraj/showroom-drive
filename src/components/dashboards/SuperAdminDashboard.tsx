@@ -105,6 +105,8 @@ const SuperAdminDashboard = () => {
     if (type === 'pie' || type === 'line' || type === 'bar') return type;
     return 'pie';
   });
+  const [userInsightRoleFilter, setUserInsightRoleFilter] = useState<'all' | 'sales' | 'gro'>('all');
+  const [userInsightWindow, setUserInsightWindow] = useState<'all' | 'today' | 'week' | 'month'>('month');
 
   const activeDealerId = isSuperAdmin
     ? (selectedDealer === 'all' ? null : selectedDealer)
@@ -442,6 +444,121 @@ const SuperAdminDashboard = () => {
     return summary.sessions.length > 0 || summary.events.length > 0;
   });
 
+  const isDriveInInsightWindow = (drive: any) => {
+    if (userInsightWindow === 'all') return true;
+
+    const now = new Date();
+    const driveDate = new Date(`${drive.scheduled_date}T00:00:00`);
+    if (Number.isNaN(driveDate.getTime())) return false;
+
+    if (userInsightWindow === 'today') {
+      return driveDate.toDateString() === now.toDateString();
+    }
+
+    if (userInsightWindow === 'week') {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(now.getDate() - 7);
+      weekAgo.setHours(0, 0, 0, 0);
+      return driveDate >= weekAgo;
+    }
+
+    const monthAgo = new Date(now);
+    monthAgo.setDate(now.getDate() - 30);
+    monthAgo.setHours(0, 0, 0, 0);
+    return driveDate >= monthAgo;
+  };
+
+  const getJourneyMinutes = (drive: any) => {
+    const start = drive.started_at || drive.security_checked_in_at || drive.key_handed_at;
+    const end = drive.completed_at || drive.security_checked_out_at;
+    if (!start || !end) return null;
+    const s = new Date(start).getTime();
+    const e = new Date(end).getTime();
+    if (!Number.isFinite(s) || !Number.isFinite(e) || e < s) return null;
+    return Math.round((e - s) / 60000);
+  };
+
+  const buildUserInsight = (staff: any, roleType: 'sales' | 'gro') => {
+    const scopedDrives = testDrives.filter((drive) => {
+      const matchesRole = roleType === 'sales'
+        ? drive.assigned_sales_person_id === staff.id
+        : drive.assigned_gro_id === staff.id;
+      return matchesRole && isDriveInInsightWindow(drive);
+    });
+
+    const total = scopedDrives.length;
+    const completed = scopedDrives.filter((d) => d.status === 'completed').length;
+    const active = scopedDrives.filter((d) => ['scheduled', 'confirmed', 'show', 'in_progress', 'key_handover_to_sales'].includes(d.status)).length;
+    const noShow = scopedDrives.filter((d) => d.status === 'no_show').length;
+    const cancelled = scopedDrives.filter((d) => d.status === 'cancelled').length;
+    const rescheduled = scopedDrives.filter((d) => d.status === 'rescheduled').length;
+    const started = scopedDrives.filter((d) => Boolean(d.started_at)).length;
+    const inspectionsDone = scopedDrives.filter((d) => Boolean(d.inspection_submitted_at)).length;
+
+    const journeyValues = scopedDrives
+      .map(getJourneyMinutes)
+      .filter((v: number | null): v is number => typeof v === 'number');
+
+    const avgJourneyMinutes = journeyValues.length > 0
+      ? Math.round(journeyValues.reduce((sum, v) => sum + v, 0) / journeyValues.length)
+      : null;
+
+    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const noShowRate = total > 0 ? Math.round((noShow / total) * 100) : 0;
+    const inspectionRate = completed > 0 ? Math.round((inspectionsDone / completed) * 100) : 0;
+
+    const latestDriveAt = scopedDrives.length > 0
+      ? scopedDrives
+          .map((d) => new Date(`${d.scheduled_date}T${d.scheduled_time || '00:00:00'}`).getTime())
+          .filter((v) => Number.isFinite(v))
+          .sort((a, b) => b - a)[0]
+      : null;
+
+    return {
+      id: staff.id,
+      name: staff.full_name || 'Staff',
+      role: roleType,
+      total,
+      completed,
+      active,
+      noShow,
+      cancelled,
+      rescheduled,
+      started,
+      inspectionsDone,
+      completionRate,
+      noShowRate,
+      inspectionRate,
+      avgJourneyMinutes,
+      latestDriveAt,
+    };
+  };
+
+  const userWiseInsights = filteredStaff
+    .filter((staff) => {
+      if (userInsightRoleFilter === 'sales') return staff.role === APP_ROLE.SALES;
+      if (userInsightRoleFilter === 'gro') return staff.role === APP_ROLE.GRO;
+      return staff.role === APP_ROLE.SALES || staff.role === APP_ROLE.GRO;
+    })
+    .map((staff) => buildUserInsight(staff, staff.role === APP_ROLE.GRO ? 'gro' : 'sales'))
+    .sort((a, b) => b.total - a.total);
+
+  const totalUserwiseDrives = userWiseInsights.reduce((sum, row) => sum + row.total, 0);
+  const avgCompletionRate = userWiseInsights.length > 0
+    ? Math.round(userWiseInsights.reduce((sum, row) => sum + row.completionRate, 0) / userWiseInsights.length)
+    : 0;
+  const avgNoShowRate = userWiseInsights.length > 0
+    ? Math.round(userWiseInsights.reduce((sum, row) => sum + row.noShowRate, 0) / userWiseInsights.length)
+    : 0;
+  const avgJourneyMinutes = userWiseInsights.length > 0
+    ? Math.round(
+        userWiseInsights
+          .filter((row) => row.avgJourneyMinutes !== null)
+          .reduce((sum, row, _, arr) => sum + ((row.avgJourneyMinutes || 0) / Math.max(arr.length, 1)), 0)
+      )
+    : 0;
+  const topPerformer = userWiseInsights[0] || null;
+
   return (
     <div className="space-y-4 sm:space-y-6">
 
@@ -506,6 +623,126 @@ const SuperAdminDashboard = () => {
           );
         })}
       </div>
+
+      <Card className="shadow-card border-primary/20">
+        <CardHeader className="pb-2">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <CardTitle className="font-heading text-base sm:text-lg flex items-center gap-2">
+              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+              User-wise Test Drive Insights
+              <Badge variant="secondary" className="text-xs font-normal">{userWiseInsights.length} users</Badge>
+            </CardTitle>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={userInsightRoleFilter} onValueChange={(v: 'all' | 'sales' | 'gro') => setUserInsightRoleFilter(v)}>
+                <SelectTrigger className="w-[120px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  <SelectItem value="sales">Sales</SelectItem>
+                  <SelectItem value="gro">GRO</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={userInsightWindow} onValueChange={(v: 'all' | 'today' | 'week' | 'month') => setUserInsightWindow(v)}>
+                <SelectTrigger className="w-[130px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
+            <div className="rounded-lg border border-info/20 bg-info/5 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Total Drives</p>
+              <p className="text-xl font-heading font-bold">{totalUserwiseDrives}</p>
+            </div>
+            <div className="rounded-lg border border-success/20 bg-success/5 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Avg Completion</p>
+              <p className="text-xl font-heading font-bold text-success">{avgCompletionRate}%</p>
+            </div>
+            <div className="rounded-lg border border-warning/20 bg-warning/5 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Avg No-show</p>
+              <p className="text-xl font-heading font-bold text-warning">{avgNoShowRate}%</p>
+            </div>
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Avg Journey</p>
+              <p className="text-xl font-heading font-bold">{avgJourneyMinutes > 0 ? `${avgJourneyMinutes}m` : 'N/A'}</p>
+            </div>
+            <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Top Performer</p>
+              <p className="text-sm font-semibold text-foreground truncate">{topPerformer?.name || 'N/A'}</p>
+              <p className="text-xs text-muted-foreground">{topPerformer ? `${topPerformer.completed} completed` : 'No data'}</p>
+            </div>
+          </div>
+
+          {userWiseInsights.length === 0 ? (
+            <div className="rounded-lg border border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+              No user-wise drive data found for selected filters.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1120px] text-sm">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground">
+                    <th className="text-left py-2 px-2 font-medium">User</th>
+                    <th className="text-left py-2 px-2 font-medium">Role</th>
+                    <th className="text-right py-2 px-2 font-medium">Assigned</th>
+                    <th className="text-right py-2 px-2 font-medium">Completed</th>
+                    <th className="text-right py-2 px-2 font-medium">Active</th>
+                    <th className="text-right py-2 px-2 font-medium">Started</th>
+                    <th className="text-right py-2 px-2 font-medium">No-show</th>
+                    <th className="text-right py-2 px-2 font-medium">Cancelled</th>
+                    <th className="text-right py-2 px-2 font-medium">Rescheduled</th>
+                    <th className="text-right py-2 px-2 font-medium">Completion %</th>
+                    <th className="text-right py-2 px-2 font-medium">Inspection %</th>
+                    <th className="text-right py-2 px-2 font-medium">Avg Journey</th>
+                    <th className="text-left py-2 px-2 font-medium">Last Drive</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userWiseInsights.map((row) => (
+                    <tr key={`${row.role}-${row.id}`} className="border-b border-border/60 hover:bg-muted/20">
+                      <td className="py-2 px-2 font-medium text-foreground">{row.name}</td>
+                      <td className="py-2 px-2">
+                        <Badge className={row.role === 'sales' ? 'bg-info/10 text-info text-[10px]' : 'bg-success/10 text-success text-[10px]'}>
+                          {row.role === 'sales' ? 'Sales' : 'GRO'}
+                        </Badge>
+                      </td>
+                      <td className="py-2 px-2 text-right">{row.total}</td>
+                      <td className="py-2 px-2 text-right text-success font-medium">{row.completed}</td>
+                      <td className="py-2 px-2 text-right text-info font-medium">{row.active}</td>
+                      <td className="py-2 px-2 text-right">{row.started}</td>
+                      <td className="py-2 px-2 text-right text-warning font-medium">{row.noShow}</td>
+                      <td className="py-2 px-2 text-right text-destructive font-medium">{row.cancelled}</td>
+                      <td className="py-2 px-2 text-right">{row.rescheduled}</td>
+                      <td className="py-2 px-2 text-right">
+                        <Badge className={row.completionRate >= 70 ? 'bg-success/10 text-success text-[10px]' : row.completionRate >= 40 ? 'bg-warning/10 text-warning text-[10px]' : 'bg-destructive/10 text-destructive text-[10px]'}>
+                          {row.completionRate}%
+                        </Badge>
+                      </td>
+                      <td className="py-2 px-2 text-right">{row.inspectionRate}%</td>
+                      <td className="py-2 px-2 text-right">{row.avgJourneyMinutes ? `${row.avgJourneyMinutes}m` : 'N/A'}</td>
+                      <td className="py-2 px-2 text-xs text-muted-foreground">
+                        {row.latestDriveAt ? new Date(row.latestDriveAt).toLocaleString() : 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
 
 
