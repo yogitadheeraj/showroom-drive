@@ -8,11 +8,15 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Car, Edit2, MapPin, Palette } from 'lucide-react';
+import { Plus, Car, Edit2, MapPin, Palette, FileSpreadsheet, CalendarCheck, DollarSign } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
+import BulkVehicleImport from '@/components/vehicles/BulkVehicleImport';
+import VehicleReservations from '@/components/vehicles/VehicleReservations';
+import PricingRulesConfig from '@/components/vehicles/PricingRulesConfig';
 
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -31,6 +35,7 @@ const VehiclesPage = () => {
   const { dealerId, loading: dealerLoading } = useDealerContext();
   const { role } = useAuth();
   const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
+  const isAdmin = isSuperAdmin || role === APP_ROLE.DEALER_ADMIN;
 
   useEffect(() => {
     if (!dealerLoading) {
@@ -49,22 +54,18 @@ const VehiclesPage = () => {
   }, [dealerId, dealerLoading, isSuperAdmin]);
 
   useEffect(() => {
-    if (!dealerLoading) {
-      fetchVehicles();
-    }
+    if (!dealerLoading) fetchVehicles();
   }, [selectedDealer, dealerLoading]);
 
   const fetchVehicles = async () => {
     let query = supabase.from('vehicles').select('*, locations(name, dealer_id)').eq('is_active', true).order('brand');
     const { data } = await query;
     let filtered = data || [];
-    
     if (isSuperAdmin && selectedDealer !== 'all') {
       filtered = filtered.filter(v => v.locations?.dealer_id === selectedDealer);
     } else if (!isSuperAdmin && dealerId) {
       filtered = filtered.filter(v => v.locations?.dealer_id === dealerId);
     }
-    
     setVehicles(filtered);
   };
 
@@ -122,63 +123,94 @@ const VehiclesPage = () => {
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Vehicles</h1>
+          <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Vehicle Management</h1>
           <Button onClick={openNew} className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" /> Add Vehicle
           </Button>
         </div>
 
-        {isSuperAdmin && (
-          <div className="flex items-end gap-3">
-            <div className="flex-1 max-w-xs">
-              <Label className="text-sm text-muted-foreground mb-2 block">Filter by Dealer</Label>
-              <Select value={selectedDealer} onValueChange={setSelectedDealer}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select dealer" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Dealers</SelectItem>
-                  {dealers.map(d => (
-                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        )}
+        <Tabs defaultValue="inventory" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+            <TabsTrigger value="inventory" className="flex items-center gap-1.5">
+              <Car className="h-4 w-4" /> Inventory
+            </TabsTrigger>
+            <TabsTrigger value="bulk" className="flex items-center gap-1.5">
+              <FileSpreadsheet className="h-4 w-4" /> Bulk Import
+            </TabsTrigger>
+            <TabsTrigger value="reservations" className="flex items-center gap-1.5">
+              <CalendarCheck className="h-4 w-4" /> Reservations
+            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="pricing" className="flex items-center gap-1.5">
+                <DollarSign className="h-4 w-4" /> Pricing
+              </TabsTrigger>
+            )}
+          </TabsList>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {vehicles.map(v => (
-            <Card key={v.id} className="shadow-card hover:shadow-elevated transition-shadow">
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2.5 sm:gap-3">
-                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                      <Car className="h-4 w-4 sm:h-5 sm:w-5 text-accent" />
-                    </div>
-                    <div>
-                      <h3 className="font-heading font-semibold text-sm sm:text-base text-foreground">{v.brand} {v.model}</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground">{v.variant || ''} {v.year}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="secondary" className={`text-xs ${v.available_units > 0 ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
-                      {v.available_units}/{v.total_units}
-                    </Badge>
-                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 h-7 w-7 p-0" onClick={() => openEdit(v)}>
-                      <Edit2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+          <TabsContent value="inventory" className="space-y-4 mt-4">
+            {isSuperAdmin && (
+              <div className="flex items-end gap-3">
+                <div className="flex-1 max-w-xs">
+                  <Label className="text-sm text-muted-foreground mb-2 block">Filter by Dealer</Label>
+                  <Select value={selectedDealer} onValueChange={setSelectedDealer}>
+                    <SelectTrigger><SelectValue placeholder="Select dealer" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Dealers</SelectItem>
+                      {dealers.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="mt-2.5 text-xs sm:text-sm text-muted-foreground space-y-1">
-                  {v.color && <p className="flex items-center gap-1"><Palette className="h-3 w-3" /> {v.color}</p>}
-                  {v.registration_number && <p>Reg: {v.registration_number}</p>}
-                  <p className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {v.locations?.name}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {vehicles.map(v => (
+                <Card key={v.id} className="shadow-card hover:shadow-elevated transition-shadow">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2.5 sm:gap-3">
+                        <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                          <Car className="h-4 w-4 sm:h-5 sm:w-5 text-accent" />
+                        </div>
+                        <div>
+                          <h3 className="font-heading font-semibold text-sm sm:text-base text-foreground">{v.brand} {v.model}</h3>
+                          <p className="text-xs sm:text-sm text-muted-foreground">{v.variant || ''} {v.year}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="secondary" className={`text-xs ${v.available_units > 0 ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                          {v.available_units}/{v.total_units}
+                        </Badge>
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 h-7 w-7 p-0" onClick={() => openEdit(v)}>
+                          <Edit2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2.5 text-xs sm:text-sm text-muted-foreground space-y-1">
+                      {v.color && <p className="flex items-center gap-1"><Palette className="h-3 w-3" /> {v.color}</p>}
+                      {v.registration_number && <p>Reg: {v.registration_number}</p>}
+                      <p className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {v.locations?.name}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="bulk" className="mt-4">
+            <BulkVehicleImport locations={locations.map(l => ({ id: l.id, name: l.name }))} onImportComplete={fetchVehicles} />
+          </TabsContent>
+
+          <TabsContent value="reservations" className="mt-4">
+            <VehicleReservations />
+          </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="pricing" className="mt-4">
+              <PricingRulesConfig />
+            </TabsContent>
+          )}
+        </Tabs>
 
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogContent>
