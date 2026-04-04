@@ -22,6 +22,15 @@ const VehicleSpecCard = ({ vehicle }: { vehicle: any }) => {
         <div>
           <h4 className="font-heading font-bold text-foreground text-lg">{vehicle.brand} {vehicle.model}</h4>
           <p className="text-sm text-muted-foreground">{vehicle.variant} · {vehicle.year}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">{vehicle.is_demo ? 'Demo' : vehicle.is_used ? 'Used' : 'New'}</Badge>
+            {!vehicle.is_demo && vehicle.set_price != null && (
+              <Badge variant="secondary" className="text-[10px]">Rs {Number(vehicle.set_price).toLocaleString()}</Badge>
+            )}
+            {!vehicle.is_demo && vehicle.vehicle_time_days != null && (
+              <Badge variant="secondary" className="text-[10px]">{vehicle.vehicle_time_days} day(s)</Badge>
+            )}
+          </div>
         </div>
         <Badge className={
           isEV ? 'bg-success/10 text-success border-success/20' :

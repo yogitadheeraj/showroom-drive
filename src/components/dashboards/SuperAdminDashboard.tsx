@@ -361,7 +361,7 @@ const SuperAdminDashboard = () => {
     { label: 'No Show', value: stats.noShow, icon: Users, color: 'text-warning', bg: 'bg-warning/10' },
     { label: 'Cancelled', value: stats.cancelled, icon: Car, color: 'text-destructive', bg: 'bg-destructive/10' },
     { label: 'Repeat', value: repeatedCustomers.length, icon: MapPin, color: 'text-accent', bg: 'bg-accent/10' },
-    { label: 'Active Sales', value: activeSalesCount, icon: Users, color: 'text-success', bg: 'bg-success/10' },
+    { label: 'Active Sales Executive', value: activeSalesCount, icon: Users, color: 'text-success', bg: 'bg-success/10' },
   ];
 
   const statusColor: Record<string, string> = {

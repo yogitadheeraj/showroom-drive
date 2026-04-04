@@ -124,7 +124,7 @@ const BookingPage = () => {
   const [formData, setFormData] = useState({
     fullName: '', email: '', phone: '', preferredContact: 'phone',
     locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '',
-    selectedModel: '',
+    selectedModel: '', selectedVariantVehicleId: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -134,6 +134,8 @@ const BookingPage = () => {
   const [timeSlots, setTimeSlots] = useState<Array<{ startTime: string; endTime: string }>>([]);
   const [availableVehiclesForSlot, setAvailableVehiclesForSlot] = useState<any[]>([]);
   const [loadingVehiclesForSlot, setLoadingVehiclesForSlot] = useState(false);
+  const [vehicleCategoryFilter, setVehicleCategoryFilter] = useState<'new' | 'used'>('new');
+  const [vehicleSegmentFilter, setVehicleSegmentFilter] = useState<'all' | 'four_wheeler' | 'two_wheeler'>('all');
   const [quickLocationPage, setQuickLocationPage] = useState(0);
   const { toast } = useToast();
 
@@ -160,6 +162,7 @@ const BookingPage = () => {
           ...prev,
           selectedModel: `${v.brand}|${v.model}`,
           vehicleId: v.id,
+          selectedVariantVehicleId: v.is_demo ? (v.demo_for_vehicle_id || '') : v.id,
           locationId: v.location_id,
         }));
       }
@@ -193,6 +196,7 @@ const BookingPage = () => {
         selectedModel: matchedModelKey,
         locationId: locationMatchedVehicle?.location_id || '',
         vehicleId: locationMatchedVehicle?.id || '',
+        selectedVariantVehicleId: locationMatchedVehicle?.id || '',
         scheduledDate: deepLinkedDate || prev.scheduledDate,
         scheduledTime: deepLinkedTime || '',
       }));
@@ -244,10 +248,20 @@ const BookingPage = () => {
     });
   }, []);
 
+  const categoryFilteredVehicles = useMemo(() => {
+    return allVehicles.filter((vehicle) => {
+      if (vehicle.is_demo) return false;
+      if (vehicleCategoryFilter === 'used' && !vehicle.is_used) return false;
+      if (vehicleCategoryFilter === 'new' && !(vehicle.is_new && !vehicle.is_used)) return false;
+      if (vehicleSegmentFilter !== 'all' && (vehicle.vehicle_segment || 'four_wheeler') !== vehicleSegmentFilter) return false;
+      return true;
+    });
+  }, [allVehicles, vehicleCategoryFilter, vehicleSegmentFilter]);
+
   // Unique models grouped by type
   const modelGroups = useMemo(() => {
     const modelMap = new Map<string, { brand: string; model: string; engine_type: string; vehicles: any[] }>();
-    allVehicles.forEach(v => {
+    categoryFilteredVehicles.forEach(v => {
       const key = `${v.brand}|${v.model}`;
       if (!modelMap.has(key)) {
         modelMap.set(key, { brand: v.brand, model: v.model, engine_type: v.engine_type || 'petrol', vehicles: [] });
@@ -260,13 +274,30 @@ const BookingPage = () => {
       hybrid: all.filter(m => m.engine_type === 'hybrid'),
       ice: all.filter(m => m.engine_type !== 'electric' && m.engine_type !== 'hybrid'),
     };
-  }, [allVehicles]);
+  }, [categoryFilteredVehicles]);
 
   const selectedModelKey = formData.selectedModel;
   const modelVehicles = useMemo(() => {
     if (!selectedModelKey) return [];
-    return allVehicles.filter(v => `${v.brand}|${v.model}` === selectedModelKey);
-  }, [selectedModelKey, allVehicles]);
+    return categoryFilteredVehicles.filter(v => `${v.brand}|${v.model}` === selectedModelKey);
+  }, [selectedModelKey, categoryFilteredVehicles]);
+
+  const getDemoVehicleForVariantAtLocation = (variantVehicleId: string, locationId: string) => {
+    if (!variantVehicleId || !locationId) return null;
+    return allVehicles.find((vehicle) =>
+      vehicle.location_id === locationId &&
+      vehicle.is_demo &&
+      vehicle.demo_for_vehicle_id === variantVehicleId &&
+      vehicle.is_available
+    ) || null;
+  };
+
+  const selectedVariantVehicle = allVehicles.find((vehicle) => vehicle.id === formData.selectedVariantVehicleId);
+  const isDemoMatchForSelectedVariant = (vehicle: any) => {
+    if (!vehicle?.is_demo) return false;
+    if (!formData.selectedVariantVehicleId) return false;
+    return vehicle.demo_for_vehicle_id === formData.selectedVariantVehicleId;
+  };
 
   // Locations that have the selected model available
   const availableLocations = useMemo(() => {
@@ -283,13 +314,20 @@ const BookingPage = () => {
 
   const handleModelSelect = (modelKey: string) => {
     const matchedVehicleAtLocation = formData.locationId
-      ? allVehicles.find((vehicle) => vehicle.location_id === formData.locationId && `${vehicle.brand}|${vehicle.model}` === modelKey)
+      ? categoryFilteredVehicles.find((vehicle) => vehicle.location_id === formData.locationId && `${vehicle.brand}|${vehicle.model}` === modelKey)
       : null;
+
+    const resolvedVehicleId = (() => {
+      if (!matchedVehicleAtLocation) return '';
+      if (vehicleCategoryFilter === 'used') return matchedVehicleAtLocation.id;
+      return getDemoVehicleForVariantAtLocation(matchedVehicleAtLocation.id, matchedVehicleAtLocation.location_id)?.id || '';
+    })();
 
     setFormData((prev) => ({
       ...prev,
       selectedModel: modelKey,
-      vehicleId: matchedVehicleAtLocation?.id || '',
+      selectedVariantVehicleId: matchedVehicleAtLocation?.id || '',
+      vehicleId: resolvedVehicleId,
     }));
 
     if (formData.scheduledDate && formData.locationId) {
@@ -599,7 +637,8 @@ const BookingPage = () => {
       }).select('id').single();
       if (tdError) throw tdError;
 
-      const vehicleName = selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}` : 'your selected vehicle';
+      const displayVehicle = vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle;
+      const vehicleName = displayVehicle ? `${displayVehicle.brand} ${displayVehicle.model} ${displayVehicle.variant || ''}`.trim() : 'your selected vehicle';
       const locationName = selectedLocation?.name || 'our showroom';
 
       // Always send WhatsApp confirmation
@@ -706,7 +745,7 @@ const BookingPage = () => {
               <p className="text-muted-foreground mb-2">Thank you for booking with Omni Tracely.</p>
               <p className="text-sm text-muted-foreground mb-6">We have sent your confirmation and below is your complete journey flow.</p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button onClick={() => { setSuccess(false); setStep(0); setFormData({ fullName: '', email: '', phone: '', preferredContact: 'phone', locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '', selectedModel: '' }); }}>
+                <Button onClick={() => { setSuccess(false); setStep(0); setFormData({ fullName: '', email: '', phone: '', preferredContact: 'phone', locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '', selectedModel: '', selectedVariantVehicleId: '' }); }}>
                   Book Another
                 </Button>
                 <Link to="/">
@@ -809,6 +848,41 @@ const BookingPage = () => {
             {/* Step 0: Vehicle Selection */}
             {step === 0 && (
               <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Vehicle Category</Label>
+                    <Select
+                      value={vehicleCategoryFilter}
+                      onValueChange={(v: 'new' | 'used') => {
+                        setVehicleCategoryFilter(v);
+                        setFormData((p) => ({ ...p, selectedModel: '', selectedVariantVehicleId: '', vehicleId: '', locationId: '', scheduledTime: '' }));
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">New Cars</SelectItem>
+                        <SelectItem value="used">Used Cars</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Wheel Segment</Label>
+                    <Select
+                      value={vehicleSegmentFilter}
+                      onValueChange={(v: 'all' | 'four_wheeler' | 'two_wheeler') => {
+                        setVehicleSegmentFilter(v);
+                        setFormData((p) => ({ ...p, selectedModel: '', selectedVariantVehicleId: '', vehicleId: '', locationId: '', scheduledTime: '' }));
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="four_wheeler">Four Wheeler</SelectItem>
+                        <SelectItem value="two_wheeler">Two Wheeler</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 {/* Compare button */}
                 {compareIds.length >= 2 && (
                   <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20">
@@ -874,205 +948,7 @@ const BookingPage = () => {
               </div>
             )}
 
-            {/* Step 1: Date Selection */}
-            {step === 1 && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Preferred Date</Label>
-                  <div className="rounded-xl border border-border bg-card p-2">
-                    <Calendar
-                      mode="single"
-                      selected={formData.scheduledDate ? new Date(`${formData.scheduledDate}T00:00:00`) : undefined}
-                      onSelect={(d) => {
-                        if (!d) return;
-                        setFormData(p => ({
-                          ...p,
-                          scheduledDate: format(d, 'yyyy-MM-dd'),
-                          scheduledTime: '',
-                          locationId: '',
-                          vehicleId: '',
-                        }));
-                      }}
-                      disabled={isDateUnavailable}
-                      className="p-3 pointer-events-auto w-full rounded-md border-0 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=open]:bg-secondary"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Dates are enabled only when at least one location is open (including special schedules).
-                  </p>
-                </div>
-                {formData.scheduledDate && (
-                  <p className="text-sm text-muted-foreground">
-                    📅 Selected: <span className="font-medium text-foreground">
-                      {new Date(formData.scheduledDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                    </span>
-                  </p>
-                )}
-                {formData.scheduledDate && !hasOpenLocationOnSelectedDate && (
-                  <p className="text-sm text-destructive">
-                    All locations are closed on this date. Please choose another date.
-                  </p>
-                )}
-
-                {formData.scheduledDate && hasOpenLocationOnSelectedDate && (
-                  <div className="space-y-4 pt-1">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <Label>Quick Select Location</Label>
-                        {quickLocationTotalPages > 1 && (
-                          <div className="flex items-center gap-2 text-xs">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2"
-                              onClick={() => setQuickLocationPage((page) => Math.max(0, page - 1))}
-                              disabled={quickLocationPage === 0}
-                            >
-                              Previous Locations
-                            </Button>
-                            <span className="text-muted-foreground">
-                              {quickLocationPage + 1}/{quickLocationTotalPages}
-                            </span>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-2"
-                              onClick={() => setQuickLocationPage((page) => Math.min(quickLocationTotalPages - 1, page + 1))}
-                              disabled={quickLocationPage >= quickLocationTotalPages - 1}
-                            >
-                              Next Locations
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="grid gap-2">
-                        {pagedQuickLocations.map((loc) => {
-                          const isSelected = formData.locationId === loc.id;
-                          const locVehicles = modelVehicles.filter((v) => v.location_id === loc.id);
-                          const hours = getEffectiveHoursForDate(loc.id, formData.scheduledDate);
-
-                          return (
-                            <button
-                              key={loc.id}
-                              type="button"
-                              onClick={() => {
-                                const firstVehicle = locVehicles[0];
-                                setFormData((p) => ({
-                                  ...p,
-                                  locationId: loc.id,
-                                  vehicleId: firstVehicle?.id || '',
-                                  scheduledTime: '',
-                                }));
-                              }}
-                              className={`w-full text-left p-3 rounded-xl border transition-all ${
-                                isSelected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/30 bg-card'
-                              }`}
-                            >
-                              <p className="font-medium text-foreground text-sm">{loc.name}</p>
-                              <p className="text-xs text-muted-foreground">{loc.address}, {loc.city}</p>
-                              {hours && !hours.is_closed && (
-                                <p className="text-[11px] text-muted-foreground mt-1">
-                                  Hours: {hours.open_time?.substring(0, 5)} - {hours.close_time?.substring(0, 5)}
-                                </p>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {formData.locationId && (
-                      <div className="space-y-2">
-                        <Label>Quick Select Time</Label>
-                        {loadingTimeSlots ? (
-                          <p className="text-sm text-muted-foreground">Loading available slots...</p>
-                        ) : timeSlots.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No available time slots for this location on the selected date.</p>
-                        ) : (
-                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                            {timeSlots.map((slot) => {
-                              const isSelected = formData.scheduledTime === slot.startTime;
-                              const [h] = slot.startTime.split(':').map(Number);
-                              const period = h < 12 ? 'AM' : 'PM';
-                              const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                              const displayTime = `${displayH}:${slot.startTime.split(':')[1]} ${period}`;
-
-                              return (
-                                <button
-                                  key={slot.startTime}
-                                  type="button"
-                                  onClick={() => setFormData((p) => ({ ...p, scheduledTime: slot.startTime }))}
-                                  className={`py-2.5 px-3 rounded-lg text-sm font-medium transition-all ${
-                                    isSelected ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted hover:bg-muted/80 text-foreground border border-border'
-                                  }`}
-                                >
-                                  {displayTime}
-                                  <span className="block text-[10px] opacity-80">until {slot.endTime}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {formData.locationId && (
-                          <button
-                            type="button"
-                            onClick={() => setStep(3)}
-                            className="text-left text-xs text-primary hover:underline"
-                          >
-                            Need More Time Options? View Full Time List
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {!formData.locationId && quickPreviewTimeSlots.length > 0 && (
-                      <div className="space-y-2">
-                        <Label>Quick Select Time</Label>
-                        <p className="text-xs text-muted-foreground">
-                          Preview time options shown below. Select a location to confirm exact slot availability.
-                        </p>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                          {quickPreviewTimeSlots.map((startTime) => {
-                            const [h, m] = startTime.split(':').map(Number);
-                            const period = h < 12 ? 'AM' : 'PM';
-                            const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                            const displayTime = `${displayH}:${String(m).padStart(2, '0')} ${period}`;
-
-                            return (
-                              <button
-                                key={startTime}
-                                type="button"
-                                disabled
-                                className="py-2.5 px-3 rounded-lg text-sm font-medium bg-muted text-muted-foreground border border-border opacity-80"
-                              >
-                                {displayTime}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Select a location above to unlock full time-list view.
-                        </p>
-                      </div>
-                    )}
-
-                    {formData.locationId && formData.scheduledTime && (
-                      <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                        <Button type="button" className="gradient-primary border-0 text-primary-foreground" onClick={() => setStep(4)}>
-                          Continue To Your Info
-                        </Button>
-                        <Button type="button" variant="outline" onClick={() => setStep(3)}>
-                          View Full Time Selection
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+            
 
             {/* Step 2: Location & Variant Selection */}
             {step === 2 && (
@@ -1091,6 +967,7 @@ const BookingPage = () => {
                           scheduledTime: '',
                           locationId: '',
                           vehicleId: '',
+                          selectedVariantVehicleId: '',
                         }));
                       }}
                       disabled={isDateUnavailable}
@@ -1114,7 +991,23 @@ const BookingPage = () => {
                           <button key={loc.id} type="button"
                             onClick={() => {
                               const firstVehicle = locVehicles[0];
-                              setFormData(p => ({ ...p, locationId: loc.id, vehicleId: firstVehicle?.id || '' }));
+                              if (!firstVehicle) {
+                                setFormData(p => ({ ...p, locationId: loc.id, vehicleId: '', selectedVariantVehicleId: '' }));
+                                return;
+                              }
+
+                              if (vehicleCategoryFilter === 'used') {
+                                setFormData(p => ({ ...p, locationId: loc.id, vehicleId: firstVehicle.id, selectedVariantVehicleId: firstVehicle.id }));
+                                return;
+                              }
+
+                              const demoVehicle = getDemoVehicleForVariantAtLocation(firstVehicle.id, loc.id);
+                              setFormData(p => ({
+                                ...p,
+                                locationId: loc.id,
+                                selectedVariantVehicleId: firstVehicle.id,
+                                vehicleId: demoVehicle?.id || '',
+                              }));
                             }}
                             className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                               isSelected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/30 bg-card'
@@ -1168,22 +1061,38 @@ const BookingPage = () => {
                                   <ExternalLink className="h-3.5 w-3.5" />
                                   View Full Map
                                 </a>
-                                {locVehicles.length > 1 && (
+                                {locVehicles.length > 0 && (
                                   <div>
                                     <Label className="text-xs mb-2 block">Choose Variant / Color</Label>
                                     <div className="grid gap-2">
                                       {locVehicles.map(v => (
                                         <button key={v.id} type="button"
-                                          onClick={(e) => { e.stopPropagation(); setFormData(p => ({ ...p, vehicleId: v.id })); }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (vehicleCategoryFilter === 'used') {
+                                              setFormData(p => ({ ...p, selectedVariantVehicleId: v.id, vehicleId: v.id }));
+                                              return;
+                                            }
+                                            const demoVehicle = getDemoVehicleForVariantAtLocation(v.id, loc.id);
+                                            setFormData(p => ({ ...p, selectedVariantVehicleId: v.id, vehicleId: demoVehicle?.id || '' }));
+                                          }}
                                           className={`text-left text-sm p-2.5 rounded-lg border transition-all ${
-                                            formData.vehicleId === v.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/20'
+                                            formData.selectedVariantVehicleId === v.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/20'
                                           }`}
                                         >
                                           {v.variant || v.model} {v.color ? `· ${v.color}` : ''} {v.year}
+                                          {vehicleCategoryFilter === 'new' && (
+                                            <p className="mt-1 text-[11px] text-muted-foreground">
+                                              {getDemoVehicleForVariantAtLocation(v.id, loc.id) ? 'Demo available' : 'No demo linked'}
+                                            </p>
+                                          )}
                                         </button>
                                       ))}
                                     </div>
                                   </div>
+                                )}
+                                {vehicleCategoryFilter === 'new' && !formData.vehicleId && (
+                                  <p className="text-xs text-destructive">No demo vehicle linked to the selected variant at this location.</p>
                                 )}
                               </div>
                             )}
@@ -1214,6 +1123,7 @@ const BookingPage = () => {
                           scheduledTime: '',
                           locationId: '',
                           vehicleId: '',
+                          selectedVariantVehicleId: '',
                         }));
                         setStep(2);
                       }}
@@ -1296,7 +1206,13 @@ const BookingPage = () => {
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {(availableVehiclesForSlot || [])
-                            .filter((v: any) => v.availableForSlot && `${v.brand}|${v.model}` === selectedModelKey)
+                            .filter((v: any) => {
+                              if (!v.availableForSlot) return false;
+                              if (vehicleCategoryFilter === 'used') {
+                                return !!v.is_used && `${v.brand}|${v.model}` === selectedModelKey;
+                              }
+                              return isDemoMatchForSelectedVariant(v);
+                            })
                             .slice(0, 4)
                             .map((v: any) => (
                               <button
@@ -1309,6 +1225,10 @@ const BookingPage = () => {
                               >
                                 <p className="font-medium text-foreground">{v.brand} {v.model}</p>
                                 <p className="text-muted-foreground">{v.variant || 'Standard'} {v.year ? `· ${v.year}` : ''}</p>
+                                <div className="mt-1 flex flex-wrap items-center gap-1">
+                                  <Badge variant="outline" className="text-[10px] uppercase tracking-wide">{v.is_demo ? 'Demo' : v.is_used ? 'Used' : 'New'}</Badge>
+                                  {v.set_price != null && <Badge variant="secondary" className="text-[10px]">Rs {Number(v.set_price).toLocaleString()}</Badge>}
+                                </div>
                               </button>
                             ))}
                         </div>
@@ -1357,7 +1277,7 @@ const BookingPage = () => {
                 <div className="rounded-xl bg-muted/50 border border-border p-4 space-y-2">
                   <h4 className="text-sm font-semibold text-foreground">Booking Summary</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div><span className="text-muted-foreground">Vehicle:</span> <span className="font-medium text-foreground">{selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}` : '—'}</span></div>
+                    <div><span className="text-muted-foreground">Vehicle:</span> <span className="font-medium text-foreground">{(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle) ? `${(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.brand} ${(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.model}` : '—'}</span></div>
                     <div><span className="text-muted-foreground">Date:</span> <span className="font-medium text-foreground">{formData.scheduledDate || '—'}</span></div>
                     <div><span className="text-muted-foreground">Location:</span> <span className="font-medium text-foreground">{selectedLocation?.name || '—'}</span></div>
                     <div><span className="text-muted-foreground">Time:</span> <span className="font-medium text-foreground">{formData.scheduledTime || '—'}</span></div>
@@ -1412,6 +1332,11 @@ const ModelCard = ({ model, selected, onClick, compareIds = [], onToggleCompare 
               {isEV && sample?.range_km ? ` · ${sample.range_km}km range` : ''}
               {!isEV && sample?.mileage ? ` · ${sample.mileage}` : ''}
             </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">{sample?.is_used ? 'Used' : 'New'}</Badge>
+              {sample?.set_price != null && <Badge variant="secondary" className="text-[10px]">Rs {Number(sample.set_price).toLocaleString()}</Badge>}
+              {sample?.vehicle_time_days != null && <Badge variant="secondary" className="text-[10px]">{sample.vehicle_time_days} day(s)</Badge>}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className={`text-[10px] ${sample?.available_units > 0 ? '' : 'bg-destructive/10 text-destructive'}`}>

@@ -1581,24 +1581,33 @@ export type Database = {
           color: string | null
           created_at: string
           drive_type: string | null
+          demo_for_vehicle_id: string | null
           engine_type: string | null
           fuel_type: string | null
+          grade: string | null
           horsepower: number | null
           id: string
           image_url: string | null
           is_active: boolean
           is_available: boolean
+          is_demo: boolean
+          is_new: boolean
+          is_used: boolean
           location_id: string
           mileage: string | null
           model: string
           range_km: number | null
           registration_number: string | null
           seating_capacity: number | null
+          set_price: number | null
           top_speed: string | null
           torque: string | null
           total_units: number
           transmission: string | null
           updated_at: string
+          trim: string | null
+          vehicle_segment: string
+          vehicle_time_days: number | null
           variant: string | null
           year: number
         }
@@ -1610,24 +1619,33 @@ export type Database = {
           color?: string | null
           created_at?: string
           drive_type?: string | null
+          demo_for_vehicle_id?: string | null
           engine_type?: string | null
           fuel_type?: string | null
+          grade?: string | null
           horsepower?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean
           is_available?: boolean
+          is_demo?: boolean
+          is_new?: boolean
+          is_used?: boolean
           location_id: string
           mileage?: string | null
           model: string
           range_km?: number | null
           registration_number?: string | null
           seating_capacity?: number | null
+          set_price?: number | null
           top_speed?: string | null
           torque?: string | null
           total_units?: number
           transmission?: string | null
           updated_at?: string
+          trim?: string | null
+          vehicle_segment?: string
+          vehicle_time_days?: number | null
           variant?: string | null
           year: number
         }
@@ -1639,28 +1657,44 @@ export type Database = {
           color?: string | null
           created_at?: string
           drive_type?: string | null
+          demo_for_vehicle_id?: string | null
           engine_type?: string | null
           fuel_type?: string | null
+          grade?: string | null
           horsepower?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean
           is_available?: boolean
+          is_demo?: boolean
+          is_new?: boolean
+          is_used?: boolean
           location_id?: string
           mileage?: string | null
           model?: string
           range_km?: number | null
           registration_number?: string | null
           seating_capacity?: number | null
+          set_price?: number | null
           top_speed?: string | null
           torque?: string | null
           total_units?: number
           transmission?: string | null
           updated_at?: string
+          trim?: string | null
+          vehicle_segment?: string
+          vehicle_time_days?: number | null
           variant?: string | null
           year?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "vehicles_demo_for_vehicle_id_fkey"
+            columns: ["demo_for_vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vehicles_location_id_fkey"
             columns: ["location_id"]
