@@ -1567,7 +1567,13 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "superadmin" | "gro" | "sales" | "security" | "dealer_admin"
+      app_role:
+        | "superadmin"
+        | "gro"
+        | "sales"
+        | "security"
+        | "dealer_admin"
+        | "sales_admin"
       communication_purpose:
         | "booking_created"
         | "booking_confirmed"
@@ -1717,7 +1723,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["superadmin", "gro", "sales", "security", "dealer_admin"],
+      app_role: [
+        "superadmin",
+        "gro",
+        "sales",
+        "security",
+        "dealer_admin",
+        "sales_admin",
+      ],
       communication_purpose: [
         "booking_created",
         "booking_confirmed",
