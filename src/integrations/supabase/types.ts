@@ -623,6 +623,152 @@ export type Database = {
           },
         ]
       }
+      pricing_discounts: {
+        Row: {
+          applicable_brands: string[] | null
+          applicable_models: string[] | null
+          code: string | null
+          created_at: string
+          dealer_id: string | null
+          discount_type: string
+          discount_value: number
+          id: string
+          is_active: boolean
+          max_discount_amount: number | null
+          min_base_price: number | null
+          name: string
+          updated_at: string
+          usage_limit: number | null
+          used_count: number
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          applicable_brands?: string[] | null
+          applicable_models?: string[] | null
+          code?: string | null
+          created_at?: string
+          dealer_id?: string | null
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_active?: boolean
+          max_discount_amount?: number | null
+          min_base_price?: number | null
+          name: string
+          updated_at?: string
+          usage_limit?: number | null
+          used_count?: number
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          applicable_brands?: string[] | null
+          applicable_models?: string[] | null
+          code?: string | null
+          created_at?: string
+          dealer_id?: string | null
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_active?: boolean
+          max_discount_amount?: number | null
+          min_base_price?: number | null
+          name?: string
+          updated_at?: string
+          usage_limit?: number | null
+          used_count?: number
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_discounts_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "dealers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricing_rules: {
+        Row: {
+          adjusted_price: number | null
+          adjustment_percent: number | null
+          base_price: number
+          brand: string | null
+          conditions: Json | null
+          created_at: string
+          dealer_id: string | null
+          id: string
+          is_active: boolean
+          model: string | null
+          priority: number
+          rule_type: string
+          season_name: string | null
+          updated_at: string
+          valid_from: string | null
+          valid_until: string | null
+          variant: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          adjusted_price?: number | null
+          adjustment_percent?: number | null
+          base_price?: number
+          brand?: string | null
+          conditions?: Json | null
+          created_at?: string
+          dealer_id?: string | null
+          id?: string
+          is_active?: boolean
+          model?: string | null
+          priority?: number
+          rule_type?: string
+          season_name?: string | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+          variant?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          adjusted_price?: number | null
+          adjustment_percent?: number | null
+          base_price?: number
+          brand?: string | null
+          conditions?: Json | null
+          created_at?: string
+          dealer_id?: string | null
+          id?: string
+          is_active?: boolean
+          model?: string | null
+          priority?: number
+          rule_type?: string
+          season_name?: string | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
+          variant?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_rules_dealer_id_fkey"
+            columns: ["dealer_id"]
+            isOneToOne: false
+            referencedRelation: "dealers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_rules_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1348,6 +1494,83 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      vehicle_reservations: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          deposit_amount: number | null
+          id: string
+          location_id: string
+          notes: string | null
+          reservation_type: string
+          reserved_by_profile_id: string | null
+          reserved_from: string
+          reserved_until: string
+          status: string
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          deposit_amount?: number | null
+          id?: string
+          location_id: string
+          notes?: string | null
+          reservation_type?: string
+          reserved_by_profile_id?: string | null
+          reserved_from?: string
+          reserved_until: string
+          status?: string
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          deposit_amount?: number | null
+          id?: string
+          location_id?: string
+          notes?: string | null
+          reservation_type?: string
+          reserved_by_profile_id?: string | null
+          reserved_from?: string
+          reserved_until?: string
+          status?: string
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_reservations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_reservations_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_reservations_reserved_by_profile_id_fkey"
+            columns: ["reserved_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_reservations_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vehicles: {
         Row: {
