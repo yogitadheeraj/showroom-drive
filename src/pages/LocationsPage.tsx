@@ -42,7 +42,7 @@ const LocationsPage = () => {
   const [locations, setLocations] = useState<any[]>([]);
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', phone: '', email: '' });
+  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
   const [hoursDialog, setHoursDialog] = useState<string | null>(null);
   const [hours, setHours] = useState<any[]>([]);
   const [savingHours, setSavingHours] = useState(false);
@@ -281,7 +281,7 @@ const LocationsPage = () => {
     }
     const payload = { ...formData, dealer_id: dealerId };
     if (editingId) {
-      await supabase.from('locations').update(formData).eq('id', editingId);
+      await supabase.from('locations').update(payload).eq('id', editingId);
       toast({ title: 'Location updated' });
     } else {
       await supabase.from('locations').insert(payload);
@@ -289,13 +289,25 @@ const LocationsPage = () => {
     }
     setShowDialog(false);
     setEditingId(null);
-    setFormData({ name: '', address: '', city: '', state: '', phone: '', email: '' });
+    setFormData({ name: '', address: '', city: '', state: '', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
     fetchLocations();
   };
 
   const editLocation = (loc: any) => {
     setEditingId(loc.id);
-    setFormData({ name: loc.name, address: loc.address, city: loc.city, state: loc.state || '', phone: loc.phone || '', email: loc.email || '' });
+    setFormData({
+      name: loc.name,
+      address: loc.address,
+      city: loc.city,
+      state: loc.state || '',
+      phone: loc.phone || '',
+      email: loc.email || '',
+      latitude: loc.latitude || '',
+      longitude: loc.longitude || '',
+      googleplaceid: loc.googleplaceid || '',
+      maplink: loc.maplink || '',
+      currency_type: loc.currency_type || 'INR',
+    });
     setShowDialog(true);
   };
 
@@ -573,7 +585,14 @@ const LocationsPage = () => {
       </DashboardLayout>
     );
   }
-
+const currencies = [
+  { code: 'INR', symbol: '₹' },
+  { code: 'USD', symbol: '$' },
+  { code: 'EUR', symbol: '€' },
+  { code: 'GBP', symbol: '£' },
+  { code: 'JPY', symbol: '¥' },
+  { code: 'AED', symbol: 'د.إ' }, // Dirham
+]
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6">
@@ -598,105 +617,106 @@ const LocationsPage = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {locations.map(loc => (
-              <Card key={loc.id} className="shadow-card hover:shadow-elevated transition-all duration-300 overflow-hidden border-border/50">
-                {/* Header Section */}
-                <div className="bg-gradient-to-r from-primary/8 via-primary/4 to-transparent border-b border-border/50 p-5 sm:p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                      <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 shadow-sm">
-                        <MapPin className="h-6 w-6 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg sm:text-xl font-heading font-bold text-foreground leading-tight">{loc.name}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">{loc.address}</p>
-                        <p className="text-xs text-muted-foreground">{loc.city}{loc.state ? `, ${loc.state}` : ''}</p>
-                      </div>
+              <Card key={loc.id} className="shadow-card hover:shadow-elevated transition-all duration-300 overflow-hidden border-border/50 rounded-lg text-xs p-0">
+                {/* Header Section - compact */}
+                <div className="bg-gradient-to-r from-primary/8 via-primary/4 to-transparent border-b border-border/50 p-3 flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                    <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 shadow-sm">
+                      <MapPin className="h-5 w-5 text-primary" />
                     </div>
-                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 h-9 w-9 p-0" onClick={() => editLocation(loc)} title="Edit Location">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-heading font-bold text-foreground leading-tight truncate">{loc.name}</h3>
+                      <p className="text-xs text-muted-foreground truncate">{loc.address}</p>
+                      <p className="text-xs text-muted-foreground truncate">{loc.city}{loc.state ? `, ${loc.state}` : ''}</p>
+                    </div>
                   </div>
-                  
-                  {/* Status & Info Badges */}
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {(() => {
-                      const s = getLocationStatus(loc.id);
-                      return (
-                        <Badge className={`text-xs font-semibold border ${s.open ? 'bg-success/10 text-success border-success/30' : 'bg-destructive/10 text-destructive border-destructive/30'}`}>
-                          <span className="mr-1.5">{s.open ? '●' : '●'}</span>
-                          {s.label}
-                        </Badge>
-                      );
-                    })()}
-                    <Badge variant="outline" className="text-xs font-medium">
-                      {dealerNamesById[loc.dealer_id] || 'Unknown'}
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs max-w-xs truncate font-medium">
-                      {(dealerBrandsByDealerId[loc.dealer_id] || []).length > 0
-                        ? dealerBrandsByDealerId[loc.dealer_id].slice(0, 2).join(', ') + ((dealerBrandsByDealerId[loc.dealer_id] || []).length > 2 ? '...' : '')
-                        : 'No brands'}
-                    </Badge>
-                  </div>
+                  <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 h-7 w-7 p-0" onClick={() => editLocation(loc)} title="Edit Location">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
 
-                <CardContent className="p-5 sm:p-6 space-y-5">
-                  {/* KPI Grid */}
+                {/* Status & Info Badges - compact */}
+                <div className="px-3 pt-2 flex flex-wrap items-center gap-1">
+                  {(() => {
+                    const s = getLocationStatus(loc.id);
+                    return (
+                      <Badge className={`text-[10px] font-semibold border ${s.open ? 'bg-success/10 text-success border-success/30' : 'bg-destructive/10 text-destructive border-destructive/30'}`}>
+                        <span className="mr-1">●</span>
+                        {s.label}
+                      </Badge>
+                    );
+                  })()}
+                  <Badge variant="outline" className="text-[10px] font-medium">
+                    {dealerNamesById[loc.dealer_id] || 'Unknown'}
+                  </Badge>
+                  <Badge variant="secondary" className="text-[10px] max-w-xs truncate font-medium">
+                    {(dealerBrandsByDealerId[loc.dealer_id] || []).length > 0
+                      ? dealerBrandsByDealerId[loc.dealer_id].slice(0, 2).join(', ') + ((dealerBrandsByDealerId[loc.dealer_id] || []).length > 2 ? '...' : '')
+                      : 'No brands'}
+                  </Badge>
+                  {loc.currency_type && (
+                    <Badge variant="outline" className="text-[10px] font-medium">
+                      {loc.currency_type}
+                    </Badge>
+                  )}
+                </div>
+
+                <CardContent className="p-3 space-y-2">
+                  {/* KPI Grid - compact */}
                   <div>
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Performance Metrics</h4>
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-2 gap-1">
                       {[
-                        { label: 'Total Drives', value: testDriveCounts[loc.id] || 0, color: 'primary', icon: '📊' },
-                        { label: 'Today', value: testDriveTodayCounts[loc.id] || 0, color: 'primary', icon: '📅' },
-                        { label: 'Next 7 Days', value: testDriveNext7DaysCounts[loc.id] || 0, color: 'info', icon: '📈' },
-                        { label: 'Staff', value: staffCounts[loc.id] || 0, color: 'success', icon: '👥' },
-                        { label: 'Devices', value: (devices[loc.id] || []).filter(d => d.is_active).length, color: 'info', icon: '📱' },
-                        { label: 'Hours', value: todayHoursByLocation[loc.id] || '—', color: 'muted', icon: '🕐' },
+                        { label: 'Drives', value: testDriveCounts[loc.id] || 0, icon: '📊' },
+                        { label: 'Today', value: testDriveTodayCounts[loc.id] || 0, icon: '📅' },
+                        { label: 'Next 7d', value: testDriveNext7DaysCounts[loc.id] || 0, icon: '📈' },
+                        { label: 'Staff', value: staffCounts[loc.id] || 0, icon: '👥' },
+                        { label: 'Devices', value: (devices[loc.id] || []).filter(d => d.is_active).length, icon: '📱' },
+                        { label: 'Hours', value: todayHoursByLocation[loc.id] || '—', icon: '🕐' },
                       ].map((stat, idx) => (
-                        <div key={idx} className={`rounded-lg border border-border/50 bg-gradient-to-br from-${stat.color}/5 to-transparent p-3 text-center hover:border-${stat.color}/30 transition-colors`}>
-                          <div className="text-2xl mb-1">{stat.icon}</div>
-                          <div className={`text-xs font-semibold text-${stat.color} mb-1`}>{typeof stat.value === 'number' ? stat.value : stat.value}</div>
-                          <div className="text-xs text-muted-foreground leading-tight">{stat.label}</div>
+                        <div key={idx} className="rounded border border-border/40 bg-gradient-to-br from-muted/10 to-transparent p-2 text-center">
+                          <div className="text-base mb-0.5">{stat.icon}</div>
+                          <div className="text-xs font-semibold mb-0.5">{stat.value}</div>
+                          <div className="text-[10px] text-muted-foreground leading-tight">{stat.label}</div>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  {/* Contact Section */}
-                  <div className="border-t border-border/50 pt-4">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Contact Information</h4>
-                    <div className="space-y-2">
-                      {loc.phone && (
-                        <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-info/8 to-transparent border border-info/20 hover:border-info/40 transition-colors">
-                          <div className="h-10 w-10 rounded-lg bg-info/10 flex items-center justify-center shrink-0">
-                            <Phone className="h-5 w-5 text-info" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-muted-foreground">Phone</p>
-                            <p className="text-sm font-semibold text-foreground">{loc.phone}</p>
-                          </div>
-                        </div>
-                      )}
-                      {loc.email && (
-                        <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-info/8 to-transparent border border-info/20 hover:border-info/40 transition-colors">
-                          <div className="h-10 w-10 rounded-lg bg-info/10 flex items-center justify-center shrink-0">
-                            <Mail className="h-5 w-5 text-info" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-muted-foreground">Email</p>
-                            <p className="text-sm font-semibold text-foreground truncate">{loc.email}</p>
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-info/8 to-transparent border border-info/20 hover:border-info/40 transition-colors">
-                        <div className="h-10 w-10 rounded-lg bg-info/10 flex items-center justify-center shrink-0">
-                          <Clock className="h-5 w-5 text-info" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-muted-foreground">Today</p>
-                          <p className="text-sm font-semibold text-foreground">{todayHoursByLocation[loc.id] || 'Not set'}</p>
-                        </div>
+                  {/* Contact & Location Data Section - compact */}
+                  <div className="border-t border-border/40 pt-2 grid grid-cols-2 gap-1">
+                    {loc.phone && (
+                      <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
+                        <Phone className="h-4 w-4 text-info" />
+                        <span className="truncate">{loc.phone}</span>
                       </div>
+                    )}
+                    {loc.email && (
+                      <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
+                        <Mail className="h-4 w-4 text-info" />
+                        <span className="truncate">{loc.email}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
+                      <Clock className="h-4 w-4 text-info" />
+                      <span>{todayHoursByLocation[loc.id] || 'Not set'}</span>
                     </div>
+                    {loc.latitude && loc.longitude && (
+                      <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
+                        <span className="font-semibold">Lat/Lng:</span>
+                        <span>{loc.latitude}, {loc.longitude}</span>
+                      </div>
+                    )}
+                    {loc.googleplaceid && (
+                      <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
+                        <span className="font-semibold">Place ID:</span>
+                        <span className="truncate">{loc.googleplaceid}</span>
+                      </div>
+                    )}
+                    {loc.maplink && (
+                      <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
+                        <a href={loc.maplink} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline truncate">Map Link</a>
+                      </div>
+                    )}
                   </div>
 
                   {/* Devices Section */}
@@ -780,6 +800,30 @@ const LocationsPage = () => {
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2"><Label>Phone</Label><Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} /></div>
                 <div className="space-y-2"><Label>Email</Label><Input value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div className="space-y-2"><Label>Latitude</Label><Input value={formData.latitude} onChange={e => setFormData(p => ({ ...p, latitude: e.target.value }))} placeholder="e.g. 28.6139" /></div>
+                <div className="space-y-2"><Label>Longitude</Label><Input value={formData.longitude} onChange={e => setFormData(p => ({ ...p, longitude: e.target.value }))} placeholder="e.g. 77.2090" /></div>
+              </div>
+              <div className="space-y-2">
+                <Label>Google Place ID</Label>
+                <Input value={formData.googleplaceid} onChange={e => setFormData(p => ({ ...p, googleplaceid: e.target.value }))} placeholder="Google Place ID (optional)" />
+              </div>
+              <div className="space-y-2">
+                <Label>Custom Map Link</Label>
+                <Input value={formData.maplink} onChange={e => setFormData(p => ({ ...p, maplink: e.target.value }))} placeholder="Paste Google Maps link (optional)" />
+              </div>
+              <div className="space-y-2">
+                <Label>Currency</Label>
+                <select
+                  className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
+                  value={formData.currency_type}
+                  onChange={e => setFormData(p => ({ ...p, currency_type: e.target.value }))}
+                >
+                  {currencies.map(c => (
+                    <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
+                  ))}
+                </select>
               </div>
               <Button onClick={handleSubmit} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">{editingId ? 'Update' : 'Add'} Location</Button>
             </div>

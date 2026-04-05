@@ -38,6 +38,7 @@ const VehiclesPage = () => {
     total_units: '1', available_units: '1',
     engine_type: 'petrol', vehicle_segment: 'four_wheeler' as 'four_wheeler' | 'two_wheeler',
     set_price: '', vehicle_time_days: '', vehicle_condition: 'new' as 'new' | 'used' | 'demo', demo_for_vehicle_id: '',
+    showWheelSegment: true,
   });
   const { toast } = useToast();
   const { dealerId, loading: dealerLoading } = useDealerContext();
@@ -101,6 +102,7 @@ const VehiclesPage = () => {
       vehicle_time_days: v.vehicle_time_days != null ? String(v.vehicle_time_days) : '',
       vehicle_condition: v.is_demo ? 'demo' : v.is_used ? 'used' : 'new',
       demo_for_vehicle_id: v.demo_for_vehicle_id || '',
+      showWheelSegment: typeof v.showWheelSegment === 'boolean' ? v.showWheelSegment : true,
     });
     setDemoFormData({
       variant: 'Demo', year: String(v.year || new Date().getFullYear()), color: '', registration_number: '', image_url: '',
@@ -117,6 +119,7 @@ const VehiclesPage = () => {
       brand: '', model: '', grade: '', trim: '', variant: '', year: new Date().getFullYear().toString(),
       color: '', registration_number: '', location_id: '', image_url: '',
       total_units: '1', available_units: '1', engine_type: 'petrol', vehicle_segment: 'four_wheeler', set_price: '', vehicle_time_days: '', vehicle_condition: 'new', demo_for_vehicle_id: '',
+      showWheelSegment: true,
     });
     setDemoFormData({
       variant: 'Demo', year: new Date().getFullYear().toString(), color: '', registration_number: '', image_url: '',
@@ -311,126 +314,220 @@ const VehiclesPage = () => {
           )}
         </Tabs>
 
+
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="font-heading">{editingId ? 'Edit Vehicle' : 'Add Vehicle'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2">
-                  <Label>Brand *</Label>
-                  <Select value={formData.brand} onValueChange={v => setFormData(p => ({ ...p, brand: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
-                    <SelectContent>
-                      {brands.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
-                      {formData.brand && !brands.some(b => b.name === formData.brand) && (
-                        <SelectItem value={formData.brand}>{formData.brand}</SelectItem>
+              {/* Stepper Indicator */}
+              <div className="flex items-center justify-center gap-2 mb-4">
+                {[1, 2].map((step) => (
+                  <div
+                    key={step}
+                    className={`h-2 w-24 rounded-full transition-colors duration-200 ${formStep === step ? 'bg-primary' : 'bg-muted'}`}
+                  />
+                ))}
+              </div>
+              {/* Step 1: Brand/Model/Specs + Category/Segment */}
+              {formStep === 1 && (
+                <Card className="shadow-card border-primary border-2">
+                  <CardContent className="p-4 space-y-4">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Vehicle Category *</Label>
+                        <Select value={formData.vehicle_condition} onValueChange={(v: 'new' | 'used' | 'demo') => setFormData(p => ({ ...p, vehicle_condition: v, demo_for_vehicle_id: v === 'demo' ? p.demo_for_vehicle_id : '', brand: '', year: new Date().getFullYear().toString() }))}>
+                          <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="new">New Car</SelectItem>
+                            <SelectItem value="used">Used Car</SelectItem>
+                            <SelectItem value="demo">Demo Vehicle (Test Drive)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${!formData.vehicle_condition ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                        <div className="space-y-2">
+                          <Label>Brand *</Label>
+                          <Select value={formData.brand} onValueChange={v => setFormData(p => ({ ...p, brand: v }))} disabled={!formData.vehicle_condition}>
+                            <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
+                            <SelectContent>
+                              {brands.map(b => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
+                              {formData.brand && !brands.some(b => b.name === formData.brand) && (
+                                <SelectItem value={formData.brand}>{formData.brand}</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Year</Label>
+                          <Select value={formData.year} onValueChange={v => setFormData(p => ({ ...p, year: v }))} disabled={!formData.vehicle_condition}>
+                            <SelectTrigger><SelectValue placeholder="Select year" /></SelectTrigger>
+                            <SelectContent>
+                              {(() => {
+                                const currentYear = new Date().getFullYear();
+                                let years: number[] = [];
+                                if (formData.vehicle_condition === 'used') {
+                                  for (let y = currentYear; y >= currentYear - 20; y--) years.push(y);
+                                } else if (formData.vehicle_condition === 'demo') {
+                                  for (let y = currentYear; y >= currentYear - 5; y--) years.push(y);
+                                } else if (formData.vehicle_condition === 'new') {
+                                  years = [currentYear, currentYear + 1];
+                                }
+                                return years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>);
+                              })()}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Model *</Label>
+                        <Input value={formData.model} onChange={e => setFormData(p => ({ ...p, model: e.target.value }))} disabled={!formData.vehicle_condition} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Grade</Label>
+                        <Input value={formData.grade} onChange={e => setFormData(p => ({ ...p, grade: e.target.value }))} placeholder="e.g. Premium" disabled={!formData.vehicle_condition} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Trim</Label>
+                        <Input value={formData.trim} onChange={e => setFormData(p => ({ ...p, trim: e.target.value }))} placeholder="e.g. Sport" disabled={!formData.vehicle_condition} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Variant</Label>
+                        <Input value={formData.variant} onChange={e => setFormData(p => ({ ...p, variant: e.target.value }))} disabled={!formData.vehicle_condition} />
+                      </div>
+                      {formData.vehicle_condition && (
+                        <div className={`grid gap-3 sm:gap-4 ${formData.showWheelSegment === false ? '' : 'grid-cols-2'}`}>
+                          {formData.showWheelSegment !== false && (
+                            <div className="space-y-2">
+                              <Label>Wheel Segment</Label>
+                              <Select value={formData.vehicle_segment} onValueChange={(v: 'four_wheeler' | 'two_wheeler') => setFormData(p => ({ ...p, vehicle_segment: v }))}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="four_wheeler">Four Wheeler</SelectItem>
+                                  <SelectItem value="two_wheeler">Two Wheeler</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
                       )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2"><Label>Model *</Label><Input value={formData.model} onChange={e => setFormData(p => ({ ...p, model: e.target.value }))} /></div>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                <div className="space-y-2"><Label>Grade</Label><Input value={formData.grade} onChange={e => setFormData(p => ({ ...p, grade: e.target.value }))} placeholder="e.g. Premium" /></div>
-                <div className="space-y-2"><Label>Trim</Label><Input value={formData.trim} onChange={e => setFormData(p => ({ ...p, trim: e.target.value }))} placeholder="e.g. Sport" /></div>
-                <div className="space-y-2"><Label>Variant</Label><Input value={formData.variant} onChange={e => setFormData(p => ({ ...p, variant: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Year</Label><Input type="number" value={formData.year} onChange={e => setFormData(p => ({ ...p, year: e.target.value }))} /></div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <div className="space-y-2">
-                  <Label>Vehicle Category</Label>
-                  <Select value={formData.vehicle_condition} onValueChange={(v: 'new' | 'used' | 'demo') => setFormData(p => ({ ...p, vehicle_condition: v, demo_for_vehicle_id: v === 'demo' ? p.demo_for_vehicle_id : '' }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new">New Car</SelectItem>
-                      <SelectItem value="used">Used Car</SelectItem>
-                      <SelectItem value="demo">Demo Vehicle (Test Drive)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Wheel Segment</Label>
-                  <Select value={formData.vehicle_segment} onValueChange={(v: 'four_wheeler' | 'two_wheeler') => setFormData(p => ({ ...p, vehicle_segment: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="four_wheeler">Four Wheeler</SelectItem>
-                      <SelectItem value="two_wheeler">Two Wheeler</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Powertrain</Label>
-                  <Select value={formData.engine_type} onValueChange={v => setFormData(p => ({ ...p, engine_type: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="electric">Electric</SelectItem>
-                      <SelectItem value="hybrid">Hybrid</SelectItem>
-                      <SelectItem value="petrol">Petrol</SelectItem>
-                      <SelectItem value="diesel">Diesel</SelectItem>
-                      <SelectItem value="cng">CNG</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {formData.vehicle_condition !== 'demo' && (
-                  <div className="space-y-2">
-                    <Label>Set Price (Rs)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={formData.set_price}
-                      onChange={e => setFormData(p => ({ ...p, set_price: e.target.value }))}
-                      placeholder="e.g. 1450000"
-                    />
-                  </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {/* Step 2: All other fields */}
+              {formStep === 2 && (
+                <Card className="shadow-card border-primary border-2">
+                  <CardContent className="p-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                      <div className="space-y-2">
+                        <Label>Powertrain</Label>
+                        <Select value={formData.engine_type} onValueChange={v => setFormData(p => ({ ...p, engine_type: v }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="electric">Electric</SelectItem>
+                            <SelectItem value="hybrid">Hybrid</SelectItem>
+                            <SelectItem value="petrol">Petrol</SelectItem>
+                            <SelectItem value="diesel">Diesel</SelectItem>
+                            <SelectItem value="cng">CNG</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {formData.vehicle_condition !== 'demo' && (
+                        <div className="space-y-2">
+                          <Label>Set Price (Rs)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={formData.set_price}
+                            onChange={e => setFormData(p => ({ ...p, set_price: e.target.value }))}
+                            placeholder="e.g. 1450000"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    {formData.vehicle_condition !== 'demo' && (
+                      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                        <div className="space-y-2">
+                          <Label>Color (Hex Code)</Label>
+                          <Input
+                            value={formData.color}
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (/^#([0-9a-fA-F]{0,6})$/.test(val) || val === '') {
+                                setFormData(p => ({ ...p, color: val }));
+                              }
+                            }}
+                            pattern="#([0-9a-fA-F]{6})"
+                            placeholder="#RRGGBB"
+                            maxLength={7}
+                          />
+                          {formData.color && !/^#([0-9a-fA-F]{6})$/.test(formData.color) && (
+                            <div className="text-xs text-destructive">Enter a valid hex color code (e.g. #AABBCC)</div>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Vehicle Time (days)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={formData.vehicle_time_days}
+                            onChange={e => setFormData(p => ({ ...p, vehicle_time_days: e.target.value }))}
+                            placeholder="e.g. 7"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {formData.vehicle_condition === 'demo' && (
+                      <div className="space-y-2">
+                        <Label>Associated New Variant *</Label>
+                        <Select value={formData.demo_for_vehicle_id} onValueChange={v => setFormData(p => ({ ...p, demo_for_vehicle_id: v }))}>
+                          <SelectTrigger><SelectValue placeholder="Select brand/model/variant" /></SelectTrigger>
+                          <SelectContent>
+                            {associatedNewVariantOptions.map(v => (
+                              <SelectItem key={v.id} value={v.id}>{v.brand} {v.model} {v.variant || 'Standard'} ({v.year})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">Demo vehicles are linked to a New variant and used for New-car test drives.</p>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                      <div className="space-y-2"><Label>Units</Label><Input type="number" min="1" value={formData.total_units} onChange={e => setFormData(p => ({ ...p, total_units: e.target.value }))} /></div>
+                      <div className="space-y-2"><Label>Available</Label><Input type="number" min="0" value={formData.available_units} onChange={e => setFormData(p => ({ ...p, available_units: e.target.value }))} /></div>
+                    </div>
+                    {(formData.vehicle_condition === 'used' || formData.vehicle_condition === 'demo') && (
+                      <div className="space-y-2">
+                        <Label>VIN</Label>
+                        <Input value={formData.registration_number} onChange={e => setFormData(p => ({ ...p, registration_number: e.target.value }))} />
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <Label>Location *</Label>
+                      <Select value={formData.location_id} onValueChange={v => setFormData(p => ({ ...p, location_id: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                        <SelectContent>
+                          {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2"><Label>Image URL</Label><Input value={formData.image_url} onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." /></div>
+                  </CardContent>
+                </Card>
+              )}
+              {/* Stepper Controls */}
+              <div className="flex gap-2 mt-4">
+                {formStep > 1 && (
+                  <Button variant="outline" onClick={() => setFormStep(s => Math.max(s - 1, 1))} className="flex-1">Back</Button>
+                )}
+                {formStep < 2 && (
+                  <Button onClick={() => setFormStep(s => Math.min(s + 1, 2))} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
+                )}
+                {formStep === 2 && (
+                  <Button onClick={handleSubmit} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">{editingId ? 'Update Vehicle' : 'Add Vehicle'}</Button>
                 )}
               </div>
-              {formData.vehicle_condition !== 'demo' && (
-                <div className="space-y-2">
-                  <Label>Vehicle Time (days)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={formData.vehicle_time_days}
-                    onChange={e => setFormData(p => ({ ...p, vehicle_time_days: e.target.value }))}
-                    placeholder="e.g. 7"
-                  />
-                </div>
-              )}
-              {formData.vehicle_condition === 'demo' && (
-                <div className="space-y-2">
-                  <Label>Associated New Variant *</Label>
-                  <Select value={formData.demo_for_vehicle_id} onValueChange={v => setFormData(p => ({ ...p, demo_for_vehicle_id: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select brand/model/variant" /></SelectTrigger>
-                    <SelectContent>
-                      {associatedNewVariantOptions.map(v => (
-                        <SelectItem key={v.id} value={v.id}>{v.brand} {v.model} {v.variant || 'Standard'} ({v.year})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">Demo vehicles are linked to a New variant and used for New-car test drives.</p>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2"><Label>Units</Label><Input type="number" min="1" value={formData.total_units} onChange={e => setFormData(p => ({ ...p, total_units: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Available</Label><Input type="number" min="0" value={formData.available_units} onChange={e => setFormData(p => ({ ...p, available_units: e.target.value }))} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2"><Label>Color</Label><Input value={formData.color} onChange={e => setFormData(p => ({ ...p, color: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Reg #</Label><Input value={formData.registration_number} onChange={e => setFormData(p => ({ ...p, registration_number: e.target.value }))} /></div>
-              </div>
-              <div className="space-y-2">
-                <Label>Location *</Label>
-                <Select value={formData.location_id} onValueChange={v => setFormData(p => ({ ...p, location_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
-                  <SelectContent>
-                    {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2"><Label>Image URL</Label><Input value={formData.image_url} onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." /></div>
-              <Button onClick={handleSubmit} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">{editingId ? 'Update Vehicle' : 'Add Vehicle'}</Button>
             </div>
           </DialogContent>
         </Dialog>
