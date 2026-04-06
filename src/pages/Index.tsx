@@ -1,5 +1,9 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+
+// State for landing vehicles
+// (insert after other useState)
+ 
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +37,8 @@ type HomeBrandCard = {
 };
 
 const BrandMarketplace = () => {
+   const [landingVehicles, setLandingVehicles] = useState<{ new: any[]; used: any[] }>({ new: [], used: [] });
+
   const [brandCards, setBrandCards] = useState<HomeBrandCard[]>([]);
   const [selectedBrandTab, setSelectedBrandTab] = useState('All Brands');
   const [selectedCompareVehicleIds, setSelectedCompareVehicleIds] = useState<string[]>([]);
@@ -40,6 +46,13 @@ const BrandMarketplace = () => {
   const [sendingBrandEnquiry, setSendingBrandEnquiry] = useState<Record<string, boolean>>({});
   const [sentBrandEnquiry, setSentBrandEnquiry] = useState<Record<string, boolean>>({});
   const [openEnquiryBrandId, setOpenEnquiryBrandId] = useState<string | null>(null);
+
+  const navigate = useNavigate();
+  // Handler for selecting a vehicle from landing
+  const handleSelectLandingVehicle = (vehicle: any) => {
+    // Send vehicle category to booking page as default selection
+    navigate(`/book?vehicleId=${vehicle.id}&category=${vehicle.is_used ? 'used' : 'new'}`);
+  };
 
   useEffect(() => {
     const loadBrands = async () => {
@@ -51,9 +64,8 @@ const BrandMarketplace = () => {
           .order('name', { ascending: true }),
         supabase
           .from('vehicles')
-          .select('id, brand, model')
-          .eq('is_active', true)
-          .eq('is_available', true),
+          .select('id, brand, model, is_used, is_new, set_price, is_available, vehicle_condition, available_units, total_units')
+          .eq('is_active', true),
         supabase
           .from('dealers')
           .select('id, name, contact_phone, contact_email')
@@ -69,17 +81,16 @@ const BrandMarketplace = () => {
         return acc;
       }, {});
 
-      const modelsByBrand = new Map<string, Map<string, string>>();
-      (vehicles || []).forEach((vehicle: any) => {
-        const brandName = (vehicle.brand || '').trim();
-        const modelName = (vehicle.model || '').trim();
-        if (!brandName || !modelName) return;
-        if (!modelsByBrand.has(brandName)) modelsByBrand.set(brandName, new Map());
-        const byModel = modelsByBrand.get(brandName)!;
-        if (!byModel.has(modelName)) byModel.set(modelName, vehicle.id);
-      });
+      // Group vehicles by new/used
+      const vehiclesByType = {
+        new: (vehicles || []).filter((v: any) => v.is_new && !v.is_used),
+        used: (vehicles || []).filter((v: any) => v.is_used),
+      };
+
+      // ...existing code for modelsByBrand, allModelsByBrand, dbBrandCards, fallbackCards...
 
       const allModelsByBrand = new Map<string, Set<string>>();
+       const modelsByBrand = new Map<string, Set<string>>();
       (allActiveVehicles || []).forEach((vehicle: any) => {
         const brandName = (vehicle.brand || '').trim();
         const modelName = (vehicle.model || '').trim();
@@ -133,6 +144,7 @@ const BrandMarketplace = () => {
         }));
 
       setBrandCards([...dbBrandCards, ...fallbackCards]);
+      setLandingVehicles({ new: vehiclesByType.new, used: vehiclesByType.used });
     };
 
     void loadBrands();
@@ -239,7 +251,7 @@ const BrandMarketplace = () => {
           Test Drives By Brand
         </h2>
         <p className="text-sm sm:text-base text-muted-foreground mt-4 max-w-2xl mx-auto">
-          Explore brand-wise listings like a marketplace, compare available models, and book your preferred test drive instantly.
+          Explore all available vehicles (new and used) by brand, compare models, and book your preferred test drive instantly.
         </p>
 
         <div className="mt-6 flex gap-2 overflow-x-auto pb-1 justify-start sm:justify-center">
@@ -281,10 +293,12 @@ const BrandMarketplace = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {visibleBrandCards.map((brand) => {
-          const featuredModel = brand.models[0];
-          const quickModels = brand.models.slice(0, 4);
+          // Show all models (new and used) for each brand
+          const allModels = brand.models;
+          const featuredModel = allModels[0];
+          const quickModels = allModels.slice(0, 4);
           const recommendationModels = brand.recommendedModels.slice(0, 8);
-          const compareIds = brand.models
+          const compareIds = allModels
             .map((model) => model.vehicleId)
             .filter((id): id is string => Boolean(id))
             .slice(0, 4);
@@ -301,7 +315,7 @@ const BrandMarketplace = () => {
                 )}
                 <div>
                   <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg">{brand.name}</h3>
-                  <p className="text-xs text-muted-foreground">{brand.models.length} Models Available</p>
+                  <p className="text-xs text-muted-foreground">{allModels.length} Models Available</p>
                 </div>
               </div>
 

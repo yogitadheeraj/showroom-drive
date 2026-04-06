@@ -100,7 +100,7 @@ const VehiclesPage = () => {
       engine_type: v.engine_type || 'petrol', vehicle_segment: v.vehicle_segment || 'four_wheeler',
       set_price: v.set_price != null ? String(v.set_price) : '',
       vehicle_time_days: v.vehicle_time_days != null ? String(v.vehicle_time_days) : '',
-      vehicle_condition: v.is_demo ? 'demo' : v.is_used ? 'used' : 'new',
+      vehicle_condition: v.vehicle_condition || (v.is_demo ? 'demo' : v.is_used ? 'used' : 'new'),
       demo_for_vehicle_id: v.demo_for_vehicle_id || '',
       showWheelSegment: typeof v.showWheelSegment === 'boolean' ? v.showWheelSegment : true,
     });
@@ -154,6 +154,7 @@ const VehiclesPage = () => {
       is_new: formData.vehicle_condition === 'new' || formData.vehicle_condition === 'demo',
       is_used: formData.vehicle_condition === 'used',
       demo_for_vehicle_id: formData.vehicle_condition === 'demo' ? formData.demo_for_vehicle_id : null,
+      vehicle_condition: formData.vehicle_condition,
     };
 
     if (editingId) {
@@ -479,11 +480,21 @@ const VehiclesPage = () => {
                         </div>
                       </div>
                     )}
+                    {/* Location selection moved above Associated New Variant */}
+                    <div className="space-y-2">
+                      <Label>Location *</Label>
+                      <Select value={formData.location_id} onValueChange={v => setFormData(p => ({ ...p, location_id: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                        <SelectContent>
+                          {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     {formData.vehicle_condition === 'demo' && (
                       <div className="space-y-2">
                         <Label>Associated New Variant *</Label>
-                        <Select value={formData.demo_for_vehicle_id} onValueChange={v => setFormData(p => ({ ...p, demo_for_vehicle_id: v }))}>
-                          <SelectTrigger><SelectValue placeholder="Select brand/model/variant" /></SelectTrigger>
+                        <Select value={formData.demo_for_vehicle_id} onValueChange={v => setFormData(p => ({ ...p, demo_for_vehicle_id: v }))} disabled={!formData.location_id}>
+                          <SelectTrigger><SelectValue placeholder={!formData.location_id ? 'Select location first' : 'Select brand/model/variant'} /></SelectTrigger>
                           <SelectContent>
                             {associatedNewVariantOptions.map(v => (
                               <SelectItem key={v.id} value={v.id}>{v.brand} {v.model} {v.variant || 'Standard'} ({v.year})</SelectItem>
@@ -503,15 +514,7 @@ const VehiclesPage = () => {
                         <Input value={formData.registration_number} onChange={e => setFormData(p => ({ ...p, registration_number: e.target.value }))} />
                       </div>
                     )}
-                    <div className="space-y-2">
-                      <Label>Location *</Label>
-                      <Select value={formData.location_id} onValueChange={v => setFormData(p => ({ ...p, location_id: v }))}>
-                        <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
-                        <SelectContent>
-                          {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  
                     <div className="space-y-2"><Label>Image URL</Label><Input value={formData.image_url} onChange={e => setFormData(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." /></div>
                   </CardContent>
                 </Card>
