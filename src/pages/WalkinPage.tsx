@@ -310,7 +310,27 @@ const WalkinPage = () => {
         });
       }
 
-      toast({ title: 'Walk-in registered', description: `${formData.fullName} has been checked in and communications sent` });
+      // Send sales person assignment email if email and sales person assigned
+      if (formData.email && assignedSalesName) {
+        supabase.functions.invoke('send-transactional-email', {
+          body: {
+            templateName: 'sales-assignment',
+            recipientEmail: formData.email,
+            idempotencyKey: `sales-assign-${testDrive.id}`,
+            templateData: {
+              customerName: formData.fullName,
+              vehicleName,
+              locationName,
+              scheduledDate: now.toISOString().split('T')[0],
+              scheduledTime: now.toTimeString().slice(0, 5),
+              salesPersonName: assignedSalesName,
+              salesPersonPhone: assignedSalesPhone,
+            },
+          },
+        }).catch(err => console.error('Sales assignment email failed:', err));
+      }
+
+      toast({ title: 'Walk-in registered', description: `${formData.fullName} has been checked in${assignedSalesName ? `. Sales executive: ${assignedSalesName}` : ''}.` });
       setFormData({ fullName: '', phone: '', email: '', preferredContact: 'phone', locationId: profile?.location_id || '', vehicleId: '', selectedVariantVehicleId: '' });
       removeLicense();
       setStep('customer');
