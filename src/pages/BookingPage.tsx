@@ -982,7 +982,69 @@ const BookingPage = () => {
               </div>
             )}
 
-            
+            {/* Step 1: Date Selection */}
+            {step === 1 && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Preferred Date</Label>
+                  <div className="rounded-xl border border-border bg-card p-2">
+                    <Calendar
+                      mode="single"
+                      selected={formData.scheduledDate ? new Date(`${formData.scheduledDate}T00:00:00`) : undefined}
+                      onSelect={(d) => {
+                        if (!d) return;
+                        setFormData((p) => ({
+                          ...p,
+                          scheduledDate: format(d, 'yyyy-MM-dd'),
+                          scheduledTime: '',
+                          locationId: '',
+                          vehicleId: '',
+                          selectedVariantVehicleId: '',
+                        }));
+                      }}
+                      disabled={isDateUnavailable}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </div>
+                </div>
+
+                {formData.scheduledDate && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      {new Date(`${formData.scheduledDate}T00:00:00`).toLocaleDateString('en-IN', {
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                      })}
+                    </p>
+                    {openLocationsForDate.length > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {openLocationsForDate.length} location{openLocationsForDate.length !== 1 ? 's' : ''} available
+                      </p>
+                    ) : (
+                      <p className="text-xs text-destructive">No locations open on this date</p>
+                    )}
+                  </div>
+                )}
+
+                {formData.scheduledDate && quickPreviewTimeSlots.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Quick Time Preview</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {quickPreviewTimeSlots.slice(0, 12).map((t) => {
+                        const [h] = t.split(':').map(Number);
+                        const period = h < 12 ? 'AM' : 'PM';
+                        const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                        return (
+                          <span key={t} className="px-2 py-1 rounded-md bg-muted text-xs text-muted-foreground border border-border">
+                            {displayH}:{t.split(':')[1]} {period}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Exact availability shown after selecting a location.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Step 2: Location & Variant Selection */}
             {step === 2 && (
