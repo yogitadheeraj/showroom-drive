@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { demoAutofillData } from '@/lib/demoAutofillData';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -322,6 +323,12 @@ const VehiclesPage = () => {
               <DialogTitle className="font-heading">{editingId ? 'Edit Vehicle' : 'Add Vehicle'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              {/* Demo autofill button for staff (always visible) */}
+              <div className="flex justify-end mb-2">
+                <Button variant="outline" size="sm" type="button" onClick={() => setFormData(p => ({ ...p, ...demoAutofillData.VehiclesPage }))}>
+                  Show Demo Data
+                </Button>
+              </div>
               {/* Stepper Indicator */}
               <div className="flex items-center justify-center gap-2 mb-4">
                 {[1, 2].map((step) => (

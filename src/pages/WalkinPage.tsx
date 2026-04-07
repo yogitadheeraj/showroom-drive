@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { demoAutofillData } from '@/lib/demoAutofillData';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
@@ -23,12 +24,21 @@ const WalkinPage = () => {
   const [locationStatus, setLocationStatus] = useState<Record<string, { isOpen: boolean; openTime: string | null; closeTime: string | null }>>({});
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [vehicleCategoryFilter, setVehicleCategoryFilter] = useState<'new' | 'used'>('new');
-  const [vehicleSegmentFilter, setVehicleSegmentFilter] = useState<'all' | 'four_wheeler' | 'two_wheeler'>('all');
+  // Wheel segment is auto-adjusted from selected vehicle; no manual filter for walk-in
   const [step, setStep] = useState<Step>('customer');
   const [formData, setFormData] = useState({
     fullName: '', phone: '', email: '', preferredContact: 'phone',
     locationId: profile?.location_id || '', vehicleId: '', selectedVariantVehicleId: '',
   });
+  const [canUseDemoData, setCanUseDemoData] = useState(false);
+  // Autofill handler
+  const handleDemoAutofill = () => {
+    setFormData((prev) => ({
+      ...prev,
+      ...demoAutofillData.WalkinPage,
+      locationId: prev.locationId || demoAutofillData.WalkinPage.locationId,
+    }));
+  };
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licensePreview, setLicensePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,14 +49,21 @@ const WalkinPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+
   useEffect(() => {
     if (dealerLoading) return;
 
     let query = supabase.from('locations').select('*').eq('is_active', true);
     if (dealerId) query = query.eq('dealer_id', dealerId);
 
-    query.then(({ data }) => setLocations(data || []));
-  }, [dealerId, dealerLoading]);
+    query.then(({ data }) => {
+      let locs = data || [];
+      if (role === APP_ROLE.DEALER_ADMIN) {
+        locs = locs.filter((l: any) => !l.disabled_for_dealer_admin);
+      }
+      setLocations(locs);
+    });
+  }, [dealerId, dealerLoading, role]);
 
   useEffect(() => {
     if (locations.length === 0) return;
@@ -178,18 +195,26 @@ const WalkinPage = () => {
       if (vehicle.is_demo) return false;
       if (vehicleCategoryFilter === 'used' && !vehicle.is_used) return false;
       if (vehicleCategoryFilter === 'new' && !(vehicle.is_new && !vehicle.is_used)) return false;
-      if (vehicleSegmentFilter !== 'all' && (vehicle.vehicle_segment || 'four_wheeler') !== vehicleSegmentFilter) return false;
       return true;
     });
-  }, [vehicles, vehicleCategoryFilter, vehicleSegmentFilter]);
+  }, [vehicles, vehicleCategoryFilter]);
 
-  const canProceedFromCustomer = !!(
-    formData.fullName && 
-    formData.phone && 
-    formData.vehicleId && 
-    formData.locationId && 
-    selectedLocationStatus?.isOpen
-  );
+  // Only allow booking if current time is at least 30 mins before closing
+  const canProceedFromCustomer = (() => {
+    if (!(formData.fullName && formData.phone && formData.vehicleId && formData.locationId && selectedLocationStatus?.isOpen)) return false;
+    if (!selectedLocationStatus?.closeTime) return true;
+    try {
+      const now = new Date();
+      const [closeHour, closeMin] = selectedLocationStatus.closeTime.split(':').map(Number);
+      const closeDate = new Date(now);
+      closeDate.setHours(closeHour, closeMin, 0, 0);
+      // 30 minutes before closing
+      const lastAllowed = new Date(closeDate.getTime() - 30 * 60000);
+      return now <= lastAllowed;
+    } catch {
+      return true;
+    }
+  })();
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -341,6 +366,11 @@ const WalkinPage = () => {
           ))}
         </div>
 
+        <div className="flex justify-end mb-2">
+          <Button variant="outline" size="sm" type="button" onClick={handleDemoAutofill}>
+            Demo Autofill
+          </Button>
+        </div>
         <Card className="shadow-card">
           {/* Step 1: Customer + Vehicle */}
           {step === 'customer' && (
@@ -488,23 +518,6 @@ const WalkinPage = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Wheel Segment</Label>
-                    <Select
-                      value={vehicleSegmentFilter}
-                      onValueChange={(v: 'all' | 'four_wheeler' | 'two_wheeler') => {
-                        setVehicleSegmentFilter(v);
-                        setFormData((p) => ({ ...p, vehicleId: '', selectedVariantVehicleId: '' }));
-                      }}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="four_wheeler">Four Wheeler</SelectItem>
-                        <SelectItem value="two_wheeler">Two Wheeler</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -573,6 +586,11 @@ const WalkinPage = () => {
                     <Button onClick={() => setStep('license')} disabled={!canProceedFromCustomer} className="w-full">
                       Next <ArrowRight className="h-4 w-4 ml-1" />
                     </Button>
+                    {!canProceedFromCustomer && selectedLocationStatus?.closeTime && (
+                      <p className="text-xs text-destructive font-medium mt-1">
+                        Walk-in booking is only allowed at least 30 minutes before closing time ({selectedLocationStatus.closeTime}).
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>

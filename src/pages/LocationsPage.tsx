@@ -40,19 +40,21 @@ const getLocationSlotDuration = (location: any) => {
 
 const LocationsPage = () => {
   const [locations, setLocations] = useState<any[]>([]);
+  const [step, setStep] = useState(1);
+
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
   const [hoursDialog, setHoursDialog] = useState<string | null>(null);
   const [hours, setHours] = useState<any[]>([]);
   const [savingHours, setSavingHours] = useState(false);
-    const [slotDurationDialog, setSlotDurationDialog] = useState<string | null>(null);
-    const [slotDuration, setSlotDuration] = useState<number>(30);
-    const [slotDurations, setSlotDurations] = useState<Record<string, number>>({});
+  const [slotDurationDialog, setSlotDurationDialog] = useState<string | null>(null);
+  const [slotDuration, setSlotDuration] = useState<number>(30);
+  const [slotDurations, setSlotDurations] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const { dealerId, loading: dealerLoading } = useDealerContext();
   const { role, profile } = useAuth();
-  
+
   // Device management states
   const [deviceDialog, setDeviceDialog] = useState<string | null>(null);
   const [devices, setDevices] = useState<Record<string, any[]>>({});
@@ -64,7 +66,7 @@ const LocationsPage = () => {
   const [todayHoursByLocation, setTodayHoursByLocation] = useState<Record<string, string>>({});
   const [dealerNamesById, setDealerNamesById] = useState<Record<string, string>>({});
   const [dealerBrandsByDealerId, setDealerBrandsByDealerId] = useState<Record<string, string[]>>({});
-  
+
   // Test drive schedule states
   const [scheduleDialog, setScheduleDialog] = useState<string | null>(null);
   const [schedules, setSchedules] = useState<Record<string, any[]>>({});
@@ -169,7 +171,7 @@ const LocationsPage = () => {
       setTodayHoursRawByLocation({});
       setSpecialPeriodsByLocation({});
     }
-    
+
     // Fetch related data for each location
     if (data) {
       data.forEach(loc => {
@@ -306,7 +308,7 @@ const LocationsPage = () => {
       longitude: loc.longitude || '',
       googleplaceid: loc.googleplaceid || '',
       maplink: loc.maplink || '',
-      currency_type: loc.currency_type || 'INR',
+      currency_type: loc.currency_type || 'INR'
     });
     setShowDialog(true);
   };
@@ -365,7 +367,7 @@ const LocationsPage = () => {
       toast({ title: 'Device name is required', variant: 'destructive' });
       return;
     }
-    
+
     try {
       await supabase.from('location_devices').insert({
         location_id: deviceDialog,
@@ -375,7 +377,7 @@ const LocationsPage = () => {
         notes: newDevice.notes || null,
         is_active: true
       });
-      
+
       toast({ title: 'Device added successfully' });
       if (profile?.user_id) {
         await logStaffActivity({
@@ -398,7 +400,7 @@ const LocationsPage = () => {
 
   const deleteDevice = async (locationId: string, deviceId: string) => {
     if (!confirm('Are you sure you want to delete this device?')) return;
-    
+
     try {
       await supabase.from('location_devices').delete().eq('id', deviceId);
       toast({ title: 'Device deleted' });
@@ -443,7 +445,7 @@ const LocationsPage = () => {
       }
       if (activePeriod.modified_open_time && activePeriod.modified_close_time) {
         const open = currentTime >= activePeriod.modified_open_time.substring(0, 5)
-                  && currentTime <= activePeriod.modified_close_time.substring(0, 5);
+          && currentTime <= activePeriod.modified_close_time.substring(0, 5);
         return {
           open,
           label: open ? 'Open Now' : 'Closed',
@@ -527,9 +529,9 @@ const LocationsPage = () => {
       const { error: saveError } = editingSpecialPeriodId
         ? await supabase.from('location_special_periods').update(payload).eq('id', editingSpecialPeriodId)
         : await supabase.from('location_special_periods').insert({
-            location_id: specialPeriodsDialog,
-            ...payload,
-          });
+          location_id: specialPeriodsDialog,
+          ...payload,
+        });
 
       if (saveError) throw saveError;
 
@@ -585,14 +587,14 @@ const LocationsPage = () => {
       </DashboardLayout>
     );
   }
-const currencies = [
-  { code: 'INR', symbol: '₹' },
-  { code: 'USD', symbol: '$' },
-  { code: 'EUR', symbol: '€' },
-  { code: 'GBP', symbol: '£' },
-  { code: 'JPY', symbol: '¥' },
-  { code: 'AED', symbol: 'د.إ' }, // Dirham
-]
+  const currencies = [
+    { code: 'INR', symbol: '₹' },
+    { code: 'USD', symbol: '$' },
+    { code: 'EUR', symbol: '€' },
+    { code: 'GBP', symbol: '£' },
+    { code: 'JPY', symbol: '¥' },
+    { code: 'AED', symbol: 'د.إ' }, // Dirham
+  ]
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6">
@@ -601,7 +603,7 @@ const currencies = [
             <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">Locations</h1>
             <p className="text-sm text-muted-foreground mt-1">Manage your dealership locations and devices</p>
           </div>
-          <Button onClick={() => { setEditingId(null); setFormData({ name: '', address: '', city: '', state: '', phone: '', email: '' }); setShowDialog(true); }}
+          <Button onClick={() => { setEditingId(null); setShowDialog(true); }}
             className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" /> Add Location
           </Button>
@@ -785,48 +787,68 @@ const currencies = [
         )}
 
         {/* Add/Edit Dialog */}
+
+        {/* Add/Edit Dialog - Two Step */}
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="font-heading">{editingId ? 'Edit' : 'Add'} Location</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2"><Label>Name *</Label><Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Address *</Label><Input value={formData.address} onChange={e => setFormData(p => ({ ...p, address: e.target.value }))} /></div>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2"><Label>City *</Label><Input value={formData.city} onChange={e => setFormData(p => ({ ...p, city: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>State</Label><Input value={formData.state} onChange={e => setFormData(p => ({ ...p, state: e.target.value }))} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2"><Label>Phone</Label><Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Email</Label><Input value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2"><Label>Latitude</Label><Input value={formData.latitude} onChange={e => setFormData(p => ({ ...p, latitude: e.target.value }))} placeholder="e.g. 28.6139" /></div>
-                <div className="space-y-2"><Label>Longitude</Label><Input value={formData.longitude} onChange={e => setFormData(p => ({ ...p, longitude: e.target.value }))} placeholder="e.g. 77.2090" /></div>
-              </div>
-              <div className="space-y-2">
-                <Label>Google Place ID</Label>
-                <Input value={formData.googleplaceid} onChange={e => setFormData(p => ({ ...p, googleplaceid: e.target.value }))} placeholder="Google Place ID (optional)" />
-              </div>
-              <div className="space-y-2">
-                <Label>Custom Map Link</Label>
-                <Input value={formData.maplink} onChange={e => setFormData(p => ({ ...p, maplink: e.target.value }))} placeholder="Paste Google Maps link (optional)" />
-              </div>
-              <div className="space-y-2">
-                <Label>Currency</Label>
-                <select
-                  className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
-                  value={formData.currency_type}
-                  onChange={e => setFormData(p => ({ ...p, currency_type: e.target.value }))}
-                >
-                  {currencies.map(c => (
-                    <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
-                  ))}
-                </select>
-              </div>
-              <Button onClick={handleSubmit} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">{editingId ? 'Update' : 'Add'} Location</Button>
-            </div>
+            {(() => {
+              // Step 1: Basic Info
+              // Step 2: Geo/Contact/Map/Currency
+              const step1Fields = (
+                <div className="space-y-4">
+                  <div className="space-y-2"><Label>Name *</Label><Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} /></div>
+                  <div className="space-y-2"><Label>Address *</Label><Input value={formData.address} onChange={e => setFormData(p => ({ ...p, address: e.target.value }))} /></div>
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-2"><Label>City *</Label><Input value={formData.city} onChange={e => setFormData(p => ({ ...p, city: e.target.value }))} /></div>
+                    <div className="space-y-2"><Label>State</Label><Input value={formData.state} onChange={e => setFormData(p => ({ ...p, state: e.target.value }))} /></div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
+                    <Button onClick={() => setStep(2)} className="bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
+                  </div>
+                </div>
+              );
+              const step2Fields = (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-2"><Label>Phone</Label><Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} /></div>
+                    <div className="space-y-2"><Label>Email</Label><Input value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-2"><Label>Latitude</Label><Input value={formData.latitude} onChange={e => setFormData(p => ({ ...p, latitude: e.target.value }))} placeholder="e.g. 28.6139" /></div>
+                    <div className="space-y-2"><Label>Longitude</Label><Input value={formData.longitude} onChange={e => setFormData(p => ({ ...p, longitude: e.target.value }))} placeholder="e.g. 77.2090" /></div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Google Place ID</Label>
+                    <Input value={formData.googleplaceid} onChange={e => setFormData(p => ({ ...p, googleplaceid: e.target.value }))} placeholder="Google Place ID (optional)" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Custom Map Link</Label>
+                    <Input value={formData.maplink} onChange={e => setFormData(p => ({ ...p, maplink: e.target.value }))} placeholder="Paste Google Maps link (optional)" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Currency</Label>
+                    <select
+                      className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
+                      value={formData.currency_type}
+                      onChange={e => setFormData(p => ({ ...p, currency_type: e.target.value }))}
+                    >
+                      {currencies.map(c => (
+                        <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex justify-between gap-2 pt-2">
+                    <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+                    <Button onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90">{editingId ? 'Update' : 'Add'} Location</Button>
+                  </div>
+                </div>
+              );
+              return step === 1 ? step1Fields : step2Fields;
+            })()}
           </DialogContent>
         </Dialog>
 
@@ -883,15 +905,15 @@ const currencies = [
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Device Name *</Label>
-                <Input 
-                  placeholder="e.g., Tablet 1, Check-in Kiosk" 
+                <Input
+                  placeholder="e.g., Tablet 1, Check-in Kiosk"
                   value={newDevice.name}
                   onChange={e => setNewDevice(p => ({ ...p, name: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Device Type</Label>
-                <select 
+                <select
                   className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
                   value={newDevice.device_type}
                   onChange={e => setNewDevice(p => ({ ...p, device_type: e.target.value }))}
@@ -906,15 +928,15 @@ const currencies = [
               </div>
               <div className="space-y-2">
                 <Label>Serial Number</Label>
-                <Input 
-                  placeholder="Device serial or asset number" 
+                <Input
+                  placeholder="Device serial or asset number"
                   value={newDevice.serial_number}
                   onChange={e => setNewDevice(p => ({ ...p, serial_number: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Notes</Label>
-                <Textarea 
+                <Textarea
                   placeholder="Any additional notes..."
                   value={newDevice.notes}
                   onChange={e => setNewDevice(p => ({ ...p, notes: e.target.value }))}
@@ -1105,7 +1127,7 @@ const currencies = [
               </DialogTitle>
               <DialogDescription>View upcoming test drives at this location</DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-2">
               {schedules[scheduleDialog]?.length ? (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -1117,8 +1139,8 @@ const currencies = [
                       </div>
                       <Badge variant={
                         drive.status === 'completed' ? 'secondary' :
-                        drive.status === 'in_progress' ? 'default' :
-                        drive.status === 'confirmed' ? 'outline' : 'secondary'
+                          drive.status === 'in_progress' ? 'default' :
+                            drive.status === 'confirmed' ? 'outline' : 'secondary'
                       } className="text-xs">
                         {drive.status.replace('_', ' ')}
                       </Badge>
@@ -1132,7 +1154,7 @@ const currencies = [
                 </div>
               )}
             </div>
-            
+
             <DialogFooter>
               <Button onClick={() => setScheduleDialog(null)}>Close</Button>
             </DialogFooter>
@@ -1159,11 +1181,10 @@ const currencies = [
                     <button
                       key={duration}
                       onClick={() => setSlotDuration(duration)}
-                      className={`p-3 rounded-lg border-2 text-sm font-semibold transition-colors ${
-                        slotDuration === duration
-                          ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-950 dark:text-violet-100'
-                          : 'border-border bg-card hover:border-violet-300'
-                      }`}
+                      className={`p-3 rounded-lg border-2 text-sm font-semibold transition-colors ${slotDuration === duration
+                        ? 'border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-950 dark:text-violet-100'
+                        : 'border-border bg-card hover:border-violet-300'
+                        }`}
                     >
                       {duration}m
                     </button>

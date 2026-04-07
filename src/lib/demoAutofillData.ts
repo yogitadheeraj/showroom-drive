@@ -1,0 +1,67 @@
+// demoAutofillData.ts
+// Centralized autofill data for all forms
+
+export const demoAutofillData = {
+  VehiclesPage: {
+    brand: 'DemoBrand',
+    model: 'DemoModel',
+    grade: 'Standard',
+    trim: 'Base',
+    variant: 'Demo',
+    year: new Date().getFullYear().toString(),
+    color: 'Red',
+    registration_number: 'DEMO1234',
+    location_id: '', // Should be set dynamically if needed
+    image_url: '',
+    total_units: '5',
+    available_units: '5',
+    engine_type: 'petrol',
+    vehicle_segment: 'four_wheeler',
+    set_price: '1000000',
+    vehicle_time_days: '30',
+    vehicle_condition: 'new',
+    demo_for_vehicle_id: '',
+    showWheelSegment: true,
+  },
+  WalkinPage: {
+    fullName: 'Demo User',
+    phone: '9999999999',
+    email: 'demo@example.com',
+    preferredContact: 'phone',
+    locationId: '', // Should be set dynamically if needed
+    vehicleId: '', // Should be set dynamically if needed
+    selectedVariantVehicleId: '',
+  },
+  BookingPage: {
+    // Add all fields as per BookingPage formData
+    // Example fields:
+    name: 'Demo Booker',
+    email: 'booker@example.com',
+    phone: '8888888888',
+    locationId: '',
+    vehicleId: '',
+    date: new Date().toISOString().split('T')[0],
+    time: '10:00',
+    // ...add more as needed
+  },
+  LocationsPage: {
+    name: 'Demo Location',
+    address: '123 Demo Street',
+    city: 'Demo City',
+    state: 'Demo State',
+    phone: '7777777777',
+    email: 'location@example.com',
+    latitude: '28.6139',
+    longitude: '77.2090',
+    googleplaceid: 'ChIJd8BlQ2BZwokRAFUEcm_qrcA',
+    maplink: 'https://maps.example.com/demo',
+    currency_type: 'INR',
+  },
+  UsersPage: {
+    email: 'user@example.com',
+    password: 'Demo@1234',
+    fullName: 'Demo Staff',
+    role: 'sales',
+    locationId: '',
+  },
+};

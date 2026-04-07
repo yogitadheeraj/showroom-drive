@@ -225,7 +225,13 @@ const BookingPage = () => {
       supabase.from('location_special_periods').select('*'),
     ]).then(([vRes, lRes, dRes, bRes, ohRes, bsRes, spRes]) => {
       setAllVehicles(vRes.data || []);
-      setLocations(lRes.data || []);
+      let locs = lRes.data || [];
+      // Hide locations for dealer admin if flagged
+      const role = localStorage.getItem('app_role');
+      if (role === 'dealer_admin') {
+        locs = locs.filter((l: any) => !l.disabled_for_dealer_admin);
+      }
+      setLocations(locs);
       const dealerNameMap = (dRes.data || []).reduce((acc: Record<string, string>, dealer: any) => {
         acc[dealer.id] = dealer.name;
         return acc;
@@ -427,6 +433,15 @@ const BookingPage = () => {
       const isToday = formData.scheduledDate === currentDateStr;
       const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
+
+      // Enforce: Only allow booking if slot starts at least 30 mins before closing
+      const closeTimeStr = selectedDateHours?.close_time;
+      let closeTimeMinutes = null;
+      if (closeTimeStr) {
+        const [closeHour, closeMin] = closeTimeStr.split(':').map(Number);
+        closeTimeMinutes = closeHour * 60 + closeMin;
+      }
+
       const filteredSlots = (slots || []).filter((slot: any) => {
         const slotBlocked = blockedSlots.some((bs: any) =>
           bs.location_id === formData.locationId &&
@@ -434,7 +449,6 @@ const BookingPage = () => {
           slot.startTime >= bs.start_time.substring(0, 5) &&
           slot.startTime < bs.end_time.substring(0, 5)
         );
-
         if (slotBlocked) return false;
 
         // Filter out past slots if date is today
@@ -442,6 +456,11 @@ const BookingPage = () => {
           if (slot.startMinutes < currentTimeMinutes) {
             return false;
           }
+        }
+
+        // Enforce 30 min before closing
+        if (closeTimeMinutes !== null && slot.startMinutes > closeTimeMinutes - 30) {
+          return false;
         }
 
         const slotStart = slot.startMinutes;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { demoAutofillData } from '@/lib/demoAutofillData';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,7 +34,7 @@ const UsersPage = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [locations, setLocations] = useState<any[]>([]);
-  const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '' });
+  const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
   const [editForm, setEditForm] = useState({ role: '', locationId: '' });
   const [saving, setSaving] = useState(false);
   const [confirmAction, setConfirmAction] = useState<null | {
@@ -175,6 +176,7 @@ const UsersPage = () => {
           fullName: createForm.fullName,
           role: createForm.role,
           locationId: createForm.locationId || null,
+          can_use_demo_data: !!createForm.can_use_demo_data,
         },
       });
       if (error) throw error;
@@ -182,7 +184,7 @@ const UsersPage = () => {
 
       toast({ title: 'User created', description: `${createForm.fullName} added as ${createForm.role}` });
       setShowCreateDialog(false);
-      setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '' });
+      setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
       fetchUsers();
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -564,6 +566,23 @@ const UsersPage = () => {
               <DialogTitle className="font-heading">Add Staff Member</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              {profile?.can_use_demo_data && (
+                <div className="flex justify-end mb-2">
+                  <Button variant="outline" size="sm" type="button" onClick={() => setCreateForm(p => ({ ...p, ...demoAutofillData.UsersPage }))}>
+                    Show Demo Data
+                  </Button>
+                </div>
+              )}
+              <div className="flex items-center space-x-2">
+                <input
+                  id="can_use_demo_data"
+                  type="checkbox"
+                  checked={createForm.can_use_demo_data}
+                  onChange={e => setCreateForm(p => ({ ...p, can_use_demo_data: e.target.checked }))}
+                  className="h-4 w-4 border rounded"
+                />
+                <Label htmlFor="can_use_demo_data" className="text-xs cursor-pointer">Allow demo data autofill</Label>
+              </div>
               <div className="space-y-2"><Label>Full Name *</Label><Input value={createForm.fullName} onChange={e => setCreateForm(p => ({ ...p, fullName: e.target.value }))} /></div>
               <div className="space-y-2"><Label>Email *</Label><Input type="email" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} /></div>
               <div className="space-y-2"><Label>Password *</Label><Input type="password" value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} minLength={6} /></div>
