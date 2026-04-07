@@ -634,15 +634,29 @@ const BookingPage = () => {
         scheduled_time: formData.scheduledTime,
         slot_duration_minutes: slotDurationMinutes,
         source: 'online',
-      }).select('id').single();
+      }).select('id, assigned_sales_person_id').single();
       if (tdError) throw tdError;
 
       const displayVehicle = vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle;
       const vehicleName = displayVehicle ? `${displayVehicle.brand} ${displayVehicle.model} ${displayVehicle.variant || ''}`.trim() : 'your selected vehicle';
       const locationName = selectedLocation?.name || 'our showroom';
 
+      // Fetch assigned sales person details
+      let salesPersonName: string | null = null;
+      let salesPersonPhone: string | null = null;
+      if (tdData.assigned_sales_person_id) {
+        const { data: salesProfile } = await supabase.from('profiles')
+          .select('full_name, phone')
+          .eq('id', tdData.assigned_sales_person_id)
+          .single();
+        if (salesProfile) {
+          salesPersonName = salesProfile.full_name;
+          salesPersonPhone = salesProfile.phone;
+        }
+      }
+
       // Always send WhatsApp confirmation
-      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}\n\nPlease bring a valid driving license. See you there!\n\n— Omni Tracely`;
+      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}${salesPersonName ? `\n👤 *Your Sales Executive:* ${salesPersonName}` : ''}\n\nPlease bring a valid driving license. See you there!\n\n— Omni Tracely`;
       supabase.functions.invoke('send-whatsapp', {
         body: { to: formData.phone, message: confirmationMsg, customerId, testDriveId: tdData.id, purpose: 'booking_confirmed' },
       }).catch(err => console.error('WhatsApp send failed:', err));
@@ -657,10 +671,30 @@ const BookingPage = () => {
             templateData: { customerName: formData.fullName, vehicleName, locationName, scheduledDate: formData.scheduledDate, scheduledTime: formData.scheduledTime },
           },
         }).catch(err => console.error('Email send failed:', err));
+
+        // Send sales person assignment email if assigned
+        if (salesPersonName) {
+          supabase.functions.invoke('send-transactional-email', {
+            body: {
+              templateName: 'sales-assignment',
+              recipientEmail: formData.email,
+              idempotencyKey: `sales-assign-${tdData.id}`,
+              templateData: {
+                customerName: formData.fullName,
+                vehicleName,
+                locationName,
+                scheduledDate: formData.scheduledDate,
+                scheduledTime: formData.scheduledTime,
+                salesPersonName,
+                salesPersonPhone,
+              },
+            },
+          }).catch(err => console.error('Sales assignment email failed:', err));
+        }
       }
 
       setSuccess(true);
-      toast({ title: 'Test drive booked!', description: 'You will receive a WhatsApp confirmation shortly.' + (formData.email ? ' An email confirmation has also been sent.' : '') });
+      toast({ title: 'Test drive booked!', description: `You will receive a WhatsApp confirmation shortly.${salesPersonName ? ` Your sales executive: ${salesPersonName}` : ''}${formData.email ? ' An email confirmation has also been sent.' : ''}` });
     } catch (err: any) {
       toast({ title: 'Booking failed', description: err.message, variant: 'destructive' });
     } finally {
