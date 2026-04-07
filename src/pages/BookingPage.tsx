@@ -653,15 +653,29 @@ const BookingPage = () => {
         scheduled_time: formData.scheduledTime,
         slot_duration_minutes: slotDurationMinutes,
         source: 'online',
-      }).select('id').single();
+      }).select('id, assigned_sales_person_id').single();
       if (tdError) throw tdError;
 
       const displayVehicle = vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle;
       const vehicleName = displayVehicle ? `${displayVehicle.brand} ${displayVehicle.model} ${displayVehicle.variant || ''}`.trim() : 'your selected vehicle';
       const locationName = selectedLocation?.name || 'our showroom';
 
+      // Fetch assigned sales person details
+      let salesPersonName: string | null = null;
+      let salesPersonPhone: string | null = null;
+      if (tdData.assigned_sales_person_id) {
+        const { data: salesProfile } = await supabase.from('profiles')
+          .select('full_name, phone')
+          .eq('id', tdData.assigned_sales_person_id)
+          .single();
+        if (salesProfile) {
+          salesPersonName = salesProfile.full_name;
+          salesPersonPhone = salesProfile.phone;
+        }
+      }
+
       // Always send WhatsApp confirmation
-      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}\n\nPlease bring a valid driving license. See you there!\n\n— Omni Tracely`;
+      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}${salesPersonName ? `\n👤 *Your Sales Executive:* ${salesPersonName}` : ''}\n\nPlease bring a valid driving license. See you there!\n\n— Omni Tracely`;
       supabase.functions.invoke('send-whatsapp', {
         body: { to: formData.phone, message: confirmationMsg, customerId, testDriveId: tdData.id, purpose: 'booking_confirmed' },
       }).catch(err => console.error('WhatsApp send failed:', err));
@@ -676,10 +690,30 @@ const BookingPage = () => {
             templateData: { customerName: formData.fullName, vehicleName, locationName, scheduledDate: formData.scheduledDate, scheduledTime: formData.scheduledTime },
           },
         }).catch(err => console.error('Email send failed:', err));
+
+        // Send sales person assignment email if assigned
+        if (salesPersonName) {
+          supabase.functions.invoke('send-transactional-email', {
+            body: {
+              templateName: 'sales-assignment',
+              recipientEmail: formData.email,
+              idempotencyKey: `sales-assign-${tdData.id}`,
+              templateData: {
+                customerName: formData.fullName,
+                vehicleName,
+                locationName,
+                scheduledDate: formData.scheduledDate,
+                scheduledTime: formData.scheduledTime,
+                salesPersonName,
+                salesPersonPhone,
+              },
+            },
+          }).catch(err => console.error('Sales assignment email failed:', err));
+        }
       }
 
       setSuccess(true);
-      toast({ title: 'Test drive booked!', description: 'You will receive a WhatsApp confirmation shortly.' + (formData.email ? ' An email confirmation has also been sent.' : '') });
+      toast({ title: 'Test drive booked!', description: `You will receive a WhatsApp confirmation shortly.${salesPersonName ? ` Your sales executive: ${salesPersonName}` : ''}${formData.email ? ' An email confirmation has also been sent.' : ''}` });
     } catch (err: any) {
       toast({ title: 'Booking failed', description: err.message, variant: 'destructive' });
     } finally {
@@ -967,7 +1001,69 @@ const BookingPage = () => {
               </div>
             )}
 
-            
+            {/* Step 1: Date Selection */}
+            {step === 1 && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Preferred Date</Label>
+                  <div className="rounded-xl border border-border bg-card p-2">
+                    <Calendar
+                      mode="single"
+                      selected={formData.scheduledDate ? new Date(`${formData.scheduledDate}T00:00:00`) : undefined}
+                      onSelect={(d) => {
+                        if (!d) return;
+                        setFormData((p) => ({
+                          ...p,
+                          scheduledDate: format(d, 'yyyy-MM-dd'),
+                          scheduledTime: '',
+                          locationId: '',
+                          vehicleId: '',
+                          selectedVariantVehicleId: '',
+                        }));
+                      }}
+                      disabled={isDateUnavailable}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </div>
+                </div>
+
+                {formData.scheduledDate && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      {new Date(`${formData.scheduledDate}T00:00:00`).toLocaleDateString('en-IN', {
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                      })}
+                    </p>
+                    {openLocationsForDate.length > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {openLocationsForDate.length} location{openLocationsForDate.length !== 1 ? 's' : ''} available
+                      </p>
+                    ) : (
+                      <p className="text-xs text-destructive">No locations open on this date</p>
+                    )}
+                  </div>
+                )}
+
+                {formData.scheduledDate && quickPreviewTimeSlots.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Quick Time Preview</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {quickPreviewTimeSlots.slice(0, 12).map((t) => {
+                        const [h] = t.split(':').map(Number);
+                        const period = h < 12 ? 'AM' : 'PM';
+                        const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                        return (
+                          <span key={t} className="px-2 py-1 rounded-md bg-muted text-xs text-muted-foreground border border-border">
+                            {displayH}:{t.split(':')[1]} {period}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Exact availability shown after selecting a location.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Step 2: Location & Variant Selection */}
             {step === 2 && (

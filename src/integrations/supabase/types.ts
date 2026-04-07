@@ -570,10 +570,15 @@ export type Database = {
           city: string
           country: string
           created_at: string
+          currency_type: string | null
           dealer_id: string | null
           email: string | null
+          googleplaceid: string | null
           id: string
           is_active: boolean
+          latitude: string | null
+          longitude: string | null
+          maplink: string | null
           metadata: Json | null
           name: string
           phone: string | null
@@ -586,10 +591,15 @@ export type Database = {
           city: string
           country?: string
           created_at?: string
+          currency_type?: string | null
           dealer_id?: string | null
           email?: string | null
+          googleplaceid?: string | null
           id?: string
           is_active?: boolean
+          latitude?: string | null
+          longitude?: string | null
+          maplink?: string | null
           metadata?: Json | null
           name: string
           phone?: string | null
@@ -602,10 +612,15 @@ export type Database = {
           city?: string
           country?: string
           created_at?: string
+          currency_type?: string | null
           dealer_id?: string | null
           email?: string | null
+          googleplaceid?: string | null
           id?: string
           is_active?: boolean
+          latitude?: string | null
+          longitude?: string | null
+          maplink?: string | null
           metadata?: Json | null
           name?: string
           phone?: string | null
@@ -1580,8 +1595,8 @@ export type Database = {
           brand: string
           color: string | null
           created_at: string
-          drive_type: string | null
           demo_for_vehicle_id: string | null
+          drive_type: string | null
           engine_type: string | null
           fuel_type: string | null
           grade: string | null
@@ -1590,7 +1605,7 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           is_available: boolean
-          is_demo: boolean
+          is_demo: boolean | null
           is_new: boolean
           is_used: boolean
           location_id: string
@@ -1604,11 +1619,12 @@ export type Database = {
           torque: string | null
           total_units: number
           transmission: string | null
-          updated_at: string
           trim: string | null
-          vehicle_segment: string
-          vehicle_time_days: number | null
+          updated_at: string
           variant: string | null
+          vehicle_condition: string | null
+          vehicle_segment: string | null
+          vehicle_time_days: number | null
           year: number
         }
         Insert: {
@@ -1618,8 +1634,8 @@ export type Database = {
           brand: string
           color?: string | null
           created_at?: string
-          drive_type?: string | null
           demo_for_vehicle_id?: string | null
+          drive_type?: string | null
           engine_type?: string | null
           fuel_type?: string | null
           grade?: string | null
@@ -1628,7 +1644,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           is_available?: boolean
-          is_demo?: boolean
+          is_demo?: boolean | null
           is_new?: boolean
           is_used?: boolean
           location_id: string
@@ -1642,11 +1658,12 @@ export type Database = {
           torque?: string | null
           total_units?: number
           transmission?: string | null
-          updated_at?: string
           trim?: string | null
-          vehicle_segment?: string
-          vehicle_time_days?: number | null
+          updated_at?: string
           variant?: string | null
+          vehicle_condition?: string | null
+          vehicle_segment?: string | null
+          vehicle_time_days?: number | null
           year: number
         }
         Update: {
@@ -1656,8 +1673,8 @@ export type Database = {
           brand?: string
           color?: string | null
           created_at?: string
-          drive_type?: string | null
           demo_for_vehicle_id?: string | null
+          drive_type?: string | null
           engine_type?: string | null
           fuel_type?: string | null
           grade?: string | null
@@ -1666,7 +1683,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           is_available?: boolean
-          is_demo?: boolean
+          is_demo?: boolean | null
           is_new?: boolean
           is_used?: boolean
           location_id?: string
@@ -1680,16 +1697,17 @@ export type Database = {
           torque?: string | null
           total_units?: number
           transmission?: string | null
-          updated_at?: string
           trim?: string | null
-          vehicle_segment?: string
-          vehicle_time_days?: number | null
+          updated_at?: string
           variant?: string | null
+          vehicle_condition?: string | null
+          vehicle_segment?: string | null
+          vehicle_time_days?: number | null
           year?: number
         }
         Relationships: [
           {
-            foreignKeyName: "vehicles_demo_for_vehicle_id_fkey"
+            foreignKeyName: "fk_demo_for_vehicle"
             columns: ["demo_for_vehicle_id"]
             isOneToOne: false
             referencedRelation: "vehicles"

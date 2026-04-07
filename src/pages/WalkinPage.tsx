@@ -253,8 +253,23 @@ const WalkinPage = () => {
         scheduled_time: now.toTimeString().slice(0, 5),
         source: 'walkin', status: 'show' as any,
         assigned_sales_person_id: role === APP_ROLE.SALES ? profile?.id : null,
-      }).select('id').single();
+      }).select('id, assigned_sales_person_id').single();
       if (error) throw error;
+
+      // Fetch assigned sales person details for email
+      let assignedSalesName: string | null = null;
+      let assignedSalesPhone: string | null = null;
+      const assignedId = testDrive.assigned_sales_person_id;
+      if (assignedId) {
+        const { data: sp } = await supabase.from('profiles')
+          .select('full_name, phone')
+          .eq('id', assignedId)
+          .single();
+        if (sp) {
+          assignedSalesName = sp.full_name;
+          assignedSalesPhone = sp.phone;
+        }
+      }
 
       const displayVehicle = vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle;
       const vehicleName = displayVehicle ? `${displayVehicle.brand} ${displayVehicle.model} ${displayVehicle.variant || ''}`.trim() : 'your selected vehicle';
@@ -320,7 +335,27 @@ const WalkinPage = () => {
         });
       }
 
-      toast({ title: 'Walk-in registered', description: `${formData.fullName} has been checked in and communications sent` });
+      // Send sales person assignment email if email and sales person assigned
+      if (formData.email && assignedSalesName) {
+        supabase.functions.invoke('send-transactional-email', {
+          body: {
+            templateName: 'sales-assignment',
+            recipientEmail: formData.email,
+            idempotencyKey: `sales-assign-${testDrive.id}`,
+            templateData: {
+              customerName: formData.fullName,
+              vehicleName,
+              locationName,
+              scheduledDate: now.toISOString().split('T')[0],
+              scheduledTime: now.toTimeString().slice(0, 5),
+              salesPersonName: assignedSalesName,
+              salesPersonPhone: assignedSalesPhone,
+            },
+          },
+        }).catch(err => console.error('Sales assignment email failed:', err));
+      }
+
+      toast({ title: 'Walk-in registered', description: `${formData.fullName} has been checked in${assignedSalesName ? `. Sales executive: ${assignedSalesName}` : ''}.` });
       setFormData({ fullName: '', phone: '', email: '', preferredContact: 'phone', locationId: profile?.location_id || '', vehicleId: '', selectedVariantVehicleId: '' });
       removeLicense();
       setStep('customer');
