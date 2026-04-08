@@ -95,7 +95,7 @@ const TestDrivesPage = () => {
     const original = testDrives.find((t) => t.id === rescheduleId);
     if (!original) return;
 
-    await supabase.from('test_drives').insert({
+    const { data: newDrive } = await supabase.from('test_drives').insert({
       customer_id: original.customer_id,
       vehicle_id: original.vehicle_id,
       location_id: original.location_id,
@@ -105,9 +105,29 @@ const TestDrivesPage = () => {
       scheduled_time: newTime,
       source: original.source,
       rescheduled_from: rescheduleId,
-    });
+    }).select('id').single();
 
     await supabase.from('test_drives').update({ status: 'rescheduled' as any }).eq('id', rescheduleId);
+
+    // Send reschedule email to customer
+    if (original.customers?.email) {
+      await supabase.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'test-drive-rescheduled',
+          recipientEmail: original.customers.email,
+          idempotencyKey: `td-rescheduled-${newDrive?.id || rescheduleId}`,
+          templateData: {
+            customerName: original.customers.full_name || '',
+            vehicleName: `${original.vehicles?.brand || ''} ${original.vehicles?.model || ''}`.trim(),
+            locationName: original.locations?.name || '',
+            newDate,
+            newTime,
+            originalDate: original.scheduled_date,
+            originalTime: original.scheduled_time,
+          },
+        },
+      });
+    }
 
     toast({ title: 'Test drive rescheduled' });
     setRescheduleId(null);
@@ -118,6 +138,8 @@ const TestDrivesPage = () => {
 
   const handleCancel = async () => {
     if (!cancelId) return;
+    const original = testDrives.find((t) => t.id === cancelId);
+
     await supabase
       .from('test_drives')
       .update({
@@ -125,6 +147,25 @@ const TestDrivesPage = () => {
         cancelled_reason: cancelReason,
       })
       .eq('id', cancelId);
+
+    // Send cancel email to customer
+    if (original?.customers?.email) {
+      await supabase.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'test-drive-cancelled',
+          recipientEmail: original.customers.email,
+          idempotencyKey: `td-cancelled-${cancelId}`,
+          templateData: {
+            customerName: original.customers.full_name || '',
+            vehicleName: `${original.vehicles?.brand || ''} ${original.vehicles?.model || ''}`.trim(),
+            locationName: original.locations?.name || '',
+            scheduledDate: original.scheduled_date,
+            scheduledTime: original.scheduled_time,
+            cancelReason: cancelReason || undefined,
+          },
+        },
+      });
+    }
 
     toast({ title: 'Test drive cancelled' });
     setCancelId(null);
