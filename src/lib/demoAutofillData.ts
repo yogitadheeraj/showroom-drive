@@ -16,7 +16,7 @@ export const demoAutofillData = {
     total_units: '5',
     available_units: '5',
     engine_type: 'petrol',
-    vehicle_segment: 'four_wheeler',
+    vehicle_segment: 'four_wheeler' as 'four_wheeler' | 'two_wheeler',
     set_price: '1000000',
     vehicle_time_days: '30',
     vehicle_condition: 'new',
@@ -61,7 +61,7 @@ export const demoAutofillData = {
     email: 'user@example.com',
     password: 'Demo@1234',
     fullName: 'Demo Staff',
-    role: 'sales',
+    role: 'sales' as AppRole,
     locationId: '',
   },
 };
