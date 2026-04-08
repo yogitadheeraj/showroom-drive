@@ -534,16 +534,36 @@ const SalesDashboard = () => {
       const message = buildTraceabilityMessage(td, completedAt);
       const surveyLink = 'https://survey.showroom-drive.com/feedback'; // Replace with actual survey link
 
-      const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
+      // Send follow-up email
+      await supabase.functions.invoke('send-transactional-email', {
         body: {
           templateName: 'sales-follow-up',
           recipientEmail: td.customers.email,
-          idempotencyKey: `test-drive-completed-${id}`,
+          idempotencyKey: `test-drive-followup-${id}`,
           templateData: {
             customerName,
             message,
             surveyLink,
             thankYouMessage: 'Thank you for choosing us for your test drive experience!',
+          },
+        },
+      });
+
+      // Send completed summary email
+      const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'test-drive-completed',
+          recipientEmail: td.customers.email,
+          idempotencyKey: `test-drive-completed-${id}`,
+          templateData: {
+            customerName,
+            vehicleName: `${td.vehicles?.brand || ''} ${td.vehicles?.model || ''}`.trim(),
+            locationName: td.locations?.name || '',
+            scheduledDate: td.scheduled_date,
+            salesPersonName: profile?.full_name || '',
+            durationMinutes: td.started_at && completedAt
+              ? Math.round((new Date(completedAt).getTime() - new Date(td.started_at).getTime()) / 60000)
+              : undefined,
           },
         },
       });
