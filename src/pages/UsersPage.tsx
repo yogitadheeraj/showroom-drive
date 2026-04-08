@@ -182,6 +182,22 @@ const UsersPage = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error as string);
 
+      // Send welcome email to new staff member
+      const locationName = locations.find((l: any) => l.id === createForm.locationId)?.name;
+      await supabase.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'staff-welcome',
+          recipientEmail: createForm.email,
+          idempotencyKey: `staff-welcome-${data.userId || createForm.email}`,
+          templateData: {
+            staffName: createForm.fullName,
+            role: getAppRoleLabel(createForm.role),
+            locationName: locationName || '',
+            loginEmail: createForm.email,
+          },
+        },
+      });
+
       toast({ title: 'User created', description: `${createForm.fullName} added as ${createForm.role}` });
       setShowCreateDialog(false);
       setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
