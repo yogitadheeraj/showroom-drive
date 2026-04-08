@@ -1,6 +1,8 @@
 // demoAutofillData.ts
 // Centralized autofill data for all forms
 
+import type { AppRole } from '@/constants/roles';
+
 export const demoAutofillData = {
   VehiclesPage: {
     brand: 'DemoBrand',
@@ -11,15 +13,15 @@ export const demoAutofillData = {
     year: new Date().getFullYear().toString(),
     color: 'Red',
     registration_number: 'DEMO1234',
-    location_id: '', // Should be set dynamically if needed
+    location_id: '',
     image_url: '',
     total_units: '5',
     available_units: '5',
     engine_type: 'petrol',
-    vehicle_segment: 'four_wheeler',
+    vehicle_segment: 'four_wheeler' as const,
     set_price: '1000000',
     vehicle_time_days: '30',
-    vehicle_condition: 'new',
+    vehicle_condition: 'new' as const,
     demo_for_vehicle_id: '',
     showWheelSegment: true,
   },
@@ -28,13 +30,11 @@ export const demoAutofillData = {
     phone: '9999999999',
     email: 'demo@example.com',
     preferredContact: 'phone',
-    locationId: '', // Should be set dynamically if needed
-    vehicleId: '', // Should be set dynamically if needed
+    locationId: '',
+    vehicleId: '',
     selectedVariantVehicleId: '',
   },
   BookingPage: {
-    // Add all fields as per BookingPage formData
-    // Example fields:
     name: 'Demo Booker',
     email: 'booker@example.com',
     phone: '8888888888',
@@ -42,7 +42,6 @@ export const demoAutofillData = {
     vehicleId: '',
     date: new Date().toISOString().split('T')[0],
     time: '10:00',
-    // ...add more as needed
   },
   LocationsPage: {
     name: 'Demo Location',
@@ -61,7 +60,7 @@ export const demoAutofillData = {
     email: 'user@example.com',
     password: 'Demo@1234',
     fullName: 'Demo Staff',
-    role: 'sales',
+    role: 'sales' as AppRole,
     locationId: '',
   },
 };
