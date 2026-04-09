@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers, CreditCard, FileText, Package, Receipt, ClipboardList, Warehouse } from 'lucide-react';
+import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers, CreditCard, FileText, Package, Receipt, ClipboardList, Warehouse, ChevronDown } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
 import EnquiryWidget from '@/components/EnquiryWidget';
 
@@ -35,9 +35,9 @@ const Index = () => {
   const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
 
   const features = [
-    { icon: Car, title: 'Seamless Online Sales', desc: 'Engage customers and streamline the buying process effortlessly with digital-first workflows.' },
-    { icon: GitCompareArrows, title: 'Advanced Trade-In Tool', desc: 'Accurately appraise and manage trade-ins for higher customer satisfaction and faster deals.' },
-    { icon: DollarSign, title: 'F&I Integration', desc: 'Integrate financing and insurance options smoothly into every deal for maximum profitability.' },
+    { icon: Car, title: 'Seamless Online Sales', desc: 'Engage customers and streamline the buying process effortlessly.', image: '/images/feature-online-sales.jpg' },
+    { icon: GitCompareArrows, title: 'Advanced Trade-In Tool', desc: 'Accurately appraise and manage trade-ins for higher customer satisfaction.', image: '/images/feature-trade-in.jpg' },
+    { icon: DollarSign, title: 'F&I Integration', desc: 'Integrate financing and insurance options smoothly.', image: '/images/feature-fi.jpg' },
   ];
 
   const aiModules = [
@@ -65,129 +65,94 @@ const Index = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[hsl(220,50%,10%)]">
-      {/* Navigation */}
-      <nav className="relative z-50 max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-        <a href="/">
-          <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 sm:h-12 w-auto" />
-        </a>
-
-        <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-white/80">
-          <a href="#solutions" className="hover:text-white transition-colors">Solutions</a>
-          <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
-          <a href="#modules" className="hover:text-white transition-colors">Resources</a>
-          <Link to="/dealer-onboarding" className="hover:text-white transition-colors">About</Link>
-        </div>
-
-        <div className="hidden lg:flex items-center gap-3">
-          <Link to="/book">
-            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white rounded-md font-semibold px-5 border-0">
-              Get a Demo
-            </Button>
-          </Link>
-          <Link to={staffEntryPath}>
-            <Button size="sm" variant="outline" className="text-white border-white/30 hover:bg-white/10 rounded-md font-semibold px-5">
-              Staff Login
-            </Button>
-          </Link>
-        </div>
-
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="lg:hidden p-2 rounded-lg text-white"
-        >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
-      </nav>
-
-      {mobileMenuOpen && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative z-40 lg:hidden px-4 pb-4 space-y-2">
-          <Link to="/book" onClick={() => setMobileMenuOpen(false)}>
-            <Button className="w-full bg-red-600 hover:bg-red-700 text-white rounded-md font-semibold h-11 border-0">Get a Demo</Button>
-          </Link>
-          <Link to="/compare" onClick={() => setMobileMenuOpen(false)}>
-            <Button className="w-full bg-white/10 text-white rounded-md font-semibold h-11 mt-2 border-0">Compare Vehicles</Button>
-          </Link>
-          <Link to={staffEntryPath} onClick={() => setMobileMenuOpen(false)}>
-            <Button variant="outline" className="w-full text-white border-white/30 rounded-md font-semibold h-11 mt-2">Staff Login</Button>
-          </Link>
-        </motion.div>
-      )}
-
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        {/* Background effects */}
+    <div className="min-h-screen">
+      {/* ═══════════════════ HERO SECTION ═══════════════════ */}
+      <div className="relative min-h-[100vh] md:min-h-[90vh] overflow-hidden">
+        {/* Hero background image */}
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-b from-[hsl(220,50%,10%)] via-[hsl(213,70%,18%)] to-[hsl(220,50%,10%)]" />
-          <div className="absolute top-[20%] left-[10%] w-[500px] h-[500px] bg-[hsl(213,80%,50%/0.08)] rounded-full blur-[120px]" />
-          <div className="absolute bottom-[10%] right-[5%] w-[400px] h-[400px] bg-[hsl(200,90%,48%/0.06)] rounded-full blur-[100px]" />
-          {/* City skyline overlay effect */}
-          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[hsl(220,50%,10%)] to-transparent" />
+          <img
+            src="/images/hero-bg.jpg"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            width={1920}
+            height={900}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[hsl(220,55%,8%)/0.85] via-[hsl(220,55%,8%)/0.6] to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[hsl(220,55%,8%)] via-transparent to-[hsl(220,55%,8%)/0.3]" />
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-16 sm:pb-24">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-            {/* Left Content */}
-            <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-heading font-bold text-white leading-[1.1]">
-                Drive Your
-                <br />
-                <span className="text-white">Dealership's </span>
-                <span className="bg-gradient-to-r from-[hsl(200,90%,65%)] to-[hsl(213,80%,70%)] bg-clip-text text-transparent">Success</span>
-              </h1>
-              <p className="mt-5 text-base sm:text-lg text-white/60 max-w-lg leading-relaxed">
-                Empowering Automotive Digital Retailing for Rapid Sales Growth. The complete platform for modern dealerships.
-              </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Link to="/book">
-                  <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white text-base px-8 h-13 rounded-md font-semibold shadow-lg shadow-red-600/30 border-0">
-                    Get a Demo
-                  </Button>
-                </Link>
-                <Link to="/dealer-onboarding">
-                  <Button size="lg" variant="outline" className="text-white border-white/30 hover:bg-white/10 text-base px-8 h-13 rounded-md font-semibold">
-                    Learn More
-                  </Button>
-                </Link>
-              </div>
-            </motion.div>
+        {/* Navigation */}
+        <nav className="relative z-50 max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <a href="/">
+            <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 sm:h-12 w-auto" />
+          </a>
 
-            {/* Right — Car Visual Placeholder */}
-            <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={1} className="relative hidden lg:block">
-              <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black/30 bg-[hsl(220,50%,12%)]">
-                <div className="flex items-center gap-2 px-4 py-2.5 bg-[hsl(220,50%,8%)] border-b border-white/10">
-                  <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-500/70" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/70" />
-                  </div>
-                  <div className="flex-1 mx-4">
-                    <div className="h-6 rounded-md bg-white/5 border border-white/10 max-w-xs mx-auto flex items-center justify-center">
-                      <span className="text-[10px] text-white/40 font-mono">app.autoadvant.com</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="aspect-[16/10] bg-gradient-to-br from-[hsl(213,70%,18%)] to-[hsl(220,50%,12%)] flex items-center justify-center p-8">
-                  <div className="text-center">
-                    <Car className="h-16 w-16 text-[hsl(213,80%,55%)] mx-auto mb-4" />
-                    <p className="text-white/70 text-sm font-heading font-semibold">Admin Dashboard</p>
-                    <p className="text-white/40 text-xs mt-1">Complete operational command center</p>
-                  </div>
-                </div>
-              </div>
-              {/* Floating data visualizations */}
-              <div className="absolute -top-4 -right-4 w-20 h-20 rounded-xl bg-[hsl(213,80%,50%/0.15)] border border-[hsl(213,80%,50%/0.25)] backdrop-blur-sm flex items-center justify-center">
-                <BarChart3 className="h-8 w-8 text-[hsl(213,80%,60%)]" />
-              </div>
-              <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-xl bg-[hsl(200,90%,48%/0.15)] border border-[hsl(200,90%,48%/0.25)] backdrop-blur-sm flex items-center justify-center">
-                <PieChart className="h-6 w-6 text-[hsl(200,90%,60%)]" />
-              </div>
-            </motion.div>
+          <div className="hidden lg:flex items-center gap-8 text-sm font-medium text-white/80">
+            <a href="#solutions" className="hover:text-white transition-colors flex items-center gap-1">
+              Solutions <ChevronDown className="h-3 w-3" />
+            </a>
+            <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
+            <a href="#modules" className="hover:text-white transition-colors">Resources</a>
+            <Link to="/dealer-onboarding" className="hover:text-white transition-colors">About</Link>
           </div>
+
+          <div className="hidden lg:flex items-center gap-3">
+            <Link to="/book">
+              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white rounded font-semibold px-6 border-0 shadow-lg shadow-red-600/30">
+                Get a Demo
+              </Button>
+            </Link>
+          </div>
+
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 rounded-lg text-white">
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </nav>
+
+        {mobileMenuOpen && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative z-40 lg:hidden px-4 pb-4 space-y-2">
+            <Link to="/book" onClick={() => setMobileMenuOpen(false)}>
+              <Button className="w-full bg-red-600 hover:bg-red-700 text-white rounded font-semibold h-11 border-0">Get a Demo</Button>
+            </Link>
+            <Link to="/compare" onClick={() => setMobileMenuOpen(false)}>
+              <Button className="w-full bg-white/10 text-white rounded font-semibold h-11 mt-2 border-0">Compare Vehicles</Button>
+            </Link>
+            <Link to={staffEntryPath} onClick={() => setMobileMenuOpen(false)}>
+              <Button variant="outline" className="w-full text-white border-white/30 rounded font-semibold h-11 mt-2">Staff Login</Button>
+            </Link>
+          </motion.div>
+        )}
+
+        {/* Hero Content */}
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 lg:pt-32 pb-20">
+          <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0} className="max-w-2xl">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold text-white leading-[1.05]">
+              Drive Your{' '}
+              <span className="text-white">Dealership's</span>{' '}
+              <span className="bg-gradient-to-r from-[hsl(200,90%,65%)] to-[hsl(213,80%,75%)] bg-clip-text text-transparent">
+                Success
+              </span>
+            </h1>
+            <p className="mt-5 text-base sm:text-lg text-white/60 max-w-lg leading-relaxed">
+              Empowering Automotive Digital Retailing<br />for Rapid Sales Growth.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link to="/book">
+                <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white text-base px-8 h-13 rounded font-semibold shadow-lg shadow-red-600/30 border-0">
+                  Get a Demo
+                </Button>
+              </Link>
+              <Link to="/dealer-onboarding">
+                <Button size="lg" variant="outline" className="text-white border-white/40 hover:bg-white/10 text-base px-8 h-13 rounded font-semibold backdrop-blur-sm">
+                  Learn More
+                </Button>
+              </Link>
+            </div>
+          </motion.div>
         </div>
       </div>
 
-      {/* Features — 3 Card Section */}
+      {/* ═══════════════════ FEATURES — 3 CARDS ═══════════════════ */}
       <div id="solutions" className="relative bg-background py-16 md:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12 md:mb-16">
@@ -199,39 +164,38 @@ const Index = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
-            {features.map((f, i) => {
-              const Icon = f.icon;
-              return (
-                <motion.div key={f.title} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={i}
-                  className="group relative rounded-2xl border border-border bg-card overflow-hidden shadow-card hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
-                >
-                  {/* Numbered badge */}
-                  <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg shadow-lg">
-                    {i + 1}
-                  </div>
-                  {/* Icon area */}
-                  <div className="h-44 bg-gradient-to-br from-[hsl(213,70%,18%)] to-[hsl(220,50%,12%)] flex items-center justify-center">
-                    <Icon className="h-16 w-16 text-[hsl(213,80%,60%)] group-hover:scale-110 transition-transform" />
-                  </div>
-                  <div className="p-5 sm:p-6 text-center">
-                    <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg mb-2">{f.title}</h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
-                    <a href="#" className="inline-flex items-center gap-1 text-sm text-primary font-medium mt-3 hover:gap-2 transition-all">
-                      Learn More <ArrowRight className="h-3.5 w-3.5" />
-                    </a>
-                  </div>
-                </motion.div>
-              );
-            })}
+            {features.map((f, i) => (
+              <motion.div key={f.title} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={i}
+                className="group relative rounded-2xl border border-border bg-card overflow-hidden shadow-card hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
+              >
+                {/* Numbered badge */}
+                <div className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg shadow-lg">
+                  {i + 1}
+                </div>
+                {/* Image area */}
+                <div className="relative h-48 overflow-hidden">
+                  <img src={f.image} alt={f.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" width={800} height={800} />
+                  <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent" />
+                  <f.icon className="absolute bottom-4 left-4 h-8 w-8 text-primary" />
+                </div>
+                <div className="p-5 sm:p-6 text-center">
+                  <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg mb-2">{f.title}</h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
+                  <a href="#" className="inline-flex items-center gap-1 text-sm text-primary font-medium mt-3 hover:gap-2 transition-all">
+                    Learn More <ArrowRight className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* CTA Banner */}
-      <div className="relative overflow-hidden bg-[hsl(220,50%,10%)] py-16 md:py-20">
+      {/* ═══════════════════ CTA BANNER WITH CITYSCAPE ═══════════════════ */}
+      <div className="relative overflow-hidden py-16 md:py-24">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-r from-[hsl(220,50%,10%)] via-[hsl(213,70%,15%)] to-[hsl(220,50%,10%)]" />
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[hsl(213,80%,50%/0.3)] to-transparent" />
+          <img src="/images/cta-cityscape.jpg" alt="" className="w-full h-full object-cover" loading="lazy" width={1920} height={600} />
+          <div className="absolute inset-0 bg-[hsl(220,55%,8%)/0.75]" />
         </div>
         <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
@@ -248,12 +212,12 @@ const Index = () => {
             className="mt-8 flex flex-col sm:flex-row gap-3 justify-center"
           >
             <Link to="/book">
-              <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white text-base px-8 h-13 rounded-md font-semibold shadow-lg shadow-red-600/30 border-0">
+              <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white text-base px-8 h-13 rounded font-semibold shadow-lg shadow-red-600/30 border-0">
                 Get a Demo
               </Button>
             </Link>
             <Link to="/dealer-onboarding">
-              <Button size="lg" variant="outline" className="text-white border-white/30 hover:bg-white/10 text-base px-8 h-13 rounded-md font-semibold">
+              <Button size="lg" variant="outline" className="text-white border-white/40 hover:bg-white/10 text-base px-8 h-13 rounded font-semibold">
                 Watch Video
               </Button>
             </Link>
@@ -261,7 +225,7 @@ const Index = () => {
         </div>
       </div>
 
-      {/* How It Works */}
+      {/* ═══════════════════ HOW IT WORKS ═══════════════════ */}
       <div id="how-it-works" className="py-16 md:py-24 bg-background">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10 md:mb-14">
@@ -299,7 +263,7 @@ const Index = () => {
         </div>
       </div>
 
-      {/* AI Operations Modules */}
+      {/* ═══════════════════ AI MODULES ═══════════════════ */}
       <div id="modules" className="py-14 md:py-20 bg-muted/30 border-y border-border/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10 md:mb-12">
@@ -313,11 +277,6 @@ const Index = () => {
             >
               AI Powered DMS For A Seamless Experience
             </motion.h2>
-            <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
-              className="mt-4 text-sm sm:text-base text-muted-foreground max-w-3xl mx-auto"
-            >
-              21+ integrated modules covering every aspect of dealership operations — from vehicle management to loan & leasing.
-            </motion.p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
@@ -343,7 +302,7 @@ const Index = () => {
         </div>
       </div>
 
-      {/* For Dealers Section */}
+      {/* ═══════════════════ FOR DEALERS ═══════════════════ */}
       <div className="py-16 md:py-24 bg-background">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10 md:mb-12">
@@ -378,7 +337,7 @@ const Index = () => {
                   <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg mb-2">{item.title}</h3>
                   <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed flex-1">{item.desc}</p>
                   <Link to={item.link} className="mt-4">
-                    <Button size="sm" className="rounded-md gap-2 w-full border-0">
+                    <Button size="sm" className="rounded gap-2 w-full border-0">
                       {item.linkLabel} <ArrowRight className="h-3 w-3" />
                     </Button>
                   </Link>
@@ -389,15 +348,15 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Trusted By */}
+      {/* ═══════════════════ TRUSTED BY ═══════════════════ */}
       <div className="py-10 bg-muted/20 border-y border-border/60">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
           <p className="text-sm sm:text-base font-heading font-semibold text-foreground mb-6">
             Trusted by Leading Dealerships Nationwide
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-            {['Partner 1', 'Partner 2', 'Partner 3', 'Partner 4'].map((name) => (
-              <div key={name} className="px-6 py-3 rounded-lg border border-border bg-card text-sm font-heading font-semibold text-muted-foreground tracking-wider uppercase">
+            {['DEALER LOGO', 'DEALER LOGO', 'DEALER LOGO', 'DEALER LOGO'].map((name, i) => (
+              <div key={i} className="px-8 py-3 rounded-lg border border-border bg-card text-sm font-heading font-semibold text-muted-foreground tracking-widest uppercase">
                 {name}
               </div>
             ))}
@@ -405,8 +364,8 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="bg-[hsl(220,50%,10%)] border-t border-white/10 py-8 sm:py-10">
+      {/* ═══════════════════ FOOTER ═══════════════════ */}
+      <footer className="bg-[hsl(220,50%,8%)] border-t border-white/10 py-8 sm:py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center gap-4 sm:gap-6 md:flex-row md:justify-between">
           <a href="/">
             <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-8 sm:h-10 w-auto" />
