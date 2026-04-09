@@ -132,7 +132,6 @@ const Index = () => {
               <span className="bg-gradient-to-r from-[hsl(200,90%,65%)] to-[hsl(213,80%,75%)] bg-clip-text text-transparent">
                 Success
               </span>
-              <span className="inline-block ml-2 text-[hsl(200,90%,65%)]">📡</span>
             </h1>
             <p className="mt-5 text-base sm:text-lg text-white/60 max-w-lg leading-relaxed">
               Empowering Automotive Digital Retailing<br />for Rapid Sales Growth.
