@@ -19,12 +19,12 @@ const SalesFollowUpEmail = ({ customerName = 'Customer', message = '' }: SalesFo
   return (
     <Html>
       <Head />
-      <Preview>Follow-up from your Omni Tracely sales team</Preview>
+      <Preview>Follow-up from your Auto Advant sales team</Preview>
       <Body style={{ margin: 0, padding: 0, backgroundColor: '#f7f8fa', fontFamily: 'Arial, sans-serif' }}>
         <Container style={{ maxWidth: '560px', margin: '24px auto', backgroundColor: '#ffffff', borderRadius: '10px', padding: '24px' }}>
           <Section>
             <Text style={{ fontSize: '20px', fontWeight: 700, color: '#111827', margin: '0 0 12px' }}>
-              Follow-up from Omni Tracely
+              Follow-up from Auto Advant
             </Text>
             <Text style={{ fontSize: '14px', color: '#374151', lineHeight: '22px' }}>
               Hi {customerName},
@@ -46,7 +46,7 @@ const SalesFollowUpEmail = ({ customerName = 'Customer', message = '' }: SalesFo
 
 export const template = {
   component: SalesFollowUpEmail,
-  subject: 'Follow-up from Omni Tracely',
+  subject: 'Follow-up from Auto Advant',
   previewData: {
     customerName: 'John Doe',
     message: 'Thanks for your enquiry. We are sharing the next best slot for your test drive.',

@@ -245,7 +245,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     isActive
-                      ? 'bg-sidebar-accent text-sidebar-primary font-medium'
+                      ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-sidebar-primary font-medium'
                       : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
                   }`}
                 >
@@ -259,7 +259,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
           <div className="p-4 border-t border-sidebar-border space-y-3">
             <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3">
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center text-sm font-semibold text-sidebar-foreground ring-2 ring-sidebar-border/50">
+                <div className="h-9 w-9 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 flex items-center justify-center text-sm font-semibold text-sidebar-foreground ring-2 ring-sidebar-border/50">
                   {displayName?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="min-w-0">

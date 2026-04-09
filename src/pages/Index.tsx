@@ -1,389 +1,366 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers, CreditCard, FileText, Package, Receipt, ClipboardList, Warehouse, ChevronDown } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail, Warehouse, CreditCard, FileText, Package, Receipt, ClipboardList, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
 import EnquiryWidget from '@/components/EnquiryWidget';
-
+import { toast } from 'sonner';
+import showcaseAdminDashboard from '@/assets/showcase-admin-dashboard.jpg';
+import showcaseBooking from '@/assets/showcase-booking.jpg';
+import showcaseGroAssign from '@/assets/showcase-gro-assign.jpg';
 const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 30 },
-  visible: (i: number) => ({
-    opacity: 1, y: 0,
-    transition: { duration: 0.5, delay: i * 0.1 },
-  }),
+    hidden: { opacity: 0, y: 30 },
+    visible: (i: number) => ({
+        opacity: 1, y: 0,
+        transition: { duration: 0.5, delay: i * 0.1 },
+    }),
 };
+export default function AutoAdvantLandingPage() {
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [activeHeroSlide, setActiveHeroSlide] = useState(0);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const heroSlides = [
+        { title: 'Admin Dashboard', subtitle: 'Complete operational command center with live KPIs', image: '/images/hero-1.png' },
+        { title: 'Test Drive Management', subtitle: 'Track every booking from schedule to completion', image: '/images/hero-2.png' },
+        { title: 'GRO Assignment Flow', subtitle: 'One-click handover from GRO to Sales team', image: '/images/hero-3.png' },
+        { title: 'Vehicle Tracking', subtitle: 'Real-time vehicle availability across locations', image: '/images/hero-4.png' },
+        { title: 'Security Gate', subtitle: 'Check-in, license verification, and exit logging', image: '/images/hero-5.png' },
+        { title: 'Data Center', subtitle: 'AI-powered analytics with conversion insights', image: '/images/hero-6.png' },
+        { title: 'Communications', subtitle: 'Automated WhatsApp, Email & SMS workflows', image: '/images/hero-7.png' },
+        { title: 'Multi-Location Ops', subtitle: 'Branch-level controls with unified reporting', image: '/images/hero-8.png' },
+        { title: 'Enquiry Pipeline', subtitle: 'Lead scoring and action-oriented follow-ups', image: '/images/hero-9.png' },
+    ];
+    useEffect(() => {
+        const slideInterval = setInterval(() => {
+            setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
+        }, 4000);
 
-const Index = () => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const navigate = useNavigate();
+        return () => clearInterval(slideInterval);
+    }, [heroSlides.length]);
 
-  useEffect(() => {
-    let active = true;
-    const loadSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (active) setIsLoggedIn(!!session);
-    };
-    void loadSession();
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session);
-    });
-    return () => { active = false; authListener.subscription.unsubscribe(); };
-  }, []);
+    const goToSlide = (index: number) => setActiveHeroSlide(index);
 
-  const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
+    useEffect(() => {
+        let active = true;
 
-  const features = [
-    { icon: Car, title: 'Seamless Online Sales', desc: 'Engage customers and streamline the buying process effortlessly.', image: '/images/feature-online-sales.jpg' },
-    { icon: GitCompareArrows, title: 'Advanced Trade-In Tool', desc: 'Accurately appraise and manage trade-ins for higher customer satisfaction.', image: '/images/feature-trade-in.jpg' },
-    { icon: DollarSign, title: 'F&I Integration', desc: 'Integrate financing and insurance options smoothly.', image: '/images/feature-fi.jpg' },
-  ];
+        const loadSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (active) {
+                setIsLoggedIn(!!session);
+            }
+        };
 
-  const aiModules = [
-    { icon: Car, title: 'Vehicle Management', desc: 'Complete vehicle lifecycle management — inventory, availability, location tracking.' },
-    { icon: Users, title: 'Dealer CRM', desc: 'Unified customer relationship management with lead scoring and conversion tracking.' },
-    { icon: CalendarCheck, title: 'Test Drive Management', desc: 'End-to-end booking lifecycle — assignment, key handover, inspection, completion.' },
-    { icon: GitCompareArrows, title: 'Trade-In Management', desc: 'Streamline vehicle trade-in evaluations, appraisals, and offers.' },
-    { icon: Warehouse, title: 'Vehicle Inventory', desc: 'Real-time inventory visibility across locations with stock levels.' },
-    { icon: CreditCard, title: 'CPQ – Configure, Price, Quote', desc: 'Configure vehicles, apply pricing rules, and generate accurate quotes.' },
-    { icon: Tag, title: 'Vehicle Reservation', desc: 'Allow customers to reserve vehicles with deposit management.' },
-    { icon: Receipt, title: 'RTP – Request To Pay', desc: 'Digital payment request workflows with tracking and reminders.' },
-    { icon: ClipboardList, title: 'Order Management', desc: 'Track orders from placement to delivery with status updates.' },
-    { icon: MessageCircle, title: 'Communication Module', desc: 'Multi-channel communication via WhatsApp, Email, and SMS.' },
-    { icon: FolderOpen, title: 'Deal File Management', desc: 'AI-powered document management with auto-classification.' },
-    { icon: BarChart3, title: 'Role Based Reports', desc: 'Pre-built reports tailored for each role with actionable KPIs.' },
-    { icon: PieChart, title: 'Realtime Analytics & BI', desc: 'Live dashboards with AI-assisted insights for all operations.' },
-    { icon: Smartphone, title: 'Showroom Sales App', desc: 'Mobile-first app for sales teams on the floor.' },
-    { icon: DollarSign, title: 'F&I Module', desc: 'Finance and Insurance with product bundling and margin tracking.' },
-    { icon: Building2, title: 'AutoAdvant ERP', desc: 'Enterprise resource planning connecting all dealership operations.' },
-    { icon: Package, title: 'Accessories', desc: 'Manage accessory catalog, pricing, and fitment scheduling.' },
-    { icon: ShieldCheck, title: 'Insurance Products', desc: 'Integrated insurance offerings with comparison and tracking.' },
-    { icon: Layers, title: 'Integrated PIM', desc: 'Centralized vehicle specs, media assets, and content management.' },
-    { icon: FileText, title: 'Pricing Rules', desc: 'Configurable pricing engine with discount rules and approvals.' },
-    { icon: Landmark, title: 'Loan & Leasing', desc: 'End-to-end loan and leasing with EMI calculators and lender integration.' },
-  ];
+        void loadSession();
 
-  return (
-    <div className="min-h-screen">
-      {/* ═══════════════════ HERO SECTION ═══════════════════ */}
-      <div className="relative min-h-[100vh] md:min-h-[90vh] overflow-hidden">
-        {/* Hero background image */}
-        <div className="absolute inset-0">
-          <img
-            src="/images/hero-bg.jpg"
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-            width={1920}
-            height={900}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[hsl(220,55%,8%)/0.85] via-[hsl(220,55%,8%)/0.6] to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[hsl(220,55%,8%)] via-transparent to-[hsl(220,55%,8%)/0.3]" />
-        </div>
+        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+            setIsLoggedIn(!!session);
+        });
 
-        {/* Navigation */}
-        <nav className="relative z-50 max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <a href="/">
-            <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 sm:h-12 w-auto" />
-          </a>
+        return () => {
+            active = false;
+            authListener.subscription.unsubscribe();
+        };
+    }, []);
 
-          <div className="hidden lg:flex items-center gap-8 text-sm font-medium text-white/80">
-            <a href="#solutions" className="hover:text-white transition-colors flex items-center gap-1">
-              Solutions <ChevronDown className="h-3 w-3" />
-            </a>
-            <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
-            <a href="#modules" className="hover:text-white transition-colors">Resources</a>
-            <Link to="/dealer-onboarding" className="hover:text-white transition-colors">About</Link>
-          </div>
+    const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
 
-          <div className="hidden lg:flex items-center gap-3">
-            <Link to="/book">
-              <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white rounded font-semibold px-6 border-0 shadow-lg shadow-red-600/30">
-                Get a Demo
-              </Button>
-            </Link>
-          </div>
+    const aiModules = [
+        { icon: Car, title: 'Vehicle Management', desc: 'Complete vehicle lifecycle management — inventory, availability, location tracking.' },
+        { icon: Users, title: 'Dealer CRM', desc: 'Unified customer relationship management with lead scoring and conversion tracking.' },
+        { icon: CalendarCheck, title: 'Test Drive Management', desc: 'End-to-end booking lifecycle — assignment, key handover, inspection, completion.' },
+        { icon: Warehouse, title: 'Vehicle Inventory', desc: 'Real-time inventory visibility across locations with stock levels.' },
+        { icon: CreditCard, title: 'CPQ – Configure, Price, Quote', desc: 'Configure vehicles, apply pricing rules, and generate accurate quotes.' },
+        { icon: Tag, title: 'Vehicle Reservation', desc: 'Allow customers to reserve vehicles with deposit management.' },
+        { icon: ClipboardList, title: 'Order Management', desc: 'Track orders from placement to delivery with status updates.' },
+        { icon: MessageCircle, title: 'Communication Module', desc: 'Multi-channel communication via WhatsApp, Email, and SMS.' },
+        { icon: FolderOpen, title: 'Deal File Management', desc: 'AI-powered document management with auto-classification.' },
+        { icon: BarChart3, title: 'Role Based Reports', desc: 'Pre-built reports tailored for each role with actionable KPIs.' },
+        { icon: PieChart, title: 'Realtime Analytics & BI', desc: 'Live dashboards with AI-assisted insights for all operations.' },
+        { icon: Smartphone, title: 'Showroom Sales App', desc: 'Mobile-first app for sales teams on the floor.' },
+        { icon: Building2, title: 'AutoAdvant ERP', desc: 'Enterprise resource planning connecting all dealership operations.' },
+        { icon: Package, title: 'Accessories', desc: 'Manage accessory catalog, pricing, and fitment scheduling.' },
+        { icon: ShieldCheck, title: 'Insurance Products', desc: 'Integrated insurance offerings with comparison and tracking.' },
+        { icon: Layers, title: 'Integrated PIM', desc: 'Centralized vehicle specs, media assets, and content management.' },
+        { icon: FileText, title: 'Pricing Rules', desc: 'Configurable pricing engine with discount rules and approvals.' },
+    ];
 
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 rounded-lg text-white">
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </nav>
 
-        {mobileMenuOpen && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative z-40 lg:hidden px-4 pb-4 space-y-2">
-            <Link to="/book" onClick={() => setMobileMenuOpen(false)}>
-              <Button className="w-full bg-red-600 hover:bg-red-700 text-white rounded font-semibold h-11 border-0">Get a Demo</Button>
-            </Link>
-            <Link to="/compare" onClick={() => setMobileMenuOpen(false)}>
-              <Button className="w-full bg-white/10 text-white rounded font-semibold h-11 mt-2 border-0">Compare Vehicles</Button>
-            </Link>
-            <Link to={staffEntryPath} onClick={() => setMobileMenuOpen(false)}>
-              <Button variant="outline" className="w-full text-white border-white/30 rounded font-semibold h-11 mt-2">Staff Login</Button>
-            </Link>
-          </motion.div>
-        )}
+    const features = [
+        {
+            title: 'Lead Management',
+            desc: 'Capture, organize, and track every automotive lead from inquiry to conversion.',
+            icon: '📈',
+        },
+        {
+            title: 'Test Drive Scheduling',
+            desc: 'Streamline bookings, assignments, reminders, and vehicle availability in one place.',
+            icon: '🚗',
+        },
+        {
+            title: 'Dealer Operations',
+            desc: 'Support multi-location dealerships with centralized workflows and clean visibility.',
+            icon: '🏢',
+        },
+        {
+            title: 'Performance Insights',
+            desc: 'Monitor pipeline health, test drive outcomes, and sales performance with actionable dashboards.',
+            icon: '📊',
+        },
+    ];
 
-        {/* Hero Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 lg:pt-32 pb-20">
-          <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0} className="max-w-2xl">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold text-white leading-[1.05]">
-              Drive Your{' '}
-              <span className="text-white">Dealership's</span>{' '}
-              <span className="bg-gradient-to-r from-[hsl(200,90%,65%)] to-[hsl(213,80%,75%)] bg-clip-text text-transparent">
-                Success
-              </span>
-            </h1>
-            <p className="mt-5 text-base sm:text-lg text-white/60 max-w-lg leading-relaxed">
-              Empowering Automotive Digital Retailing<br />for Rapid Sales Growth.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/book">
-                <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white text-base px-8 h-13 rounded font-semibold shadow-lg shadow-red-600/30 border-0">
-                  Get a Demo
-                </Button>
-              </Link>
-              <Link to="/dealer-onboarding">
-                <Button size="lg" variant="outline" className="text-white border-white/40 hover:bg-white/10 text-base px-8 h-13 rounded font-semibold backdrop-blur-sm">
-                  Learn More
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-        </div>
-      </div>
+    const stats = [
+        { value: '3x', label: 'Faster lead follow-up' },
+        { value: '40%', label: 'Better booking efficiency' },
+        { value: '24/7', label: 'Centralized platform access' },
+    ];
 
-      {/* ═══════════════════ FEATURES — 3 CARDS ═══════════════════ */}
-      <div id="solutions" className="relative bg-background py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-12 md:mb-16">
-            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-              className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground"
-            >
-              The Future of Car Buying <span className="text-primary italic">Starts Here</span>
-            </motion.h2>
-          </div>
+    return (
+        <div className="min-h-screen bg-slate-950 text-white">
+            <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/80 backdrop-blur">
+                <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center gap-3">
+                        <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 sm:h-12 w-auto" />
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
-            {features.map((f, i) => (
-              <motion.div key={f.title} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={i}
-                className="group relative rounded-2xl border border-border bg-card overflow-hidden shadow-card hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
-              >
-                {/* Numbered badge */}
-                <div className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg shadow-lg">
-                  {i + 1}
-                </div>
-                {/* Image area */}
-                <div className="relative h-48 overflow-hidden">
-                  <img src={f.image} alt={f.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" width={800} height={800} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent" />
-                  <f.icon className="absolute bottom-4 left-4 h-8 w-8 text-primary" />
-                </div>
-                <div className="p-5 sm:p-6 text-center">
-                  <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg mb-2">{f.title}</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
-                  <a href="#" className="inline-flex items-center gap-1 text-sm text-primary font-medium mt-3 hover:gap-2 transition-all">
-                    Learn More <ArrowRight className="h-3.5 w-3.5" />
-                  </a>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ═══════════════════ CTA BANNER WITH CITYSCAPE ═══════════════════ */}
-      <div className="relative overflow-hidden py-16 md:py-24">
-        <div className="absolute inset-0">
-          <img src="/images/cta-cityscape.jpg" alt="" className="w-full h-full object-cover" loading="lazy" width={1920} height={600} />
-          <div className="absolute inset-0 bg-[hsl(220,55%,8%)/0.75]" />
-        </div>
-        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-center">
-          <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-            className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-white"
-          >
-            Schedule Your Demo <span className="text-[hsl(200,90%,65%)] italic">Today!</span>
-          </motion.h2>
-          <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
-            className="mt-4 text-sm sm:text-base text-white/60 max-w-2xl mx-auto"
-          >
-            Discover how AutoAdvant can accelerate your sales growth and transform your dealership's online retail experience.
-          </motion.p>
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
-            className="mt-8 flex flex-col sm:flex-row gap-3 justify-center"
-          >
-            <Link to="/book">
-              <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white text-base px-8 h-13 rounded font-semibold shadow-lg shadow-red-600/30 border-0">
-                Get a Demo
-              </Button>
-            </Link>
-            <Link to="/dealer-onboarding">
-              <Button size="lg" variant="outline" className="text-white border-white/40 hover:bg-white/10 text-base px-8 h-13 rounded font-semibold">
-                Watch Video
-              </Button>
-            </Link>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* ═══════════════════ HOW IT WORKS ═══════════════════ */}
-      <div id="how-it-works" className="py-16 md:py-24 bg-background">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10 md:mb-14">
-            <motion.span initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-              className="text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
-            >
-              How it works
-            </motion.span>
-            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
-              className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground mt-3"
-            >
-              3-Step Guest Journey
-            </motion.h2>
-          </div>
-
-          <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
-            <div className="hidden sm:block absolute left-0 right-0 top-[52px] h-px bg-primary/20" />
-            {[
-              { step: '01', icon: MapPin, title: 'Choose Location & Vehicle', desc: 'Select your nearest showroom and pick the car you want to experience.' },
-              { step: '02', icon: Clock, title: 'Pick a Date & Time', desc: 'Choose a convenient slot from available dates. We\'ll confirm instantly.' },
-              { step: '03', icon: CheckCircle2, title: 'Show Up & Drive', desc: 'Bring your driving license, complete a quick check-in, and hit the road.' },
-            ].map((s, i) => (
-              <motion.div key={s.step} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={i}
-                className="relative text-center rounded-2xl border border-primary/15 bg-card p-5 shadow-card"
-              >
-                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/70 mb-2">Step {s.step}</div>
-                <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-lg shadow-primary/20 relative z-10">
-                  <s.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
-                </div>
-                <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg mb-2">{s.title}</h3>
-                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{s.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ═══════════════════ AI MODULES ═══════════════════ */}
-      <div id="modules" className="py-14 md:py-20 bg-muted/30 border-y border-border/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10 md:mb-12">
-            <motion.span initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-              className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
-            >
-              Complete DMS Platform
-            </motion.span>
-            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
-              className="mt-4 text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground leading-tight"
-            >
-              AI Powered DMS For A Seamless Experience
-            </motion.h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-            {aiModules.map((module, index) => {
-              const Icon = module.icon;
-              return (
-                <motion.div key={module.title} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={index % 6}
-                  className="group rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
-                >
-                  <div className="flex items-center gap-3 mb-3 min-w-0">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                      <Icon className="h-5 w-5" />
                     </div>
-                    <h3 className="text-sm sm:text-base font-heading font-semibold text-foreground leading-none whitespace-nowrap overflow-hidden text-ellipsis min-w-0">
-                      {index + 1}. {module.title}
-                    </h3>
-                  </div>
-                  <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">{module.desc}</p>
-                </motion.div>
-              );
-            })}
-          </div>
+
+                    <nav className="hidden items-center gap-8 text-sm text-slate-300 md:flex">
+                        <a href="#features" className="transition hover:text-white">Features</a>
+                        <a href="#benefits" className="transition hover:text-white">Benefits</a>
+                        <a href="#contact" className="transition hover:text-white">Contact</a>
+                           <Link to="/dealer-onboarding" className="transition hover:text-white">Dealer Onboarding</Link>
+                        <Link to="/compare" className="transition hover:text-white">Compare Vehicles</Link>
+                        <Link to={staffEntryPath} className="transition hover:text-white">Staff Login</Link>
+                    
+                    </nav>
+
+                     <a href="#contact" className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:scale-[1.02]">
+                        Book Demo
+                    </a>
+                </div>
+            </header>
+
+            <main>
+                <section className="relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_28%),radial-gradient(circle_at_left,rgba(59,130,246,0.16),transparent_22%)]" />
+                    <div className="mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-2 lg:px-8 lg:py-24">
+                        <div className="relative z-10 flex flex-col justify-center">
+                            <div className="mb-5 inline-flex w-fit items-center rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1 text-xs font-medium uppercase tracking-[0.2em] text-sky-300">
+                                Automotive SaaS + Marketplace Ready
+                            </div>
+                            <h1 className="max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
+                                Drive more leads, manage test drives, and grow faster with <span className="bg-gradient-to-r from-sky-300 to-blue-500 bg-clip-text text-transparent">AutoAdvant</span>
+                            </h1>
+                            <p className="mt-6 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
+                                A modern platform built for dealerships and automotive businesses to simplify lead handling, optimize test drive operations, and improve sales performance across every location.
+                            </p>
+
+                            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                                <button className="rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02]">
+                                    Get Started
+                                </button>
+                                <button className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+                                    View Platform
+                                </button>
+                            </div>
+
+                            <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                {stats.map((item) => (
+                                    <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm backdrop-blur-sm">
+                                        <div className="text-2xl font-semibold text-white">{item.value}</div>
+                                        <div className="mt-1 text-sm text-slate-400">{item.label}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="relative z-10">
+                            <div className="rounded-[28px] border border-white/10 bg-white/5 p-4 shadow-2xl shadow-sky-900/20 backdrop-blur-xl sm:p-6">
+                                <div className="rounded-[24px] border border-white/10 bg-slate-900 p-4 sm:p-6">
+                                    <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                                        <div>
+                                            <p className="text-sm text-slate-400">Dashboard Overview</p>
+                                            <h3 className="mt-1 text-xl font-semibold">Dealer Growth Center</h3>
+                                        </div>
+                                        <div className="rounded-xl bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
+                                            Live Platform
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
+                                            <p className="text-sm text-slate-400">Leads This Week</p>
+                                            <p className="mt-2 text-3xl font-semibold">248</p>
+                                            <p className="mt-2 text-sm text-emerald-300">+18% from last week</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
+                                            <p className="text-sm text-slate-400">Test Drives Booked</p>
+                                            <p className="mt-2 text-3xl font-semibold">96</p>
+                                            <p className="mt-2 text-sm text-sky-300">Smooth scheduling flow</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 rounded-2xl border border-white/10 bg-slate-800/70 p-4">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-sm text-slate-400">Pipeline Status</p>
+                                            <p className="text-xs text-slate-500">Updated now</p>
+                                        </div>
+                                        <div className="mt-4 space-y-3">
+                                            {[
+                                                ['New Leads', '82%', 'w-[82%]'],
+                                                ['Assigned Follow-ups', '67%', 'w-[67%]'],
+                                                ['Test Drive Completion', '74%', 'w-[74%]'],
+                                            ].map(([label, value, width]) => (
+                                                <div key={label}>
+                                                    <div className="mb-1 flex items-center justify-between text-sm">
+                                                        <span className="text-slate-300">{label}</span>
+                                                        <span className="text-slate-400">{value}</span>
+                                                    </div>
+                                                    <div className="h-2 rounded-full bg-slate-700">
+                                                        <div className={`h-2 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 ${width}`} />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="features" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+                    <div className="max-w-full">
+                        <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Core Features</p>
+                        <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Built for modern automotive operations</h2>
+                        <p className="mt-4 text-slate-400">
+                            Everything your team needs to manage customer journeys, test drive workflows, and dealership performance in one elegant system.
+                        </p>
+                    </div>
+
+                    <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+                        {features.map((feature) => (
+                            <div key={feature.title} className="rounded-[24px] border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-900/20 transition hover:-translate-y-1 hover:bg-white/[0.07]">
+                                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-400/10 text-2xl">
+                                    {feature.icon}
+                                </div>
+                                <h3 className="text-lg font-semibold text-white">{feature.title}</h3>
+                                <p className="mt-3 text-sm leading-6 text-slate-400">{feature.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                </section>
+
+
+                <section id="features" className="mx-auto max-w-7xl px-4 py-8 sm:px-0 lg:px-0 lg:py-8">
+                    <div className="max-w-2xl">
+                        <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Complete DMS Platform</p>
+                        <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Built for modern automotive operations</h2>
+
+                    </div>
+
+
+                    <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+                        {aiModules.map((module, index) => {
+                            const Icon = module.icon;
+                            return (
+                                <motion.div
+                                    key={module.title}
+                                    initial="hidden"
+                                    whileInView="visible"
+                                    viewport={{ once: true }}
+                                    variants={fadeUp}
+                                    custom={index % 6}
+                                    className="rounded-[24px] border border-white/10 bg-white/5 p-6 shadow-lg shadow-slate-900/20 transition hover:-translate-y-1 hover:bg-white/[0.07]"
+                                >
+                                    <div className="flex items-center gap-3 mb-3 min-w-0">
+                                        <div className="h-10 w-10 rounded-xl bg-sky-400/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                            <Icon className="h-5 w-5" />
+                                        </div>
+                                        <h3 className="text-sm sm:text-base text-lg font-semibold text-white font-heading font-semibold text-foreground leading-none whitespace-nowrap overflow-hidden text-ellipsis min-w-0">
+                                            {index + 1}. {module.title}
+                                        </h3>
+                                    </div>
+                                    <p className="mt-3 text-sm leading-6 text-slate-400 mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                                        {module.desc}
+                                    </p>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                <section id="benefits" className="border-y border-white/10 bg-white/[0.03]">
+                    <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-8 lg:py-20">
+                        <div>
+                            <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Why AutoAdvant</p>
+                            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">An advantage for every dealership team</h2>
+                            <p className="mt-4 max-w-xl text-slate-400">
+                                AutoAdvant brings together lead tracking, smart booking workflows, reporting, and operational visibility so your team can move faster and convert more.
+                            </p>
+                        </div>
+
+                        <div className="grid gap-4">
+                            {[
+                                'Reduce lead leakage with structured follow-up workflows.',
+                                'Give sales teams a cleaner view of each customer journey.',
+                                'Support test drive assignments across multiple branches.',
+                                'Create a premium digital experience for dealers and buyers.',
+                            ].map((item) => (
+                                <div key={item} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+                                    <div className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-sky-400 to-blue-600 text-xs font-bold text-white">✓</div>
+                                    <p className="text-slate-300">{item}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
+                <section id="contact" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+                    <div className="rounded-[32px] border border-white/10 bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-cyan-400/10 p-8 shadow-xl shadow-sky-950/20 md:p-12">
+                        <div className="max-w-3xl">
+                            <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Get Started</p>
+                            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Ready to modernize your automotive platform?</h2>
+                            <p className="mt-4 text-slate-300">
+                                Launch faster with a platform built for lead generation, test drive management, and dealership growth.
+                            </p>
+                        </div>
+
+                        <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+                            <input
+                                type="email"
+                                placeholder="Enter your work email"
+                                className="w-full md:w-[80%] rounded-2xl border border-white/10 bg-slate-950/70 px-5 py-3 text-white placeholder:text-slate-500 focus:outline-none"
+                            />
+                            <button className="rounded-2xl bg-white px-6 py-3 font-semibold text-slate-950 transition hover:scale-[1.02]">
+                                Request Demo
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </main>
+            {/* Footer */}
+            <footer className="bg-slate-950/80 backdrop-blur border-t border-white/10">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center gap-4 sm:gap-6 md:flex-row md:justify-between">
+                    <a href="/" >
+
+                        <div className="flex items-center justify-center py-1">
+                            <img src="/images/autoadvant-logo.png" alt="Logo" className="h-[50px] w-full" />
+                        </div>
+                    </a>
+
+                    <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+                        <Link to="/dealer-onboarding" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Dealer Onboarding</Link>
+                        <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
+                        <Link to={staffEntryPath} className="text-sm text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
+                    </div>
+                    <p className="text-xs sm:text-sm text-muted-foreground text-center">© {new Date().getFullYear()} AutoAdvant — Smart Test Drive & Lead Platform</p>
+                </div>
+            </footer>
+            <EnquiryWidget />
         </div>
-      </div>
-
-      {/* ═══════════════════ FOR DEALERS ═══════════════════ */}
-      <div className="py-16 md:py-24 bg-background">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10 md:mb-12">
-            <motion.span initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-              className="text-sm font-semibold text-primary uppercase tracking-wider"
-            >
-              For Dealerships
-            </motion.span>
-            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
-              className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground mt-3"
-            >
-              Set Up Your Dealership in Minutes
-            </motion.h2>
-          </div>
-
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={3}
-            className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6"
-          >
-            {[
-              { icon: Building2, title: 'Dealer Onboarding', desc: 'Create your admin account and add showroom locations in a guided setup wizard.', link: '/dealer-onboarding', linkLabel: 'Get Started' },
-              { icon: Car, title: 'Brand Customization', desc: 'Upload logos, set descriptions, and SEO metadata for each brand you sell.', link: '/auth', linkLabel: 'Login to Configure' },
-              { icon: MapPin, title: 'Multi-Location', desc: 'Manage vehicles, staff, and schedules across all your showroom locations.', link: '/auth', linkLabel: 'Login to Manage' },
-            ].map((item, i) => {
-              const Icon = item.icon;
-              return (
-                <motion.div key={item.title} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={i + 4}
-                  className="p-5 sm:p-6 rounded-2xl border border-border bg-card hover:shadow-elevated transition-all duration-300 hover:-translate-y-1 flex flex-col"
-                >
-                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4">
-                    <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
-                  </div>
-                  <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg mb-2">{item.title}</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed flex-1">{item.desc}</p>
-                  <Link to={item.link} className="mt-4">
-                    <Button size="sm" className="rounded gap-2 w-full border-0">
-                      {item.linkLabel} <ArrowRight className="h-3 w-3" />
-                    </Button>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-        </div>
-      </div>
-
-      {/* ═══════════════════ TRUSTED BY ═══════════════════ */}
-      <div className="py-10 bg-muted/20 border-y border-border/60">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
-          <p className="text-sm sm:text-base font-heading font-semibold text-foreground mb-6">
-            Trusted by Leading Dealerships Nationwide
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-            {['DEALER LOGO', 'DEALER LOGO', 'DEALER LOGO', 'DEALER LOGO'].map((name, i) => (
-              <div key={i} className="px-8 py-3 rounded-lg border border-border bg-card text-sm font-heading font-semibold text-muted-foreground tracking-widest uppercase">
-                {name}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ═══════════════════ FOOTER ═══════════════════ */}
-      <footer className="bg-[hsl(220,50%,8%)] border-t border-white/10 py-8 sm:py-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center gap-4 sm:gap-6 md:flex-row md:justify-between">
-          <a href="/">
-            <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-8 sm:h-10 w-auto" />
-          </a>
-
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-            <Link to="/dealer-onboarding" className="text-sm text-white/50 hover:text-white/80 transition-colors">Dealer Onboarding</Link>
-            <Link to="/compare" className="text-sm text-white/50 hover:text-white/80 transition-colors">Compare Vehicles</Link>
-            <Link to={staffEntryPath} className="text-sm text-white/50 hover:text-white/80 transition-colors">Staff Login</Link>
-            <a href="#" className="text-sm text-white/50 hover:text-white/80 transition-colors">Privacy Policy</a>
-            <a href="#" className="text-sm text-white/50 hover:text-white/80 transition-colors">Terms of Service</a>
-          </div>
-          <p className="text-xs sm:text-sm text-white/40 text-center">© {new Date().getFullYear()} AutoAdvant. All Rights Reserved.</p>
-        </div>
-      </footer>
-      <EnquiryWidget />
-    </div>
-  );
-};
-
-export default Index;
+    );
+}

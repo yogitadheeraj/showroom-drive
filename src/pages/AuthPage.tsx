@@ -129,7 +129,7 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#eef6ff_0%,#f7fbff_38%,#fffdf8_100%)] text-foreground">
+    <div className="relative min-h-screen overflow-hidden text-foreground">
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -left-16 top-20 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute right-0 top-0 h-80 w-80 rounded-full bg-accent/10 blur-3xl" />
@@ -137,56 +137,21 @@ const AuthPage = () => {
       </div>
 
       <div className="relative mx-auto flex min-h-screen max-w-7xl items-center px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid w-full gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12">
-          <section className="hidden rounded-[2rem] border border-white/60 bg-[linear-gradient(145deg,rgba(40,126,67,0.92),rgba(18,59,110,0.92))] p-8 text-white shadow-[0_30px_90px_-24px_rgba(16,43,79,0.55)] lg:flex lg:min-h-[760px] lg:flex-col lg:justify-between">
-            <div className="space-y-8">
-              <div>
-                <h1 className="font-heading text-3xl font-bold tracking-tight">Professional retail operations for modern showrooms</h1>
-              </div>
-
-              <div className="max-w-xl space-y-5">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-sm text-white/90 backdrop-blur">
-                  <Sparkles className="h-4 w-4 text-accent" />
-                  One platform for bookings, teams, vehicles, and customer follow-up
-                </div>
-                <p className="text-5xl font-heading font-bold leading-[1.02] tracking-tight">
-                  Make Omni Tracely feel like your premium showroom control room.
-                </p>
-                <p className="max-w-lg text-base leading-7 text-white/75">
-                  Manage scheduled test drives, live operations, staff movement, and report delivery from a single, polished workspace built for dealership teams.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/12 bg-white/8 p-5 backdrop-blur-sm">
-                <BadgeCheck className="mb-4 h-5 w-5 text-white" />
-                <p className="text-2xl font-bold">Fast</p>
-                <p className="mt-2 text-sm text-white/70">Instant booking, confirmation, and reporting flows.</p>
-              </div>
-              <div className="rounded-2xl border border-white/12 bg-white/8 p-5 backdrop-blur-sm">
-                <Building2 className="mb-4 h-5 w-5 text-white" />
-                <p className="text-2xl font-bold">Unified</p>
-                <p className="mt-2 text-sm text-white/70">Dealer locations, teams, and inventory in one system.</p>
-              </div>
-              <div className="rounded-2xl border border-white/12 bg-white/8 p-5 backdrop-blur-sm">
-                <ShieldCheck className="mb-4 h-5 w-5 text-white" />
-                <p className="text-2xl font-bold">Trusted</p>
-                <p className="mt-2 text-sm text-white/70">Role-based access and operational visibility by design.</p>
-              </div>
-            </div>
-          </section>
-
+        <div className="grid w-full">
+       
           <section className="flex items-center justify-center">
             <div className="w-full max-w-xl animate-fade-in space-y-5">
               <Card className="overflow-hidden rounded-[2rem] border-white/70 bg-white/85 shadow-[0_24px_80px_-24px_rgba(17,42,74,0.28)] backdrop-blur-md">
                 <CardHeader className="space-y-4 border-b border-border/60 bg-white/70 px-6 pb-5 pt-7 sm:px-8">
                   <div className="flex items-center gap-5">
-                    <div className="rounded-[1.75rem] bg-white p-4 block">
-                      <img src={logoUrl} alt="Omni Tracely logo" className="h-24 w-24 object-contain" />
-                    </div>
+                   <a href="/" >
+
+                        <div className="flex items-center justify-center py-1">
+                            <img src="/images/auth_logo.png" alt="Logo" className="h-[50px] w-full" />
+                        </div>
+                    </a>
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Omni Tracely</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Auto Advant</p>
                       <CardTitle className="font-heading text-3xl font-bold tracking-tight">Welcome back</CardTitle>
                       <CardDescription className="text-sm leading-6 text-muted-foreground">
                         Sign in to manage daily test drives, staff activity, customers, and scheduled reporting.
@@ -224,8 +189,8 @@ const AuthPage = () => {
                         />
                       </div>
 
-                      <Button type="submit" className="h-12 w-full rounded-xl text-base font-semibold" disabled={isLoading}>
-                        {isLoading ? 'Signing in...' : 'Access Omni Tracely'}
+                      <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] text-primary-foreground hover:bg-primary/90 px-4 py-2 h-12 w-full text-base font-semibold" disabled={isLoading}>
+                        {isLoading ? 'Signing in...' : 'Access Auto Advant'}
                         {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
                       </Button>
                     </form>

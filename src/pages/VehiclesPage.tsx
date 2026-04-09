@@ -343,7 +343,8 @@ const VehiclesPage = () => {
                 <Card className="shadow-card border-primary border-2">
                   <CardContent className="p-4 space-y-4">
                     <div className="space-y-4">
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                        <div className="space-y-2">
                         <Label>Vehicle Category *</Label>
                         <Select value={formData.vehicle_condition} onValueChange={(v: 'new' | 'used' | 'demo') => setFormData(p => ({ ...p, vehicle_condition: v, demo_for_vehicle_id: v === 'demo' ? p.demo_for_vehicle_id : '', brand: '', year: new Date().getFullYear().toString() }))}>
                           <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
@@ -353,6 +354,17 @@ const VehiclesPage = () => {
                             <SelectItem value="demo">Demo Vehicle (Test Drive)</SelectItem>
                           </SelectContent>
                         </Select>
+                        </div>
+                       <div className="space-y-2">
+                              <Label>Wheel Segment</Label>
+                              <Select value={formData.vehicle_segment} onValueChange={(v: 'four_wheeler' | 'two_wheeler') => setFormData(p => ({ ...p, vehicle_segment: v }))}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="four_wheeler">Four Wheeler</SelectItem>
+                                  <SelectItem value="two_wheeler">Two Wheeler</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                       </div>
                       <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${!formData.vehicle_condition ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                         <div className="space-y-2">
@@ -404,22 +416,7 @@ const VehiclesPage = () => {
                         <Label>Variant</Label>
                         <Input value={formData.variant} onChange={e => setFormData(p => ({ ...p, variant: e.target.value }))} disabled={!formData.vehicle_condition} />
                       </div>
-                      {formData.vehicle_condition && (
-                        <div className={`grid gap-3 sm:gap-4 ${formData.showWheelSegment === false ? '' : 'grid-cols-2'}`}>
-                          {formData.showWheelSegment !== false && (
-                            <div className="space-y-2">
-                              <Label>Wheel Segment</Label>
-                              <Select value={formData.vehicle_segment} onValueChange={(v: 'four_wheeler' | 'two_wheeler') => setFormData(p => ({ ...p, vehicle_segment: v }))}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="four_wheeler">Four Wheeler</SelectItem>
-                                  <SelectItem value="two_wheeler">Two Wheeler</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      
                     </div>
                   </CardContent>
                 </Card>

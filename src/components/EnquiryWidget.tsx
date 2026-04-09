@@ -87,7 +87,7 @@ const EnquiryWidget = () => {
             className="fixed bottom-6 right-6 z-50 w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-card shadow-elevated overflow-hidden"
           >
             {/* Header */}
-            <div className="gradient-dark px-5 py-4 flex items-center justify-between">
+            <div className="gradient-dark  backdrop-blur border-t border-white/10 px-5 py-4 flex items-center justify-between">
               <div>
                 <h3 className="text-primary-foreground font-heading font-semibold text-sm">Need Help?</h3>
                 <p className="text-primary-foreground/60 text-xs mt-0.5">Send us your enquiry</p>

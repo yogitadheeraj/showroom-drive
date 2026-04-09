@@ -675,7 +675,7 @@ const BookingPage = () => {
       }
 
       // Always send WhatsApp confirmation
-      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}${salesPersonName ? `\n👤 *Your Sales Executive:* ${salesPersonName}` : ''}\n\nPlease bring a valid driving license. See you there!\n\n— Omni Tracely`;
+      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}${salesPersonName ? `\n👤 *Your Sales Executive:* ${salesPersonName}` : ''}\n\nPlease bring a valid driving license. See you there!\n\n— Auto Advant`;
       supabase.functions.invoke('send-whatsapp', {
         body: { to: formData.phone, message: confirmationMsg, customerId, testDriveId: tdData.id, purpose: 'booking_confirmed' },
       }).catch(err => console.error('WhatsApp send failed:', err));
@@ -732,7 +732,7 @@ const BookingPage = () => {
       <nav className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-2 flex items-center justify-between">
       <a href="/" >
         <div className="flex items-center justify-center py-1">
-          <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-[50px] w-full" />
+          <img src="/images/autoadvant-logo.png" alt="Auto Advant logo" className="h-[50px] w-full" />
         </div>
         </a>
 
@@ -795,7 +795,7 @@ const BookingPage = () => {
                 <CheckCircle className="h-8 w-8 text-success" />
               </div>
               <h2 className="text-2xl font-heading font-bold text-foreground mb-2">Test Drive Booked!</h2>
-              <p className="text-muted-foreground mb-2">Thank you for booking with Omni Tracely.</p>
+              <p className="text-muted-foreground mb-2">Thank you for booking with Auto Advant.</p>
               <p className="text-sm text-muted-foreground mb-6">We have sent your confirmation and below is your complete journey flow.</p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button onClick={() => { setSuccess(false); setStep(0); setFormData({ fullName: '', email: '', phone: '', preferredContact: 'phone', locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '', selectedModel: '', selectedVariantVehicleId: '' }); }}>

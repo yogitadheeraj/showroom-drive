@@ -128,7 +128,7 @@ const DealerOnboardingPage = () => {
         <nav className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-2 flex items-center justify-between">
             <a href="/" >
           <div className="flex items-center justify-center py-1">
-            <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-[50px] w-full" />
+            <img src="/images/autoadvant-logo.png" alt="Auto Advant logo" className="h-[50px] w-full" />
           </div>
  </a>
           <div className="hidden lg:flex items-center gap-3">

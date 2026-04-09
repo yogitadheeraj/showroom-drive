@@ -21,7 +21,7 @@ function buildReminderMessage(drive: ReminderDriveRecord): string {
   const vehicleName = [drive.vehicles?.brand, drive.vehicles?.model].filter(Boolean).join(" ") || "your selected vehicle";
   const locationName = drive.locations?.name ?? "your selected location";
 
-  return `🔔 *Test Drive Reminder*\n\nHi ${customerName},\n\nThis is a reminder for your test drive tomorrow:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n⏰ *Time:* ${drive.scheduled_time}\n\nPlease bring a valid driving license. Reply CANCEL to cancel.\n\n— Omni Tracely`;
+  return `🔔 *Test Drive Reminder*\n\nHi ${customerName},\n\nThis is a reminder for your test drive tomorrow:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n⏰ *Time:* ${drive.scheduled_time}\n\nPlease bring a valid driving license. Reply CANCEL to cancel.\n\n— Auto Advant`;
 }
 
 Deno.serve(async (req: Request) => {

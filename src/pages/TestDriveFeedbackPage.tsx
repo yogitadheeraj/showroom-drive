@@ -162,7 +162,7 @@ const TestDriveFeedbackPage = () => {
       <div className="mx-auto max-w-3xl space-y-5">
         <Card className="shadow-xl border-primary/20">
           <CardHeader className="space-y-3">
-            <Badge className="w-fit bg-primary/10 text-primary border-primary/30">Omni Tracely Feedback</Badge>
+            <Badge className="w-fit bg-primary/10 text-primary border-primary/30">Auto Advant Feedback</Badge>
             <CardTitle className="text-2xl">Share Your Test Drive Journey Feedback</CardTitle>
             <div className="text-sm text-muted-foreground space-y-1">
               <div className="flex items-center gap-2"><Car className="h-4 w-4" />

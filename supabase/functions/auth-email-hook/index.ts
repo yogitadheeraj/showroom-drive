@@ -36,7 +36,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "Omni Tracely"
+const SITE_NAME = "Auto Advant"
 const SENDER_DOMAIN = "notify.tottalesapp.com"
 const ROOT_DOMAIN = "tottalesapp.com"
 const FROM_DOMAIN = "tottalesapp.com" // Domain shown in From address (may be root or sender subdomain)

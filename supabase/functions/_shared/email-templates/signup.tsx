@@ -34,7 +34,7 @@ export const SignupEmail = ({
     <Body style={main}>
       <Container style={container}>
         <Section style={headerSection}>
-          <Text style={logoText}>🚗 Omni Tracely</Text>
+          <Text style={logoText}>🚗 Auto Advant</Text>
         </Section>
         <Heading style={h1}>Confirm your email</Heading>
         <Text style={text}>
