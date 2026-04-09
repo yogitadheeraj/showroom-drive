@@ -1,20 +1,10 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-
-// State for landing vehicles
-// (insert after other useState)
- 
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail, Warehouse, CreditCard, FileText, Package, Receipt, ClipboardList, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers } from 'lucide-react';
+import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers, CreditCard, FileText, Package, Receipt, ClipboardList, Warehouse } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
 import EnquiryWidget from '@/components/EnquiryWidget';
-import { toast } from 'sonner';
-import showcaseAdminDashboard from '@/assets/showcase-admin-dashboard.jpg';
-import showcaseBooking from '@/assets/showcase-booking.jpg';
-import showcaseGroAssign from '@/assets/showcase-gro-assign.jpg';
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -24,813 +14,212 @@ const fadeUp: Variants = {
   }),
 };
 
-type HomeBrandCard = {
-  id: string;
-  name: string;
-  description: string;
-  logoUrl: string | null;
-  dealerName: string;
-  dealerPhone: string | null;
-  dealerEmail: string | null;
-  models: Array<{ name: string; vehicleId: string | null }>;
-  recommendedModels: Array<{ name: string; brand: string }>;
-};
-
-const BrandMarketplace = () => {
-   const [landingVehicles, setLandingVehicles] = useState<{ new: any[]; used: any[] }>({ new: [], used: [] });
-
-  const [brandCards, setBrandCards] = useState<HomeBrandCard[]>([]);
-  const [selectedBrandTab, setSelectedBrandTab] = useState('All Brands');
-  const [selectedCompareVehicleIds, setSelectedCompareVehicleIds] = useState<string[]>([]);
-  const [brandEnquiry, setBrandEnquiry] = useState<Record<string, { name: string; phone: string; message: string }>>({});
-  const [sendingBrandEnquiry, setSendingBrandEnquiry] = useState<Record<string, boolean>>({});
-  const [sentBrandEnquiry, setSentBrandEnquiry] = useState<Record<string, boolean>>({});
-  const [openEnquiryBrandId, setOpenEnquiryBrandId] = useState<string | null>(null);
-
-  const navigate = useNavigate();
-  // Handler for selecting a vehicle from landing
-  const handleSelectLandingVehicle = (vehicle: any) => {
-    // Send vehicle category to booking page as default selection
-    navigate(`/book?vehicleId=${vehicle.id}&category=${vehicle.is_used ? 'used' : 'new'}`);
-  };
-
-  useEffect(() => {
-    const loadBrands = async () => {
-      const [{ data: brands }, { data: vehicles }, { data: dealers }, { data: allActiveVehicles }] = await Promise.all([
-        supabase
-          .from('brands')
-          .select('id, dealer_id, name, description, logo_url')
-          .eq('is_active', true)
-          .order('name', { ascending: true }),
-        supabase
-          .from('vehicles')
-          .select('id, brand, model, is_used, is_new, set_price, is_available, vehicle_condition, available_units, total_units')
-          .eq('is_active', true),
-        supabase
-          .from('dealers')
-          .select('id, name, contact_phone, contact_email')
-          .eq('is_active', true),
-        supabase
-          .from('vehicles')
-          .select('brand, model')
-          .eq('is_active', true),
-      ]);
-
-      const dealersById = (dealers || []).reduce((acc: Record<string, any>, dealer: any) => {
-        acc[dealer.id] = dealer;
-        return acc;
-      }, {});
-
-      // Group vehicles by new/used
-      const vehiclesByType = {
-        new: (vehicles || []).filter((v: any) => v.is_new && !v.is_used),
-        used: (vehicles || []).filter((v: any) => v.is_used),
-      };
-
-      // ...existing code for modelsByBrand, allModelsByBrand, dbBrandCards, fallbackCards...
-
-      const allModelsByBrand = new Map<string, Set<string>>();
-       const modelsByBrand = new Map<string, Set<string>>();
-      (allActiveVehicles || []).forEach((vehicle: any) => {
-        const brandName = (vehicle.brand || '').trim();
-        const modelName = (vehicle.model || '').trim();
-        if (!brandName || !modelName) return;
-        if (!allModelsByBrand.has(brandName)) allModelsByBrand.set(brandName, new Set());
-        allModelsByBrand.get(brandName)?.add(modelName);
-      });
-
-      const dbBrandCards = (brands || []).map((brand: any) => {
-        const availableModelNames = new Set(Array.from(modelsByBrand.get(brand.name)?.keys() || []));
-        const recommended = Array.from(allModelsByBrand.get(brand.name) || [])
-          .filter((modelName) => !availableModelNames.has(modelName))
-          .slice(0, 10)
-          .map((modelName) => ({ name: modelName, brand: brand.name }));
-
-        return {
-        id: brand.id,
-        name: brand.name,
-        description: brand.description || `Explore ${brand.name} models and book your test drive instantly.`,
-        logoUrl: brand.logo_url || null,
-        dealerName: dealersById[brand.dealer_id]?.name || 'Dealer Not Available',
-        dealerPhone: dealersById[brand.dealer_id]?.contact_phone || null,
-        dealerEmail: dealersById[brand.dealer_id]?.contact_email || null,
-        models: Array.from(modelsByBrand.get(brand.name)?.entries() || []).map(([modelName, vehicleId]) => ({
-          name: modelName,
-          vehicleId: vehicleId || null,
-        })),
-        recommendedModels: recommended,
-      };
-      });
-
-      const knownBrandNames = new Set(dbBrandCards.map((brand) => brand.name));
-      const fallbackCards = Array.from(modelsByBrand.entries())
-        .filter(([brandName]) => !knownBrandNames.has(brandName))
-        .map(([brandName, models], index) => ({
-          id: `fallback-${index}-${brandName.toLowerCase().replace(/\s+/g, '-')}`,
-          name: brandName,
-          description: `Discover ${brandName} models available for test drives near you.`,
-          logoUrl: null,
-          dealerName: 'Dealer Not Available',
-          dealerPhone: null,
-          dealerEmail: null,
-          models: Array.from(models.entries()).map(([modelName, vehicleId]) => ({
-            name: modelName,
-            vehicleId: vehicleId || null,
-          })),
-          recommendedModels: Array.from(allModelsByBrand.get(brandName) || [])
-            .filter((modelName) => !models.has(modelName))
-            .slice(0, 10)
-            .map((modelName) => ({ name: modelName, brand: brandName })),
-        }));
-
-      setBrandCards([...dbBrandCards, ...fallbackCards]);
-      setLandingVehicles({ new: vehiclesByType.new, used: vehiclesByType.used });
-    };
-
-    void loadBrands();
-  }, []);
-
-  const brandTabs = ['All Brands', ...Array.from(new Set(brandCards.map((brand) => brand.name))).sort((a, b) => a.localeCompare(b))];
-
-  useEffect(() => {
-    if (!brandTabs.includes(selectedBrandTab)) {
-      setSelectedBrandTab('All Brands');
-    }
-  }, [brandTabs, selectedBrandTab]);
-
-  const visibleBrandCards = selectedBrandTab === 'All Brands'
-    ? brandCards
-    : brandCards.filter((brand) => brand.name === selectedBrandTab);
-
-  const toggleCompareVehicle = (vehicleId: string) => {
-    setSelectedCompareVehicleIds((prev) => {
-      if (prev.includes(vehicleId)) {
-        return prev.filter((id) => id !== vehicleId);
-      }
-      if (prev.length >= 4) {
-        toast.error('You Can Compare Up To 4 Vehicles.');
-        return prev;
-      }
-      return [...prev, vehicleId];
-    });
-  };
-
-  const updateBrandEnquiry = (brandId: string, field: 'name' | 'phone' | 'message', value: string) => {
-    setBrandEnquiry((prev) => ({
-      ...prev,
-      [brandId]: {
-        name: prev[brandId]?.name || '',
-        phone: prev[brandId]?.phone || '',
-        message: prev[brandId]?.message || '',
-        [field]: value,
-      },
-    }));
-  };
-
-  const submitBrandEnquiry = async (brand: HomeBrandCard) => {
-    const payload = brandEnquiry[brand.id] || { name: '', phone: '', message: '' };
-    if (!payload.name.trim() || !payload.phone.trim() || !payload.message.trim()) {
-      toast.error('Please fill name, phone and message.');
-      return;
-    }
-
-    setSendingBrandEnquiry((prev) => ({ ...prev, [brand.id]: true }));
-
-    try {
-      let { data: customer } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('phone', payload.phone.trim())
-        .maybeSingle();
-
-      if (!customer) {
-        const { data: newCustomer, error: createErr } = await supabase
-          .from('customers')
-          .insert({
-            full_name: payload.name.trim(),
-            phone: payload.phone.trim(),
-          })
-          .select('id')
-          .single();
-
-        if (createErr) throw createErr;
-        customer = newCustomer;
-      }
-
-      const { error } = await supabase.from('communications').insert({
-        customer_id: customer.id,
-        type: 'email',
-        purpose: 'custom',
-        sent_to: payload.phone.trim(),
-        subject: `Marketplace Enquiry - ${brand.name}`,
-        body: payload.message.trim(),
-        status: 'pending',
-      });
-
-      if (error) throw error;
-
-      setSentBrandEnquiry((prev) => ({ ...prev, [brand.id]: true }));
-      setBrandEnquiry((prev) => ({
-        ...prev,
-        [brand.id]: { name: '', phone: '', message: '' },
-      }));
-      toast.success('Enquiry Sent Successfully.');
-    } catch {
-      toast.error('Unable To Send Enquiry. Please Try Again.');
-    } finally {
-      setSendingBrandEnquiry((prev) => ({ ...prev, [brand.id]: false }));
-    }
-  };
-
-  if (brandCards.length === 0) return null;
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6">
-      <div className="text-center mb-10 md:mb-14">
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground">
-          Test Drives By Brand
-        </h2>
-        <p className="text-sm sm:text-base text-muted-foreground mt-4 max-w-2xl mx-auto">
-          Explore all available vehicles (new and used) by brand, compare models, and book your preferred test drive instantly.
-        </p>
-
-        <div className="mt-6 flex gap-2 overflow-x-auto pb-1 justify-start sm:justify-center">
-          {brandTabs.map((brandTab) => (
-            <button
-              key={brandTab}
-              type="button"
-              onClick={() => setSelectedBrandTab(brandTab)}
-              className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs sm:text-sm transition-colors ${
-                selectedBrandTab === brandTab
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5'
-              }`}
-            >
-              {brandTab}
-            </button>
-          ))}
-        </div>
-
-        {selectedCompareVehicleIds.length > 0 && (
-          <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-foreground">
-              {selectedCompareVehicleIds.length} Vehicle{selectedCompareVehicleIds.length > 1 ? 's' : ''} Selected For Compare
-            </p>
-            <div className="flex gap-2">
-              <Link to={`/compare?ids=${selectedCompareVehicleIds.join(',')}`}>
-                <Button size="sm" className="gap-2">
-                  <GitCompareArrows className="h-4 w-4" />
-                  Compare Selected
-                </Button>
-              </Link>
-              <Button size="sm" variant="outline" onClick={() => setSelectedCompareVehicleIds([])}>
-                Clear
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {visibleBrandCards.map((brand) => {
-          // Show all models (new and used) for each brand
-          const allModels = brand.models;
-          const featuredModel = allModels[0];
-          const quickModels = allModels.slice(0, 4);
-          const recommendationModels = brand.recommendedModels.slice(0, 8);
-          const compareIds = allModels
-            .map((model) => model.vehicleId)
-            .filter((id): id is string => Boolean(id))
-            .slice(0, 4);
-
-          return (
-            <div key={brand.id} className="p-5 sm:p-6 rounded-2xl border border-border bg-card shadow-card hover:shadow-elevated transition-all duration-300 h-full flex flex-col">
-              <div className="flex items-center gap-3 mb-4">
-                {brand.logoUrl ? (
-                  <img src={brand.logoUrl} alt={`${brand.name} logo`} className="h-11 w-11 rounded-lg object-contain border border-border bg-background p-1" loading="lazy" />
-                ) : (
-                  <div className="h-11 w-11 rounded-lg bg-primary/10 text-primary font-bold flex items-center justify-center">
-                    {brand.name.slice(0, 1).toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg">{brand.name}</h3>
-                  <p className="text-xs text-muted-foreground">{allModels.length} Models Available</p>
-                </div>
-              </div>
-
-              <div className="flex-1">
-                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed min-h-[40px]">{brand.description}</p>
-
-                <div className="mt-3 rounded-lg border border-border bg-muted/20 p-2.5 space-y-1.5">
-                  <p className="text-xs text-foreground font-medium">Dealer: {brand.dealerName}</p>
-                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Phone className="h-3 w-3" />
-                      {brand.dealerPhone || 'Phone Not Available'}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      {brand.dealerEmail || 'Email Not Available'}
-                    </span>
-                  </div>
-                </div>
-
-                {quickModels.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {quickModels.map((model) => (
-                      <div key={`${brand.id}-${model.name}`} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2 py-1">
-                        <Link to={`/book?modelname=${encodeURIComponent(`${brand.name} ${model.name}`)}`}>
-                          <span className="text-[11px] text-foreground hover:text-primary transition-colors">
-                            {model.name}
-                          </span>
-                        </Link>
-                        {model.vehicleId && (
-                          <button
-                            type="button"
-                            onClick={() => toggleCompareVehicle(model.vehicleId!)}
-                            className={`rounded-full px-1.5 py-0.5 text-[10px] border transition-colors ${
-                              selectedCompareVehicleIds.includes(model.vehicleId)
-                                ? 'bg-primary text-primary-foreground border-primary'
-                                : 'bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
-                            }`}
-                          >
-                            {selectedCompareVehicleIds.includes(model.vehicleId) ? 'Added' : 'Add'}
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {quickModels.length === 0 && (
-                  <div className="mt-4">
-                    {recommendationModels.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-xs font-medium text-foreground mb-2">You May Be Interested In</p>
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                          {recommendationModels.map((model) => (
-                            <Link
-                              key={`${brand.id}-rec-${model.name}`}
-                              to={`/book?modelname=${encodeURIComponent(`${model.brand} ${model.name}`)}`}
-                              className="min-w-[140px] rounded-lg border border-border bg-background px-2.5 py-2 hover:border-primary/40 hover:bg-primary/5 transition-colors"
-                            >
-                              <p className="text-[11px] text-muted-foreground">{model.brand}</p>
-                              <p className="text-xs font-medium text-foreground truncate">{model.name}</p>
-                              <p className="text-[10px] text-primary mt-1">Book Test Drive</p>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {openEnquiryBrandId === brand.id && (
-                      <div className="rounded-xl border border-border bg-muted/20 p-3 sm:p-4">
-                        <div className="flex items-start gap-2 mb-3">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                            <MessageCircle className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-foreground">No Models Available Right Now</p>
-                            <p className="text-xs text-muted-foreground">Share your details and our team will reach out.</p>
-                          </div>
-                        </div>
-
-                        {sentBrandEnquiry[brand.id] ? (
-                          <p className="text-xs text-success font-medium">Thanks! Your enquiry has been shared with our team.</p>
-                        ) : (
-                          <div className="space-y-2">
-                            <Input
-                              value={brandEnquiry[brand.id]?.name || ''}
-                              onChange={(event) => updateBrandEnquiry(brand.id, 'name', event.target.value)}
-                              placeholder="Your Name"
-                              className="h-9"
-                            />
-                            <Input
-                              value={brandEnquiry[brand.id]?.phone || ''}
-                              onChange={(event) => updateBrandEnquiry(brand.id, 'phone', event.target.value)}
-                              placeholder="Phone Number"
-                              className="h-9"
-                            />
-                            <Textarea
-                              value={brandEnquiry[brand.id]?.message || ''}
-                              onChange={(event) => updateBrandEnquiry(brand.id, 'message', event.target.value)}
-                              placeholder={`I want a ${brand.name} test drive when models are available.`}
-                              className="min-h-[72px]"
-                            />
-                            <Button
-                              className="w-full rounded-xl gap-2"
-                              onClick={() => void submitBrandEnquiry(brand)}
-                              disabled={Boolean(sendingBrandEnquiry[brand.id])}
-                            >
-                              <Send className="h-4 w-4" />
-                              {sendingBrandEnquiry[brand.id] ? 'Sending...' : 'Send Enquiry'}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-5 bg-secondary/10 pt-4 border-t border-border/60 space-y-2 flex flex-col gap-2">
-                {quickModels.length > 0 && compareIds.length >= 2 && (
-                  <Link to={`/compare?ids=${compareIds.join(',')}`}>
-                    <Button variant="outline" className="w-full rounded-xl gap-2">
-                      <GitCompareArrows className="h-4 w-4" />
-                      Compare From List
-                    </Button>
-                  </Link>
-                )}
-
-                {featuredModel ? (
-                  <Link to={`/book?modelname=${encodeURIComponent(`${brand.name} ${featuredModel.name}`)}`}>
-                    <Button className="w-full gradient-primary border-0 text-primary-foreground rounded-xl gap-2">
-                      Book From Marketplace
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                ) : (
-                  <>
-                    <Button
-                      className="w-full rounded-xl gap-2"
-                      variant={openEnquiryBrandId === brand.id ? 'outline' : 'default'}
-                      onClick={() => setOpenEnquiryBrandId((prev) => (prev === brand.id ? null : brand.id))}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      {openEnquiryBrandId === brand.id ? 'Close Enquiry' : 'Enquiry For This Brand'}
-                    </Button>
-                    <Button className="w-full rounded-xl" variant="outline" disabled>
-                      Booking Opens When Models Are Live
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {visibleBrandCards.length === 0 && (
-        <div className="mt-6 rounded-xl border border-border bg-muted/20 p-6 text-center">
-          <p className="text-sm text-muted-foreground">No Brands Found For The Selected Tab.</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const Index = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeHeroSlide, setActiveHeroSlide] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  const heroSlides = [
-    { title: 'Admin Dashboard', subtitle: 'Complete operational command center with live KPIs', image: '/images/hero-1.png' },
-    { title: 'Test Drive Management', subtitle: 'Track every booking from schedule to completion', image: '/images/hero-2.png' },
-    { title: 'GRO Assignment Flow', subtitle: 'One-click handover from GRO to Sales team', image: '/images/hero-3.png' },
-    { title: 'Vehicle Tracking', subtitle: 'Real-time vehicle availability across locations', image: '/images/hero-4.png' },
-    { title: 'Security Gate', subtitle: 'Check-in, license verification, and exit logging', image: '/images/hero-5.png' },
-    { title: 'Data Center', subtitle: 'AI-powered analytics with conversion insights', image: '/images/hero-6.png' },
-    { title: 'Communications', subtitle: 'Automated WhatsApp, Email & SMS workflows', image: '/images/hero-7.png' },
-    { title: 'Multi-Location Ops', subtitle: 'Branch-level controls with unified reporting', image: '/images/hero-8.png' },
-    { title: 'Enquiry Pipeline', subtitle: 'Lead scoring and action-oriented follow-ups', image: '/images/hero-9.png' },
-  ];
-
-  useEffect(() => {
-    const slideInterval = setInterval(() => {
-      setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
-    }, 4000);
-
-    return () => clearInterval(slideInterval);
-  }, [heroSlides.length]);
-
-  const goToSlide = (index: number) => setActiveHeroSlide(index);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let active = true;
-
     const loadSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (active) {
-        setIsLoggedIn(!!session);
-      }
+      if (active) setIsLoggedIn(!!session);
     };
-
     void loadSession();
-
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session);
     });
-
-    return () => {
-      active = false;
-      authListener.subscription.unsubscribe();
-    };
+    return () => { active = false; authListener.subscription.unsubscribe(); };
   }, []);
 
   const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
 
+  const features = [
+    { icon: Car, title: 'Seamless Online Sales', desc: 'Engage customers and streamline the buying process effortlessly with digital-first workflows.' },
+    { icon: GitCompareArrows, title: 'Advanced Trade-In Tool', desc: 'Accurately appraise and manage trade-ins for higher customer satisfaction and faster deals.' },
+    { icon: DollarSign, title: 'F&I Integration', desc: 'Integrate financing and insurance options smoothly into every deal for maximum profitability.' },
+  ];
+
   const aiModules = [
-    { icon: Car, title: 'Vehicle Management System', desc: 'Complete vehicle lifecycle management — inventory, availability, location tracking, and test drive readiness across all branches.' },
-    { icon: Users, title: 'Dealer CRM', desc: 'Unified customer relationship management with lead scoring, interaction history, and conversion tracking for every dealership.' },
-    { icon: CalendarCheck, title: 'Test Drive Management System', desc: 'End-to-end booking lifecycle — assignment, key handover, inspection, completion states, and real-time conversion tracking.' },
-    { icon: GitCompareArrows, title: 'Trade-In Management', desc: 'Streamline vehicle trade-in evaluations, appraisals, and offers with structured workflows and pricing rules.' },
-    { icon: Warehouse, title: 'Vehicle Inventory', desc: 'Real-time inventory visibility across locations with stock levels, variant tracking, and availability management.' },
-    { icon: CreditCard, title: 'CPQ – Configure, Price, Quote', desc: 'Configure vehicles, apply pricing rules, and generate accurate quotes instantly for faster deal closure.' },
-    { icon: Tag, title: 'Vehicle Reservation', desc: 'Allow customers to reserve vehicles with deposit management, hold timers, and automated follow-ups.' },
-    { icon: Receipt, title: 'RTP – Request To Pay', desc: 'Digital payment request workflows with tracking, reminders, and reconciliation for seamless transactions.' },
-    { icon: ClipboardList, title: 'Order Management', desc: 'Track orders from placement to delivery with status updates, ETA management, and customer notifications.' },
-    { icon: MessageCircle, title: 'Communication Module', desc: 'Multi-channel communication via WhatsApp, Email, and SMS — automated confirmations, reminders, and follow-ups.' },
-    { icon: FolderOpen, title: 'Intelligent Deal File Management', desc: 'AI-powered document management for deal files with auto-classification, version control, and compliance checks.' },
-    { icon: BarChart3, title: 'Standard Role Based Reports', desc: 'Pre-built reports tailored for each role — GRO, Sales, Security, and Admin with actionable KPIs.' },
-    { icon: PieChart, title: 'Realtime Data Analytics and BI', desc: 'Live dashboards with AI-assisted insights for bookings, conversions, utilization trends, and team productivity.' },
-    { icon: Smartphone, title: 'Showroom Sales App', desc: 'Mobile-first app for sales teams on the floor — instant access to inventory, leads, and customer history.' },
-    { icon: DollarSign, title: 'F&I Module', desc: 'Finance and Insurance module with product bundling, margin tracking, and compliance-ready documentation.' },
-    { icon: Building2, title: 'Omni Tracely ERP', desc: 'Enterprise resource planning backbone connecting all dealership operations into one unified platform.' },
-    { icon: Package, title: 'Accessories', desc: 'Manage accessory catalog, pricing, fitment scheduling, and attach accessories to vehicle orders seamlessly.' },
-    { icon: ShieldCheck, title: 'Insurance Products', desc: 'Integrated insurance product offerings with comparison, policy generation, and renewal tracking.' },
-    { icon: Layers, title: 'Integrated PIM', desc: 'Product Information Management for centralized vehicle specs, media assets, and content across all channels.' },
-    { icon: FileText, title: 'Pricing Rules', desc: 'Configurable pricing engine with discount rules, promotional pricing, and approval workflows.' },
-    { icon: Landmark, title: 'Loan & Leasing', desc: 'End-to-end loan and leasing management with EMI calculators, lender integration, and application tracking.' },
+    { icon: Car, title: 'Vehicle Management', desc: 'Complete vehicle lifecycle management — inventory, availability, location tracking.' },
+    { icon: Users, title: 'Dealer CRM', desc: 'Unified customer relationship management with lead scoring and conversion tracking.' },
+    { icon: CalendarCheck, title: 'Test Drive Management', desc: 'End-to-end booking lifecycle — assignment, key handover, inspection, completion.' },
+    { icon: GitCompareArrows, title: 'Trade-In Management', desc: 'Streamline vehicle trade-in evaluations, appraisals, and offers.' },
+    { icon: Warehouse, title: 'Vehicle Inventory', desc: 'Real-time inventory visibility across locations with stock levels.' },
+    { icon: CreditCard, title: 'CPQ – Configure, Price, Quote', desc: 'Configure vehicles, apply pricing rules, and generate accurate quotes.' },
+    { icon: Tag, title: 'Vehicle Reservation', desc: 'Allow customers to reserve vehicles with deposit management.' },
+    { icon: Receipt, title: 'RTP – Request To Pay', desc: 'Digital payment request workflows with tracking and reminders.' },
+    { icon: ClipboardList, title: 'Order Management', desc: 'Track orders from placement to delivery with status updates.' },
+    { icon: MessageCircle, title: 'Communication Module', desc: 'Multi-channel communication via WhatsApp, Email, and SMS.' },
+    { icon: FolderOpen, title: 'Deal File Management', desc: 'AI-powered document management with auto-classification.' },
+    { icon: BarChart3, title: 'Role Based Reports', desc: 'Pre-built reports tailored for each role with actionable KPIs.' },
+    { icon: PieChart, title: 'Realtime Analytics & BI', desc: 'Live dashboards with AI-assisted insights for all operations.' },
+    { icon: Smartphone, title: 'Showroom Sales App', desc: 'Mobile-first app for sales teams on the floor.' },
+    { icon: DollarSign, title: 'F&I Module', desc: 'Finance and Insurance with product bundling and margin tracking.' },
+    { icon: Building2, title: 'AutoAdvant ERP', desc: 'Enterprise resource planning connecting all dealership operations.' },
+    { icon: Package, title: 'Accessories', desc: 'Manage accessory catalog, pricing, and fitment scheduling.' },
+    { icon: ShieldCheck, title: 'Insurance Products', desc: 'Integrated insurance offerings with comparison and tracking.' },
+    { icon: Layers, title: 'Integrated PIM', desc: 'Centralized vehicle specs, media assets, and content management.' },
+    { icon: FileText, title: 'Pricing Rules', desc: 'Configurable pricing engine with discount rules and approvals.' },
+    { icon: Landmark, title: 'Loan & Leasing', desc: 'End-to-end loan and leasing with EMI calculators and lender integration.' },
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[hsl(220,50%,10%)]">
       {/* Navigation */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-[-20%] left-[-10%] w-[400px] md:w-[600px] h-[400px] md:h-[600px] bg-primary/8 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-30%] right-[-5%] w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-accent/6 rounded-full blur-[100px]" />
-          <div className="absolute top-[40%] left-[50%] w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-info/5 rounded-full blur-[80px]" />
+      <nav className="relative z-50 max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+        <a href="/">
+          <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 sm:h-12 w-auto" />
+        </a>
+
+        <div className="hidden lg:flex items-center gap-6 text-sm font-medium text-white/80">
+          <a href="#solutions" className="hover:text-white transition-colors">Solutions</a>
+          <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
+          <a href="#modules" className="hover:text-white transition-colors">Resources</a>
+          <Link to="/dealer-onboarding" className="hover:text-white transition-colors">About</Link>
         </div>
 
-        <nav className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-2 flex items-center justify-between">
-         <a href="/" >
-         
-          <div className="flex items-center justify-center py-1">
-              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-[50px] w-full" />
-            </div>
-          </a>
+        <div className="hidden lg:flex items-center gap-3">
+          <Link to="/book">
+            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white rounded-md font-semibold px-5 border-0">
+              Get a Demo
+            </Button>
+          </Link>
+          <Link to={staffEntryPath}>
+            <Button size="sm" variant="outline" className="text-white border-white/30 hover:bg-white/10 rounded-md font-semibold px-5">
+              Staff Login
+            </Button>
+          </Link>
+        </div>
 
-          {/* Desktop Nav */}
-          <div className="hidden lg:flex items-center gap-3">
-            <Link to="/compare">
-              <Button size="lg" className="bg-info text-info-foreground rounded-xl font-semibold hover:bg-info/90 transition-all px-5">
-                <Car className="mr-2 h-4 w-4" /> Compare
-              </Button>
-            </Link>
-            <Link to="/book">
-              <Button size="lg" className="primary border-0 text-accent-foreground rounded-xl font-semibold shadow-lg shadow-accent/30 hover:shadow-xl hover:shadow-accent/40 transition-shadow px-5">
-                🚗 Book Test Drive
-              </Button>
-            </Link>
-            <Link to="/dealer-onboarding">
-              <Button size="lg" className="primary text-success-foreground rounded-xl font-semibold hover:bg-success/90 transition-all px-5">
-                <Building2 className="mr-2 h-4 w-4" /> For Dealers
-              </Button>
-            </Link>
-            <Link to={staffEntryPath}>
-              <Button size="lg" className="bg-primary-foreground text-foreground rounded-xl font-semibold shadow-lg hover:bg-primary-foreground/90 transition-all px-5">
-                Staff Login →
-              </Button>
-            </Link>
-          </div>
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="lg:hidden p-2 rounded-lg text-white"
+        >
+          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </nav>
 
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg bg-primary-foreground/10 text-primary-foreground"
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </nav>
+      {mobileMenuOpen && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative z-40 lg:hidden px-4 pb-4 space-y-2">
+          <Link to="/book" onClick={() => setMobileMenuOpen(false)}>
+            <Button className="w-full bg-red-600 hover:bg-red-700 text-white rounded-md font-semibold h-11 border-0">Get a Demo</Button>
+          </Link>
+          <Link to="/compare" onClick={() => setMobileMenuOpen(false)}>
+            <Button className="w-full bg-white/10 text-white rounded-md font-semibold h-11 mt-2 border-0">Compare Vehicles</Button>
+          </Link>
+          <Link to={staffEntryPath} onClick={() => setMobileMenuOpen(false)}>
+            <Button variant="outline" className="w-full text-white border-white/30 rounded-md font-semibold h-11 mt-2">Staff Login</Button>
+          </Link>
+        </motion.div>
+      )}
 
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative z-20 lg:hidden px-4 pb-4 space-y-2"
-          >
-            <Link to="/compare" onClick={() => setMobileMenuOpen(false)}>
-              <Button className="w-full bg-info text-info-foreground rounded-xl font-semibold hover:bg-info/90 justify-start gap-2 h-11">
-                <Car className="h-4 w-4" /> Compare Vehicles
-              </Button>
-            </Link>
-            <Link to="/book" onClick={() => setMobileMenuOpen(false)}>
-              <Button className="w-full gradient-accent border-0 text-accent-foreground rounded-xl font-semibold justify-start gap-2 h-11 mt-2">
-                🚗 Book Test Drive
-              </Button>
-            </Link>
-            <Link to="/dealer-onboarding" onClick={() => setMobileMenuOpen(false)}>
-              <Button className="w-full bg-success text-success-foreground rounded-xl font-semibold hover:bg-success/90 justify-start gap-2 h-11 mt-2">
-                <Building2 className="h-4 w-4" /> For Dealers
-              </Button>
-            </Link>
-            <Link to={staffEntryPath} onClick={() => setMobileMenuOpen(false)}>
-              <Button className="w-full bg-primary-foreground text-foreground rounded-xl font-semibold justify-start gap-2 h-11 mt-2">
-                Staff Login →
-              </Button>
-            </Link>
-          </motion.div>
-        )}
+      {/* Hero Section */}
+      <div className="relative overflow-hidden">
+        {/* Background effects */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-b from-[hsl(220,50%,10%)] via-[hsl(213,70%,18%)] to-[hsl(220,50%,10%)]" />
+          <div className="absolute top-[20%] left-[10%] w-[500px] h-[500px] bg-[hsl(213,80%,50%/0.08)] rounded-full blur-[120px]" />
+          <div className="absolute bottom-[10%] right-[5%] w-[400px] h-[400px] bg-[hsl(200,90%,48%/0.06)] rounded-full blur-[100px]" />
+          {/* City skyline overlay effect */}
+          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[hsl(220,50%,10%)] to-transparent" />
+        </div>
 
-        {/* Hero Section */}
-        <div className="relative z-10 mx-auto max-w-full px-4 sm:px-6 pt-10 sm:pt-16 pb-8 sm:pb-12">
-          {/* Hero Text — Centered */}
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            custom={0}
-            className="text-center max-w-4xl mx-auto"
-          >
-            <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]">
-              AI-Powered DMS Platform
-            </span>
-            <h1 className="mt-5 text-3xl sm:text-5xl lg:text-[3.5rem] font-heading font-bold text-foreground leading-[1.08]">
-              One Platform For All
-              <span className="block text-primary">Dealership Operations</span>
-            </h1>
-            <p className="mt-5 text-base sm:text-lg text-foreground/70 max-w-2xl mx-auto leading-relaxed">
-              From test drive booking to deal closure — manage every checkpoint with speed, clarity, and AI-powered insights.
-            </p>
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-16 sm:pb-24">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+            {/* Left Content */}
+            <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-heading font-bold text-white leading-[1.1]">
+                Drive Your
+                <br />
+                <span className="text-white">Dealership's </span>
+                <span className="bg-gradient-to-r from-[hsl(200,90%,65%)] to-[hsl(213,80%,70%)] bg-clip-text text-transparent">Success</span>
+              </h1>
+              <p className="mt-5 text-base sm:text-lg text-white/60 max-w-lg leading-relaxed">
+                Empowering Automotive Digital Retailing for Rapid Sales Growth. The complete platform for modern dealerships.
+              </p>
+              <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                <Link to="/book">
+                  <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white text-base px-8 h-13 rounded-md font-semibold shadow-lg shadow-red-600/30 border-0">
+                    Get a Demo
+                  </Button>
+                </Link>
+                <Link to="/dealer-onboarding">
+                  <Button size="lg" variant="outline" className="text-white border-white/30 hover:bg-white/10 text-base px-8 h-13 rounded-md font-semibold">
+                    Learn More
+                  </Button>
+                </Link>
+              </div>
+            </motion.div>
 
-            <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
-              <Link to="/book">
-                <Button size="lg" className="px-8 h-13 rounded-xl bg-primary text-primary-foreground text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/35 transition-all">
-                  Start Booking <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-              <Link to="/dealer-onboarding">
-                <Button size="lg" variant="outline" className="px-8 h-13 rounded-xl text-base font-semibold border-2">
-                  <Building2 className="mr-2 h-4 w-4" /> For Dealerships
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
-
-          {/* Hero Screenshot Showcase */}
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            custom={1}
-            className="mt-12 sm:mt-16 max-w-6xl mx-auto"
-          >
-            {/* Main Featured Screenshot */}
-            <div className="relative rounded-2xl overflow-hidden border border-border/40 shadow-2xl shadow-black/15 bg-muted/30">
-              {/* Browser Chrome Bar */}
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/60 border-b border-border/40">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-destructive/60" />
-                  <div className="w-3 h-3 rounded-full bg-warning/60" />
-                  <div className="w-3 h-3 rounded-full bg-success/60" />
+            {/* Right — Car Visual Placeholder */}
+            <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={1} className="relative hidden lg:block">
+              <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-black/30 bg-[hsl(220,50%,12%)]">
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-[hsl(220,50%,8%)] border-b border-white/10">
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-500/70" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
+                    <div className="w-3 h-3 rounded-full bg-green-500/70" />
+                  </div>
+                  <div className="flex-1 mx-4">
+                    <div className="h-6 rounded-md bg-white/5 border border-white/10 max-w-xs mx-auto flex items-center justify-center">
+                      <span className="text-[10px] text-white/40 font-mono">app.autoadvant.com</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1 mx-4">
-                  <div className="h-6 rounded-md bg-background/80 border border-border/30 max-w-xs mx-auto flex items-center justify-center">
-                    <span className="text-[10px] text-muted-foreground/60 font-mono">app.omnitracely.com</span>
+                <div className="aspect-[16/10] bg-gradient-to-br from-[hsl(213,70%,18%)] to-[hsl(220,50%,12%)] flex items-center justify-center p-8">
+                  <div className="text-center">
+                    <Car className="h-16 w-16 text-[hsl(213,80%,55%)] mx-auto mb-4" />
+                    <p className="text-white/70 text-sm font-heading font-semibold">Admin Dashboard</p>
+                    <p className="text-white/40 text-xs mt-1">Complete operational command center</p>
                   </div>
                 </div>
               </div>
-              {/* Screenshot */}
-              <div className="relative aspect-[16/9] sm:aspect-[16/8.5]">
-                {heroSlides.map((slide, idx) => (
-                  <img
-                    key={slide.title}
-                    src={slide.image}
-                    alt={slide.title}
-                    className={`absolute inset-0 h-full w-full object-cover object-top transition-all duration-700 ${
-                      idx === activeHeroSlide ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.02]'
-                    }`}
-                  />
-                ))}
+              {/* Floating data visualizations */}
+              <div className="absolute -top-4 -right-4 w-20 h-20 rounded-xl bg-[hsl(213,80%,50%/0.15)] border border-[hsl(213,80%,50%/0.25)] backdrop-blur-sm flex items-center justify-center">
+                <BarChart3 className="h-8 w-8 text-[hsl(213,80%,60%)]" />
               </div>
-            </div>
-
-            {/* Slide Info + Navigation */}
-            <div className="mt-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-center sm:text-left">
-                <p className="text-sm sm:text-base font-heading font-semibold text-foreground">
-                  {heroSlides[activeHeroSlide].title}
-                </p>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                  {heroSlides[activeHeroSlide].subtitle}
-                </p>
+              <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-xl bg-[hsl(200,90%,48%/0.15)] border border-[hsl(200,90%,48%/0.25)] backdrop-blur-sm flex items-center justify-center">
+                <PieChart className="h-6 w-6 text-[hsl(200,90%,60%)]" />
               </div>
-              <div className="flex items-center gap-2">
-                {heroSlides.map((slide, idx) => (
-                  <button
-                    key={slide.title}
-                    type="button"
-                    onClick={() => goToSlide(idx)}
-                    className={`rounded-full transition-all duration-300 ${
-                      idx === activeHeroSlide
-                        ? 'w-8 h-2.5 bg-primary'
-                        : 'w-2.5 h-2.5 bg-border hover:bg-primary/40'
-                    }`}
-                    aria-label={`Go to slide ${idx + 1}`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Thumbnail Strip */}
-            <div className="mt-6 grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
-              {heroSlides.map((slide, idx) => (
-                <button
-                  key={slide.title}
-                  type="button"
-                  onClick={() => goToSlide(idx)}
-                  className={`relative rounded-lg overflow-hidden border-2 transition-all duration-300 aspect-[16/10] ${
-                    idx === activeHeroSlide
-                      ? 'border-primary shadow-md shadow-primary/20 scale-[1.03]'
-                      : 'border-border/40 opacity-60 hover:opacity-90 hover:border-primary/30'
-                  }`}
-                >
-                  <img
-                    src={slide.image}
-                    alt={slide.title}
-                    className="w-full h-full object-cover object-top"
-                    loading="lazy"
-                  />
-                </button>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Stats Strip */}
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            custom={2}
-            className="mt-8 sm:mt-10 grid grid-cols-1 md:grid-cols-3 gap-3 max-w-5xl mx-auto"
-          >
-            {[
-              { title: 'Trusted Test Drive Workflow', subtitle: 'Online and walk-in journeys in one dashboard' },
-              { title: 'One-Click Sales Assignment', subtitle: 'GRO → Sales → Security without confusion' },
-              { title: 'From Drive To Opportunity', subtitle: 'Mark leads and create follow-ups instantly' },
-            ].map((item) => (
-              <div key={item.title} className="rounded-2xl border border-primary/15 bg-primary px-5 py-4 text-center">
-                <p className="text-sm font-semibold text-primary-foreground">{item.title}</p>
-                <p className="text-xs text-primary-foreground/65 mt-1">{item.subtitle}</p>
-              </div>
-            ))}
-          </motion.div>
+            </motion.div>
+          </div>
         </div>
       </div>
 
-      {/* AI Operations Modules */}
-      <div className="py-14 md:py-20 bg-[linear-gradient(180deg,#ffffff_0%,#f7fbff_100%)] border-y border-border/60">
+      {/* Features — 3 Card Section */}
+      <div id="solutions" className="relative bg-background py-16 md:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center mb-10 md:mb-12">
-            <motion.span
-              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-              className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
+          <div className="text-center mb-12 md:mb-16">
+            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
+              className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground"
             >
-              Complete DMS Platform
-            </motion.span>
-            <motion.h2
-              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
-              className="mt-4 text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground leading-tight"
-            >
-              AI Powered DMS For A Seamless, Friction-Free Digital Experience
+              The Future of Car Buying <span className="text-primary italic">Starts Here</span>
             </motion.h2>
-            <motion.p
-              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
-              className="mt-4 text-sm sm:text-base text-muted-foreground max-w-3xl mx-auto"
-            >
-              21+ integrated modules covering every aspect of dealership operations — from vehicle management to loan & leasing, all in one platform.
-            </motion.p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-            {aiModules.map((module, index) => {
-              const Icon = module.icon;
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
+            {features.map((f, i) => {
+              const Icon = f.icon;
               return (
-                <motion.div
-                  key={module.title}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true }}
-                  variants={fadeUp}
-                  custom={index % 6}
-                  className="group rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
+                <motion.div key={f.title} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={i}
+                  className="group relative rounded-2xl border border-border bg-card overflow-hidden shadow-card hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
                 >
-                  <div className="flex items-center gap-3 mb-3 min-w-0">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <h3 className="text-sm sm:text-base font-heading font-semibold text-foreground leading-none whitespace-nowrap overflow-hidden text-ellipsis min-w-0">
-                      {index + 1}. {module.title}
-                    </h3>
+                  {/* Numbered badge */}
+                  <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg shadow-lg">
+                    {i + 1}
                   </div>
-                  <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                    {module.desc}
-                  </p>
+                  {/* Icon area */}
+                  <div className="h-44 bg-gradient-to-br from-[hsl(213,70%,18%)] to-[hsl(220,50%,12%)] flex items-center justify-center">
+                    <Icon className="h-16 w-16 text-[hsl(213,80%,60%)] group-hover:scale-110 transition-transform" />
+                  </div>
+                  <div className="p-5 sm:p-6 text-center">
+                    <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg mb-2">{f.title}</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
+                    <a href="#" className="inline-flex items-center gap-1 text-sm text-primary font-medium mt-3 hover:gap-2 transition-all">
+                      Learn More <ArrowRight className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
                 </motion.div>
               );
             })}
@@ -838,77 +227,50 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Features */}
-      <div className="py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-10 md:mb-14">
-          <motion.span
-            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-            className="text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
+      {/* CTA Banner */}
+      <div className="relative overflow-hidden bg-[hsl(220,50%,10%)] py-16 md:py-20">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-r from-[hsl(220,50%,10%)] via-[hsl(213,70%,15%)] to-[hsl(220,50%,10%)]" />
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[hsl(213,80%,50%/0.3)] to-transparent" />
+        </div>
+        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-center">
+          <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
+            className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-white"
           >
-            Features
-          </motion.span>
-          <motion.h2
-            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
-            className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground mt-3 leading-tight"
-          >
-            Built For High-Volume Showroom Operations
+            Schedule Your Demo <span className="text-[hsl(200,90%,65%)] italic">Today!</span>
           </motion.h2>
-          <motion.p
-            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
-            className="text-sm sm:text-base text-muted-foreground mt-4 max-w-2xl mx-auto"
+          <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
+            className="mt-4 text-sm sm:text-base text-white/60 max-w-2xl mx-auto"
           >
-            Capture every checkpoint from booking to closure with fewer manual calls, faster assignments, and cleaner conversion tracking.
+            Discover how AutoAdvant can accelerate your sales growth and transform your dealership's online retail experience.
           </motion.p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {[
-            { icon: CalendarCheck, title: 'Smart Scheduling', desc: 'Online booking with phone/email validation, walk-in registration, and automatic vehicle availability checks.', color: 'bg-primary/10 text-primary' },
-            { icon: Users, title: 'Role-Based Access', desc: 'Dedicated dashboards for GRO, Sales, Security, and Super Admin roles with tailored permissions.', color: 'bg-accent/10 text-accent' },
-            { icon: Car, title: 'Vehicle Tracking', desc: 'Track demo vehicles across locations. Auto-release vehicles when test drives are cancelled or completed.', color: 'bg-info/10 text-info' },
-            { icon: Shield, title: 'Security Gate', desc: 'Check-in/out tracking, driving license upload and verification at the security gate.', color: 'bg-success/10 text-success' },
-            { icon: BarChart3, title: 'Data & Analytics', desc: 'Trends, vehicle popularity, source analysis, and repeat customer tracking in a powerful data center.', color: 'bg-warning/10 text-warning' },
-            { icon: MapPin, title: 'Multi-Location', desc: 'Manage multiple showrooms from one platform with location-based filtering and staff assignment.', color: 'bg-destructive/10 text-destructive' },
-          ].map((f, i) => {
-            const Icon = f.icon;
-            return (
-              <motion.div
-                key={f.title}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-                variants={fadeUp}
-                custom={i}
-                className="group p-5 sm:p-6 rounded-2xl border border-border bg-[linear-gradient(160deg,#ffffff_0%,#f7fbff_100%)] hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
-              >
-                <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-xl ${f.color} flex items-center justify-center mb-3 sm:mb-4 transition-transform group-hover:scale-110`}>
-                  <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
-                </div>
-                <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg mb-2">{f.title}</h3>
-                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
-              </motion.div>
-            );
-          })}
-        </div>
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
+            className="mt-8 flex flex-col sm:flex-row gap-3 justify-center"
+          >
+            <Link to="/book">
+              <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white text-base px-8 h-13 rounded-md font-semibold shadow-lg shadow-red-600/30 border-0">
+                Get a Demo
+              </Button>
+            </Link>
+            <Link to="/dealer-onboarding">
+              <Button size="lg" variant="outline" className="text-white border-white/30 hover:bg-white/10 text-base px-8 h-13 rounded-md font-semibold">
+                Watch Video
+              </Button>
+            </Link>
+          </motion.div>
         </div>
       </div>
 
-      {/* Brand Marketplace */}
-      <BrandMarketplace />
-
       {/* How It Works */}
-      <div className="bg-[linear-gradient(180deg,#f8fbff_0%,#eef5ff_100%)] py-16 md:py-24 border-y border-border/60">
+      <div id="how-it-works" className="py-16 md:py-24 bg-background">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10 md:mb-14">
-            <motion.span
-              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
+            <motion.span initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
               className="text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
             >
               How it works
             </motion.span>
-            <motion.h2
-              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
+            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
               className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground mt-3"
             >
               3-Step Guest Journey
@@ -922,14 +284,8 @@ const Index = () => {
               { step: '02', icon: Clock, title: 'Pick a Date & Time', desc: 'Choose a convenient slot from available dates. We\'ll confirm instantly.' },
               { step: '03', icon: CheckCircle2, title: 'Show Up & Drive', desc: 'Bring your driving license, complete a quick check-in, and hit the road.' },
             ].map((s, i) => (
-              <motion.div
-                key={s.step}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-                variants={fadeUp}
-                custom={i}
-                className="relative text-center rounded-2xl border border-primary/15 bg-white/80 p-5 shadow-sm"
+              <motion.div key={s.step} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={i}
+                className="relative text-center rounded-2xl border border-primary/15 bg-card p-5 shadow-card"
               >
                 <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/70 mb-2">Step {s.step}</div>
                 <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl gradient-primary flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-lg shadow-primary/20 relative z-10">
@@ -943,57 +299,86 @@ const Index = () => {
         </div>
       </div>
 
+      {/* AI Operations Modules */}
+      <div id="modules" className="py-14 md:py-20 bg-muted/30 border-y border-border/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-10 md:mb-12">
+            <motion.span initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
+              className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs sm:text-sm font-semibold text-primary uppercase tracking-[0.2em]"
+            >
+              Complete DMS Platform
+            </motion.span>
+            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
+              className="mt-4 text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground leading-tight"
+            >
+              AI Powered DMS For A Seamless Experience
+            </motion.h2>
+            <motion.p initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
+              className="mt-4 text-sm sm:text-base text-muted-foreground max-w-3xl mx-auto"
+            >
+              21+ integrated modules covering every aspect of dealership operations — from vehicle management to loan & leasing.
+            </motion.p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+            {aiModules.map((module, index) => {
+              const Icon = module.icon;
+              return (
+                <motion.div key={module.title} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={index % 6}
+                  className="group rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm hover:shadow-elevated transition-all duration-300 hover:-translate-y-1"
+                >
+                  <div className="flex items-center gap-3 mb-3 min-w-0">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="text-sm sm:text-base font-heading font-semibold text-foreground leading-none whitespace-nowrap overflow-hidden text-ellipsis min-w-0">
+                      {index + 1}. {module.title}
+                    </h3>
+                  </div>
+                  <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">{module.desc}</p>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       {/* For Dealers Section */}
-      <div className="py-16 md:py-24">
+      <div className="py-16 md:py-24 bg-background">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-10 md:mb-12">
-            <motion.span
-              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-              className="text-sm font-semibold text-accent uppercase tracking-wider"
+            <motion.span initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
+              className="text-sm font-semibold text-primary uppercase tracking-wider"
             >
               For Dealerships
             </motion.span>
-            <motion.h2
-              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
+            <motion.h2 initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={1}
               className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-foreground mt-3"
             >
               Set Up Your Dealership in Minutes
             </motion.h2>
-            <motion.p
-              initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={2}
-              className="text-sm sm:text-base text-muted-foreground mt-4 max-w-xl mx-auto"
-            >
-              Onboard your dealership, add brands, configure locations, and customize branding — all from one dashboard.
-            </motion.p>
           </div>
 
-          <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={3}
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={3}
             className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6"
           >
             {[
-              { icon: Building2, title: 'Dealer Onboarding', desc: 'Create your admin account, add brands and showroom locations in a guided setup wizard.', link: '/dealer-onboarding', linkLabel: 'Get Started', btnColor: 'bg-success text-success-foreground hover:bg-success/90' },
-              { icon: Car, title: 'Brand Customization', desc: 'Upload logos, set titles, descriptions, and SEO metadata for each brand you sell.', link: '/auth', linkLabel: 'Login to Configure', btnColor: 'bg-primary text-primary-foreground hover:bg-primary/90' },
-              { icon: MapPin, title: 'Multi-Location Management', desc: 'Manage vehicles, staff, and schedules across all your showroom locations independently.', link: '/auth', linkLabel: 'Login to Manage', btnColor: 'bg-info text-info-foreground hover:bg-info/90' },
+              { icon: Building2, title: 'Dealer Onboarding', desc: 'Create your admin account and add showroom locations in a guided setup wizard.', link: '/dealer-onboarding', linkLabel: 'Get Started' },
+              { icon: Car, title: 'Brand Customization', desc: 'Upload logos, set descriptions, and SEO metadata for each brand you sell.', link: '/auth', linkLabel: 'Login to Configure' },
+              { icon: MapPin, title: 'Multi-Location', desc: 'Manage vehicles, staff, and schedules across all your showroom locations.', link: '/auth', linkLabel: 'Login to Manage' },
             ].map((item, i) => {
               const Icon = item.icon;
               return (
-                <motion.div
-                  key={item.title}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true }}
-                  variants={fadeUp}
-                  custom={i + 4}
+                <motion.div key={item.title} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={i + 4}
                   className="p-5 sm:p-6 rounded-2xl border border-border bg-card hover:shadow-elevated transition-all duration-300 hover:-translate-y-1 flex flex-col"
                 >
-                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-accent/10 text-accent flex items-center justify-center mb-3 sm:mb-4">
+                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-3 sm:mb-4">
                     <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
                   </div>
                   <h3 className="font-heading font-semibold text-foreground text-base sm:text-lg mb-2">{item.title}</h3>
                   <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed flex-1">{item.desc}</p>
                   <Link to={item.link} className="mt-4">
-                    <Button size="sm" className={`rounded-xl gap-2 w-full ${item.btnColor} border-0`}>
+                    <Button size="sm" className="rounded-md gap-2 w-full border-0">
                       {item.linkLabel} <ArrowRight className="h-3 w-3" />
                     </Button>
                   </Link>
@@ -1004,71 +389,37 @@ const Index = () => {
         </div>
       </div>
 
-      {/* CTA */}
-      <div className="py-16 md:py-24">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}
-            className="p-8 sm:p-12 rounded-3xl gradient-dark relative overflow-hidden border border-primary-foreground/15"
-          >
-            <div className="absolute inset-0">
-              <div className="absolute top-0 right-0 w-48 sm:w-64 h-48 sm:h-64 bg-primary/10 rounded-full blur-[80px]" />
-              <div className="absolute bottom-0 left-0 w-36 sm:w-48 h-36 sm:h-48 bg-accent/10 rounded-full blur-[60px]" />
-            </div>
-            <div className="relative z-10">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-heading font-bold text-primary-foreground mb-4">
-                Ready To Scale Test Drives Like A Premium Brand?
-              </h2>
-              <p className="text-sm sm:text-base text-primary-foreground/60 mb-6 sm:mb-8 max-w-md mx-auto">
-                Launch customer bookings and staff workflow in minutes with complete visibility at every handover.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-                <Link to="/book" className="w-full sm:w-auto">
-                  <Button size="lg" className="w-full sm:w-auto gradient-accent border-0 text-accent-foreground text-base px-8 sm:px-10 h-12 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-shadow">
-                    Book Your Test Drive <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link to="/dealer-onboarding" className="w-full sm:w-auto">
-                  <Button size="lg" className="w-full sm:w-auto bg-success text-success-foreground text-base px-8 h-12 rounded-xl font-semibold hover:bg-success/90 transition-all">
-                    <Building2 className="mr-2 h-4 w-4" /> Register as Dealer
-                  </Button>
-                </Link>
+      {/* Trusted By */}
+      <div className="py-10 bg-muted/20 border-y border-border/60">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
+          <p className="text-sm sm:text-base font-heading font-semibold text-foreground mb-6">
+            Trusted by Leading Dealerships Nationwide
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
+            {['Partner 1', 'Partner 2', 'Partner 3', 'Partner 4'].map((name) => (
+              <div key={name} className="px-6 py-3 rounded-lg border border-border bg-card text-sm font-heading font-semibold text-muted-foreground tracking-wider uppercase">
+                {name}
               </div>
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left">
-                <div className="rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-3">
-                  <p className="text-xs text-primary-foreground/70">Customer Flow</p>
-                  <p className="text-sm font-semibold text-primary-foreground">Bookings + Reminders + Feedback</p>
-                </div>
-                <div className="rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-3">
-                  <p className="text-xs text-primary-foreground/70">Ops Control</p>
-                  <p className="text-sm font-semibold text-primary-foreground">GRO + Sales + Security Timeline</p>
-                </div>
-                <div className="rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-3">
-                  <p className="text-xs text-primary-foreground/70">Conversion Ready</p>
-                  <p className="text-sm font-semibold text-primary-foreground">Hot/Cold Lead + Task Creation</p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-border py-8 sm:py-10">
+      <footer className="bg-[hsl(220,50%,10%)] border-t border-white/10 py-8 sm:py-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center gap-4 sm:gap-6 md:flex-row md:justify-between">
-            <a href="/" >
-         
-          <div className="flex items-center justify-center py-1">
-              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" className="h-[50px] w-full" />
-            </div>
+          <a href="/">
+            <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-8 sm:h-10 w-auto" />
           </a>
 
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-            <Link to="/dealer-onboarding" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Dealer Onboarding</Link>
-            <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
-            <Link to={staffEntryPath} className="text-sm text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
+            <Link to="/dealer-onboarding" className="text-sm text-white/50 hover:text-white/80 transition-colors">Dealer Onboarding</Link>
+            <Link to="/compare" className="text-sm text-white/50 hover:text-white/80 transition-colors">Compare Vehicles</Link>
+            <Link to={staffEntryPath} className="text-sm text-white/50 hover:text-white/80 transition-colors">Staff Login</Link>
+            <a href="#" className="text-sm text-white/50 hover:text-white/80 transition-colors">Privacy Policy</a>
+            <a href="#" className="text-sm text-white/50 hover:text-white/80 transition-colors">Terms of Service</a>
           </div>
-          <p className="text-xs sm:text-sm text-muted-foreground text-center">© {new Date().getFullYear()} Omni Tracely — Smart Test Drive & Lead Platform</p>
+          <p className="text-xs sm:text-sm text-white/40 text-center">© {new Date().getFullYear()} AutoAdvant. All Rights Reserved.</p>
         </div>
       </footer>
       <EnquiryWidget />

@@ -225,8 +225,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 gradient-white transform transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           <div>
-            <div className="bg-white flex items-center justify-center px-4 py-1">
-              <img src="https://res.cloudinary.com/totalesworld/image/upload/v1774814506/01492d46-e50d-452e-a7b6-4987c301a6bf_2_nanetp.png" alt="Logo" />
+            <div className="bg-[hsl(220,50%,10%)] flex items-center justify-center px-4 py-3">
+              <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 w-auto" />
             </div>
            
             <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground">
