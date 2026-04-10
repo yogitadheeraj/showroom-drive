@@ -30,4 +30,5 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'test-drive-cancelled': testDriveCancelled,
   'vehicle-change-notification': vehicleChangeNotification,
   'staff-welcome': staffWelcome,
+  'demo-request-confirmation': demoRequestConfirmation,
 }
