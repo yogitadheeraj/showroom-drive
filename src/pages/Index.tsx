@@ -22,6 +22,76 @@ export default function AutoAdvantLandingPage() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [activeHeroSlide, setActiveHeroSlide] = useState(0);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [demoForm, setDemoForm] = useState({ name: '', email: '', company: '', phone: '', message: '' });
+    const [demoLoading, setDemoLoading] = useState(false);
+    const [demoSubmitted, setDemoSubmitted] = useState(false);
+
+    const handleDemoRequest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!demoForm.email.trim()) {
+            toast.error('Please enter your email address');
+            return;
+        }
+        setDemoLoading(true);
+        try {
+            // Save as customer enquiry
+            let { data: customer } = await supabase
+                .from('customers')
+                .select('id')
+                .eq('phone', demoForm.phone.trim() || 'demo-request')
+                .maybeSingle();
+
+            if (!customer) {
+                const { data: newCustomer, error } = await supabase
+                    .from('customers')
+                    .insert({
+                        full_name: demoForm.name.trim() || 'Demo Request',
+                        phone: demoForm.phone.trim() || `demo-${Date.now()}`,
+                        email: demoForm.email.trim(),
+                    })
+                    .select('id')
+                    .single();
+                if (error) throw error;
+                customer = newCustomer;
+            }
+
+            const commId = crypto.randomUUID();
+            await supabase.from('communications').insert({
+                id: commId,
+                customer_id: customer!.id,
+                type: 'email' as const,
+                purpose: 'custom' as const,
+                sent_to: demoForm.email.trim(),
+                subject: 'Book a Demo Request',
+                body: `Demo request from ${demoForm.name || 'Website visitor'}. Company: ${demoForm.company || 'N/A'}. Message: ${demoForm.message || 'N/A'}`,
+                status: 'pending',
+            });
+
+            // Send confirmation email
+            await supabase.functions.invoke('send-transactional-email', {
+                body: {
+                    templateName: 'demo-request-confirmation',
+                    recipientEmail: demoForm.email.trim(),
+                    idempotencyKey: `demo-confirm-${commId}`,
+                    templateData: {
+                        name: demoForm.name.trim(),
+                        email: demoForm.email.trim(),
+                        company: demoForm.company.trim(),
+                        phone: demoForm.phone.trim(),
+                        message: demoForm.message.trim(),
+                    },
+                },
+            });
+
+            setDemoSubmitted(true);
+            setDemoForm({ name: '', email: '', company: '', phone: '', message: '' });
+            toast.success('Demo request submitted! Check your email for confirmation.');
+        } catch {
+            toast.error('Something went wrong. Please try again.');
+        } finally {
+            setDemoLoading(false);
+        }
+    };
     const heroSlides = [
         { title: 'Admin Dashboard', subtitle: 'Complete operational command center with live KPIs', image: '/images/hero-1.png' },
         { title: 'Test Drive Management', subtitle: 'Track every booking from schedule to completion', image: '/images/hero-2.png' },
