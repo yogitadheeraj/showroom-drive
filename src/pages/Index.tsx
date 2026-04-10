@@ -22,6 +22,76 @@ export default function AutoAdvantLandingPage() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [activeHeroSlide, setActiveHeroSlide] = useState(0);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [demoForm, setDemoForm] = useState({ name: '', email: '', company: '', phone: '', message: '' });
+    const [demoLoading, setDemoLoading] = useState(false);
+    const [demoSubmitted, setDemoSubmitted] = useState(false);
+
+    const handleDemoRequest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!demoForm.email.trim()) {
+            toast.error('Please enter your email address');
+            return;
+        }
+        setDemoLoading(true);
+        try {
+            // Save as customer enquiry
+            let { data: customer } = await supabase
+                .from('customers')
+                .select('id')
+                .eq('phone', demoForm.phone.trim() || 'demo-request')
+                .maybeSingle();
+
+            if (!customer) {
+                const { data: newCustomer, error } = await supabase
+                    .from('customers')
+                    .insert({
+                        full_name: demoForm.name.trim() || 'Demo Request',
+                        phone: demoForm.phone.trim() || `demo-${Date.now()}`,
+                        email: demoForm.email.trim(),
+                    })
+                    .select('id')
+                    .single();
+                if (error) throw error;
+                customer = newCustomer;
+            }
+
+            const commId = crypto.randomUUID();
+            await supabase.from('communications').insert({
+                id: commId,
+                customer_id: customer!.id,
+                type: 'email' as const,
+                purpose: 'custom' as const,
+                sent_to: demoForm.email.trim(),
+                subject: 'Book a Demo Request',
+                body: `Demo request from ${demoForm.name || 'Website visitor'}. Company: ${demoForm.company || 'N/A'}. Message: ${demoForm.message || 'N/A'}`,
+                status: 'pending',
+            });
+
+            // Send confirmation email
+            await supabase.functions.invoke('send-transactional-email', {
+                body: {
+                    templateName: 'demo-request-confirmation',
+                    recipientEmail: demoForm.email.trim(),
+                    idempotencyKey: `demo-confirm-${commId}`,
+                    templateData: {
+                        name: demoForm.name.trim(),
+                        email: demoForm.email.trim(),
+                        company: demoForm.company.trim(),
+                        phone: demoForm.phone.trim(),
+                        message: demoForm.message.trim(),
+                    },
+                },
+            });
+
+            setDemoSubmitted(true);
+            setDemoForm({ name: '', email: '', company: '', phone: '', message: '' });
+            toast.success('Demo request submitted! Check your email for confirmation.');
+        } catch {
+            toast.error('Something went wrong. Please try again.');
+        } finally {
+            setDemoLoading(false);
+        }
+    };
     const heroSlides = [
         { title: 'Admin Dashboard', subtitle: 'Complete operational command center with live KPIs', image: '/images/hero-1.png' },
         { title: 'Test Drive Management', subtitle: 'Track every booking from schedule to completion', image: '/images/hero-2.png' },
@@ -321,23 +391,92 @@ export default function AutoAdvantLandingPage() {
 
                 <section id="contact" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
                     <div className="rounded-[32px] border border-white/10 bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-cyan-400/10 p-8 shadow-xl shadow-sky-950/20 md:p-12">
-                        <div className="max-w-3xl">
-                            <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Get Started</p>
-                            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Ready to modernize your automotive platform?</h2>
-                            <p className="mt-4 text-slate-300">
-                                Launch faster with a platform built for lead generation, test drive management, and dealership growth.
-                            </p>
-                        </div>
+                        <div className="grid gap-10 lg:grid-cols-2">
+                            <div>
+                                <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Get Started</p>
+                                <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Ready to modernize your automotive platform?</h2>
+                                <p className="mt-4 text-slate-300">
+                                    Launch faster with a platform built for lead generation, test drive management, and dealership growth.
+                                </p>
+                                <div className="mt-8 space-y-4">
+                                    {[
+                                        { icon: Mail, text: 'info@autoadvant.com' },
+                                        { icon: Phone, text: '+91 98765 43210' },
+                                        { icon: MapPin, text: 'Mumbai, India' },
+                                    ].map((item) => (
+                                        <div key={item.text} className="flex items-center gap-3 text-slate-300">
+                                            <item.icon className="h-5 w-5 text-sky-400" />
+                                            <span className="text-sm">{item.text}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
 
-                        <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                            <input
-                                type="email"
-                                placeholder="Enter your work email"
-                                className="w-full md:w-[80%] rounded-2xl border border-white/10 bg-slate-950/70 px-5 py-3 text-white placeholder:text-slate-500 focus:outline-none"
-                            />
-                            <button className="rounded-2xl bg-white px-6 py-3 font-semibold text-slate-950 transition hover:scale-[1.02]">
-                                Request Demo
-                            </button>
+                            <div>
+                                {demoSubmitted ? (
+                                    <div className="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-slate-900/60 p-10 text-center">
+                                        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400/10">
+                                            <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+                                        </div>
+                                        <h3 className="text-xl font-semibold">Demo Request Sent!</h3>
+                                        <p className="mt-2 text-sm text-slate-400">We've sent a confirmation to your email. Our team will reach out within 24 hours.</p>
+                                        <button onClick={() => setDemoSubmitted(false)} className="mt-6 rounded-xl border border-white/10 bg-white/5 px-5 py-2 text-sm font-medium text-white transition hover:bg-white/10">
+                                            Submit Another
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <form onSubmit={handleDemoRequest} className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/60 p-6">
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <input
+                                                placeholder="Your Name"
+                                                value={demoForm.name}
+                                                onChange={e => setDemoForm(f => ({ ...f, name: e.target.value }))}
+                                                className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400/50 focus:outline-none"
+                                                maxLength={100}
+                                            />
+                                            <input
+                                                placeholder="Work Email *"
+                                                type="email"
+                                                value={demoForm.email}
+                                                onChange={e => setDemoForm(f => ({ ...f, email: e.target.value }))}
+                                                className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400/50 focus:outline-none"
+                                                maxLength={255}
+                                                required
+                                            />
+                                        </div>
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <input
+                                                placeholder="Company Name"
+                                                value={demoForm.company}
+                                                onChange={e => setDemoForm(f => ({ ...f, company: e.target.value }))}
+                                                className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400/50 focus:outline-none"
+                                                maxLength={100}
+                                            />
+                                            <input
+                                                placeholder="Phone Number"
+                                                value={demoForm.phone}
+                                                onChange={e => setDemoForm(f => ({ ...f, phone: e.target.value }))}
+                                                className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400/50 focus:outline-none"
+                                                maxLength={20}
+                                            />
+                                        </div>
+                                        <textarea
+                                            placeholder="Tell us about your dealership needs..."
+                                            value={demoForm.message}
+                                            onChange={e => setDemoForm(f => ({ ...f, message: e.target.value }))}
+                                            className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-sky-400/50 focus:outline-none min-h-[100px] resize-none"
+                                            maxLength={1000}
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={demoLoading}
+                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.01] disabled:opacity-50"
+                                        >
+                                            {demoLoading ? 'Sending...' : <><Send className="h-4 w-4" /> Book a Demo</>}
+                                        </button>
+                                    </form>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </section>

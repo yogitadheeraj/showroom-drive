@@ -18,6 +18,7 @@ import { template as testDriveRescheduled } from './test-drive-rescheduled.tsx'
 import { template as testDriveCancelled } from './test-drive-cancelled.tsx'
 import { template as vehicleChangeNotification } from './vehicle-change-notification.tsx'
 import { template as staffWelcome } from './staff-welcome.tsx'
+import { template as demoRequestConfirmation } from './demo-request-confirmation.tsx'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'booking-confirmation': bookingConfirmation,
@@ -29,4 +30,5 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'test-drive-cancelled': testDriveCancelled,
   'vehicle-change-notification': vehicleChangeNotification,
   'staff-welcome': staffWelcome,
+  'demo-request-confirmation': demoRequestConfirmation,
 }
