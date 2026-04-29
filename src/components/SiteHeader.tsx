@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useTheme } from '@/hooks/useTheme';
+import { Moon, Sun } from 'lucide-react';
 
 interface SiteHeaderProps {
   variant?: 'landing' | 'app';
@@ -11,6 +13,7 @@ interface SiteHeaderProps {
 
 const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot, leftSlot }: SiteHeaderProps) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { resolvedTheme, toggleTheme } = useTheme();
 
   useEffect(() => {
     let active = true;
@@ -51,6 +54,15 @@ const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot, leftSlot }
 
         <div className="flex items-center gap-3">
           {rightSlot}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+            title={resolvedTheme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-slate-100 transition hover:bg-white/10"
+          >
+            {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
           {variant === 'landing' && (
             <a
               href="/#contact"

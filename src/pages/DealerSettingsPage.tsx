@@ -1,14 +1,11 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { useDealerContext } from '@/hooks/useDealerContext';
 import DashboardLayout from '@/components/DashboardLayout';
 import DealerProfileSettings from '@/components/settings/DealerProfileSettings';
 import BrandSettings from '@/components/settings/BrandSettings';
 import OperatingHoursSettings from '@/components/settings/OperatingHoursSettings';
 import ReportSettingsConfig from '@/components/settings/ReportSettingsConfig';
+import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, Palette, Clock, Mail } from 'lucide-react';
+import { Building2, Palette, Mail, SunMoon } from 'lucide-react';
 
 const DealerSettingsPage = () => {
   return (
@@ -30,6 +27,9 @@ const DealerSettingsPage = () => {
             <TabsTrigger value="reports" className="gap-2">
               <Mail className="h-4 w-4" /> Report Settings
             </TabsTrigger>
+            <TabsTrigger value="appearance" className="gap-2">
+              <SunMoon className="h-4 w-4" /> Appearance
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -42,6 +42,10 @@ const DealerSettingsPage = () => {
 
           <TabsContent value="reports">
             <ReportSettingsConfig />
+          </TabsContent>
+
+          <TabsContent value="appearance">
+            <AppearanceSettings />
           </TabsContent>
 
           <TabsContent value="hours">
