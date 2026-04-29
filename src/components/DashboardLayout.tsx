@@ -223,10 +223,10 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[hsl(220,50%,10%)] border-r border-white/10 shadow-2xl transform transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl transform transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           <div>
-            <div className="bg-[hsl(220,50%,10%)] flex items-center justify-center px-4 py-3">
+            <div className="bg-[hsl(220,50%,10%)] flex items-center justify-center px-4 py-3 dark:bg-[hsl(220,50%,10%)]">
               <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 w-auto" />
             </div>
            
@@ -247,7 +247,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     isActive
                       ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-white font-medium shadow-md shadow-blue-500/20'
-                      : 'text-sidebar-foreground/80 hover:text-white hover:bg-sidebar-accent'
+                      : 'text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -270,7 +270,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                 </div>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="w-full justify-center bg-white/5 border-white/15 text-red-300 hover:text-white hover:bg-red-600 hover:border-red-600" onClick={handleSignOut}>
+            <Button variant="outline" size="sm" className="w-full justify-center border-sidebar-border text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out Securely
             </Button>
@@ -286,7 +286,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
           variant="app"
           showNav={false}
           leftSlot={
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-slate-100">
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground dark:text-slate-100">
               <Menu className="h-5 w-5" />
             </button>
           }
@@ -295,7 +295,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
               <Button
                 variant="outline"
                 size="sm"
-                className="relative bg-white/5 border-white/15 text-slate-100 hover:bg-white/10 hover:text-white"
+                className="relative"
                 onClick={handleOpenLeadNotifications}
               >
                 <Bell className="h-4 w-4 mr-1.5" />
@@ -306,17 +306,17 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                   </span>
                 )}
               </Button>
-              <div className="hidden sm:flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5">
-                <UserCircle2 className="h-4 w-4 text-slate-300" />
+              <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5 dark:border-white/10 dark:bg-white/5">
+                <UserCircle2 className="h-4 w-4 text-muted-foreground dark:text-slate-300" />
                 <div className="leading-tight">
-                  <p className="text-xs font-semibold text-slate-100 max-w-[180px] truncate">{displayName}</p>
-                  <p className="text-[11px] text-slate-400">{displayRole}</p>
+                  <p className="text-xs font-semibold text-foreground max-w-[180px] truncate dark:text-slate-100">{displayName}</p>
+                  <p className="text-[11px] text-muted-foreground dark:text-slate-400">{displayRole}</p>
                 </div>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="hidden sm:inline-flex bg-white/5 border-white/15 text-slate-100 hover:bg-white/10 hover:text-white"
+                className="hidden sm:inline-flex"
                 onClick={handleSignOut}
               >
                 <LogOut className="h-4 w-4 mr-1.5" />
