@@ -117,7 +117,7 @@ const DealerOnboardingPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      <SiteHeader variant="landing" />
       <div className="relative overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute top-[-20%] left-[-10%] w-[400px] md:w-[600px] h-[400px] md:h-[600px] bg-primary/8 rounded-full blur-[120px]" />
