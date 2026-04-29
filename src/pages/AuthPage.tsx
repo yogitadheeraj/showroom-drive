@@ -130,7 +130,7 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden text-foreground">
+    <div className="relative min-h-screen text-foreground">
       <SiteHeader variant="landing" />
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -left-16 top-20 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
@@ -138,7 +138,7 @@ const AuthPage = () => {
         <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-info/10 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto flex min-h-screen max-w-7xl items-center px-4 py-8 sm:px-6 lg:px-8">
+      <div className="relative mx-auto flex min-h-[calc(100vh-72px)] max-w-7xl items-center px-4 py-8 sm:px-6 lg:px-8">
         <div className="grid w-full">
        
           <section className="flex items-center justify-center">
