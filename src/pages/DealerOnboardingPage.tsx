@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Car, Building2, MapPin, User, CheckCircle, ArrowRight, ArrowLeft, Plus, X, Menu } from 'lucide-react';
+import SiteHeader from '@/components/SiteHeader';
 
 const STEPS = [
   { id: 'account', label: 'Admin Account', icon: User },
