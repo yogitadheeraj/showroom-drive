@@ -6,9 +6,10 @@ interface SiteHeaderProps {
   variant?: 'landing' | 'app';
   showNav?: boolean;
   rightSlot?: React.ReactNode;
+  leftSlot?: React.ReactNode;
 }
 
-const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot }: SiteHeaderProps) => {
+const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot, leftSlot }: SiteHeaderProps) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
@@ -29,10 +30,13 @@ const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot }: SiteHead
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[hsl(220,50%,10%)]/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        <Link to="/" className="flex items-center gap-3">
-          <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-9 sm:h-10 w-auto" />
-        </Link>
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-3">
+          {leftSlot}
+          <Link to="/" className="flex items-center gap-3">
+            <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-9 sm:h-10 w-auto" />
+          </Link>
+        </div>
 
         {showNav && variant === 'landing' && (
           <nav className="hidden items-center gap-8 text-sm text-slate-300 md:flex">

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { ArrowRight, BadgeCheck, Bell, Building2, ShieldCheck, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import SiteHeader from '@/components/SiteHeader';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
@@ -130,7 +131,8 @@ const AuthPage = () => {
 
   return (
     <div className="relative min-h-screen overflow-hidden text-foreground">
-      <div className="absolute inset-0 overflow-hidden">
+      <SiteHeader variant="landing" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -left-16 top-20 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute right-0 top-0 h-80 w-80 rounded-full bg-accent/10 blur-3xl" />
         <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-info/10 blur-3xl" />
