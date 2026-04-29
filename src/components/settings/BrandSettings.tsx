@@ -28,13 +28,21 @@ const BrandSettings = () => {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!dealerId) return;
+    if (dealerLoading) return;
+    if (!dealerId) {
+      setLoading(false);
+      return;
+    }
     const fetch = async () => {
-      const { data } = await supabase
+      setLoading(true);
+      const { data, error } = await supabase
         .from('brands')
         .select('id, name, logo_url, description, meta_title, meta_description')
         .eq('dealer_id', dealerId)
         .order('name');
+      if (error) {
+        toast({ title: 'Failed to load brands', description: error.message, variant: 'destructive' });
+      }
       if (data) {
         setBrands(data.map(b => ({
           id: b.id,
@@ -48,8 +56,8 @@ const BrandSettings = () => {
       }
       setLoading(false);
     };
-    fetch();
-  }, [dealerId]);
+    void fetch();
+  }, [dealerId, dealerLoading, toast]);
 
   const updateBrand = (id: string, field: keyof BrandForm, value: string) => {
     setBrands(prev => prev.map(b => b.id === id ? { ...b, [field]: value } : b));
