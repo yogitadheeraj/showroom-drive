@@ -6,23 +6,23 @@
 
 @layer base {
   :root {
-    --background: 216 30% 97%;
-    --foreground: 220 40% 13%;
+    --background: 220 50% 7%;
+    --foreground: 210 16% 93%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 40% 13%;
+    --card: 220 45% 11%;
+    --card-foreground: 210 16% 93%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 40% 13%;
+    --popover: 220 45% 11%;
+    --popover-foreground: 210 16% 93%;
 
     --primary: 213 80% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 20% 92%;
-    --secondary-foreground: 220 40% 15%;
+    --secondary: 220 40% 16%;
+    --secondary-foreground: 210 16% 90%;
 
-    --muted: 214 18% 94%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 220 40% 14%;
+    --muted-foreground: 215 16% 65%;
 
     --accent: 200 90% 48%;
     --accent-foreground: 0 0% 100%;
@@ -39,8 +39,8 @@
     --info: 213 90% 40%;
     --info-foreground: 0 0% 100%;
 
-    --border: 214 20% 89%;
-    --input: 214 20% 89%;
+    --border: 220 40% 18%;
+    --input: 220 40% 18%;
     --ring: 213 80% 50%;
 
     --radius: 0.75rem;
@@ -105,9 +105,10 @@
   body {
     @apply bg-background text-foreground font-body antialiased;
     background-image:
-      radial-gradient(circle at top right, hsl(213 80% 50% / 0.06), transparent 35%),
-      radial-gradient(circle at bottom left, hsl(200 90% 48% / 0.05), transparent 30%);
+      radial-gradient(circle at top right, hsl(213 80% 50% / 0.18), transparent 40%),
+      radial-gradient(circle at bottom left, hsl(200 90% 48% / 0.14), transparent 35%);
     background-attachment: fixed;
+    min-height: 100vh;
   }
 
   h1, h2, h3, h4, h5, h6 {
