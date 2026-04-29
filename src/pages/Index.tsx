@@ -462,7 +462,7 @@ export default function AutoAdvantLandingPage() {
                 </section>
             </main>
             {/* Footer */}
-            <footer className="bg-slate-950/80 backdrop-blur border-t border-white/10">
+            <footer className="bg-background/80 backdrop-blur border-t border-border dark:bg-slate-950/80 dark:border-white/10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center gap-4 sm:gap-6 md:flex-row md:justify-between">
                     <a href="/" >
 
