@@ -130,12 +130,23 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="relative min-h-screen text-foreground">
+    <div className="relative min-h-screen bg-[hsl(220,50%,7%)] text-foreground">
       <SiteHeader variant="landing" />
+      {/* SaaS dark backdrop with subtle grid + glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -left-16 top-20 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute right-0 top-0 h-80 w-80 rounded-full bg-accent/10 blur-3xl" />
-        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-info/10 blur-3xl" />
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              'linear-gradient(hsl(213 80% 70% / 0.6) 1px, transparent 1px), linear-gradient(90deg, hsl(213 80% 70% / 0.6) 1px, transparent 1px)',
+            backgroundSize: '48px 48px',
+            maskImage: 'radial-gradient(ellipse at center, black 40%, transparent 75%)',
+            WebkitMaskImage: 'radial-gradient(ellipse at center, black 40%, transparent 75%)',
+          }}
+        />
+        <div className="absolute -top-32 -left-32 h-[480px] w-[480px] rounded-full bg-[hsl(213,90%,55%)]/25 blur-[140px]" />
+        <div className="absolute top-1/3 -right-40 h-[520px] w-[520px] rounded-full bg-[hsl(200,90%,50%)]/20 blur-[160px]" />
+        <div className="absolute bottom-[-200px] left-1/3 h-[420px] w-[420px] rounded-full bg-[hsl(260,80%,55%)]/15 blur-[140px]" />
       </div>
 
       <div className="relative mx-auto flex min-h-[calc(100vh-72px)] max-w-7xl items-center px-4 py-8 sm:px-6 lg:px-8">
