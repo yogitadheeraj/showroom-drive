@@ -223,10 +223,10 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[hsl(220,50%,10%)] border-r border-white/10 shadow-2xl transform transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl transform transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           <div>
-            <div className="bg-[hsl(220,50%,10%)] flex items-center justify-center px-4 py-3">
+            <div className="bg-[hsl(220,50%,10%)] flex items-center justify-center px-4 py-3 dark:bg-[hsl(220,50%,10%)]">
               <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 w-auto" />
             </div>
            
@@ -247,7 +247,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     isActive
                       ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-white font-medium shadow-md shadow-blue-500/20'
-                      : 'text-sidebar-foreground/80 hover:text-white hover:bg-sidebar-accent'
+                      : 'text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -270,7 +270,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                 </div>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="w-full justify-center bg-white/5 border-white/15 text-red-300 hover:text-white hover:bg-red-600 hover:border-red-600" onClick={handleSignOut}>
+            <Button variant="outline" size="sm" className="w-full justify-center border-sidebar-border text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out Securely
             </Button>
