@@ -189,7 +189,7 @@ export default function AutoAdvantLandingPage() {
     ];
 
     return (
-        <div className="min-h-screen text-white">
+        <div className="min-h-screen bg-background text-foreground dark:text-white">
             <SiteHeader variant="landing" />
 
             <main>
