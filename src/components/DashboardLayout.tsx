@@ -281,15 +281,15 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Main content */}
       <main className="flex-1 min-h-screen">
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-sm border-b border-border px-3 sm:px-6 py-3 sm:py-4 flex items-center gap-4">
+        <header className="sticky top-0 z-30 bg-[hsl(220,50%,10%)] border-b border-white/10 px-3 sm:px-6 py-3 sm:py-4 flex items-center gap-4 text-slate-100">
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden">
-            <Menu className="h-5 w-5 text-foreground" />
+            <Menu className="h-5 w-5 text-slate-100" />
           </button>
           <div className="flex-1" />
           <Button
             variant="outline"
             size="sm"
-            className="relative"
+            className="relative bg-white/5 border-white/15 text-slate-100 hover:bg-white/10 hover:text-white"
             onClick={handleOpenLeadNotifications}
           >
             <Bell className="h-4 w-4 mr-1.5" />
@@ -301,14 +301,19 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
             )}
           </Button>
           <div className="hidden sm:flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5">
-              <UserCircle2 className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5">
+              <UserCircle2 className="h-4 w-4 text-slate-300" />
               <div className="leading-tight">
-                <p className="text-xs font-semibold text-foreground max-w-[180px] truncate">{displayName}</p>
-                <p className="text-[11px] text-muted-foreground">{displayRole}</p>
+                <p className="text-xs font-semibold text-slate-100 max-w-[180px] truncate">{displayName}</p>
+                <p className="text-[11px] text-slate-400">{displayRole}</p>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={handleSignOut}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-white/5 border-white/15 text-slate-100 hover:bg-white/10 hover:text-white"
+              onClick={handleSignOut}
+            >
               <LogOut className="h-4 w-4 mr-1.5" />
               Sign Out
             </Button>
