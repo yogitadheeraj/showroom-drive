@@ -192,7 +192,7 @@ export default function AutoAdvantLandingPage() {
         <div className="min-h-screen bg-background text-foreground dark:text-white">
             <SiteHeader variant="landing" />
 
-            <main>
+            <main className="dark bg-[hsl(220,50%,7%)] text-slate-100">
                 <section className="relative overflow-hidden">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_28%),radial-gradient(circle_at_left,rgba(59,130,246,0.16),transparent_22%)]" />
                     <div className="mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-2 lg:px-8 lg:py-24">
