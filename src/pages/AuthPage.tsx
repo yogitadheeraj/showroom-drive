@@ -144,22 +144,12 @@ const AuthPage = () => {
           <section className="flex items-center justify-center">
             <div className="w-full max-w-xl animate-fade-in space-y-5">
               <Card className="overflow-hidden rounded-[2rem] border-white/70 bg-white/85 shadow-[0_24px_80px_-24px_rgba(17,42,74,0.28)] backdrop-blur-md">
-                <CardHeader className="space-y-4 border-b border-border/60 bg-white/70 px-6 pb-5 pt-7 sm:px-8">
-                  <div className="flex items-center gap-5">
-                   <a href="/" >
-
-                        <div className="flex items-center justify-center py-1">
-                            <img src="/images/auth_logo.png" alt="Logo" className="h-[50px] w-full" />
-                        </div>
-                    </a>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Auto Advant</p>
-                      <CardTitle className="font-heading text-3xl font-bold tracking-tight">Welcome back</CardTitle>
-                      <CardDescription className="text-sm leading-6 text-muted-foreground">
-                        Sign in to manage daily test drives, staff activity, customers, and scheduled reporting.
-                      </CardDescription>
-                    </div>
-                  </div>
+                <CardHeader className="space-y-2 border-b border-border/60 bg-white/70 px-6 pb-5 pt-7 sm:px-8">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Auto Advant</p>
+                  <CardTitle className="font-heading text-3xl font-bold tracking-tight">Welcome back</CardTitle>
+                  <CardDescription className="text-sm leading-6 text-muted-foreground">
+                    Sign in to manage daily test drives, staff activity, customers, and scheduled reporting.
+                  </CardDescription>
                 </CardHeader>
 
                 <CardContent className="px-6 py-6 sm:px-8 sm:py-8">
