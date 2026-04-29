@@ -246,8 +246,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     isActive
-                      ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-sidebar-primary font-medium'
-                      : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
+                      ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-white font-medium shadow-md shadow-blue-500/20'
+                      : 'text-sidebar-foreground/80 hover:text-white hover:bg-sidebar-accent'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -260,17 +260,17 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
           <div className="p-4 border-t border-sidebar-border space-y-3">
             <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3">
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 flex items-center justify-center text-sm font-semibold text-sidebar-foreground ring-2 ring-sidebar-border/50">
+                <div className="h-9 w-9 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 flex items-center justify-center text-sm font-semibold text-white ring-2 ring-sidebar-border/50">
                   {displayName?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-sidebar-foreground/70 truncate">{displayName}</p>
+                  <p className="text-sm font-semibold text-sidebar-foreground truncate">{displayName}</p>
                   <p className="text-xs text-sidebar-foreground/70 truncate">{displayRole}</p>
                   <p className="text-[11px] text-sidebar-foreground/60 truncate">{profile?.email || user?.email}</p>
                 </div>
               </div>
             </div>
-            <Button variant="outline" size="sm" className="w-full  justify-center text-destructive hover:text-red-600 hover:bg-red-50" onClick={handleSignOut}>
+            <Button variant="outline" size="sm" className="w-full justify-center bg-white/5 border-white/15 text-red-300 hover:text-white hover:bg-red-600 hover:border-red-600" onClick={handleSignOut}>
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out Securely
             </Button>
