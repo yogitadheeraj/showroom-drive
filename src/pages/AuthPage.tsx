@@ -154,8 +154,8 @@ const AuthPage = () => {
        
           <section className="flex items-center justify-center">
             <div className="w-full max-w-xl animate-fade-in space-y-5">
-              <Card className="overflow-hidden rounded-[2rem] border-white/10 bg-white/[0.04] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.6)] backdrop-blur-xl text-slate-100">
-                <CardHeader className="space-y-2 border-b border-white/10 bg-white/[0.03] px-6 pb-5 pt-7 sm:px-8">
+              <Card className="overflow-hidden rounded-[2rem] border-border bg-card shadow-elevated backdrop-blur-xl text-card-foreground">
+                <CardHeader className="space-y-2 border-b border-border bg-card/60 px-6 pb-5 pt-7 sm:px-8">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Auto Advant</p>
                   <CardTitle className="font-heading text-3xl font-bold tracking-tight">Welcome back</CardTitle>
                   <CardDescription className="text-sm leading-6 text-muted-foreground">
