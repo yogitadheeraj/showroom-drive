@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail, Warehouse, CreditCard, FileText, Package, Receipt, ClipboardList, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
 import EnquiryWidget from '@/components/EnquiryWidget';
+import SiteHeader from '@/components/SiteHeader';
 import { toast } from 'sonner';
 import showcaseAdminDashboard from '@/assets/showcase-admin-dashboard.jpg';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
@@ -189,28 +190,7 @@ export default function AutoAdvantLandingPage() {
 
     return (
         <div className="min-h-screen bg-slate-950 text-white">
-            <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/80 backdrop-blur">
-                <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center gap-3">
-                        <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 sm:h-12 w-auto" />
-
-                    </div>
-
-                    <nav className="hidden items-center gap-8 text-sm text-slate-300 md:flex">
-                        <a href="#features" className="transition hover:text-white">Features</a>
-                        <a href="#benefits" className="transition hover:text-white">Benefits</a>
-                        <a href="#contact" className="transition hover:text-white">Contact</a>
-                           <Link to="/dealer-onboarding" className="transition hover:text-white">Dealer Onboarding</Link>
-                        <Link to="/compare" className="transition hover:text-white">Compare Vehicles</Link>
-                        <Link to={staffEntryPath} className="transition hover:text-white">Staff Login</Link>
-                    
-                    </nav>
-
-                     <a href="#contact" className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:scale-[1.02]">
-                        Book Demo
-                    </a>
-                </div>
-            </header>
+            <SiteHeader variant="landing" />
 
             <main>
                 <section className="relative overflow-hidden">
