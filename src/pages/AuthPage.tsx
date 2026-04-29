@@ -130,7 +130,7 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-[hsl(220,50%,7%)] text-foreground">
+    <div className="relative min-h-screen bg-background text-foreground">
       <SiteHeader variant="landing" />
       {/* SaaS dark backdrop with subtle grid + glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
