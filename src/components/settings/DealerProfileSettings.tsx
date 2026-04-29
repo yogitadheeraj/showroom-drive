@@ -18,9 +18,17 @@ const DealerProfileSettings = () => {
   const [form, setForm] = useState({ name: '', contact_email: '', contact_phone: '', logo_url: '' });
 
   useEffect(() => {
-    if (!dealerId) return;
+    if (dealerLoading) return;
+    if (!dealerId) {
+      setLoading(false);
+      return;
+    }
     const fetch = async () => {
-      const { data } = await supabase.from('dealers').select('*').eq('id', dealerId).single();
+      setLoading(true);
+      const { data, error } = await supabase.from('dealers').select('*').eq('id', dealerId).maybeSingle();
+      if (error) {
+        toast({ title: 'Failed to load dealer', description: error.message, variant: 'destructive' });
+      }
       if (data) {
         setDealer(data);
         setForm({
@@ -32,8 +40,8 @@ const DealerProfileSettings = () => {
       }
       setLoading(false);
     };
-    fetch();
-  }, [dealerId]);
+    void fetch();
+  }, [dealerId, dealerLoading, toast]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -77,6 +85,19 @@ const DealerProfileSettings = () => {
 
   if (dealerLoading || loading) {
     return <div className="text-muted-foreground animate-pulse p-8">Loading...</div>;
+  }
+
+  if (!dealerId) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Dealership Profile</CardTitle>
+          <CardDescription>
+            No dealership is associated with your account. Superadmins manage dealers from the dealers page.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
   }
 
   return (
