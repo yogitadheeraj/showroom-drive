@@ -1,26 +1,34 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Save, Upload, X } from 'lucide-react';
+import { Save, Upload, X, Building2 } from 'lucide-react';
 
 const DealerProfileSettings = () => {
   const { dealerId, loading: dealerLoading } = useDealerContext();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [dealer, setDealer] = useState<any>(null);
   const [form, setForm] = useState({ name: '', contact_email: '', contact_phone: '', logo_url: '' });
+  const [createForm, setCreateForm] = useState({ name: '', slug: '', contact_email: '', contact_phone: '' });
 
   useEffect(() => {
     if (dealerLoading) return;
     if (!dealerId) {
       setLoading(false);
+      // Pre-fill create form with the user's email
+      if (user?.email) {
+        setCreateForm(prev => ({ ...prev, contact_email: prev.contact_email || user.email || '' }));
+      }
       return;
     }
     const fetch = async () => {
@@ -41,7 +49,7 @@ const DealerProfileSettings = () => {
       setLoading(false);
     };
     void fetch();
-  }, [dealerId, dealerLoading, toast]);
+  }, [dealerId, dealerLoading, toast, user?.email]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -83,19 +91,101 @@ const DealerProfileSettings = () => {
     setSaving(false);
   };
 
+  const slugify = (s: string) =>
+    s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60);
+
+  const handleCreateDealer = async () => {
+    if (!user) return;
+    const name = createForm.name.trim();
+    const email = createForm.contact_email.trim();
+    const slug = (createForm.slug.trim() || slugify(name));
+    if (!name || !email || !slug) {
+      toast({ title: 'Missing fields', description: 'Name, slug and contact email are required', variant: 'destructive' });
+      return;
+    }
+    setCreating(true);
+    const { error } = await supabase.from('dealers').insert({
+      name,
+      slug,
+      contact_email: email,
+      contact_phone: createForm.contact_phone.trim() || null,
+      admin_user_id: user.id,
+    });
+    if (error) {
+      toast({ title: 'Creation failed', description: error.message, variant: 'destructive' });
+      setCreating(false);
+      return;
+    }
+    toast({ title: 'Dealership created', description: 'Reloading your settings…' });
+    // Force re-resolve dealer context
+    setTimeout(() => window.location.reload(), 600);
+  };
+
   if (dealerLoading || loading) {
     return <div className="text-muted-foreground animate-pulse p-8">Loading...</div>;
   }
 
   if (!dealerId) {
     return (
-      <Card>
+      <Card className="shadow-elevated">
         <CardHeader>
-          <CardTitle>Dealership Profile</CardTitle>
+          <CardTitle className="font-heading flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-primary" /> Set Up Your Dealership
+          </CardTitle>
           <CardDescription>
-            No dealership is associated with your account. Superadmins manage dealers from the dealers page.
+            No dealership is linked to your account yet. Create one below to unlock brand settings, locations, and reports.
           </CardDescription>
         </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Dealership Name *</Label>
+              <Input
+                value={createForm.name}
+                onChange={e => setCreateForm(prev => ({
+                  ...prev,
+                  name: e.target.value,
+                  slug: prev.slug || slugify(e.target.value),
+                }))}
+                placeholder="e.g. ABC Motors"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Slug *</Label>
+              <Input
+                value={createForm.slug}
+                onChange={e => setCreateForm(prev => ({ ...prev, slug: slugify(e.target.value) }))}
+                placeholder="abc-motors"
+              />
+              <p className="text-xs text-muted-foreground">Used in your public booking URL.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Contact Email *</Label>
+              <Input
+                type="email"
+                value={createForm.contact_email}
+                onChange={e => setCreateForm(prev => ({ ...prev, contact_email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Contact Phone</Label>
+              <Input
+                value={createForm.contact_phone}
+                onChange={e => setCreateForm(prev => ({ ...prev, contact_phone: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={handleCreateDealer}
+              disabled={creating || !createForm.name.trim() || !createForm.contact_email.trim() || !createForm.slug.trim()}
+              className="gap-2"
+            >
+              <Save className="h-4 w-4" />
+              {creating ? 'Creating…' : 'Create Dealership'}
+            </Button>
+          </div>
+        </CardContent>
       </Card>
     );
   }
