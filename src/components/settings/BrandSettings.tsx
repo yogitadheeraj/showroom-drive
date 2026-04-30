@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Save, Upload, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Save, Upload, X, ChevronDown, ChevronUp, Plus } from 'lucide-react';
 
 interface BrandForm {
   id: string;
@@ -26,6 +26,8 @@ const BrandSettings = () => {
   const [expandedBrand, setExpandedBrand] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [newBrandName, setNewBrandName] = useState('');
+  const [addingBrand, setAddingBrand] = useState(false);
 
   useEffect(() => {
     if (dealerLoading) return;
@@ -103,15 +105,42 @@ const BrandSettings = () => {
     setSavingId(null);
   };
 
+  const handleAddBrand = async () => {
+    if (!dealerId || !newBrandName.trim()) return;
+    setAddingBrand(true);
+    const { data, error } = await supabase
+      .from('brands')
+      .insert({ name: newBrandName.trim(), dealer_id: dealerId })
+      .select('id, name, logo_url, description, meta_title, meta_description')
+      .maybeSingle();
+    if (error || !data) {
+      toast({ title: 'Failed to add brand', description: error?.message, variant: 'destructive' });
+      setAddingBrand(false);
+      return;
+    }
+    setBrands(prev => [...prev, {
+      id: data.id,
+      name: data.name,
+      logo_url: data.logo_url || '',
+      description: (data as any).description || '',
+      meta_title: (data as any).meta_title || '',
+      meta_description: (data as any).meta_description || '',
+    }]);
+    setExpandedBrand(data.id);
+    setNewBrandName('');
+    setAddingBrand(false);
+    toast({ title: 'Brand added' });
+  };
+
   if (dealerLoading || loading) {
     return <div className="text-muted-foreground animate-pulse p-8">Loading...</div>;
   }
 
-  if (brands.length === 0) {
+  if (!dealerId) {
     return (
       <Card className="shadow-elevated">
         <CardContent className="py-12 text-center text-muted-foreground">
-          No brands found. Add brands from the onboarding flow first.
+          Create your dealership first in the Dealership Profile tab.
         </CardContent>
       </Card>
     );
@@ -119,6 +148,36 @@ const BrandSettings = () => {
 
   return (
     <div className="space-y-4">
+      <Card className="shadow-elevated">
+        <CardContent className="p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+          <div className="flex-1 space-y-2">
+            <Label>Add a Brand</Label>
+            <Input
+              value={newBrandName}
+              onChange={e => setNewBrandName(e.target.value)}
+              placeholder="e.g. Toyota, Honda, BMW"
+              onKeyDown={e => { if (e.key === 'Enter') void handleAddBrand(); }}
+            />
+          </div>
+          <Button
+            onClick={handleAddBrand}
+            disabled={!newBrandName.trim() || addingBrand}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            {addingBrand ? 'Adding…' : 'Add Brand'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {brands.length === 0 && (
+        <Card className="shadow-elevated">
+          <CardContent className="py-10 text-center text-muted-foreground">
+            No brands yet. Add your first brand above.
+          </CardContent>
+        </Card>
+      )}
+
       {brands.map(brand => {
         const isExpanded = expandedBrand === brand.id;
         return (
