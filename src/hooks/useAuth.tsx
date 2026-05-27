@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, type Session, type User } from '@/integrations/supabase/client';
 import { AppRole } from '@/constants/roles';
 import { isAppRole } from '@/lib/roles';
 import { ensureActivitySession, endActivitySession } from '@/lib/activityLogger';

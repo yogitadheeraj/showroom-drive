@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowRight, BadgeCheck, Bell, Building2, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Bell, Building2, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import SiteHeader from '@/components/SiteHeader';
 
@@ -17,10 +17,22 @@ const AuthPage = () => {
   const [isResending, setIsResending] = useState(false);
   const [newLeadCount, setNewLeadCount] = useState(0);
   const [canOpenLeadPage, setCanOpenLeadPage] = useState(false);
+  const [emailVerifiedBanner, setEmailVerifiedBanner] = useState(false);
   const { signIn, resendVerificationEmail } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const logoUrl = 'https://res.cloudinary.com/totalesworld/image/upload/v1774900050/logo_acnpcu_Nero_AI_Background_Remover_transparent_1_srpzwi.png';
+
+  useEffect(() => {
+    if (searchParams.get('verified') === 'true') {
+      setEmailVerifiedBanner(true);
+      // Clean up query param without a full page reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete('verified');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let isMounted = true;
@@ -165,6 +177,15 @@ const AuthPage = () => {
 
                 <CardContent className="px-6 py-6 sm:px-8 sm:py-8">
                   <div className="space-y-5">
+                    {emailVerifiedBanner && (
+                      <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800 dark:bg-green-950/40">
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
+                        <div>
+                          <p className="text-sm font-semibold text-green-800 dark:text-green-300">Email verified!</p>
+                          <p className="text-sm text-green-700 dark:text-green-400">Your email address has been confirmed. You can now sign in below.</p>
+                        </div>
+                      </div>
+                    )}
                     <form onSubmit={handleSignIn} className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="signin-email">Work Email</Label>

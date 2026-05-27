@@ -28,6 +28,8 @@ import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
 
 const UsersPage = () => {
   const [users, setUsers] = useState<any[]>([]);
+  const [verificationByUserId, setVerificationByUserId] = useState<Record<string, boolean>>({});
+  const [resendingVerificationByUserId, setResendingVerificationByUserId] = useState<Record<string, boolean>>({});
   const [staffDriveMetrics, setStaffDriveMetrics] = useState<Record<string, { assigned: number; active: number; completed: number }>>({});
   const [dealers, setDealers] = useState<any[]>([]);
   const [selectedDealerFilter, setSelectedDealerFilter] = useState<string>('all');
@@ -121,6 +123,19 @@ const UsersPage = () => {
       }));
     setUsers(merged);
 
+    const userIds = merged.map((u) => u.user_id).filter(Boolean);
+    if (userIds.length > 0) {
+      const { data: verificationData, error: verificationError } = await supabase.functions.invoke('staff-verification-status', {
+        body: { userIds },
+      });
+
+      if (!verificationError) {
+        setVerificationByUserId((verificationData as any)?.statusByUserId || {});
+      }
+    } else {
+      setVerificationByUserId({});
+    }
+
     const visibleLocationIds = Array.from(new Set(merged.map((p) => p.location_id).filter(Boolean)));
     if (visibleLocationIds.length === 0) {
       setStaffDriveMetrics({});
@@ -153,6 +168,36 @@ const UsersPage = () => {
     setStaffDriveMetrics(metrics);
   };
 
+  const handleResendVerificationForUser = async (u: any) => {
+    if (!u?.user_id) return;
+    setResendingVerificationByUserId((prev) => ({ ...prev, [u.user_id]: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke('resend-staff-verification', {
+        body: { userId: u.user_id },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error as string);
+
+      if ((data as any)?.alreadyVerified) {
+        toast({ title: 'Already verified', description: `${u.full_name} has already verified email.` });
+      } else if ((data as any)?.sent) {
+        toast({ title: 'Verification sent', description: `Verification email sent to ${u.email}.` });
+      } else {
+        toast({
+          title: 'Email skipped',
+          description: 'SMTP not configured. Share the verification link from API response/logs.',
+          variant: 'destructive',
+        });
+      }
+
+      await fetchUsers();
+    } catch (err: any) {
+      toast({ title: 'Resend failed', description: err?.message || 'Unable to resend verification', variant: 'destructive' });
+    } finally {
+      setResendingVerificationByUserId((prev) => ({ ...prev, [u.user_id]: false }));
+    }
+  };
+
   const getStaffDriveMetrics = (profileId: string) =>
     staffDriveMetrics[profileId] || { assigned: 0, active: 0, completed: 0 };
 
@@ -182,23 +227,10 @@ const UsersPage = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error as string);
 
-      // Send welcome email to new staff member
-      const locationName = locations.find((l: any) => l.id === createForm.locationId)?.name;
-      await supabase.functions.invoke('send-transactional-email', {
-        body: {
-          templateName: 'staff-welcome',
-          recipientEmail: createForm.email,
-          idempotencyKey: `staff-welcome-${data.userId || createForm.email}`,
-          templateData: {
-            staffName: createForm.fullName,
-            role: getAppRoleLabel(createForm.role),
-            locationName: locationName || '',
-            loginEmail: createForm.email,
-          },
-        },
-      });
-
-      toast({ title: 'User created', description: `${createForm.fullName} added as ${createForm.role}` });
+      const verificationNote = data?.verificationEmailSent
+        ? ' Verification email sent.'
+        : ' User created. Verification email could not be sent (SMTP not configured).';
+      toast({ title: 'User created', description: `${createForm.fullName} added as ${createForm.role}.${verificationNote}` });
       setShowCreateDialog(false);
       setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
       fetchUsers();
@@ -389,6 +421,7 @@ const UsersPage = () => {
                 <tr className="border-b border-border bg-muted/30">
                   <th className="text-left p-3 text-muted-foreground font-medium">Name</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Email</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Verified</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Role</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Location</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Dealer</th>
@@ -406,6 +439,23 @@ const UsersPage = () => {
                         <>
                     <td className="p-3 font-medium text-foreground">{u.full_name}</td>
                     <td className="p-3 text-muted-foreground">{u.email}</td>
+                    <td className="p-3">
+                      {verificationByUserId[u.user_id] ? (
+                        <Badge variant="secondary" className="bg-success/10 text-success">Yes</Badge>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="bg-destructive/10 text-destructive">No</Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!!resendingVerificationByUserId[u.user_id] || saving}
+                            onClick={() => handleResendVerificationForUser(u)}
+                          >
+                            {resendingVerificationByUserId[u.user_id] ? 'Sending...' : 'Send Verification'}
+                          </Button>
+                        </div>
+                      )}
+                    </td>
                     <td className="p-3">
                       {u.user_roles?.map((r: any) => (
                         <Badge key={r.role} variant="secondary" className={getAppRoleBadgeClass(r.role)}>
@@ -500,6 +550,25 @@ const UsersPage = () => {
                   <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
                     {isUserActive(u) ? 'Active' : 'Inactive'}
                   </Badge>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Verified:</span>
+                  {verificationByUserId[u.user_id] ? (
+                    <Badge variant="secondary" className="bg-success/10 text-success">Yes</Badge>
+                  ) : (
+                    <>
+                      <Badge variant="secondary" className="bg-destructive/10 text-destructive">No</Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!!resendingVerificationByUserId[u.user_id] || saving}
+                        onClick={() => handleResendVerificationForUser(u)}
+                      >
+                        {resendingVerificationByUserId[u.user_id] ? 'Sending...' : 'Send Verification'}
+                      </Button>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">

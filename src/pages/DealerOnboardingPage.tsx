@@ -80,7 +80,33 @@ const DealerOnboardingPage = () => {
         password: accountData.password,
         options: { data: { full_name: accountData.fullName } },
       });
-      if (authError) throw authError;
+      if (authError) {
+        if (authError.message === 'UNVERIFIED_EMAIL_EXISTS_RESEND_CONFIRM') {
+          const wantsResend = window.confirm(
+            'This email is already registered but not verified. Do you want to send the verification email again?',
+          );
+
+          if (wantsResend) {
+            const { error: resendError } = await supabase.auth.resend({
+              type: 'signup',
+              email: accountData.email.trim().toLowerCase(),
+              options: { emailRedirectTo: `${window.location.origin}/auth` },
+            });
+
+            if (resendError) throw resendError;
+
+            toast({
+              title: 'Verification email sent',
+              description: 'Please verify your email, then login and continue onboarding.',
+            });
+            return;
+          }
+
+          throw new Error('Please verify your email first to continue.');
+        }
+
+        throw authError;
+      }
       if (!authData.user) throw new Error('Account creation failed');
 
       const userId = authData.user.id;
@@ -94,6 +120,8 @@ const DealerOnboardingPage = () => {
         _contact_email: dealerData.contactEmail,
         _contact_phone: dealerData.contactPhone || null,
         _admin_user_id: userId,
+        _full_name: accountData.fullName,
+        _email: accountData.email,
         _brands: validBrands,
         _locations: locationForms.map(loc => ({
           name: loc.name,
