@@ -17,18 +17,18 @@ import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, 
 
 type Step = 'customer' | 'license' | 'confirm';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+
 const WalkinPage = () => {
   const { profile, role } = useAuth();
   const { dealerId, loading: dealerLoading } = useDealerContext();
   const [locations, setLocations] = useState<any[]>([]);
   const [locationStatus, setLocationStatus] = useState<Record<string, { isOpen: boolean; openTime: string | null; closeTime: string | null }>>({});
   const [vehicles, setVehicles] = useState<any[]>([]);
-  const [vehicleCategoryFilter, setVehicleCategoryFilter] = useState<'new' | 'used'>('new');
-  // Wheel segment is auto-adjusted from selected vehicle; no manual filter for walk-in
   const [step, setStep] = useState<Step>('customer');
   const [formData, setFormData] = useState({
     fullName: '', phone: '', email: '', preferredContact: 'phone',
-    locationId: profile?.location_id || '', vehicleId: '', selectedVariantVehicleId: '',
+    locationId: profile?.location_id || '', vehicleId: '',
   });
   const [canUseDemoData, setCanUseDemoData] = useState(false);
   // Autofill handler
@@ -88,10 +88,31 @@ const WalkinPage = () => {
 
   useEffect(() => {
     if (formData.locationId) {
-      supabase.from('vehicles').select('*')
-        .eq('location_id', formData.locationId)
-        .eq('is_available', true).eq('is_active', true)
-        .then(({ data }) => setVehicles(data || []));
+      const loadVehicles = async () => {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const token = sessionData.session?.access_token;
+
+          const response = await fetch(
+            `${API_BASE_URL}/api/vehicles?location_id=${encodeURIComponent(formData.locationId)}&is_available=true&is_active=true`,
+            {
+              method: 'GET',
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            },
+          );
+
+          const json = await response.json().catch(() => ({}));
+          const rows = Array.isArray(json?.data) ? json.data : [];
+          setVehicles(rows);
+        } catch (error) {
+          console.error('Failed to load vehicles from API', error);
+          setVehicles([]);
+        }
+      };
+
+      void loadVehicles();
+    } else {
+      setVehicles([]);
     }
   }, [formData.locationId]);
 
@@ -106,14 +127,14 @@ const WalkinPage = () => {
         return;
       } else {
         // If profile location is closed, clear it
-        setFormData((p) => ({ ...p, locationId: '', vehicleId: '', selectedVariantVehicleId: '' }));
+        setFormData((p) => ({ ...p, locationId: '', vehicleId: '' }));
         return;
       }
     }
 
     setFormData((p) => {
       if (p.locationId && !locations.some((l) => l.id === p.locationId)) {
-        return { ...p, locationId: '', vehicleId: '', selectedVariantVehicleId: '' };
+        return { ...p, locationId: '', vehicleId: '' };
       }
       return p;
     });
@@ -183,21 +204,12 @@ const WalkinPage = () => {
   };
 
   const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
-  const selectedVariantVehicle = vehicles.find(v => v.id === formData.selectedVariantVehicleId);
   const selectedLocation = locations.find(l => l.id === formData.locationId);
   const selectedLocationStatus = formData.locationId ? locationStatus[formData.locationId] : null;
-  const getDemoVehicleForVariant = (variantVehicleId: string) => {
-    if (!variantVehicleId) return null;
-    return vehicles.find((vehicle) => vehicle.is_demo && vehicle.demo_for_vehicle_id === variantVehicleId && vehicle.is_available) || null;
-  };
+
   const filteredVehicles = useMemo(() => {
-    return vehicles.filter((vehicle) => {
-      if (vehicle.is_demo) return false;
-      if (vehicleCategoryFilter === 'used' && !vehicle.is_used) return false;
-      if (vehicleCategoryFilter === 'new' && !(vehicle.is_new && !vehicle.is_used)) return false;
-      return true;
-    });
-  }, [vehicles, vehicleCategoryFilter]);
+      return vehicles.filter((vehicle) => vehicle.is_demo && vehicle.total_units>0 && vehicle.available_units>0);
+    }, [vehicles]);
 
   // Only allow booking if current time is at least 30 mins before closing
   const canProceedFromCustomer = (() => {
@@ -271,8 +283,7 @@ const WalkinPage = () => {
         }
       }
 
-      const displayVehicle = vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle;
-      const vehicleName = displayVehicle ? `${displayVehicle.brand} ${displayVehicle.model} ${displayVehicle.variant || ''}`.trim() : 'your selected vehicle';
+      const vehicleName = selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model} ${selectedVehicle.variant || ''}`.trim() : 'your selected vehicle';
       const locationName = selectedLocation?.name || 'our showroom';
       const walkinTime = `${now.toISOString().split('T')[0]} ${now.toTimeString().slice(0, 5)}`;
 
@@ -356,7 +367,7 @@ const WalkinPage = () => {
       }
 
       toast({ title: 'Walk-in registered', description: `${formData.fullName} has been checked in${assignedSalesName ? `. Sales executive: ${assignedSalesName}` : ''}.` });
-      setFormData({ fullName: '', phone: '', email: '', preferredContact: 'phone', locationId: profile?.location_id || '', vehicleId: '', selectedVariantVehicleId: '' });
+      setFormData({ fullName: '', phone: '', email: '', preferredContact: 'phone', locationId: profile?.location_id || '', vehicleId: '' });
       removeLicense();
       setStep('customer');
     } catch (err: any) {
@@ -500,7 +511,7 @@ const WalkinPage = () => {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <Select value={formData.locationId} onValueChange={(v) => setFormData((p) => ({ ...p, locationId: v, vehicleId: '', selectedVariantVehicleId: '' }))}>
+                      <Select value={formData.locationId} onValueChange={(v) => setFormData((p) => ({ ...p, locationId: v, vehicleId: '' }))}>
                         <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
                         <SelectContent>
                           {locations.map((l) => {
@@ -536,43 +547,16 @@ const WalkinPage = () => {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Vehicle Category</Label>
-                    <Select
-                      value={vehicleCategoryFilter}
-                      onValueChange={(v: 'new' | 'used') => {
-                        setVehicleCategoryFilter(v);
-                        setFormData((p) => ({ ...p, vehicleId: '', selectedVariantVehicleId: '' }));
-                      }}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="new">New Cars</SelectItem>
-                        <SelectItem value="used">Used Cars</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
                 <div className="space-y-2">
-                  <Label>Vehicle <span className="text-destructive">*</span></Label>
+                  <Label>Demo Vehicle <span className="text-destructive">*</span></Label>
                   {filteredVehicles.length > 0 ? (
                     <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto">
                       {filteredVehicles.map((v) => (
                         <div
                           key={v.id}
-                          onClick={() => {
-                            if (vehicleCategoryFilter === 'used') {
-                              setFormData((p) => ({ ...p, selectedVariantVehicleId: v.id, vehicleId: v.id }));
-                              return;
-                            }
-
-                            const demoVehicle = getDemoVehicleForVariant(v.id);
-                            setFormData((p) => ({ ...p, selectedVariantVehicleId: v.id, vehicleId: demoVehicle?.id || '' }));
-                          }}
+                          onClick={() => setFormData((p) => ({ ...p, vehicleId: v.id }))}
                           className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                            formData.selectedVariantVehicleId === v.id
+                            formData.vehicleId === v.id
                               ? 'border-primary bg-primary/5 ring-1 ring-primary'
                               : 'border-border hover:border-primary/50 hover:bg-muted/50'
                           }`}
@@ -584,17 +568,12 @@ const WalkinPage = () => {
                                 {v.variant && `${v.variant} · `}{v.color && `${v.color} · `}{v.year}
                               </p>
                               <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                <Badge variant="outline" className="text-[10px] uppercase tracking-wide">{v.is_used ? 'Used' : 'New'}</Badge>
+                                <Badge variant="outline" className="text-[10px] uppercase tracking-wide">Demo</Badge>
                                 {v.set_price != null && <Badge variant="secondary" className="text-[10px]">Rs {Number(v.set_price).toLocaleString()}</Badge>}
                                 {v.vehicle_time_days != null && <Badge variant="secondary" className="text-[10px]">{v.vehicle_time_days} day(s)</Badge>}
-                                {vehicleCategoryFilter === 'new' && (
-                                  <Badge variant="secondary" className="text-[10px]">
-                                    {getDemoVehicleForVariant(v.id) ? 'Demo linked' : 'No demo'}
-                                  </Badge>
-                                )}
                               </div>
                             </div>
-                            {formData.selectedVariantVehicleId === v.id && (
+                            {formData.vehicleId === v.id && (
                               <CheckCircle2 className="h-5 w-5 text-primary" />
                             )}
                           </div>
@@ -603,11 +582,8 @@ const WalkinPage = () => {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground py-4 text-center">
-                      {formData.locationId ? 'No vehicles available in this category at your location' : 'Select/apply location to load vehicles'}
+                      {formData.locationId ? 'No demo vehicles available at your location' : 'Select/apply location to load demo vehicles'}
                     </p>
-                  )}
-                  {vehicleCategoryFilter === 'new' && formData.selectedVariantVehicleId && !formData.vehicleId && (
-                    <p className="text-xs text-destructive">No demo vehicle is linked to the selected New variant.</p>
                   )}
                 </div>
 
@@ -735,19 +711,18 @@ const WalkinPage = () => {
                   <div className="p-4">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Vehicle</p>
                     <p className="font-medium text-foreground">
-                      {(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)
-                        ? `${(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.brand} ${(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.model}`
+                      {selectedVehicle
+                        ? `${selectedVehicle.brand} ${selectedVehicle.model}`
                         : '—'}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)
-                        && `${(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.variant || ''} ${(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.color || ''} ${(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.year}`.trim()}
+                      {selectedVehicle
+                        && `${selectedVehicle.variant || ''} ${selectedVehicle.color || ''} ${selectedVehicle.year}`.trim()}
                     </p>
-                    {(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle) && (
+                    {selectedVehicle && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <Badge variant="outline" className="text-[10px] uppercase tracking-wide">{vehicleCategoryFilter === 'used' ? 'Used' : 'New'}</Badge>
-                        {(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.set_price != null && <Badge variant="secondary" className="text-[10px]">Rs {Number((vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.set_price).toLocaleString()}</Badge>}
-                        {vehicleCategoryFilter === 'new' && selectedVehicle?.is_demo && <Badge variant="secondary" className="text-[10px]">Demo assigned</Badge>}
+                        <Badge variant="outline" className="text-[10px] uppercase tracking-wide">Demo Vehicle</Badge>
+                        {selectedVehicle.set_price != null && <Badge variant="secondary" className="text-[10px]">Rs {Number(selectedVehicle.set_price).toLocaleString()}</Badge>}
                       </div>
                     )}
                   </div>

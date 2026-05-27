@@ -19,6 +19,8 @@ import BulkVehicleImport from '@/components/vehicles/BulkVehicleImport';
 import VehicleReservations from '@/components/vehicles/VehicleReservations';
 import PricingRulesConfig from '@/components/vehicles/PricingRulesConfig';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -78,15 +80,50 @@ const VehiclesPage = () => {
   }, [selectedDealer, dealerLoading]);
 
   const fetchVehicles = async () => {
-    let query = supabase.from('vehicles').select('*, locations(name, dealer_id)').eq('is_active', true).order('brand');
-    const { data } = await query;
-    let filtered = data || [];
-    if (isSuperAdmin && selectedDealer !== 'all') {
-      filtered = filtered.filter(v => v.locations?.dealer_id === selectedDealer);
-    } else if (!isSuperAdmin && dealerId) {
-      filtered = filtered.filter(v => v.locations?.dealer_id === dealerId);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      const response = await fetch(`${API_BASE_URL}/api/vehicles`, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      const json = await response.json().catch(() => ({}));
+      const rows = Array.isArray(json?.data) ? json.data : [];
+
+      let allLocations = locations;
+      if (!allLocations.length) {
+        const { data: fetchedLocations } = await supabase.from('locations').select('id, name, dealer_id');
+        allLocations = fetchedLocations || [];
+      }
+
+      const locationMap = (allLocations || []).reduce((acc: Record<string, any>, loc: any) => {
+        acc[loc.id] = loc;
+        return acc;
+      }, {});
+
+      const hydrated = rows.map((vehicle: any) => ({
+        ...vehicle,
+        locations: locationMap[vehicle.location_id]
+          ? { name: locationMap[vehicle.location_id].name, dealer_id: locationMap[vehicle.location_id].dealer_id }
+          : null,
+      }));
+
+      let filtered = hydrated.filter((v: any) => v.is_active !== false);
+      if (isSuperAdmin && selectedDealer !== 'all') {
+        filtered = filtered.filter((v: any) => v.locations?.dealer_id === selectedDealer);
+      } else if (!isSuperAdmin && dealerId) {
+        filtered = filtered.filter((v: any) => v.locations?.dealer_id === dealerId);
+      }
+
+      filtered.sort((a: any, b: any) => String(a.brand || '').localeCompare(String(b.brand || '')));
+      setVehicles(filtered);
+    } catch (error) {
+      console.error('Failed to fetch vehicles from API', error);
+      toast({ title: 'Error', description: 'Failed to load vehicles list', variant: 'destructive' });
+      setVehicles([]);
     }
-    setVehicles(filtered);
   };
 
   const openEdit = (v: any) => {
