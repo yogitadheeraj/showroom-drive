@@ -55,6 +55,10 @@ export async function apiPatch<T>(path: string, payload: Record<string, unknown>
   return request<T>(path, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
+export async function apiPut<T>(path: string, payload: Record<string, unknown>) {
+  return request<T>(path, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
 export async function apiDelete<T>(path: string) {
   return request<T>(path, { method: 'DELETE' });
 }

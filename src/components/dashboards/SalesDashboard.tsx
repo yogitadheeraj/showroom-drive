@@ -45,6 +45,7 @@ const SalesDashboard = () => {
   const [salesTasks, setSalesTasks] = useState<any[]>([]);
   const [oppNotesDialog, setOppNotesDialog] = useState<{ open: boolean; opportunityId: string | null }>({ open: false, opportunityId: null });
   const [oppNoteText, setOppNoteText] = useState('');
+  const [oppFollowUpDueAt, setOppFollowUpDueAt] = useState('');
   const [taskNotesDialog, setTaskNotesDialog] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
   const [taskNoteText, setTaskNoteText] = useState('');
   const notifiedHandoverIdsRef = useRef<Set<string>>(new Set());
@@ -523,7 +524,7 @@ const SalesDashboard = () => {
       const oppRows = await apiDbQuery<any[]>({
         table: 'sales_opportunities',
         action: 'select',
-        select: 'notes',
+        select: 'notes, customer_id',
         filters: [{ field: 'id', op: 'eq', value: oppNotesDialog.opportunityId }],
         limit: 1,
       });
@@ -540,9 +541,29 @@ const SalesDashboard = () => {
         filters: [{ field: 'id', op: 'eq', value: oppNotesDialog.opportunityId }],
       });
 
+      if (oppFollowUpDueAt.trim()) {
+        const dueAt = new Date(oppFollowUpDueAt);
+        if (!Number.isNaN(dueAt.getTime()) && profile?.id) {
+          await apiDbQuery({
+            table: 'sales_tasks',
+            action: 'insert',
+            payload: {
+              opportunity_id: oppNotesDialog.opportunityId,
+              customer_id: opp?.customer_id || null,
+              assigned_to_profile_id: profile.id,
+              title: 'Follow-up after review note',
+              due_at: dueAt.toISOString(),
+              status: 'open',
+              priority: 'medium',
+            },
+          });
+        }
+      }
+
       toast({ title: 'Note added successfully' });
       setOppNotesDialog({ open: false, opportunityId: null });
       setOppNoteText('');
+      setOppFollowUpDueAt('');
       void fetchLeadWorkspace();
     } catch (err: any) {
       toast({ title: 'Failed to save note', description: err.message, variant: 'destructive' });
@@ -997,6 +1018,7 @@ const SalesDashboard = () => {
                   onClick={() => {
                     setOppNotesDialog({ open: true, opportunityId: opportunity.id });
                     setOppNoteText('');
+                    setOppFollowUpDueAt('');
                   }}
                 >
                   + Add Follow-up Note
@@ -1268,7 +1290,15 @@ const SalesDashboard = () => {
       </Card>
 
       {/* Opportunity Notes Dialog */}
-      <Dialog open={oppNotesDialog.open} onOpenChange={(open) => !open && setOppNotesDialog({ open: false, opportunityId: null })}>
+      <Dialog
+        open={oppNotesDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setOppNotesDialog({ open: false, opportunityId: null });
+            setOppFollowUpDueAt('');
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-heading">Add Follow-up Note to Opportunity</DialogTitle>
@@ -1282,6 +1312,14 @@ const SalesDashboard = () => {
                 onChange={(e) => setOppNoteText(e.target.value)}
                 placeholder="Add your follow-up comment, observations, or next steps..."
                 className="min-h-24"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Next Follow-up Date & Time</Label>
+              <Input
+                type="datetime-local"
+                value={oppFollowUpDueAt}
+                onChange={(e) => setOppFollowUpDueAt(e.target.value)}
               />
             </div>
             <Button onClick={handleSaveOppNote} className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={!oppNoteText.trim()}>

@@ -76,7 +76,7 @@ const CommunicationsPage = () => {
           return !c.test_drive_id;
         });
       }
-
+console.log({ enriched });
       setCommunications(enriched);
     } catch {
       setCommunications([]);
@@ -144,7 +144,7 @@ const CommunicationsPage = () => {
                     <tr key={c.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                       <td className="p-3 font-medium text-foreground">{c.customers?.full_name}</td>
                       <td className="p-3"><Badge variant="secondary" className={typeColor[c.type]}>{c.type}</Badge></td>
-                      <td className="p-3 text-muted-foreground capitalize">{c.purpose.replace('_', ' ')}</td>
+                      <td className="p-3 text-muted-foreground capitalize">{c.purpose?.replace('_', ' ')}</td>
                       <td className="p-3 text-muted-foreground">{c.sent_to}</td>
                       <td className="p-3 text-muted-foreground">{c.subject || '-'}</td>
                       <td className="p-3"><Badge variant="secondary" className={statusColor[c.status]}>{c.status}</Badge></td>
@@ -178,7 +178,7 @@ const CommunicationsPage = () => {
                       </div>
                       <div>
                         <p className="font-heading font-semibold text-sm text-foreground">{c.customers?.full_name}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{c.purpose.replace('_', ' ')}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{c.purpose?.replace('_', ' ')}</p>
                       </div>
                     </div>
                     <Badge variant="secondary" className={`text-xs ${statusColor[c.status]}`}>{c.status}</Badge>

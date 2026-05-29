@@ -101,6 +101,12 @@ import {
   unreadCountController,
 } from '../controllers/notificationController.js';
 import {
+  deleteFollowUpReminderConfigController,
+  getFollowUpReminderConfigController,
+  listFollowUpReminderConfigsController,
+  upsertFollowUpReminderConfigController,
+} from '../controllers/followUpReminderConfigController.js';
+import {
   createUserController,
   deleteUserController,
   disableUserController,
@@ -220,6 +226,12 @@ apiRouter.get('/notifications', requireAuth, listNotificationsController);
 apiRouter.get('/notifications/unread-count', requireAuth, unreadCountController);
 apiRouter.patch('/notifications/:id/read', requireAuth, markReadController);
 apiRouter.post('/notifications/mark-all-read', requireAuth, markAllReadController);
+
+// Follow-up Reminder Config
+apiRouter.get('/follow-up-reminder-config', requireAuth, listFollowUpReminderConfigsController);
+apiRouter.get('/follow-up-reminder-config/:locationId', requireAuth, getFollowUpReminderConfigController);
+apiRouter.put('/follow-up-reminder-config', requireAuth, upsertFollowUpReminderConfigController);
+apiRouter.delete('/follow-up-reminder-config/:locationId', requireAuth, deleteFollowUpReminderConfigController);
 
 // Firebase Admin – User Management
 apiRouter.post('/firebase/users', requireAuth, createUserController);

@@ -4,8 +4,9 @@ import BrandSettings from '@/components/settings/BrandSettings';
 import OperatingHoursSettings from '@/components/settings/OperatingHoursSettings';
 import ReportSettingsConfig from '@/components/settings/ReportSettingsConfig';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
+import FollowUpReminderSettings from '@/components/settings/FollowUpReminderSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, Palette, Mail, SunMoon } from 'lucide-react';
+import { Building2, Palette, Mail, SunMoon, BellRing } from 'lucide-react';
 
 const DealerSettingsPage = () => {
   return (
@@ -27,6 +28,9 @@ const DealerSettingsPage = () => {
             <TabsTrigger value="reports" className="gap-2">
               <Mail className="h-4 w-4" /> Report Settings
             </TabsTrigger>
+            <TabsTrigger value="followup-reminders" className="gap-2">
+              <BellRing className="h-4 w-4" /> Follow-up Reminders
+            </TabsTrigger>
             <TabsTrigger value="appearance" className="gap-2">
               <SunMoon className="h-4 w-4" /> Appearance
             </TabsTrigger>
@@ -42,6 +46,10 @@ const DealerSettingsPage = () => {
 
           <TabsContent value="reports">
             <ReportSettingsConfig />
+          </TabsContent>
+
+          <TabsContent value="followup-reminders">
+            <FollowUpReminderSettings />
           </TabsContent>
 
           <TabsContent value="appearance">
