@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiDbQuery } from '@/lib/apiClient';
 import { sendTransactionalEmail } from '@/lib/functionService';
+import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,9 +15,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Phone, Route, Ban, TrendingUp } from 'lucide-react';
+import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveJourneyDialog } from '@/components/TestDriveJourneyDialog';
+import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 
 type DurationBadge = 'Lightning Fast' | 'Smooth Experience' | 'Detailed Guidance' | 'Premium Attention';
 
@@ -65,10 +67,23 @@ const TestDrivesPage = () => {
   const { toast } = useToast();
   const { dealerLocationIds, loading: dealerLoading } = useDealerContext();
   const canCreateOpportunity = role === APP_ROLE.SALES || role === APP_ROLE.SUPERADMIN || role === APP_ROLE.DEALER_ADMIN;
+  const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
+  const [assigningKey, setAssigningKey] = useState<string | null>(null);
+  const [securityActionId, setSecurityActionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!dealerLoading) fetchTestDrives();
   }, [statusFilter, dealerLocationIds, dealerLoading]);
+
+  // Real-time: auto-refresh + toast when any test drive status changes at this location
+  useTestDriveRealtime(profile?.location_id, (event) => {
+    const statusLabel = event.status.replace(/_/g, ' ');
+    toast({
+      title: 'Test Drive Updated',
+      description: `${event.customer_name} — ${event.vehicle_name} is now "${statusLabel}"`,
+    });
+    fetchTestDrives();
+  });
 
   const fetchTestDrives = async () => {
     const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [];
@@ -318,6 +333,55 @@ console.log({ drives, customers, vehicles, locations, profiles });
     }
   };
 
+  const updateStatus = async (id: string, newStatus: string) => {
+    await apiDbQuery({ table: 'test_drives', action: 'update', payload: { status: newStatus }, filters: [{ field: 'id', op: 'eq', value: id }] });
+    toast({ title: 'Status updated' });
+    fetchTestDrives();
+  };
+
+  const handleAssignKey = async (id: string) => {
+    setAssigningKey(id);
+    try {
+      await apiDbQuery({ table: 'test_drives', action: 'update', payload: { key_handed_at: new Date().toISOString(), status: 'in_progress' }, filters: [{ field: 'id', op: 'eq', value: id }] });
+      toast({ title: 'Key assigned', description: 'Test drive is now in progress.' });
+    } finally {
+      setAssigningKey(null);
+      fetchTestDrives();
+    }
+  };
+
+  const handleSecurityCheckIn = async (id: string) => {
+    setSecurityActionId(id);
+    try {
+      await apiDbQuery({ table: 'test_drives', action: 'update', payload: { security_checked_in_at: new Date().toISOString(), status: 'in_progress' }, filters: [{ field: 'id', op: 'eq', value: id }] });
+      toast({ title: 'Test drive started' });
+    } finally {
+      setSecurityActionId(null);
+      fetchTestDrives();
+    }
+  };
+
+  const handleSecurityCheckOut = async (id: string) => {
+    setSecurityActionId(id);
+    try {
+      await apiDbQuery({ table: 'test_drives', action: 'update', payload: { security_checked_out_at: new Date().toISOString() }, filters: [{ field: 'id', op: 'eq', value: id }] });
+      toast({ title: 'Vehicle returned' });
+    } finally {
+      setSecurityActionId(null);
+      fetchTestDrives();
+    }
+  };
+
+  const handleKeyHandoverComplete = async (td: any) => {
+    await apiDbQuery({ table: 'test_drives', action: 'update', payload: { key_handover_completed_at: new Date().toISOString(), status: 'completed' }, filters: [{ field: 'id', op: 'eq', value: td.id }] });
+    fetchTestDrives();
+    setLeadDialogDrive(td);
+    setLeadTemperature('cold');
+    setFollowUpTaskTitle('');
+    setFollowUpTaskDueAt('');
+    toast({ title: 'Key handover complete', description: 'Create a follow-up opportunity below.' });
+  };
+
   const statusColor: Record<string, string> = {
     scheduled: 'bg-info/10 text-info border-info/20',
     confirmed: 'bg-primary/10 text-primary border-primary/20',
@@ -355,233 +419,153 @@ console.log({ drives, customers, vehicles, locations, profiles });
           </Select>
         </div>
 
-        <Card className="shadow-card hidden lg:block">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left p-3 text-muted-foreground font-medium">Customer</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium">Vehicle</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium">Location</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium">Date & Time</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium">Status</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium">Journey Time</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium">Sales Person</th>
-                     <th className="text-left p-3 text-muted-foreground font-medium">Created On</th>
-                    <th className="text-left p-3 text-muted-foreground font-medium">Actions</th>
-                  </tr>
-                </thead>
-                {console.log(testDrives)}
-                <tbody>
-                  {testDrives.map((td) => {
-                    const durationMinutes = getDurationMinutes(td);
-                    const journeyBadge = getDurationBadge(durationMinutes);
-
-                    return (
-                      <tr key={td.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                        <td className="p-3">
-                          <p className="font-medium text-foreground">{td.customers?.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{td.customers?.phone}</p>
-                        </td>
-                        <td className="p-3 text-foreground">{td.vehicles?.brand} {td.vehicles?.model}</td>
-                        <td className="p-3 text-muted-foreground">{td.locations?.name}</td>
-                        <td className="p-3 text-muted-foreground">{td.scheduled_date}<br />{td.scheduled_time}</td>
-                        <td className="p-3">
-                          <Badge variant="secondary" className={statusColor[td.status]}>{td.status.replace('_', ' ')}</Badge>
-                        </td>
-                        <td className="p-3">
-                          {durationMinutes !== null ? (
-                            <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground">{durationMinutes} mins</p>
-                              {journeyBadge && (
-                                <Badge variant="secondary" className={`text-xs ${durationBadgeClass[journeyBadge]}`}>
-                                  {journeyBadge}
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">Not completed yet</p>
-                          )}
-                        </td>
-                        <td className="p-3 text-muted-foreground">{td.profiles?.full_name || '-'}</td>
-                           <td className="p-3 text-muted-foreground">{td.created_at ? new Date(td.created_at).toLocaleString() : '-'}</td>
-                     
-                        <td className="p-3">
-                          <TooltipProvider delayDuration={300}>
-                            <div className="flex gap-1 items-center">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button size="icon" variant="outline" className="h-7 w-7 border-primary/40 text-primary hover:bg-primary/10" onClick={() => setJourneyDrive(td)}>
-                                    <Route className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>View Journey</TooltipContent>
-                              </Tooltip>
-                              {['scheduled', 'confirmed', 'show', 'no_show'].includes(td.status) && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button size="icon" className="h-7 w-7 bg-info text-info-foreground hover:bg-info/90" onClick={() => setRescheduleId(td.id)}>
-                                      <RefreshCw className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Reschedule</TooltipContent>
-                                </Tooltip>
-                              )}
-                              {['scheduled', 'confirmed', 'show'].includes(td.status) && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button size="icon" variant="outline" className="h-7 w-7 border-warning/50 text-warning hover:bg-warning/10" onClick={() => setNoShowId(td.id)}>
-                                      <CalendarX className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Mark No Show</TooltipContent>
-                                </Tooltip>
-                              )}
-                              {['scheduled', 'confirmed'].includes(td.status) && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button size="icon" className="h-7 w-7 bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => setCancelId(td.id)}>
-                                      <Ban className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Cancel</TooltipContent>
-                                </Tooltip>
-                              )}
-                              {canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button size="icon" variant="outline" className="h-7 w-7 border-warning/40 text-warning hover:bg-warning/10" onClick={() => { setLeadDialogDrive(td); setLeadTemperature('cold'); setFollowUpTaskTitle(''); setFollowUpTaskDueAt(''); }}>
-                                      <TrendingUp className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Create Lead</TooltipContent>
-                                </Tooltip>
-                              )}
-                            </div>
-                          </TooltipProvider>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {testDrives.length === 0 && (
-                    <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">No test drives found</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="lg:hidden space-y-3">
-          {testDrives.length === 0 ? (
-            <Card className="shadow-card">
-              <CardContent className="p-8 text-center text-muted-foreground">No test drives found</CardContent>
-            </Card>
-          ) : (
-            testDrives.map((td) => {
+        {testDrives.length === 0 ? (
+          <Card className="shadow-card">
+            <CardContent className="p-8 text-center text-muted-foreground">No test drives found for the selected filter</CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {testDrives.map((td) => {
               const durationMinutes = getDurationMinutes(td);
               const journeyBadge = getDurationBadge(durationMinutes);
 
               return (
-                <Card key={td.id} className="shadow-card hover:shadow-elevated transition-shadow">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-heading font-semibold text-foreground">{td.customers?.full_name}</p>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                          <Phone className="h-3 w-3" />
-                          {td.customers?.phone}
-                        </div>
+                <Card key={td.id} className="shadow-card hover:shadow-elevated transition-shadow cursor-pointer" onClick={() => setDetailSheetDrive(td)}>
+                  <CardContent className="p-3 space-y-2.5">
+                    {/* ── Header: customer + status ── */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-foreground truncate">{td.customers?.full_name}</p>
+                        {td.customers?.phone && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <Phone className="h-3 w-3" />{td.customers.phone}
+                          </p>
+                        )}
                       </div>
-                      <Badge variant="secondary" className={`text-xs ${statusColor[td.status]}`}>
-                        {td.status.replace('_', ' ')}
+                      <Badge variant="secondary" className={`text-[10px] shrink-0 ${statusColor[td.status]}`}>
+                        {td.status.replace(/_/g, ' ')}
                       </Badge>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="flex items-center gap-1.5">
-                        <Car className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-foreground font-medium truncate">{td.vehicles?.brand} {td.vehicles?.model}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-muted-foreground truncate">{td.locations?.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-muted-foreground">{td.scheduled_date}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-muted-foreground">{td.scheduled_time}</span>
-                      </div>
+                    {/* ── Info grid ── */}
+                    <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1 truncate"><Car className="h-3 w-3 shrink-0" />{td.vehicles?.brand} {td.vehicles?.model}</span>
+                      <span className="flex items-center gap-1 truncate"><MapPin className="h-3 w-3 shrink-0" />{td.locations?.name}</span>
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3 shrink-0" />{td.scheduled_date}</span>
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3 shrink-0" />{(td.scheduled_time || '').substring(0, 5)}</span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      {durationMinutes !== null ? (
-                        <>
-                          <Badge variant="outline">{durationMinutes} mins</Badge>
-                          {journeyBadge && <Badge variant="secondary" className={durationBadgeClass[journeyBadge]}>{journeyBadge}</Badge>}
-                        </>
-                      ) : (
-                        <Badge variant="outline">Not completed yet</Badge>
+                    {/* ── Sales + Duration ── */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {td.profiles?.full_name && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <User className="h-3 w-3 shrink-0" />{td.profiles.full_name}
+                        </span>
+                      )}
+                      {journeyBadge && (
+                        <Badge variant="secondary" className={`text-[10px] ${durationBadgeClass[journeyBadge]}`}>{journeyBadge}</Badge>
+                      )}
+                      {durationMinutes !== null && (
+                        <span className="text-[10px] text-muted-foreground">{durationMinutes}m</span>
+                      )}
+                      {td.created_at && (
+                        <span className="text-[10px] text-muted-foreground ml-auto">{new Date(td.created_at).toLocaleDateString()}</span>
                       )}
                     </div>
 
-                    {td.profiles?.full_name && (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <User className="h-3 w-3" />
-                        Sales: {td.profiles.full_name}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 pt-2 border-t border-border">
-                      <Button size="sm" variant="outline" className="flex-1 border-primary/40 text-primary hover:bg-primary/10" onClick={() => setJourneyDrive(td)}>
-                        <Route className="h-3.5 w-3.5 mr-1.5" /> View Journey
+                    {/* ── Actions ── */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-border" onClick={e => e.stopPropagation()}>
+                      <Button size="sm" variant="outline" className="text-xs border-primary/40 text-primary hover:bg-primary/10" onClick={() => setJourneyDrive(td)}>
+                        <Route className="h-3 w-3 mr-1" /> Journey
                       </Button>
                       {['scheduled', 'confirmed', 'show', 'no_show'].includes(td.status) && (
-                        <Button size="sm" className="flex-1 bg-info text-info-foreground hover:bg-info/90" onClick={() => setRescheduleId(td.id)}>
-                          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Reschedule
+                        <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" onClick={() => setRescheduleId(td.id)}>
+                          <RefreshCw className="h-3 w-3 mr-1" /> Reschedule
                         </Button>
                       )}
                       {['scheduled', 'confirmed', 'show'].includes(td.status) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 border-warning/50 text-warning hover:bg-warning/10"
-                          onClick={() => setNoShowId(td.id)}
-                        >
-                          <CalendarX className="h-3.5 w-3.5 mr-1.5" /> No Show
+                        <Button size="sm" variant="outline" className="text-xs border-warning/50 text-warning hover:bg-warning/10" onClick={() => setNoShowId(td.id)}>
+                          <CalendarX className="h-3 w-3 mr-1" /> No Show
                         </Button>
                       )}
                       {['scheduled', 'confirmed'].includes(td.status) && (
-                        <Button size="sm" className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => setCancelId(td.id)}>
-                          <CalendarX className="h-3.5 w-3.5 mr-1.5" /> Cancel
+                        <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs" onClick={() => setCancelId(td.id)}>
+                          <Ban className="h-3 w-3 mr-1" /> Cancel
                         </Button>
                       )}
-                      {canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1 border-warning/40 text-warning hover:bg-warning/10"
-                          onClick={() => {
-                            setLeadDialogDrive(td);
-                            setLeadTemperature('cold');
-                            setFollowUpTaskTitle('');
-                            setFollowUpTaskDueAt('');
-                          }}
-                        >
-                          Create Lead
+                      {canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && td.scheduled_date && new Date(td.scheduled_date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) && (
+                        <Button size="sm" variant="outline" className="text-xs border-warning/40 text-warning hover:bg-warning/10" onClick={() => { setLeadDialogDrive(td); setLeadTemperature('cold'); setFollowUpTaskTitle(''); setFollowUpTaskDueAt(''); }}>
+                          <TrendingUp className="h-3 w-3 mr-1" /> Lead
                         </Button>
+                      )}
+                      {/* GRO / Admin: status transitions */}
+                      {([APP_ROLE.GRO, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
+                        <>
+                          {td.status === 'scheduled' && (
+                            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => updateStatus(td.id, 'confirmed')}>
+                              <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm
+                            </Button>
+                          )}
+                          {(['scheduled', 'confirmed'] as string[]).includes(td.status) && (
+                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>
+                              <CheckCircle className="h-3 w-3 mr-1" /> Show
+                            </Button>
+                          )}
+                          {td.status === 'show' && (
+                            <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs" onClick={() => updateStatus(td.id, 'in_progress')}>
+                              <PlayCircle className="h-3 w-3 mr-1" /> Start Drive
+                            </Button>
+                          )}
+                          {td.status === 'in_progress' && (
+                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'completed')}>
+                              <CheckCircle2 className="h-3 w-3 mr-1" /> Complete
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      {/* Sales / Admin: Assign Key + Key Handover */}
+                      {([APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
+                        <>
+                          {(td.status === 'show' || td.status === 'scheduled') && !td.key_handed_at && td.customers?.driving_license_verified && (
+                            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleAssignKey(td.id)} disabled={assigningKey === td.id}>
+                              <Key className="h-3 w-3 mr-1" /> Assign Key
+                            </Button>
+                          )}
+                          {td.status === 'key_handover_to_sales' && (
+                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleKeyHandoverComplete(td)}>
+                              <FileCheck className="h-3 w-3 mr-1" /> Key Handover
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      {/* Security / Admin: Check In + Check Out */}
+                      {([APP_ROLE.SECURITY, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
+                        <>
+                          {td.key_handed_at && !td.security_checked_in_at && td.customers?.driving_license_verified && (
+                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleSecurityCheckIn(td.id)} disabled={securityActionId === td.id}>
+                              <CheckCircle className="h-3 w-3 mr-1" /> Check In
+                            </Button>
+                          )}
+                          {td.security_checked_in_at && !td.security_checked_out_at && (
+                            <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => handleSecurityCheckOut(td.id)} disabled={securityActionId === td.id}>
+                              <XCircle className="h-3 w-3 mr-1" /> Check Out
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </CardContent>
                 </Card>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
+
+        <TestDriveDetailSheet
+          testDrive={detailSheetDrive}
+          open={!!detailSheetDrive}
+          onClose={() => setDetailSheetDrive(null)}
+        />
 
         <Dialog open={!!rescheduleId} onOpenChange={(open) => !open && setRescheduleId(null)}>
           <DialogContent>

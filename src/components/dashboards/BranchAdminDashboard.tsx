@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -14,6 +15,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
+import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 
 const STATUS_COLOR: Record<string, string> = {
   scheduled: 'bg-info/10 text-info border-info/20',
@@ -45,6 +47,7 @@ const BranchAdminDashboard = () => {
   const [insightRoleFilter, setInsightRoleFilter] = useState<'all' | 'sales' | 'gro'>('all');
   const [insightWindow, setInsightWindow] = useState<'all' | 'today' | 'week' | 'month'>('month');
   const [loading, setLoading] = useState(true);
+  const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
 
   useEffect(() => {
     if (!locationId) return;
@@ -337,6 +340,9 @@ const BranchAdminDashboard = () => {
         })}
       </div>
 
+      {/* ── Activity Insights ── */}
+      <ActivityInsightsMini />
+
       {/* ── USER-WISE INSIGHTS (single rich component) ─────── */}
       <Card className="shadow-card border-primary/20">
         <CardHeader className="pb-2">
@@ -539,7 +545,7 @@ const BranchAdminDashboard = () => {
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {s.drives.map((d: any) => (
-                      <DriveRow key={d.id} drive={d} />
+                      <DriveRow key={d.id} drive={d} onViewDetails={setDetailSheetDrive} />
                     ))}
                   </div>
                 )}
@@ -577,7 +583,7 @@ const BranchAdminDashboard = () => {
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {g.drives.map((d: any) => (
-                      <DriveRow key={d.id} drive={d} />
+                      <DriveRow key={d.id} drive={d} onViewDetails={setDetailSheetDrive} />
                     ))}
                   </div>
                 )}
@@ -640,7 +646,7 @@ const BranchAdminDashboard = () => {
               ) : (
                 <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                   {filteredDrives.map(d => (
-                    <DriveRow key={d.id} drive={d} showAssigned />
+                    <DriveRow key={d.id} drive={d} showAssigned onViewDetails={setDetailSheetDrive} />
                   ))}
                 </div>
               )}
@@ -704,6 +710,13 @@ const BranchAdminDashboard = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Test Drive Detail Sheet */}
+      <TestDriveDetailSheet
+        testDrive={detailSheetDrive}
+        open={!!detailSheetDrive}
+        onClose={() => setDetailSheetDrive(null)}
+      />
     </div>
   );
 };
@@ -712,10 +725,14 @@ const BranchAdminDashboard = () => {
 interface DriveRowProps {
   drive: any;
   showAssigned?: boolean;
+  onViewDetails?: (drive: any) => void;
 }
 
-const DriveRow = ({ drive, showAssigned }: DriveRowProps) => (
-  <div className="rounded-lg border border-border p-2.5 bg-card/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+const DriveRow = ({ drive, showAssigned, onViewDetails }: DriveRowProps) => (
+  <div
+    className="rounded-lg border border-border p-2.5 bg-card/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 cursor-pointer hover:bg-muted/30 transition-colors"
+    onClick={() => onViewDetails?.(drive)}
+  >
     <div className="min-w-0 space-y-0.5">
       <p className="font-medium text-sm text-foreground truncate">
         {drive.customers?.full_name || 'Customer'}

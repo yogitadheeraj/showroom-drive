@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   type LucideIcon,
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
-  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck
+  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
@@ -27,6 +27,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Locations', path: '/locations', icon: MapPin },
     { label: 'Users', path: '/users', icon: Users },
@@ -35,11 +36,13 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
+    { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.DEALER_ADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Locations', path: '/locations', icon: MapPin },
@@ -50,11 +53,13 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
     { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
+    { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.SALES_ADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Locations', path: '/locations', icon: MapPin },
@@ -65,6 +70,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
     { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
+    { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.GRO]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -75,18 +81,23 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
+    { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.SALES]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
     { label: 'My Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
-    { label: 'Communications', path: '/communications', icon: MessageSquare } ],
+    { label: 'Communications', path: '/communications', icon: MessageSquare },
+    { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
+  ],
   [APP_ROLE.SECURITY]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-   { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
+    { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
 };
 

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiDbQuery } from '@/lib/apiClient';
 import { getStorageSignedUrl, listStorageFiles, removeStorageFiles, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye, Car, Clock, File, Trash2, Phone, User } from 'lucide-react';
@@ -15,11 +17,13 @@ import {
 } from '@/components/ui/dialog';
 import VehicleInspectionDialog from './VehicleInspectionDialog';
 import { logStaffActivity } from '@/lib/activityLogger';
+import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 
 const SecurityDashboard = () => {
   const { profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [pendingVerifyId, setPendingVerifyId] = useState<string | null>(null);
@@ -38,6 +42,7 @@ const SecurityDashboard = () => {
   const [selectedDoc, setSelectedDoc] = useState<any>(null);
   const [viewFilter, setViewFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [securityLogsByDrive, setSecurityLogsByDrive] = useState<Record<string, any[]>>({});
+  const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
 
   const formatStatusLabel = (status: string) =>
     status
@@ -564,6 +569,9 @@ const SecurityDashboard = () => {
         })}
       </div>
 
+      {/* ── Activity Insights ── */}
+      <ActivityInsightsMini />
+
       <Card className="shadow-card border-primary/20">
         <CardHeader className="pb-2">
           <CardTitle className="font-heading text-sm sm:text-base">Security SOP</CardTitle>
@@ -597,76 +605,73 @@ const SecurityDashboard = () => {
         <CardContent>
           <div className="max-h-[75vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5 sm:gap-3">
-            {filteredDrives.map((testDrive) => (
-              <div key={testDrive.id} className="p-2.5 sm:p-3 rounded-lg border border-border space-y-2.5 bg-card/50">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-foreground text-sm sm:text-base">{testDrive.customers?.full_name}</p>
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs ${
-                          testDrive.status === 'completed'
-                            ? 'bg-success/10 text-success'
-                            : testDrive.status === 'key_handover_to_sales'
-                              ? 'bg-warning/10 text-warning'
-                            : testDrive.status === 'in_progress'
-                              ? 'bg-primary/10 text-primary'
-                              : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {formatStatusLabel(testDrive.status)}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                      <span className="flex items-center gap-1"><Car className="h-3 w-3" />{testDrive.vehicles?.brand} {testDrive.vehicles?.model}</span>
-                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{testDrive.scheduled_date} at {testDrive.scheduled_time}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 flex-wrap">
-                       <span className="flex items-center gap-1"><User className="h-3 w-3" />Sales: {testDrive.profiles?.full_name || 'Unassigned'}</span>
-                       <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{testDrive.profiles?.phone || 'Phone Not Available'}</span>
-                    </div>
+            {filteredDrives.slice(0, 5).map((testDrive) => (
+              <div
+                key={testDrive.id}
+                className="p-3 rounded-lg border border-border bg-card/50 space-y-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => setDetailSheetDrive(testDrive)}
+              >
+                {/* ── Top row: customer + status ── */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm text-foreground truncate">{testDrive.customers?.full_name}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <User className="h-3 w-3" />Sales: {testDrive.profiles?.full_name || 'Unassigned'}
+                    </p>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {!testDrive.security_checked_in_at ? (
-                      !testDrive.key_handed_at ? (
-                        <Badge className="bg-warning/10 text-warning text-xs">Awaiting Key Assignment</Badge>
-                      ) : !testDrive.customers?.driving_license_verified ? (
-                        <Badge className="bg-warning/10 text-warning text-xs">Verify License First</Badge>
-                      ) : !(testDrive as any).pre_drive_km || !(testDrive as any).pre_drive_fuel_level ? (
-                        <Button
-                          size="sm"
-                          className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
-                          onClick={() => {
-                            setPendingStartDriveId(testDrive.id);
-                            openInspection(testDrive, 'pre');
-                          }}
-                        >
-                          <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Fill Pre-Drive & Start
-                        </Button>
-                      ) : (
-                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => void checkIn(testDrive.id)}>
-                          <CheckCircle className="h-3.5 w-3.5 mr-1" /> Start In Progress
-                        </Button>
-                      )
-                    ) : !testDrive.security_checked_out_at ? (
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-success/10 text-success text-xs">In Progress</Badge>
-                        {testDrive.key_handed_at ? (
-                          <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => void checkOut(testDrive.id)}>
-                            <XCircle className="h-3.5 w-3.5 mr-1" /> Return & Handover
-                          </Button>
-                        ) : (
-                          <Badge className="bg-warning/10 text-warning text-xs">Awaiting Vehicle Assignment</Badge>
-                        )}
-                      </div>
-                    ) : (
-                      <Badge className="bg-muted text-muted-foreground text-xs">Checked Out By Security</Badge>
-                    )}
-                  </div>
+                  <Badge
+                    variant="secondary"
+                    className={`text-[10px] shrink-0 ${
+                      testDrive.status === 'completed' ? 'bg-success/10 text-success'
+                      : testDrive.status === 'key_handover_to_sales' ? 'bg-warning/10 text-warning'
+                      : testDrive.status === 'in_progress' ? 'bg-primary/10 text-primary'
+                      : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {formatStatusLabel(testDrive.status)}
+                  </Badge>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                {/* ── Vehicle + Date ── */}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                  <span className="flex items-center gap-1"><Car className="h-3 w-3" />{testDrive.vehicles?.brand} {testDrive.vehicles?.model}</span>
+                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{testDrive.scheduled_date} {(testDrive.scheduled_time || '').substring(0, 5)}</span>
+                </div>
+
+                {/* ── Action row (stop propagation) ── */}
+                <div className="flex gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
+                  {!testDrive.security_checked_in_at ? (
+                    !testDrive.key_handed_at ? (
+                      <Badge className="bg-warning/10 text-warning text-xs">Awaiting Key Assignment</Badge>
+                    ) : !testDrive.customers?.driving_license_verified ? (
+                      <Badge className="bg-warning/10 text-warning text-xs">Verify License First</Badge>
+                    ) : !(testDrive as any).pre_drive_km || !(testDrive as any).pre_drive_fuel_level ? (
+                      <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => { setPendingStartDriveId(testDrive.id); openInspection(testDrive, 'pre'); }}>
+                        <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Fill Pre-Drive & Start
+                      </Button>
+                    ) : (
+                      <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => void checkIn(testDrive.id)}>
+                        <CheckCircle className="h-3.5 w-3.5 mr-1" /> Start In Progress
+                      </Button>
+                    )
+                  ) : !testDrive.security_checked_out_at ? (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-success/10 text-success text-xs">In Progress</Badge>
+                      {testDrive.key_handed_at ? (
+                        <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => void checkOut(testDrive.id)}>
+                          <XCircle className="h-3.5 w-3.5 mr-1" /> Return & Handover
+                        </Button>
+                      ) : (
+                        <Badge className="bg-warning/10 text-warning text-xs">Awaiting Vehicle Assignment</Badge>
+                      )}
+                    </div>
+                  ) : (
+                    <Badge className="bg-muted text-muted-foreground text-xs">Checked Out By Security</Badge>
+                  )}
+                </div>
+
+                {/* ── Licence section ── */}
+                <div className="flex items-center gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
                   {testDrive.customers?.driving_license_url ? (
                     testDrive.customers?.driving_license_verified ? (
                       <Badge className="bg-success/10 text-success text-xs">License Verified</Badge>
@@ -689,25 +694,15 @@ const SecurityDashboard = () => {
                           <span><Upload className="h-3 w-3 mr-1" /> Upload</span>
                         </Button>
                       </Label>
-                      <input
-                        id={`reupload-sec-${testDrive.customer_id}`}
-                        type="file"
-                        accept="image/*,.pdf"
-                        className="hidden"
-                        disabled={reuploadingId === testDrive.customer_id}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (file) void handleReuploadLicense(testDrive.customer_id, file);
-                        }}
-                      />
+                      <input id={`reupload-sec-${testDrive.customer_id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={reuploadingId === testDrive.customer_id}
+                        onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleReuploadLicense(testDrive.customer_id, file); }} />
                     </>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-border">
-               
+                {/* ── KM badges + Inspection ── */}
+                <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-border" onClick={e => e.stopPropagation()}>
                   {(testDrive as any).pre_drive_km && <Badge className="bg-primary/10 text-primary text-xs">Pre: {(testDrive as any).pre_drive_km} km</Badge>}
-                 
                   {(testDrive as any).post_drive_km && <Badge className="bg-success/10 text-success text-xs">Post: {(testDrive as any).post_drive_km} km</Badge>}
                   {((testDrive as any).pre_drive_km || (testDrive as any).post_drive_km) && (
                     <Button size="sm" className="bg-muted text-foreground hover:bg-muted/80 text-xs" onClick={() => setInspectionViewDrive(testDrive)}>
@@ -715,59 +710,19 @@ const SecurityDashboard = () => {
                     </Button>
                   )}
                   {(testDrive as any).inspection_submitted_at && <Badge className="bg-muted text-muted-foreground text-xs">Complete</Badge>}
+                  {/* Doc upload */}
+                  <Label htmlFor={`doc-upload-${testDrive.id}`} className="cursor-pointer ml-auto">
+                    <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 text-xs" asChild>
+                      <span><Upload className="h-3 w-3 mr-1" /> Add Doc</span>
+                    </Button>
+                  </Label>
+                  <input id={`doc-upload-${testDrive.id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={uploadingDocId === testDrive.id}
+                    onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleUploadTestDriveDoc(testDrive.id, file); }} />
                 </div>
-
-                {testDrive.status === 'completed' && (
-                  <div className="rounded-md border border-success/30 bg-success/5 p-2.5 space-y-2 text-xs">
-                    <p className="font-semibold text-foreground">Completed Drive Details</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div><span className="text-muted-foreground">Pre KM:</span> <span className="font-medium">{(testDrive as any).pre_drive_km ?? 'N/A'}</span></div>
-                      <div><span className="text-muted-foreground">Pre Fuel:</span> <span className="font-medium">{(testDrive as any).pre_drive_fuel_level || 'N/A'}</span></div>
-                      <div><span className="text-muted-foreground">Post KM:</span> <span className="font-medium">{(testDrive as any).post_drive_km ?? 'N/A'}</span></div>
-                      <div><span className="text-muted-foreground">Post Fuel:</span> <span className="font-medium">{(testDrive as any).post_drive_fuel_level || 'N/A'}</span></div>
-                    </div>
-                    {(testDrive as any).pre_drive_km && (testDrive as any).post_drive_km && (
-                      <div><span className="text-muted-foreground">Distance:</span> <span className="font-medium">{((testDrive as any).post_drive_km - (testDrive as any).pre_drive_km).toFixed(1)} km</span></div>
-                    )}
-                    <div className="pt-1 border-t border-border/60 space-y-1">
-                      <p className="text-muted-foreground font-medium">Security Logs</p>
-                      {(securityLogsByDrive[testDrive.id]?.length ?? 0) > 0 ? (
-                        <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
-                          {securityLogsByDrive[testDrive.id].map((log: any, idx: number) => (
-                            <div key={`${log.eventType}-${log.happenedAt}-${idx}`} className="rounded border border-border/60 bg-background/70 p-1.5">
-                              <p className="text-foreground leading-tight">{log.label}</p>
-                              <p className="text-muted-foreground">{log.by}{log.phone ? ` (${log.phone})` : ''} • {new Date(log.happenedAt).toLocaleString()}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground">No security logs available.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="pt-1.5 border-t border-border">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-medium text-muted-foreground">Vehicle Documents</p>
-                    <Label htmlFor={`doc-upload-${testDrive.id}`} className="cursor-pointer">
-                      <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 text-xs" asChild>
-                        <span><Upload className="h-3 w-3 mr-1" /> Add</span>
-                      </Button>
-                    </Label>
-                    <input
-                      id={`doc-upload-${testDrive.id}`}
-                      type="file"
-                      accept="image/*,.pdf"
-                      className="hidden"
-                      disabled={uploadingDocId === testDrive.id}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) void handleUploadTestDriveDoc(testDrive.id, file);
-                      }}
-                    />
-                  </div>
-                  {testDriveDocuments[testDrive.id]?.length ? (
+                {/* ── Uploaded docs ── */}
+                {testDriveDocuments[testDrive.id]?.length > 0 && (
+                  <div className="pt-1.5 border-t border-border" onClick={e => e.stopPropagation()}>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Vehicle Documents</p>
                     <div className="flex flex-wrap gap-1">
                       {testDriveDocuments[testDrive.id].map((doc: any, index: number) => (
                         <div key={index} className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-muted">
@@ -781,17 +736,30 @@ const SecurityDashboard = () => {
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground italic">No documents yet</p>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             ))}
             </div>
+            {filteredDrives.length > 5 && (
+              <div className="flex justify-center pt-3">
+                <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigate('/test-drives')}>
+                  View All {filteredDrives.length} Test Drives →
+                </Button>
+              </div>
+            )}
             {filteredDrives.length === 0 && <p className="text-center text-muted-foreground py-8 text-sm">No test drives found for selected filter</p>}
           </div>
         </CardContent>
       </Card>
+
+      {/* Test Drive Detail Sheet */}
+      <TestDriveDetailSheet
+        testDrive={detailSheetDrive}
+        open={!!detailSheetDrive}
+        onClose={() => setDetailSheetDrive(null)}
+        securityEvents={detailSheetDrive ? { logs: securityLogsByDrive[detailSheetDrive.id] } : undefined}
+      />
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-2xl">

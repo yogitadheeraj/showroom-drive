@@ -23,7 +23,30 @@ export type StaffActivityEventType =
   | 'license_rejected'
   | 'location_hours_updated'
   | 'location_device_added'
-  | 'location_device_deleted';
+  | 'location_device_deleted'
+  | 'communication_logged'
+  | 'customer_created'
+  | 'customer_updated'
+  | 'customer_deleted'
+  | 'booking_created'
+  | 'booking_updated'
+  | 'booking_cancelled'
+  | 'booking_refunded'
+  | 'user_created'
+  | 'user_updated'
+  | 'user_deleted'
+  | 'report_generated'
+  | 'report_viewed'
+  | 'car_booking_cancelled'
+  | 'car_booking_refunded'
+  | 'opportunity_created'
+  | 'opportunity_updated'
+  | 'opportunity_won'
+  | 'opportunity_lost'
+  | 'note_added'
+  | 'note_deleted'
+  | 'other'
+  ;
 
 type ActivityIdentity = {
   userId: string;

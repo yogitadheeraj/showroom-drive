@@ -13,8 +13,8 @@ export async function listVehicles(filters: Record<string, unknown> = {}) {
   if (typeof filters.is_active === 'boolean') q.is_active = filters.is_active;
   if (typeof filters.is_available === 'boolean') q.is_available = filters.is_available;
   if (filters.brand) q.brand = filters.brand;
-  if (filters.model_name) q.model_name = filters.model_name;
-  const docs = await Vehicle.find(q).sort({ brand: 1, model_name: 1 }).lean();
+  if (filters.model) q.model = filters.model;
+  const docs = await Vehicle.find(q).sort({ brand: 1, model: 1 }).lean();
   return docs.map((d) => { const o = { ...d } as any; delete o._id; return o; });
 }
 

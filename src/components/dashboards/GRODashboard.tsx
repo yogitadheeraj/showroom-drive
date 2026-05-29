@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { apiDbQuery } from '@/lib/apiClient';
+import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
+import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,9 +15,12 @@ import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert, Car, RefreshCw,
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import GROCalendarView from './GROCalendarView';
 import BlockedSlotsManager from './BlockedSlotsManager';
+import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 
 const GRODashboard = () => {
   const { profile } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [showInsights, setShowInsights] = useState(false);
   const [stats, setStats] = useState({ today: 0, upcoming: 0, completed: 0 });
   const [testDrives, setTestDrives] = useState<any[]>([]);
@@ -21,6 +28,7 @@ const GRODashboard = () => {
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
   const [noShowConfirmId, setNoShowConfirmId] = useState<string | null>(null);
+  const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const formatStatusLabel = (status: string) =>
     status
       .replace(/_/g, ' ')
@@ -29,6 +37,15 @@ const GRODashboard = () => {
   useEffect(() => {
     fetchTestDrives();
   }, [profile]);
+
+  // Real-time: auto-refresh + toast when any test drive status changes
+  useTestDriveRealtime(profile?.location_id, (event) => {
+    toast({
+      title: 'Test Drive Updated',
+      description: `${event.customer_name} — ${event.vehicle_name} is now "${event.status.replace(/_/g, ' ')}"`,
+    });
+    fetchTestDrives();
+  });
 
   const fetchTestDrives = async () => {
     if (!profile?.location_id) return;
@@ -176,6 +193,9 @@ const GRODashboard = () => {
           })}
         </div>
       )}
+        {/* ── Activity Insights ── */}
+        <ActivityInsightsMini />
+
         <TabsContent value="calendar">
           <GROCalendarView />
         </TabsContent>
@@ -184,26 +204,30 @@ const GRODashboard = () => {
           <Card className="shadow-card">
             <CardContent className="pt-4 sm:pt-6">
               <div className="space-y-3">
-                {testDrives.map(td => (
-                  <div key={td.id} className="p-3 sm:p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors">
+                {testDrives.slice(0, 5).map(td => (
+                  <div
+                    key={td.id}
+                    className="p-3 sm:p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors cursor-pointer"
+                    onClick={() => setDetailSheetDrive(td)}
+                  >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-foreground text-sm sm:text-base">{td.customers?.full_name}</p>
+                          <p className="font-semibold text-foreground text-sm truncate">{td.customers?.full_name}</p>
                           <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>
                              {formatStatusLabel(td.status)}
                           </Badge>
                           <Badge variant="outline" className="capitalize text-xs">{td.source}</Badge>
                         </div>
-                        <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground mt-1">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                           <Car className="h-3 w-3" />
                           <span>{td.vehicles?.brand} {td.vehicles?.model}</span>
                           <span>•</span>
                           <Clock className="h-3 w-3" />
-                          <span>{td.scheduled_date} {td.scheduled_time}</span>
+                          <span>{td.scheduled_date} {(td.scheduled_time || '').substring(0, 5)}</span>
                         </div>
                       </div>
-                      <div className="flex gap-2 flex-wrap">
+                      <div className="flex gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
                         {td.status === 'scheduled' && (
                           <>
                             <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => updateStatus(td.id, 'confirmed')}>Confirm</Button>
@@ -219,25 +243,13 @@ const GRODashboard = () => {
                         {td.status === 'in_progress' && (
                           <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'completed')}>Complete</Button>
                         )}
-                        {/* Reschedule — all incomplete non-in_progress drives */}
                         {['scheduled', 'confirmed', 'show', 'no_show'].includes(td.status) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-info/50 text-info hover:bg-info/10 text-xs gap-1"
-                            onClick={() => { setRescheduleId(td.id); setNewDate(''); setNewTime(''); }}
-                          >
+                          <Button size="sm" variant="outline" className="border-info/50 text-info hover:bg-info/10 text-xs gap-1" onClick={() => { setRescheduleId(td.id); setNewDate(''); setNewTime(''); }}>
                             <RefreshCw className="h-3 w-3" /> Reschedule
                           </Button>
                         )}
-                        {/* No Show — for drives not yet no-show or completed */}
                         {['scheduled', 'confirmed', 'show'].includes(td.status) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-warning/50 text-warning hover:bg-warning/10 text-xs gap-1"
-                            onClick={() => setNoShowConfirmId(td.id)}
-                          >
+                          <Button size="sm" variant="outline" className="border-warning/50 text-warning hover:bg-warning/10 text-xs gap-1" onClick={() => setNoShowConfirmId(td.id)}>
                             <AlertTriangle className="h-3 w-3" /> No Show
                           </Button>
                         )}
@@ -245,6 +257,13 @@ const GRODashboard = () => {
                     </div>
                   </div>
                 ))}
+                {testDrives.length > 5 && (
+                  <div className="flex justify-center pt-2">
+                    <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigate('/test-drives')}>
+                      View All {testDrives.length} Test Drives →
+                    </Button>
+                  </div>
+                )}
                 {testDrives.length === 0 && (
                   <p className="text-center text-muted-foreground py-8">No test drives scheduled</p>
                 )}
@@ -257,6 +276,13 @@ const GRODashboard = () => {
           <BlockedSlotsManager />
         </TabsContent>
       </Tabs>
+
+      {/* Test Drive Detail Sheet */}
+      <TestDriveDetailSheet
+        testDrive={detailSheetDrive}
+        open={!!detailSheetDrive}
+        onClose={() => setDetailSheetDrive(null)}
+      />
 
       {/* Reschedule Dialog */}
       <Dialog open={!!rescheduleId} onOpenChange={(open) => !open && setRescheduleId(null)}>

@@ -27,7 +27,7 @@ const DashboardPage = () => {
     <DashboardLayout>
      
       {renderDashboard()}
-       <div className="mb-4 sm:mb-6">
+       <div className="mt-4 sm:mb-6">
         <FollowUpOverview />
       </div>
     </DashboardLayout>

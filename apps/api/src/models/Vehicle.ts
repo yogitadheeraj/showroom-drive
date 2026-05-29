@@ -1,9 +1,9 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-export interface IVehicle extends Document {
+export interface IVehicle extends Omit<Document, 'model'> {
   id: string;
   brand: string;
-  model_name: string;
+  model: string;
   variant: string | null;
   trim: string | null;
   year: number;
@@ -44,7 +44,7 @@ const VehicleSchema = new Schema<IVehicle>(
   {
     id: { type: String, required: true, unique: true, index: true },
     brand: { type: String, required: true, index: true },
-    model_name: { type: String, required: true, index: true },
+    model: { type: String, required: true, index: true },
     variant: { type: String, default: null },
     trim: { type: String, default: null },
     year: { type: Number, required: true },

@@ -123,6 +123,12 @@ import {
   setCustomClaimsController,
   updateUserController,
 } from '../controllers/firebaseController.js';
+import {
+  createCarBookingController,
+  getCarBookingController,
+  listCarBookingsController,
+  updateCarBookingController,
+} from '../controllers/carBookingController.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -179,6 +185,12 @@ apiRouter.get('/test-drives/:id', requireAuth, getTestDriveController);
 apiRouter.post('/test-drives', requireAuth, createTestDriveController);
 apiRouter.patch('/test-drives/:id', requireAuth, updateTestDriveController);
 apiRouter.delete('/test-drives/:id', requireAuth, deleteTestDriveController);
+
+// Car Bookings
+apiRouter.get('/car-bookings', requireAuth, listCarBookingsController);
+apiRouter.get('/car-bookings/:id', requireAuth, getCarBookingController);
+apiRouter.post('/car-bookings', requireAuth, createCarBookingController);
+apiRouter.patch('/car-bookings/:id', requireAuth, updateCarBookingController);
 
 // Dealers
 apiRouter.get('/dealers', listDealersController);

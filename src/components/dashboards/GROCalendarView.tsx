@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiDbQuery, apiGet, apiPatch } from '@/lib/apiClient';
+import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChevronLeft, ChevronRight, Calendar, LayoutGrid, UserPlus, RefreshCw, AlertTriangle } from 'lucide-react';
+import WalkinDialog from '@/components/WalkinDialog';
 import { format, addDays, startOfWeek, isSameDay, parseISO } from 'date-fns';
 
 const statusColor: Record<string, string> = {
@@ -67,6 +70,7 @@ const extractHour = (time?: string | null) => {
 const GROCalendarView = () => {
   const { profile } = useAuth();
   const navigateTo = useNavigate();
+  const { toast } = useToast();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [locationVehicles, setLocationVehicles] = useState<any[]>([]);
   const [locationDetails, setLocationDetails] = useState<any | null>(null);
@@ -84,6 +88,7 @@ const GROCalendarView = () => {
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
   const [noShowConfirmId, setNoShowConfirmId] = useState<string | null>(null);
+  const [walkinDialog, setWalkinDialog] = useState<{ open: boolean; date?: string; time?: string }>({ open: false });
 
   useEffect(() => {
     void fetchTestDrives();
@@ -91,6 +96,15 @@ const GROCalendarView = () => {
     void fetchLocationScheduling();
     void fetchSalesPersons();
   }, [profile?.location_id, currentDate, viewMode]);
+
+  // Real-time: auto-refresh + toast when any test drive status changes
+  useTestDriveRealtime(profile?.location_id, (event) => {
+    toast({
+      title: 'Test Drive Updated',
+      description: `${event.customer_name} — ${event.vehicle_name} is now "${event.status.replace(/_/g, ' ')}"`,
+    });
+    void fetchTestDrives();
+  });
 
   const fetchTestDrives = async () => {
     if (!profile?.location_id) {
@@ -584,12 +598,13 @@ const GROCalendarView = () => {
             Past Slot {slotTime}
           </div>
         ) : (
-          <Link
-            to={buildBookingLinkWithoutModel(date, slotTime)}
-            className="block rounded-md border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-colors"
+          <button
+            type="button"
+            onClick={() => setWalkinDialog({ open: true, date: format(date, 'yyyy-MM-dd'), time: slotTime })}
+            className="block w-full rounded-md border border-dashed border-primary/25 px-2 py-1 text-[11px] text-primary bg-primary/5 hover:bg-primary/10 transition-colors text-left"
           >
-            Select model to book this time slot
-          </Link>
+            + Book Walk-in at {slotTime}
+          </button>
         )}
         {slotBookings.map(renderBookingCard)}
       </div>
@@ -601,10 +616,8 @@ const GROCalendarView = () => {
   };
 
   const handleDatePlannerClick = (date: Date, slotTime: string) => {
-    if (selectedModelGroup === 'all') return;
     if (isPastSlot(date, slotTime)) return;
-    if (!isSlotAvailableForSelectedModel(date, slotTime)) return;
-    navigateTo(buildBookingLink(selectedModelGroup, date, slotTime));
+    setWalkinDialog({ open: true, date: format(date, 'yyyy-MM-dd'), time: slotTime });
   };
 
   const renderBookingCard = (td: any) => {
@@ -629,57 +642,33 @@ const GROCalendarView = () => {
           </Badge>
         )}
       </div>
-      <div className="flex items-center justify-between mt-1">
+      <div className="flex items-center justify-between mt-1 gap-1">
         {td.profiles?.full_name ? (
-          <span className="text-[10px] font-medium bg-background/50 px-1.5 py-0.5 rounded">{td.profiles.full_name}</span>
+          <span className="text-[10px] font-medium bg-background/50 px-1.5 py-0.5 rounded truncate">{td.profiles.full_name}</span>
         ) : (
           <span className="text-[10px] italic opacity-60">Unassigned</span>
         )}
-        {canAssign && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-5 w-5 p-0"
-            onClick={(event) => {
-              event.stopPropagation();
-              setAssignDialog({ open: true, testDriveId: td.id });
-              setSelectedSalesPerson(td.assigned_sales_person_id || '');
-            }}
-          >
-            {td.profiles?.full_name ? <RefreshCw className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
-          </Button>
-        )}
-      </div>
-      {isIncomplete && (
-        <div className="flex gap-1 mt-1.5 pt-1.5 border-t border-current/20">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-5 flex-1 text-[10px] px-1 gap-0.5 text-info hover:bg-info/10 hover:text-info"
-            onClick={(e) => {
-              e.stopPropagation();
-              setRescheduleId(td.id);
-              setRescheduleDate('');
-              setRescheduleTime('');
-            }}
-          >
-            <RefreshCw className="h-2.5 w-2.5" /> Reschedule
-          </Button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          {canAssign && (
+            <Button size="sm" variant="ghost" className="h-5 w-5 p-0" title={td.profiles?.full_name ? 'Reassign' : 'Assign'}
+              onClick={(e) => { e.stopPropagation(); setAssignDialog({ open: true, testDriveId: td.id }); setSelectedSalesPerson(td.assigned_sales_person_id || ''); }}>
+              {td.profiles?.full_name ? <RefreshCw className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
+            </Button>
+          )}
+          {isIncomplete && (
+            <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-info hover:bg-info/10 hover:text-info" title="Reschedule"
+              onClick={(e) => { e.stopPropagation(); setRescheduleId(td.id); setRescheduleDate(''); setRescheduleTime(''); }}>
+              <RefreshCw className="h-2.5 w-2.5" />
+            </Button>
+          )}
           {canMarkNoShow && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-5 flex-1 text-[10px] px-1 gap-0.5 text-warning hover:bg-warning/10 hover:text-warning"
-              onClick={(e) => {
-                e.stopPropagation();
-                setNoShowConfirmId(td.id);
-              }}
-            >
-              <AlertTriangle className="h-2.5 w-2.5" /> No Show
+            <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-warning hover:bg-warning/10 hover:text-warning" title="Mark No Show"
+              onClick={(e) => { e.stopPropagation(); setNoShowConfirmId(td.id); }}>
+              <AlertTriangle className="h-2.5 w-2.5" />
             </Button>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
   };
@@ -756,11 +745,9 @@ const GROCalendarView = () => {
                 </SelectContent>
               </Select>
 
-              <Link to={bookingLink}>
-                <Button className="w-full md:w-auto">
-                  Book Appointment
-                </Button>
-              </Link>
+              <Button className="w-full md:w-auto" onClick={() => setWalkinDialog({ open: true, date: format(currentDate, 'yyyy-MM-dd') })}>
+                + Book Walk-in
+              </Button>
             </div>
           </div>
         </div>
@@ -794,11 +781,11 @@ const GROCalendarView = () => {
                           const bookings = getBookingsForModelDate(date, model);
                           return (
                             <td key={`${date.toISOString()}-${model}`} className="p-2 align-top border-l border-border/50">
-                              <Link to={buildBookingLink(model, date)} className="block rounded-xl border border-dashed border-primary/25 bg-primary/5 p-3 hover:bg-primary/10 transition-colors">
+                              <button type="button" onClick={() => setWalkinDialog({ open: true, date: format(date, 'yyyy-MM-dd') })} className="block w-full rounded-xl border border-dashed border-primary/25 bg-primary/5 p-3 hover:bg-primary/10 transition-colors text-left">
                                 <div className="flex items-center justify-between gap-2">
                                   <div>
-                                    <p className="text-xs font-semibold text-primary">Book This Model</p>
-                                    <p className="text-[11px] text-muted-foreground">Date preselected for quick appointment booking</p>
+                                    <p className="text-xs font-semibold text-primary">Book Walk-in</p>
+                                    <p className="text-[11px] text-muted-foreground">Date preselected — opens walk-in form</p>
                                   </div>
                                   <Badge variant="outline" className="text-[10px]">
                                     {bookings.length} Booking{bookings.length === 1 ? '' : 's'}
@@ -816,7 +803,7 @@ const GROCalendarView = () => {
                                     )}
                                   </div>
                                 )}
-                              </Link>
+                              </button>
                             </td>
                           );
                         })}
@@ -971,6 +958,17 @@ const GROCalendarView = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <WalkinDialog
+        open={walkinDialog.open}
+        defaultDate={walkinDialog.date}
+        defaultTime={walkinDialog.time}
+        defaultLocationId={profile?.location_id}
+        onClose={(submitted) => {
+          setWalkinDialog({ open: false });
+          if (submitted) void fetchTestDrives();
+        }}
+      />
     </div>
   );
 };

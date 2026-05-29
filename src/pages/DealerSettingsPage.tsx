@@ -5,8 +5,9 @@ import OperatingHoursSettings from '@/components/settings/OperatingHoursSettings
 import ReportSettingsConfig from '@/components/settings/ReportSettingsConfig';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import FollowUpReminderSettings from '@/components/settings/FollowUpReminderSettings';
+import HandoverQuestionsSettings from '@/components/settings/HandoverQuestionsSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, Palette, Mail, SunMoon, BellRing } from 'lucide-react';
+import { Building2, Palette, Mail, SunMoon, BellRing, Key } from 'lucide-react';
 
 const DealerSettingsPage = () => {
   return (
@@ -34,6 +35,9 @@ const DealerSettingsPage = () => {
             <TabsTrigger value="appearance" className="gap-2">
               <SunMoon className="h-4 w-4" /> Appearance
             </TabsTrigger>
+            <TabsTrigger value="handover" className="gap-2">
+              <Key className="h-4 w-4" /> Key Handover
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -54,6 +58,10 @@ const DealerSettingsPage = () => {
 
           <TabsContent value="appearance">
             <AppearanceSettings />
+          </TabsContent>
+
+          <TabsContent value="handover">
+            <HandoverQuestionsSettings />
           </TabsContent>
 
           <TabsContent value="hours">

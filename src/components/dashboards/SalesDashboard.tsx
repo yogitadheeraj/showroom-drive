@@ -1,23 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
-import { apiDbQuery, apiPatch } from '@/lib/apiClient';
+import { useNavigate } from 'react-router-dom';
+import { apiDbQuery, apiPatch, apiPost } from '@/lib/apiClient';
 import { sendTransactionalEmail } from '@/lib/functionService';
 import { getStorageSignedUrl, listStorageFiles, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone, UserCog, CalendarClock, ShieldCheck, AlertTriangle, TrendingUp, Filter } from 'lucide-react';
+import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone, UserCog, CalendarClock, ShieldCheck, AlertTriangle, TrendingUp, Filter, CheckSquare, CreditCard, Banknote, Link2, BookOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SalesSwapDialog from './SalesSwapDialog';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { logStaffActivity } from '@/lib/activityLogger';
 import { APP_ROLE } from '@/constants/roles';
+import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 
 type LeadTemperature = 'hot' | 'cold';
 
@@ -41,6 +45,9 @@ const SalesDashboard = () => {
   const [leadTemperature, setLeadTemperature] = useState<LeadTemperature>('cold');
   const [followUpTaskTitle, setFollowUpTaskTitle] = useState('');
   const [followUpTaskDueAt, setFollowUpTaskDueAt] = useState('');
+  const [presetHandoverQuestions, setPresetHandoverQuestions] = useState<string[]>([]);
+  const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
+  const [handoverNotes, setHandoverNotes] = useState('');
   const [salesOpportunities, setSalesOpportunities] = useState<any[]>([]);
   const [salesTasks, setSalesTasks] = useState<any[]>([]);
   const [oppNotesDialog, setOppNotesDialog] = useState<{ open: boolean; opportunityId: string | null }>({ open: false, opportunityId: null });
@@ -48,8 +55,16 @@ const SalesDashboard = () => {
   const [oppFollowUpDueAt, setOppFollowUpDueAt] = useState('');
   const [taskNotesDialog, setTaskNotesDialog] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
   const [taskNoteText, setTaskNoteText] = useState('');
+  // Booking state (hot lead)
+  const [bookingPaymentMethod, setBookingPaymentMethod] = useState<'cash' | 'payment_link'>('cash');
+  const [bookingAmount, setBookingAmount] = useState('');
+  const [bookingPaymentLink, setBookingPaymentLink] = useState('');
+  const [bookingNotes, setBookingNotes] = useState('');
+  const [bookingCreating, setBookingCreating] = useState(false);
   const notifiedHandoverIdsRef = useRef<Set<string>>(new Set());
+  const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const formatStatusLabel = (status: string) =>
     status
@@ -646,17 +661,34 @@ const SalesDashboard = () => {
 
   const handleComplete = async (
     td: any,
-    options?: { leadTemperature?: LeadTemperature; taskTitle?: string; taskDueAt?: string }
+    options?: { leadTemperature?: LeadTemperature; taskTitle?: string; taskDueAt?: string; handoverFeedback?: { questions: string[]; notes: string } }
   ) => {
     const id = td.id;
     const completedAt = new Date().toISOString();
+
+    // Persist handover feedback into metadata if provided
+    const feedbackPayload = options?.handoverFeedback && (
+      options.handoverFeedback.questions.length > 0 || options.handoverFeedback.notes.trim()
+    ) ? {
+      status: 'completed',
+      completed_at: completedAt,
+      metadata: {
+        ...(td.metadata || {}),
+        handover_feedback: {
+          questions: options.handoverFeedback.questions,
+          notes: options.handoverFeedback.notes.trim(),
+          recorded_at: completedAt,
+        },
+      },
+    } : {
+      status: 'completed',
+      completed_at: completedAt,
+    };
+
     await apiDbQuery({
       table: 'test_drives',
       action: 'update',
-      payload: {
-        status: 'completed',
-        completed_at: completedAt,
-      },
+      payload: feedbackPayload,
       filters: [{ field: 'id', op: 'eq', value: id }],
     });
 
@@ -777,17 +809,98 @@ const SalesDashboard = () => {
 
   const handleCompleteWithLead = async () => {
     if (!completionLeadDialogDrive) return;
+    const td = completionLeadDialogDrive;
+    const isHotWithBooking = leadTemperature === 'hot' && bookingAmount && parseFloat(bookingAmount) > 0;
 
-    await handleComplete(completionLeadDialogDrive, {
+    await handleComplete(td, {
       leadTemperature,
       taskTitle: followUpTaskTitle,
       taskDueAt: followUpTaskDueAt || undefined,
+      handoverFeedback: { questions: selectedQuestions, notes: handoverNotes },
     });
+
+    if (isHotWithBooking) {
+      await handleCreateBooking(undefined);
+    }
 
     setCompletionLeadDialogDrive(null);
     setLeadTemperature('cold');
     setFollowUpTaskTitle('');
     setFollowUpTaskDueAt('');
+    setSelectedQuestions([]);
+    setHandoverNotes('');
+    setPresetHandoverQuestions([]);
+    setBookingPaymentMethod('cash');
+    setBookingAmount('');
+    setBookingPaymentLink('');
+    setBookingNotes('');
+  };
+
+  const handleCreateBooking = async (opportunityId?: string) => {
+    if (!completionLeadDialogDrive) return;
+    const amount = parseFloat(bookingAmount);
+    if (!bookingAmount || isNaN(amount) || amount <= 0) {
+      toast({ title: 'Enter a valid booking amount', variant: 'destructive' }); return;
+    }
+    if (bookingPaymentMethod === 'payment_link' && !bookingPaymentLink.trim()) {
+      toast({ title: 'Enter the payment link', variant: 'destructive' }); return;
+    }
+    setBookingCreating(true);
+    try {
+      const td = completionLeadDialogDrive;
+      const inserted = await apiPost<any>('/api/car-bookings', {
+        customer_id: td.customer_id,
+        vehicle_id: td.vehicle_id,
+        location_id: td.location_id,
+        test_drive_id: td.id,
+        opportunity_id: opportunityId || null,
+        sales_person_profile_id: profile?.id || null,
+        booking_status: 'confirmed',
+        payment_method: bookingPaymentMethod,
+        payment_status: bookingPaymentMethod === 'cash' ? 'paid' : 'pending',
+        booking_amount: amount,
+        payment_link: bookingPaymentMethod === 'payment_link' ? bookingPaymentLink.trim() : null,
+        notes: bookingNotes.trim() || null,
+      });
+      const bookingId = inserted?.id;
+
+      // Send booking confirmation email to customer
+      if (td.customers?.email) {
+        await sendTransactionalEmail({
+          templateName: 'car-booking-confirmation',
+          recipientEmail: td.customers.email,
+          idempotencyKey: `car-booking-${bookingId || Date.now()}`,
+          templateData: {
+            customerName: td.customers.full_name || 'Customer',
+            vehicleName: `${td.vehicles?.brand || ''} ${td.vehicles?.model || ''}`.trim(),
+            bookingAmount: amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }),
+            paymentMethod: bookingPaymentMethod === 'cash' ? 'Cash' : 'Payment Link',
+            paymentLink: bookingPaymentMethod === 'payment_link' ? bookingPaymentLink.trim() : null,
+            salesPersonName: profile?.full_name || '',
+            locationName: td.locations?.name || '',
+            bookingDate: new Date().toLocaleDateString(),
+          },
+        }).catch(() => null); // non-blocking
+      }
+
+      if (user?.id) {
+        await logStaffActivity({
+          userId: user.id,
+          profileId: profile?.id,
+          locationId: profile?.location_id,
+          role: 'sales',
+          eventType: 'car_booking_created',
+          label: `Car booking created — ${td.vehicles?.brand} ${td.vehicles?.model}`,
+          metadata: { bookingId, testDriveId: td.id, amount, paymentMethod: bookingPaymentMethod },
+        });
+      }
+
+      toast({ title: 'Booking confirmed!', description: `₹${amount.toLocaleString()} booking created. Email sent to customer.` });
+    } catch (err: any) {
+      toast({ title: 'Booking failed', description: err?.message, variant: 'destructive' });
+    } finally {
+      setBookingCreating(false);
+    }
   };
 
   const assignedLogs = testDrives
@@ -921,6 +1034,9 @@ const SalesDashboard = () => {
           );
         })}
       </div>
+
+      {/* ── Activity Insights ── */}
+      <ActivityInsightsMini />
 
       <Card className="shadow-card border-primary/20 bg-primary/5">
         <CardHeader className="pb-2">
@@ -1078,123 +1194,68 @@ const SalesDashboard = () => {
         <CardContent>
           <div className="max-h-[75vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2 sm:gap-3">
-            {filteredDrives.map(td => (
-              <div key={td.id} className="p-2.5 sm:p-3 rounded-lg border border-border space-y-2.5 bg-card/50">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-foreground text-sm sm:text-base">{td.customers?.full_name}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                      <Phone className="h-3 w-3" />{td.customers?.phone}
-                      {td.customers?.email && <><span>•</span>{td.customers.email}</>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>
-                      {formatStatusLabel(td.status)}
-                    </Badge>
-                    {td.key_handed_at && td.status !== 'in_progress' && td.status !== 'completed' && (
-                      <Badge className="text-xs bg-info/10 text-info">Vehicle Assigned</Badge>
+            {filteredDrives.slice(0, 5).map(td => (
+              <div
+                key={td.id}
+                className="p-3 rounded-lg border border-border bg-card/50 space-y-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => setDetailSheetDrive(td)}
+              >
+                {/* ── Top row: status + customer ── */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm text-foreground truncate">{td.customers?.full_name}</p>
+                    {td.customers?.phone && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Phone className="h-3 w-3" />{td.customers.phone}
+                      </p>
                     )}
                   </div>
+                  <Badge variant="secondary" className={`text-[10px] shrink-0 ${statusColor[td.status] || ''}`}>
+                    {formatStatusLabel(td.status)}
+                  </Badge>
                 </div>
-                <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
+
+                {/* ── Vehicle + Date ── */}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1"><Car className="h-3 w-3" />{td.vehicles?.brand} {td.vehicles?.model}</span>
-                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{td.scheduled_date} {td.scheduled_time}</span>
+                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{td.scheduled_date} {(td.scheduled_time || '').substring(0, 5)}</span>
+                  {td.key_handed_at && td.status !== 'in_progress' && td.status !== 'completed' && (
+                    <Badge className="text-[10px] bg-info/10 text-info border-info/20">Vehicle Assigned</Badge>
+                  )}
                 </div>
 
-                <div className="rounded-md border border-border/70 p-2 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Vehicle Assigned</span>
-                    <span className="text-foreground">{td.key_handed_at ? `By ${profile?.full_name || 'Sales'} • ${new Date(td.key_handed_at).toLocaleString()}` : 'Pending Confirmation'}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Security Start</span>
-                    <span className="text-foreground">{td.security_checked_in_at ? `${securityEventsByDrive[td.id]?.checkInBy || 'Security'} • ${new Date(td.security_checked_in_at).toLocaleString()}` : 'Pending Confirmation'}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Return Complete</span>
-                    <span className="text-foreground">{td.security_checked_out_at ? `${securityEventsByDrive[td.id]?.completedBy || securityEventsByDrive[td.id]?.checkOutBy || 'Security'} • ${new Date(td.security_checked_out_at).toLocaleString()}` : 'Pending Confirmation'}</span>
-                  </div>
-                </div>
-
-                {td.status === 'completed' && (
-                  <div className="rounded-md border border-success/30 bg-success/5 p-2.5 space-y-2 text-xs">
-                    <p className="font-semibold text-foreground">Completed Drive Details</p>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="text-muted-foreground">Pre KM:</span>{' '}
-                        <span className="font-medium">{(td as any).pre_drive_km ?? 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Pre Fuel:</span>{' '}
-                        <span className="font-medium">{(td as any).pre_drive_fuel_level || 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Post KM:</span>{' '}
-                        <span className="font-medium">{(td as any).post_drive_km ?? 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Post Fuel:</span>{' '}
-                        <span className="font-medium">{(td as any).post_drive_fuel_level || 'N/A'}</span>
-                      </div>
+                {/* ── Licence section (original) ── */}
+                <div onClick={e => e.stopPropagation()}>
+                  {!td.customers?.driving_license_url ? (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                      <Label htmlFor={`license-${td.id}`} className="text-xs shrink-0">Upload License:</Label>
+                      <Input id={`license-${td.id}`} type="file" accept="image/*,.pdf" className="max-w-full sm:max-w-xs text-xs" disabled={uploading === td.id}
+                        onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUploadLicense(td.id, td.customer_id, file); }} />
+                      {uploading === td.id && <span className="text-xs text-muted-foreground">Uploading...</span>}
                     </div>
-
-                    {(td as any).pre_drive_km && (td as any).post_drive_km && (
-                      <div>
-                        <span className="text-muted-foreground">Distance:</span>{' '}
-                        <span className="font-medium">{((td as any).post_drive_km - (td as any).pre_drive_km).toFixed(1)} km</span>
-                      </div>
-                    )}
-
-                    <div className="pt-1 border-t border-border/60 space-y-1">
-                      <p className="text-muted-foreground font-medium">Security Logs</p>
-                      {(securityEventsByDrive[td.id]?.logs?.length ?? 0) > 0 ? (
-                        <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                          {securityEventsByDrive[td.id].logs.map((log: any, index: number) => (
-                            <div key={`${log.eventType}-${log.happenedAt}-${index}`} className="rounded border border-border/60 bg-background/70 p-1.5">
-                              <p className="text-foreground leading-tight">{log.label}</p>
-                              <p className="text-muted-foreground">{log.by} • {new Date(log.happenedAt).toLocaleString()}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground">No security logs available.</p>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <FileCheck className="h-3.5 w-3.5 text-success" />
+                      <span className="text-xs text-success">License uploaded</span>
+                      {!td.customers?.driving_license_verified && (
+                        <>
+                          <Badge variant="outline" className="text-warning text-xs">Pending Verification</Badge>
+                          <Label htmlFor={`reupload-${td.id}`} className="cursor-pointer">
+                            <Button size="sm" className="bg-muted text-muted-foreground hover:bg-muted/80 text-xs h-7" asChild>
+                              <span><RotateCcw className="h-3 w-3 mr-1" /> Re-upload</span>
+                            </Button>
+                          </Label>
+                          <input id={`reupload-${td.id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={uploading === td.id}
+                            onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUploadLicense(td.id, td.customer_id, file); }} />
+                        </>
                       )}
+                      {td.customers?.driving_license_verified && <Badge variant="outline" className="text-success text-xs">Verified</Badge>}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                {/* License section */}
-                {!td.customers?.driving_license_url ? (
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                    <Label htmlFor={`license-${td.id}`} className="text-xs shrink-0">Upload License:</Label>
-                    <Input id={`license-${td.id}`} type="file" accept="image/*,.pdf" className="max-w-full sm:max-w-xs text-xs" disabled={uploading === td.id}
-                      onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUploadLicense(td.id, td.customer_id, file); }} />
-                    {uploading === td.id && <span className="text-xs text-muted-foreground">Uploading...</span>}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <FileCheck className="h-3.5 w-3.5 text-success" />
-                    <span className="text-xs text-success">License uploaded</span>
-                    {!td.customers?.driving_license_verified && (
-                      <>
-                        <Badge variant="outline" className="text-warning text-xs">Pending Verification</Badge>
-                        <Label htmlFor={`reupload-${td.id}`} className="cursor-pointer">
-                          <Button size="sm" className="bg-muted text-muted-foreground hover:bg-muted/80 text-xs h-7" asChild>
-                            <span><RotateCcw className="h-3 w-3 mr-1" /> Re-upload</span>
-                          </Button>
-                        </Label>
-                        <input id={`reupload-${td.id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={uploading === td.id}
-                          onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUploadLicense(td.id, td.customer_id, file); }} />
-                      </>
-                    )}
-                    {td.customers?.driving_license_verified && <Badge variant="outline" className="text-success text-xs">Verified</Badge>}
-                  </div>
-                )}
-
-                {/* Action buttons */}
-                <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border">
+                {/* ── Action buttons ── */}
+                <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border" onClick={e => e.stopPropagation()}>
                   {['scheduled', 'confirmed', 'show'].includes(td.status) && (
                     <>
                       <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" onClick={() => setReassignDrive(td)}>
@@ -1209,8 +1270,8 @@ const SalesDashboard = () => {
                     </>
                   )}
                   {(td.status === 'show' || td.status === 'scheduled') && !td.key_handed_at && td?.customers?.driving_license_verified && (
-                    <Button size="sm" className={`bg-primary text-primary-foreground hover:bg-primary/90 text-xs`} onClick={() => handleGiveKeyAndStart(td.id)}>
-                      <Key className="h-3.5 w-3.5 mr-1" /> Assign key
+                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleGiveKeyAndStart(td.id)}>
+                      <Key className="h-3.5 w-3.5 mr-1" /> Assign Key
                     </Button>
                   )}
                   {td.status === 'key_handover_to_sales' && (
@@ -1219,11 +1280,20 @@ const SalesDashboard = () => {
                       <Button
                         size="sm"
                         className="bg-success text-success-foreground hover:bg-success/90 text-xs"
-                        onClick={() => {
+                        onClick={async () => {
                           setCompletionLeadDialogDrive(td);
                           setLeadTemperature('cold');
                           setFollowUpTaskTitle('');
                           setFollowUpTaskDueAt('');
+                          setSelectedQuestions([]);
+                          setHandoverNotes('');
+                          if (td.location_id) {
+                            try {
+                              const rows = await apiDbQuery<any[]>({ table: 'locations', action: 'select', select: 'metadata', filters: [{ field: 'id', op: 'eq', value: td.location_id }], limit: 1 });
+                              const meta = rows?.[0]?.metadata || {};
+                              setPresetHandoverQuestions(Array.isArray(meta.handover_questions) ? meta.handover_questions : []);
+                            } catch { setPresetHandoverQuestions([]); }
+                          } else { setPresetHandoverQuestions([]); }
                         }}
                       >
                         <FileCheck className="h-3.5 w-3.5 mr-1" /> Key Handover To Sales
@@ -1242,6 +1312,13 @@ const SalesDashboard = () => {
               </div>
             ))}
             </div>
+            {filteredDrives.length > 5 && (
+              <div className="flex justify-center pt-3">
+                <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigate('/test-drives')}>
+                  View All {filteredDrives.length} Test Drives →
+                </Button>
+              </div>
+            )}
             {filteredDrives.length === 0 && (
               <p className="text-center text-muted-foreground py-8 text-sm">No Test Drives Found For The Selected Filter.</p>
             )}
@@ -1288,6 +1365,14 @@ const SalesDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Test Drive Detail Sheet */}
+      <TestDriveDetailSheet
+        testDrive={detailSheetDrive}
+        open={!!detailSheetDrive}
+        onClose={() => setDetailSheetDrive(null)}
+        securityEvents={detailSheetDrive ? securityEventsByDrive[detailSheetDrive.id] : undefined}
+      />
 
       {/* Opportunity Notes Dialog */}
       <Dialog
@@ -1416,9 +1501,134 @@ const SalesDashboard = () => {
               <Label>Task Due At</Label>
               <Input type="datetime-local" value={followUpTaskDueAt} onChange={(event) => setFollowUpTaskDueAt(event.target.value)} />
             </div>
-            <Button onClick={handleCompleteWithLead} className="w-full bg-success text-success-foreground hover:bg-success/90">
-              Complete Drive + Create Opportunity + Task
-            </Button>
+
+            {/* Handover Questions */}
+            {presetHandoverQuestions.length > 0 && (
+              <div className="space-y-2 border-t border-border pt-4">
+                <Label className="flex items-center gap-1.5 text-sm font-semibold">
+                  <CheckSquare className="h-4 w-4 text-primary" /> Customer Questions During Test Drive
+                </Label>
+                <p className="text-xs text-muted-foreground">Check all questions or topics that were compulsory at the test drive, that is mandatory for every test drive.</p>
+                <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                  {presetHandoverQuestions.map((q) => (
+                    <div key={q} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`hq-${q}`}
+                        checked={selectedQuestions.includes(q)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedQuestions(prev => [...prev, q]);
+                          } else {
+                            setSelectedQuestions(prev => prev.filter(x => x !== q));
+                          }
+                        }}
+                      />
+                      <label htmlFor={`hq-${q}`} className="text-sm cursor-pointer select-none">{q}</label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Additional Handover Notes / Comments</Label>
+              <Textarea
+                placeholder="Any additional notes about customer questions, concerns, or observations during the test drive…"
+                value={handoverNotes}
+                onChange={e => setHandoverNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            {/* HOT LEAD — Booking / Payment section */}
+            {leadTemperature === 'hot' && (
+              <div className="space-y-3 border-t-2 border-warning/40 pt-4 bg-warning/5 -mx-1 px-1 rounded-lg">
+                <Label className="flex items-center gap-1.5 text-sm font-semibold text-warning-foreground">
+                  <BookOpen className="h-4 w-4 text-warning" /> Book Car — Payment Details
+                </Label>
+                <p className="text-xs text-muted-foreground">Customer wants to buy. Collect booking amount now or send a payment link.</p>
+
+                <div className="space-y-2">
+                  <Label>Payment Method</Label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBookingPaymentMethod('cash')}
+                      className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
+                        bookingPaymentMethod === 'cash'
+                          ? 'border-success bg-success/10 text-success'
+                          : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
+                      }`}
+                    >
+                      <Banknote className="h-4 w-4" /> Cash
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBookingPaymentMethod('payment_link')}
+                      className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
+                        bookingPaymentMethod === 'payment_link'
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
+                      }`}
+                    >
+                      <Link2 className="h-4 w-4" /> Payment Link
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Booking Amount (₹)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 50000"
+                    value={bookingAmount}
+                    onChange={e => setBookingAmount(e.target.value)}
+                  />
+                </div>
+
+                {bookingPaymentMethod === 'payment_link' && (
+                  <div className="space-y-2">
+                    <Label>Payment Link URL</Label>
+                    <Input
+                      type="url"
+                      placeholder="https://razorpay.com/l/your-link"
+                      value={bookingPaymentLink}
+                      onChange={e => setBookingPaymentLink(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">This link will be included in the booking confirmation email sent to the customer.</p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Booking Notes</Label>
+                  <Input
+                    placeholder="e.g. Colour preference: White, Finance pre-approved"
+                    value={bookingNotes}
+                    onChange={e => setBookingNotes(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2 pt-1">
+              <Button onClick={handleCompleteWithLead} className="w-full bg-success text-success-foreground hover:bg-success/90">
+                <FileCheck className="h-4 w-4 mr-1.5" />
+                {leadTemperature === 'hot' ? 'Complete Drive + Create Opportunity' : 'Complete Drive + Create Opportunity + Task'}
+              </Button>
+              {leadTemperature === 'hot' && bookingAmount && parseFloat(bookingAmount) > 0 && (
+                <Button
+                  onClick={async () => {
+                    // First complete the drive + create opportunity, then create booking
+                    await handleCompleteWithLead();
+                    // The booking will be created using the stored state before reset
+                    // We need to call createBooking before state resets
+                  }}
+                  variant="outline"
+                  className="w-full border-warning/50 text-warning hover:bg-warning/10 hidden"
+                />
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
