@@ -9,11 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Phone, Route } from 'lucide-react';
+import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Phone, Route, Ban, TrendingUp } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveJourneyDialog } from '@/components/TestDriveJourneyDialog';
 
@@ -52,6 +53,7 @@ const TestDrivesPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [cancelId, setCancelId] = useState<string | null>(null);
+  const [noShowId, setNoShowId] = useState<string | null>(null);
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
   const [cancelReason, setCancelReason] = useState('');
@@ -406,43 +408,58 @@ console.log({ drives, customers, vehicles, locations, profiles });
                            <td className="p-3 text-muted-foreground">{td.created_at ? new Date(td.created_at).toLocaleString() : '-'}</td>
                      
                         <td className="p-3">
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-primary/40 text-primary hover:bg-primary/10"
-                              title="View Test Drive Journey"
-                              onClick={() => setJourneyDrive(td)}
-                            >
-                              <Route className="h-3 w-3" />
-                            </Button>
-                            {['scheduled', 'confirmed'].includes(td.status) && (
-                              <>
-                                <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90" onClick={() => setRescheduleId(td.id)}>
-                                  <RefreshCw className="h-3 w-3" />
-                                </Button>
-                                <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => setCancelId(td.id)}>
-                                  <CalendarX className="h-3 w-3" />
-                                </Button>
-                              </>
-                            )}
-                            {canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-warning/40 text-warning hover:bg-warning/10"
-                                title="Create Opportunity"
-                                onClick={() => {
-                                  setLeadDialogDrive(td);
-                                  setLeadTemperature('cold');
-                                  setFollowUpTaskTitle('');
-                                  setFollowUpTaskDueAt('');
-                                }}
-                              >
-                                Create Lead
-                              </Button>
-                            )}
-                          </div>
+                          <TooltipProvider delayDuration={300}>
+                            <div className="flex gap-1 items-center">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="icon" variant="outline" className="h-7 w-7 border-primary/40 text-primary hover:bg-primary/10" onClick={() => setJourneyDrive(td)}>
+                                    <Route className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>View Journey</TooltipContent>
+                              </Tooltip>
+                              {['scheduled', 'confirmed', 'show', 'no_show'].includes(td.status) && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button size="icon" className="h-7 w-7 bg-info text-info-foreground hover:bg-info/90" onClick={() => setRescheduleId(td.id)}>
+                                      <RefreshCw className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Reschedule</TooltipContent>
+                                </Tooltip>
+                              )}
+                              {['scheduled', 'confirmed', 'show'].includes(td.status) && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button size="icon" variant="outline" className="h-7 w-7 border-warning/50 text-warning hover:bg-warning/10" onClick={() => setNoShowId(td.id)}>
+                                      <CalendarX className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Mark No Show</TooltipContent>
+                                </Tooltip>
+                              )}
+                              {['scheduled', 'confirmed'].includes(td.status) && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button size="icon" className="h-7 w-7 bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => setCancelId(td.id)}>
+                                      <Ban className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Cancel</TooltipContent>
+                                </Tooltip>
+                              )}
+                              {canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button size="icon" variant="outline" className="h-7 w-7 border-warning/40 text-warning hover:bg-warning/10" onClick={() => { setLeadDialogDrive(td); setLeadTemperature('cold'); setFollowUpTaskTitle(''); setFollowUpTaskDueAt(''); }}>
+                                      <TrendingUp className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Create Lead</TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                          </TooltipProvider>
                         </td>
                       </tr>
                     );
@@ -523,15 +540,25 @@ console.log({ drives, customers, vehicles, locations, profiles });
                       <Button size="sm" variant="outline" className="flex-1 border-primary/40 text-primary hover:bg-primary/10" onClick={() => setJourneyDrive(td)}>
                         <Route className="h-3.5 w-3.5 mr-1.5" /> View Journey
                       </Button>
+                      {['scheduled', 'confirmed', 'show', 'no_show'].includes(td.status) && (
+                        <Button size="sm" className="flex-1 bg-info text-info-foreground hover:bg-info/90" onClick={() => setRescheduleId(td.id)}>
+                          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Reschedule
+                        </Button>
+                      )}
+                      {['scheduled', 'confirmed', 'show'].includes(td.status) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 border-warning/50 text-warning hover:bg-warning/10"
+                          onClick={() => setNoShowId(td.id)}
+                        >
+                          <CalendarX className="h-3.5 w-3.5 mr-1.5" /> No Show
+                        </Button>
+                      )}
                       {['scheduled', 'confirmed'].includes(td.status) && (
-                        <>
-                          <Button size="sm" className="flex-1 bg-info text-info-foreground hover:bg-info/90" onClick={() => setRescheduleId(td.id)}>
-                            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Reschedule
-                          </Button>
-                          <Button size="sm" className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => setCancelId(td.id)}>
-                            <CalendarX className="h-3.5 w-3.5 mr-1.5" /> Cancel
-                          </Button>
-                        </>
+                        <Button size="sm" className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => setCancelId(td.id)}>
+                          <CalendarX className="h-3.5 w-3.5 mr-1.5" /> Cancel
+                        </Button>
                       )}
                       {canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && (
                         <Button
@@ -586,6 +613,44 @@ console.log({ drives, customers, vehicles, locations, profiles });
                 <Textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Optional reason..." />
               </div>
               <Button onClick={handleCancel} className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm Cancellation</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* No Show Confirmation Dialog */}
+        <Dialog open={!!noShowId} onOpenChange={(o) => !o && setNoShowId(null)}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-heading flex items-center gap-2 text-warning">
+                Mark as No Show?
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {(() => {
+                const td = testDrives.find(t => t.id === noShowId);
+                return td
+                  ? `Are you sure you want to mark ${td.customers?.full_name || 'this customer'}'s test drive as no-show?`
+                  : 'Are you sure you want to mark this test drive as no-show?';
+              })()}
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setNoShowId(null)}>Cancel</Button>
+              <Button
+                className="bg-warning text-warning-foreground hover:bg-warning/90"
+                onClick={async () => {
+                  if (!noShowId) return;
+                  await apiDbQuery({
+                    table: 'test_drives',
+                    action: 'update',
+                    payload: { status: 'no_show' },
+                    filters: [{ field: 'id', op: 'eq', value: noShowId }],
+                  });
+                  setNoShowId(null);
+                  fetchTestDrives();
+                }}
+              >
+                Yes, Mark No Show
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

@@ -36,9 +36,7 @@ const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot, leftSlot }
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           {leftSlot}
-          <Link to="/" className="flex items-center gap-3">
-            <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-9 sm:h-10 w-auto" />
-          </Link>
+        
         </div>
 
         {showNav && variant === 'landing' && (

@@ -5,10 +5,12 @@ import { apiDbQuery, apiGet, apiPatch } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight, Calendar, LayoutGrid, UserPlus, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, LayoutGrid, UserPlus, RefreshCw, AlertTriangle } from 'lucide-react';
 import { format, addDays, startOfWeek, isSameDay, parseISO } from 'date-fns';
 
 const statusColor: Record<string, string> = {
@@ -78,6 +80,10 @@ const GROCalendarView = () => {
   const [selectedSalesPerson, setSelectedSalesPerson] = useState('');
   const [selectedModelGroup, setSelectedModelGroup] = useState('all');
   const [selectedSalesFilter, setSelectedSalesFilter] = useState('all');
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [noShowConfirmId, setNoShowConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchTestDrives();
@@ -255,6 +261,47 @@ const GROCalendarView = () => {
     });
     setAssignDialog({ open: false, testDriveId: null });
     setSelectedSalesPerson('');
+    fetchTestDrives();
+  };
+
+  const updateStatus = async (id: string, status: string) => {
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: { status },
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
+    fetchTestDrives();
+  };
+
+  const handleReschedule = async () => {
+    if (!rescheduleId || !rescheduleDate || !rescheduleTime) return;
+    const original = testDrives.find((t) => t.id === rescheduleId);
+    if (!original) return;
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'insert',
+      values: [{
+        customer_id: original.customer_id,
+        vehicle_id: original.vehicle_id,
+        location_id: original.location_id,
+        assigned_sales_person_id: original.assigned_sales_person_id,
+        assigned_gro_id: original.assigned_gro_id,
+        scheduled_date: rescheduleDate,
+        scheduled_time: rescheduleTime,
+        source: original.source,
+        rescheduled_from: rescheduleId,
+      }],
+    });
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: { status: 'rescheduled' },
+      filters: [{ field: 'id', op: 'eq', value: rescheduleId }],
+    });
+    setRescheduleId(null);
+    setRescheduleDate('');
+    setRescheduleTime('');
     fetchTestDrives();
   };
 
@@ -565,6 +612,8 @@ const GROCalendarView = () => {
     const canAssignByStatus = ASSIGNABLE_STATUSES.has(td.status);
     const canAssignBySource = source === 'online' || source === 'walkin';
     const canAssign = td.status !== 'completed' && td.status !== 'cancelled' && (canAssignByStatus || canAssignBySource);
+    const isIncomplete = ['scheduled', 'confirmed', 'show', 'no_show'].includes(td.status);
+    const canMarkNoShow = ['scheduled', 'confirmed', 'show'].includes(td.status);
 
     return (
     <div key={td.id} className={`p-2 rounded-md border text-xs mb-1 ${statusColor[td.status] || 'bg-muted'}`}>
@@ -601,6 +650,36 @@ const GROCalendarView = () => {
           </Button>
         )}
       </div>
+      {isIncomplete && (
+        <div className="flex gap-1 mt-1.5 pt-1.5 border-t border-current/20">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-5 flex-1 text-[10px] px-1 gap-0.5 text-info hover:bg-info/10 hover:text-info"
+            onClick={(e) => {
+              e.stopPropagation();
+              setRescheduleId(td.id);
+              setRescheduleDate('');
+              setRescheduleTime('');
+            }}
+          >
+            <RefreshCw className="h-2.5 w-2.5" /> Reschedule
+          </Button>
+          {canMarkNoShow && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-5 flex-1 text-[10px] px-1 gap-0.5 text-warning hover:bg-warning/10 hover:text-warning"
+              onClick={(e) => {
+                e.stopPropagation();
+                setNoShowConfirmId(td.id);
+              }}
+            >
+              <AlertTriangle className="h-2.5 w-2.5" /> No Show
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
   };
@@ -834,6 +913,62 @@ const GROCalendarView = () => {
               Confirm Assignment
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Dialog */}
+      <Dialog open={!!rescheduleId} onOpenChange={(o) => !o && setRescheduleId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-heading">Reschedule Test Drive</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Date</Label>
+              <Input type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>New Time</Label>
+              <Input type="time" value={rescheduleTime} onChange={(e) => setRescheduleTime(e.target.value)} />
+            </div>
+            <Button
+              onClick={handleReschedule}
+              disabled={!rescheduleDate || !rescheduleTime}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Confirm Reschedule
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* No Show Confirmation Dialog */}
+      <Dialog open={!!noShowConfirmId} onOpenChange={(o) => !o && setNoShowConfirmId(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2 text-warning">
+              <AlertTriangle className="h-5 w-5" /> Mark as No Show?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {(() => {
+              const td = testDrives.find(t => t.id === noShowConfirmId);
+              return td
+                ? `Are you sure you want to mark ${td.customers?.full_name || 'this customer'}'s test drive as no-show?`
+                : 'Are you sure you want to mark this test drive as no-show?';
+            })()}
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="rounded-xl" onClick={() => setNoShowConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl bg-warning text-warning-foreground hover:bg-warning/90"
+              onClick={() => { updateStatus(noShowConfirmId!, 'no_show'); setNoShowConfirmId(null); }}
+            >
+              Yes, Mark No Show
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -4,7 +4,10 @@ import { apiDbQuery } from '@/lib/apiClient';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert, Car } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert, Car, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import GROCalendarView from './GROCalendarView';
 import BlockedSlotsManager from './BlockedSlotsManager';
@@ -14,6 +17,10 @@ const GRODashboard = () => {
   const [showInsights, setShowInsights] = useState(false);
   const [stats, setStats] = useState({ today: 0, upcoming: 0, completed: 0 });
   const [testDrives, setTestDrives] = useState<any[]>([]);
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const [newDate, setNewDate] = useState('');
+  const [newTime, setNewTime] = useState('');
+  const [noShowConfirmId, setNoShowConfirmId] = useState<string | null>(null);
   const formatStatusLabel = (status: string) =>
     status
       .replace(/_/g, ' ')
@@ -70,6 +77,37 @@ const GRODashboard = () => {
       payload: { status },
       filters: [{ field: 'id', op: 'eq', value: id }],
     });
+    fetchTestDrives();
+  };
+
+  const handleReschedule = async () => {
+    if (!rescheduleId || !newDate || !newTime) return;
+    const original = testDrives.find((t) => t.id === rescheduleId);
+    if (!original) return;
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'insert',
+      values: [{
+        customer_id: original.customer_id,
+        vehicle_id: original.vehicle_id,
+        location_id: original.location_id,
+        assigned_sales_person_id: original.assigned_sales_person_id,
+        assigned_gro_id: original.assigned_gro_id,
+        scheduled_date: newDate,
+        scheduled_time: newTime,
+        source: original.source,
+        rescheduled_from: rescheduleId,
+      }],
+    });
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: { status: 'rescheduled' },
+      filters: [{ field: 'id', op: 'eq', value: rescheduleId }],
+    });
+    setRescheduleId(null);
+    setNewDate('');
+    setNewTime('');
     fetchTestDrives();
   };
 
@@ -170,20 +208,38 @@ const GRODashboard = () => {
                           <>
                             <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => updateStatus(td.id, 'confirmed')}>Confirm</Button>
                             <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>Show</Button>
-                            <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => updateStatus(td.id, 'no_show')}>No Show</Button>
                           </>
                         )}
                         {td.status === 'confirmed' && (
-                          <>
-                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>Show</Button>
-                            <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => updateStatus(td.id, 'no_show')}>No Show</Button>
-                          </>
+                          <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>Show</Button>
                         )}
                         {td.status === 'show' && (
                           <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs" onClick={() => updateStatus(td.id, 'in_progress')}>Start Drive</Button>
                         )}
                         {td.status === 'in_progress' && (
                           <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'completed')}>Complete</Button>
+                        )}
+                        {/* Reschedule — all incomplete non-in_progress drives */}
+                        {['scheduled', 'confirmed', 'show', 'no_show'].includes(td.status) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-info/50 text-info hover:bg-info/10 text-xs gap-1"
+                            onClick={() => { setRescheduleId(td.id); setNewDate(''); setNewTime(''); }}
+                          >
+                            <RefreshCw className="h-3 w-3" /> Reschedule
+                          </Button>
+                        )}
+                        {/* No Show — for drives not yet no-show or completed */}
+                        {['scheduled', 'confirmed', 'show'].includes(td.status) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-warning/50 text-warning hover:bg-warning/10 text-xs gap-1"
+                            onClick={() => setNoShowConfirmId(td.id)}
+                          >
+                            <AlertTriangle className="h-3 w-3" /> No Show
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -201,6 +257,62 @@ const GRODashboard = () => {
           <BlockedSlotsManager />
         </TabsContent>
       </Tabs>
+
+      {/* Reschedule Dialog */}
+      <Dialog open={!!rescheduleId} onOpenChange={(open) => !open && setRescheduleId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-heading">Reschedule Test Drive</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Date</Label>
+              <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>New Time</Label>
+              <Input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
+            </div>
+            <Button
+              onClick={handleReschedule}
+              disabled={!newDate || !newTime}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Confirm Reschedule
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* No Show Confirmation Dialog */}
+      <Dialog open={!!noShowConfirmId} onOpenChange={(o) => !o && setNoShowConfirmId(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2 text-warning">
+              <AlertTriangle className="h-5 w-5" /> Mark as No Show?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {(() => {
+              const td = testDrives.find(t => t.id === noShowConfirmId);
+              return td
+                ? `Are you sure you want to mark ${td.customers?.full_name || 'this customer'}'s test drive as no-show?`
+                : 'Are you sure you want to mark this test drive as no-show?';
+            })()}
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" className="rounded-xl" onClick={() => setNoShowConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl bg-warning text-warning-foreground hover:bg-warning/90"
+              onClick={() => { updateStatus(noShowConfirmId!, 'no_show'); setNoShowConfirmId(null); }}
+            >
+              Yes, Mark No Show
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     
     </div>

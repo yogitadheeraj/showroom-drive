@@ -107,6 +107,13 @@ import {
   upsertFollowUpReminderConfigController,
 } from '../controllers/followUpReminderConfigController.js';
 import {
+  cancelConflictingBookingsController,
+  createBlockedSlotController,
+  deleteBlockedSlotController,
+  getBlockedSlotController,
+  listBlockedSlotsController,
+} from '../controllers/locationBlockedSlotController.js';
+import {
   createUserController,
   deleteUserController,
   disableUserController,
@@ -226,6 +233,13 @@ apiRouter.get('/notifications', requireAuth, listNotificationsController);
 apiRouter.get('/notifications/unread-count', requireAuth, unreadCountController);
 apiRouter.patch('/notifications/:id/read', requireAuth, markReadController);
 apiRouter.post('/notifications/mark-all-read', requireAuth, markAllReadController);
+
+// Location Blocked Slots
+apiRouter.get('/location-blocked-slots', listBlockedSlotsController);
+apiRouter.get('/location-blocked-slots/:id', getBlockedSlotController);
+apiRouter.post('/location-blocked-slots', requireAuth, createBlockedSlotController);
+apiRouter.delete('/location-blocked-slots/:id', requireAuth, deleteBlockedSlotController);
+apiRouter.post('/location-blocked-slots/:id/cancel-conflicts', requireAuth, cancelConflictingBookingsController);
 
 // Follow-up Reminder Config
 apiRouter.get('/follow-up-reminder-config', requireAuth, listFollowUpReminderConfigsController);

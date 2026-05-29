@@ -79,31 +79,48 @@ export async function getAvailableTimeSlots(
       });
     }
 
-    // Get existing bookings for this date
-    const { data: existingBookings } = await supabase
-      .from('test_drives')
-      .select('scheduled_time, slot_duration_minutes')
-      .eq('location_id', locationId)
-      .eq('scheduled_date', selectedDate)
-      .in('status', ['scheduled', 'confirmed', 'show', 'in_progress']);
+    // Get existing bookings and blocked slots for this date in parallel
+    const [{ data: existingBookings }, { data: blockedSlots }] = await Promise.all([
+      supabase
+        .from('test_drives')
+        .select('scheduled_time, slot_duration_minutes')
+        .eq('location_id', locationId)
+        .eq('scheduled_date', selectedDate)
+        .in('status', ['scheduled', 'confirmed', 'show', 'in_progress']),
+      supabase
+        .from('location_blocked_slots')
+        .select('start_time, end_time')
+        .eq('location_id', locationId)
+        .eq('blocked_date', selectedDate),
+    ]);
 
     // Check for no-show bookings that have passed (should be released)
     const now = new Date();
     const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
-    // Filter out slots that conflict with existing bookings
+    // Filter out slots that conflict with existing bookings or blocked windows
     const availableSlots = allSlots.filter(slot => {
-      const hasConflict = existingBookings?.some(booking => {
+      // Check existing test-drive bookings
+      const hasBookingConflict = existingBookings?.some(booking => {
         if (!booking.scheduled_time) return false;
         const [bookHour, bookMin] = booking.scheduled_time.substring(0, 5).split(':').map(Number);
         const bookingStartMinutes = bookHour * 60 + bookMin;
         const bookingEndMinutes = bookingStartMinutes + (booking.slot_duration_minutes || 30);
-
-        // Check if slot overlaps with booking
         return !(slot.endMinutes <= bookingStartMinutes || slot.startMinutes >= bookingEndMinutes);
       });
 
-      return !hasConflict;
+      if (hasBookingConflict) return false;
+
+      // Check manually blocked slots
+      const hasBlockConflict = blockedSlots?.some(blocked => {
+        const [bStartHour, bStartMin] = blocked.start_time.substring(0, 5).split(':').map(Number);
+        const [bEndHour, bEndMin] = blocked.end_time.substring(0, 5).split(':').map(Number);
+        const blockStartMinutes = bStartHour * 60 + bStartMin;
+        const blockEndMinutes = bEndHour * 60 + bEndMin;
+        return !(slot.endMinutes <= blockStartMinutes || slot.startMinutes >= blockEndMinutes);
+      });
+
+      return !hasBlockConflict;
     });
 
     return { slots: availableSlots, error: null };

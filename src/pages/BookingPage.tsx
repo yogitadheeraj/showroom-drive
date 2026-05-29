@@ -453,15 +453,6 @@ const BookingPage = () => {
       const isToday = formData.scheduledDate === currentDateStr;
       const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
-
-      // Enforce: Only allow booking if slot starts at least 30 mins before closing
-      const closeTimeStr = selectedDateHours?.close_time;
-      let closeTimeMinutes = null;
-      if (closeTimeStr) {
-        const [closeHour, closeMin] = closeTimeStr.split(':').map(Number);
-        closeTimeMinutes = closeHour * 60 + closeMin;
-      }
-
       const filteredSlots = (slots || []).filter((slot: any) => {
         const slotBlocked = blockedSlots.some((bs: any) =>
           bs.location_id === formData.locationId &&
@@ -476,11 +467,6 @@ const BookingPage = () => {
           if (slot.startMinutes < currentTimeMinutes) {
             return false;
           }
-        }
-
-        // Enforce 30 min before closing
-        if (closeTimeMinutes !== null && slot.startMinutes > closeTimeMinutes - 30) {
-          return false;
         }
 
         const slotStart = slot.startMinutes;

@@ -25,10 +25,11 @@ const DashboardPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="mb-4 sm:mb-6">
+     
+      {renderDashboard()}
+       <div className="mb-4 sm:mb-6">
         <FollowUpOverview />
       </div>
-      {renderDashboard()}
     </DashboardLayout>
   );
 };

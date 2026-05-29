@@ -82,13 +82,10 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'My Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
-    { label: 'Communications', path: '/communications', icon: MessageSquare },
-     { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
-  ],
+    { label: 'Communications', path: '/communications', icon: MessageSquare } ],
   [APP_ROLE.SECURITY]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
-    { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
+   { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
   ],
 };

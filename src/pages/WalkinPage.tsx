@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { format } from 'date-fns';
 import { demoAutofillData } from '@/lib/demoAutofillData';
 import { apiDbQuery, apiGet, apiInvokeFunction, apiPost } from '@/lib/apiClient';
 import { createCustomer, findCustomerByPhone, updateCustomer } from '@/lib/customerService';
 import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { isLocationCurrentlyOpen } from '@/lib/slotAvailability';
+import { isLocationCurrentlyOpen, getAvailableTimeSlots } from '@/lib/slotAvailability';
 import { APP_ROLE } from '@/constants/roles';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2 } from 'lucide-react';
+import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2, CalendarDays, Clock } from 'lucide-react';
 
 type Step = 'customer' | 'license' | 'confirm';
 
@@ -26,17 +27,27 @@ const WalkinPage = () => {
   const [locationStatus, setLocationStatus] = useState<Record<string, { isOpen: boolean; openTime: string | null; closeTime: string | null }>>({});
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [step, setStep] = useState<Step>('customer');
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const maxDateObj = new Date();
+  maxDateObj.setDate(maxDateObj.getDate() + 30);
+  const maxDateStr = maxDateObj.toISOString().split('T')[0];
+
   const [formData, setFormData] = useState({
     fullName: '', phone: '', email: '', preferredContact: 'phone',
     locationId: profile?.location_id || '', vehicleId: '',
+    scheduledDate: todayStr, scheduledTime: '',
   });
-  const [canUseDemoData, setCanUseDemoData] = useState(false);
+  const [timeSlots, setTimeSlots] = useState<Array<{ startTime: string; endTime: string }>>([]);
+  const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
+  const canUseDemoData = false;
   // Autofill handler
   const handleDemoAutofill = () => {
     setFormData((prev) => ({
       ...prev,
       ...demoAutofillData.WalkinPage,
       locationId: prev.locationId || demoAutofillData.WalkinPage.locationId,
+      scheduledDate: prev.scheduledDate,
     }));
   };
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
@@ -142,6 +153,27 @@ const WalkinPage = () => {
       }
     };
   }, []);
+  // Load available time slots when date or location changes
+  useEffect(() => {
+    if (!formData.locationId || !formData.scheduledDate) {
+      setTimeSlots([]);
+      return;
+    }
+    setLoadingTimeSlots(true);
+    getAvailableTimeSlots(formData.locationId, formData.scheduledDate, 30).then(({ slots }) => {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const isToday = formData.scheduledDate === todayStr;
+      const filtered = (slots || []).filter(slot =>
+        !isToday || (slot.startMinutes ?? 0) >= currentMinutes
+      );
+      setTimeSlots(filtered.map(s => ({ startTime: s.startTime, endTime: s.endTime })));
+    }).catch(() => {
+      setTimeSlots([]);
+    }).finally(() => {
+      setLoadingTimeSlots(false);
+    });
+  }, [formData.locationId, formData.scheduledDate]);
 
   const startCamera = async () => {
     try {
@@ -206,21 +238,15 @@ const WalkinPage = () => {
       return vehicles.filter((vehicle) => vehicle.is_demo && vehicle.total_units>0 && vehicle.available_units>0);
     }, [vehicles]);
 
-  // Only allow booking if current time is at least 30 mins before closing
+  // Only allow booking if required fields are filled and location is open for today
+  const isBookingToday = formData.scheduledDate === todayStr;
   const canProceedFromCustomer = (() => {
-    if (!(formData.fullName && formData.phone && formData.vehicleId && formData.locationId && selectedLocationStatus?.isOpen)) return false;
-    if (!selectedLocationStatus?.closeTime) return true;
-    try {
-      const now = new Date();
-      const [closeHour, closeMin] = selectedLocationStatus.closeTime.split(':').map(Number);
-      const closeDate = new Date(now);
-      closeDate.setHours(closeHour, closeMin, 0, 0);
-      // 30 minutes before closing
-      const lastAllowed = new Date(closeDate.getTime() - 30 * 60000);
-      return now <= lastAllowed;
-    } catch {
-      return true;
-    }
+    if (!(formData.fullName && formData.phone && formData.vehicleId && formData.locationId)) return false;
+    // For today, location must be currently open
+    if (isBookingToday && !selectedLocationStatus?.isOpen) return false;
+    // For future dates, a time slot must be selected
+    if (!isBookingToday && !formData.scheduledTime) return false;
+    return true;
   })();
 
   const handleSubmit = async () => {
@@ -258,14 +284,17 @@ const WalkinPage = () => {
       }
 
       const now = new Date();
+      const scheduledDateStr = formData.scheduledDate || now.toISOString().split('T')[0];
+      const scheduledTimeStr = formData.scheduledTime || now.toTimeString().slice(0, 5);
+      const walkinToday = scheduledDateStr === now.toISOString().split('T')[0];
       const testDrivePayload = {
         customer_id: customerId,
         vehicle_id: formData.vehicleId,
         location_id: formData.locationId,
-        scheduled_date: now.toISOString().split('T')[0],
-        scheduled_time: now.toTimeString().slice(0, 5),
-        source: 'walkin',
-        status: 'show' as any,
+        scheduled_date: scheduledDateStr,
+        scheduled_time: scheduledTimeStr,
+        source: walkinToday ? 'walkin' : 'staff_booking',
+        status: walkinToday ? 'show' : 'scheduled' as any,
         assigned_sales_person_id: role === APP_ROLE.SALES ? profile?.id : null,
         assigned_gro_id: null,
         slot_duration_minutes: 30,
@@ -316,7 +345,7 @@ const WalkinPage = () => {
 
       const vehicleName = selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model} ${selectedVehicle.variant || ''}`.trim() : 'your selected vehicle';
       const locationName = selectedLocation?.name || 'our showroom';
-      const walkinTime = `${now.toISOString().split('T')[0]} ${now.toTimeString().slice(0, 5)}`;
+      const walkinTime = `${scheduledDateStr} ${scheduledTimeStr}`;
 
       // Send WhatsApp confirmation and log communication.
       if (formData.phone) {
@@ -364,9 +393,8 @@ const WalkinPage = () => {
               customerName: formData.fullName,
               vehicleName,
               locationName,
-              scheduledDate: now.toISOString().split('T')[0],
-              scheduledTime: now.toTimeString().slice(0, 5),
-            },
+              scheduledDate: scheduledDateStr,
+              scheduledTime: scheduledTimeStr,            },
           });
         } catch (error) {
           emailError = error;
@@ -401,16 +429,16 @@ const WalkinPage = () => {
             customerName: formData.fullName,
             vehicleName,
             locationName,
-            scheduledDate: now.toISOString().split('T')[0],
-            scheduledTime: now.toTimeString().slice(0, 5),
+            scheduledDate: scheduledDateStr,
+            scheduledTime: scheduledTimeStr,
             salesPersonName: assignedSalesName,
             salesPersonPhone: assignedSalesPhone,
           },
         }).catch(err => console.error('Sales assignment email failed:', err));
       }
 
-      toast({ title: 'Walk-in registered', description: `${formData.fullName} has been checked in${assignedSalesName ? `. Sales executive: ${assignedSalesName}` : ''}.` });
-      setFormData({ fullName: '', phone: '', email: '', preferredContact: 'phone', locationId: profile?.location_id || '', vehicleId: '' });
+      toast({ title: walkinToday ? 'Walk-in registered' : 'Booking created', description: `${formData.fullName} has been ${walkinToday ? 'checked in' : 'booked for ' + scheduledDateStr + ' at ' + scheduledTimeStr}${assignedSalesName ? `. Sales executive: ${assignedSalesName}` : ''}.` });
+      setFormData({ fullName: '', phone: '', email: '', preferredContact: 'phone', locationId: profile?.location_id || '', vehicleId: '', scheduledDate: todayStr, scheduledTime: '' });
       removeLicense();
       setStep('customer');
     } catch (err: any) {
@@ -630,21 +658,86 @@ const WalkinPage = () => {
                   )}
                 </div>
 
+                {/* Date + Time slot pickers */}
+                <div className="space-y-4 pt-2 border-t border-border">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5">
+                      <CalendarDays className="h-4 w-4 text-muted-foreground" /> Date <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      type="date"
+                      value={formData.scheduledDate}
+                      min={todayStr}
+                      max={maxDateStr}
+                      onChange={e => setFormData(p => ({ ...p, scheduledDate: e.target.value, scheduledTime: '' }))}
+                    />
+                    {formData.scheduledDate && (
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(`${formData.scheduledDate}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        {isBookingToday ? ' — Today (walk-in)' : ' — Advance booking'}
+                      </p>
+                    )}
+                  </div>
+
+                  {formData.locationId && formData.scheduledDate && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1.5">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        Time Slot {!isBookingToday && <span className="text-destructive">*</span>}
+                      </Label>
+                      {loadingTimeSlots ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                          <Loader2 className="h-4 w-4 animate-spin" /> Loading available slots…
+                        </div>
+                      ) : timeSlots.length > 0 ? (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {timeSlots.map(slot => {
+                            const [h, m] = slot.startTime.split(':').map(Number);
+                            const period = h < 12 ? 'AM' : 'PM';
+                            const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                            return (
+                              <button
+                                key={slot.startTime}
+                                type="button"
+                                onClick={() => setFormData(p => ({ ...p, scheduledTime: slot.startTime }))}
+                                className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-all ${
+                                  formData.scheduledTime === slot.startTime
+                                    ? 'border-primary bg-primary/10 text-primary'
+                                    : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                                }`}
+                              >
+                                {displayH}:{m.toString().padStart(2, '0')} {period}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground py-2 text-center border border-dashed border-border rounded-lg">
+                          No available slots for this date
+                        </p>
+                      )}
+                      {isBookingToday && !formData.scheduledTime && (
+                        <p className="text-[11px] text-muted-foreground">For a walk-in today, current time will be used if no slot is selected.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex justify-end pt-2">
                   <div className="flex flex-col items-end gap-2 w-full">
-                    {formData.locationId && selectedLocationStatus && !selectedLocationStatus.isOpen && (
+                    {formData.locationId && selectedLocationStatus && isBookingToday && !selectedLocationStatus.isOpen && (
                       <p className="text-xs text-destructive font-medium">
-                        ⏰ Cannot proceed: This location is closed. Opens at {selectedLocationStatus.openTime}
+                        ⏰ Cannot proceed for today: This location is closed. Opens at {selectedLocationStatus.openTime}
+                      </p>
+                    )}
+                    {!isBookingToday && !formData.scheduledTime && (
+                      <p className="text-xs text-warning font-medium">
+                        Please select a time slot for the chosen date.
                       </p>
                     )}
                     <Button onClick={() => setStep('license')} disabled={!canProceedFromCustomer} className="w-full">
                       Next <ArrowRight className="h-4 w-4 ml-1" />
                     </Button>
-                    {!canProceedFromCustomer && selectedLocationStatus?.closeTime && (
-                      <p className="text-xs text-destructive font-medium mt-1">
-                        Walk-in booking is only allowed at least 30 minutes before closing time ({selectedLocationStatus.closeTime}).
-                      </p>
-                    )}
                   </div>
                 </div>
               </CardContent>
@@ -773,6 +866,28 @@ const WalkinPage = () => {
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Location</p>
                     <p className="font-medium text-foreground">{selectedLocation?.name || '—'}</p>
                     <p className="text-sm text-muted-foreground">{selectedLocation?.address}</p>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Date &amp; Time</p>
+                    <p className="font-medium text-foreground">
+                      {formData.scheduledDate
+                        ? new Date(`${formData.scheduledDate}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+                        : '—'}
+                      {isBookingToday ? ' (Today)' : ''}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {formData.scheduledTime
+                        ? (() => {
+                            const [h, m] = formData.scheduledTime.split(':').map(Number);
+                            const period = h < 12 ? 'AM' : 'PM';
+                            const dh = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                            return `${dh}:${m.toString().padStart(2, '0')} ${period}`;
+                          })()
+                        : isBookingToday ? 'Current time (walk-in)' : '—'}
+                    </p>
+                    <Badge variant={isBookingToday ? 'secondary' : 'outline'} className="text-[10px] mt-1">
+                      {isBookingToday ? 'Walk-in' : 'Advance Booking'}
+                    </Badge>
                   </div>
                   <div className="p-4">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Assigned Sales</p>
