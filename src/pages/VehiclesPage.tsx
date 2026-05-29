@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { demoAutofillData } from '@/lib/demoAutofillData';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,8 +18,6 @@ import { APP_ROLE } from '@/constants/roles';
 import BulkVehicleImport from '@/components/vehicles/BulkVehicleImport';
 import VehicleReservations from '@/components/vehicles/VehicleReservations';
 import PricingRulesConfig from '@/components/vehicles/PricingRulesConfig';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -62,16 +60,33 @@ const VehiclesPage = () => {
   useEffect(() => {
     if (!dealerLoading) {
       if (isSuperAdmin) {
-        supabase.from('dealers').select('id, name').eq('is_active', true).order('name').then(({ data }) => setDealers(data || []));
+        apiDbQuery<any[]>({
+          table: 'dealers',
+          action: 'select',
+          select: 'id, name',
+          filters: [{ field: 'is_active', op: 'eq', value: true }],
+          order: [{ field: 'name', ascending: true }],
+        }).then((data) => setDealers(data || []));
       }
       fetchVehicles();
-      let query = supabase.from('locations').select('*').eq('is_active', true);
-      if (dealerId) query = query.eq('dealer_id', dealerId);
-      query.then(({ data }) => setLocations(data || []));
+      const locationFilters: Array<{ field: string; op: 'eq'; value: unknown }> = [{ field: 'is_active', op: 'eq', value: true }];
+      if (dealerId) locationFilters.push({ field: 'dealer_id', op: 'eq', value: dealerId });
+      apiDbQuery<any[]>({
+        table: 'locations',
+        action: 'select',
+        select: '*',
+        filters: locationFilters,
+      }).then((data) => setLocations(data || []));
 
-      let brandsQuery = supabase.from('brands').select('id, name, dealer_id').order('name');
-      if (dealerId) brandsQuery = brandsQuery.eq('dealer_id', dealerId);
-      brandsQuery.then(({ data }) => setBrands(data || []));
+      const brandFilters: Array<{ field: string; op: 'eq'; value: unknown }> = [];
+      if (dealerId) brandFilters.push({ field: 'dealer_id', op: 'eq', value: dealerId });
+      apiDbQuery<any[]>({
+        table: 'brands',
+        action: 'select',
+        select: 'id, name, dealer_id',
+        filters: brandFilters,
+        order: [{ field: 'name', ascending: true }],
+      }).then((data) => setBrands(data || []));
     }
   }, [dealerId, dealerLoading, isSuperAdmin]);
 
@@ -81,21 +96,11 @@ const VehiclesPage = () => {
 
   const fetchVehicles = async () => {
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-
-      const response = await fetch(`${API_BASE_URL}/api/vehicles`, {
-        method: 'GET',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-
-      const json = await response.json().catch(() => ({}));
-      const rows = Array.isArray(json?.data) ? json.data : [];
+      const rows = await apiGet<any[]>('/api/vehicles');
 
       let allLocations = locations;
       if (!allLocations.length) {
-        const { data: fetchedLocations } = await supabase.from('locations').select('id, name, dealer_id');
-        allLocations = fetchedLocations || [];
+        allLocations = await apiDbQuery<any[]>({ table: 'locations', action: 'select', select: 'id, name, dealer_id' });
       }
 
       const locationMap = (allLocations || []).reduce((acc: Record<string, any>, loc: any) => {
@@ -196,13 +201,23 @@ const VehiclesPage = () => {
     };
 
     if (editingId) {
-      await supabase.from('vehicles').update(payload).eq('id', editingId);
+      await apiDbQuery({
+        table: 'vehicles',
+        action: 'update',
+        filters: [{ field: 'id', op: 'eq', value: editingId }],
+        payload,
+      });
       toast({ title: 'Vehicle updated' });
     } else {
-      const { data: createdVehicle, error: createError } = await supabase.from('vehicles').insert(payload).select('id').single();
-      if (createError) throw createError;
+      const createdVehicle = await apiDbQuery<any>({
+        table: 'vehicles',
+        action: 'insert',
+        select: 'id',
+        payload,
+      });
+      const createdVehicleId = Array.isArray(createdVehicle) ? createdVehicle[0]?.id : createdVehicle?.id;
 
-      if (showDemoSetupStep && createdVehicle?.id) {
+      if (showDemoSetupStep && createdVehicleId) {
         const demoPayload = {
           brand: formData.brand,
           model: formData.model,
@@ -223,11 +238,14 @@ const VehiclesPage = () => {
           is_demo: true,
           is_new: true,
           is_used: false,
-          demo_for_vehicle_id: createdVehicle.id,
+          demo_for_vehicle_id: createdVehicleId,
         };
 
-        const { error: demoError } = await supabase.from('vehicles').insert(demoPayload);
-        if (demoError) throw demoError;
+        await apiDbQuery({
+          table: 'vehicles',
+          action: 'insert',
+          payload: demoPayload,
+        });
         toast({ title: 'Vehicle and Demo added', description: 'New vehicle and its associated demo vehicle were created.' });
       } else {
         toast({ title: 'Vehicle added' });

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -70,20 +71,24 @@ const ReportSettingsConfig = () => {
     try {
       setLoading(true);
       const [emailRes, scheduleRes] = await Promise.all([
-        supabase
-          .from('report_email_config')
-          .select('*')
-          .eq('location_id', locationId)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('report_schedule_config')
-          .select('*')
-          .eq('location_id', locationId)
-          .order('created_at', { ascending: false }),
+        apiDbQuery<any[]>({
+          table: 'report_email_config',
+          action: 'select',
+          select: '*',
+          filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+          order: [{ field: 'created_at', ascending: false }],
+        }),
+        apiDbQuery<any[]>({
+          table: 'report_schedule_config',
+          action: 'select',
+          select: '*',
+          filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+          order: [{ field: 'created_at', ascending: false }],
+        }),
       ]);
 
-      if (emailRes.data) setEmailConfigs(emailRes.data as unknown as EmailConfig[]);
-      if (scheduleRes.data) setScheduleConfigs(scheduleRes.data as unknown as ScheduleConfig[]);
+      if (emailRes) setEmailConfigs(emailRes as unknown as EmailConfig[]);
+      if (scheduleRes) setScheduleConfigs(scheduleRes as unknown as ScheduleConfig[]);
     } catch (error) {
       console.error('Error fetching configs:', error);
       toast.error('Failed to load configurations');
@@ -129,9 +134,11 @@ const ReportSettingsConfig = () => {
         user_id: user?.id || null,
       }));
 
-      const { error } = await supabase.from('report_email_config').upsert(payload, { onConflict: 'location_id,email_address,report_type', ignoreDuplicates: true });
-
-      if (error) throw error;
+      await apiDbQuery({
+        table: 'report_email_config',
+        action: 'insert',
+        payload,
+      });
 
       toast.success(`${parsedEmails.length} email recipient${parsedEmails.length > 1 ? 's' : ''} added successfully`);
       setNewEmail('');
@@ -144,9 +151,11 @@ const ReportSettingsConfig = () => {
 
   const deleteEmailConfig = async (id: string) => {
     try {
-      const { error } = await supabase.from('report_email_config').delete().eq('id', id);
-
-      if (error) throw error;
+      await apiDbQuery({
+        table: 'report_email_config',
+        action: 'delete',
+        filters: [{ field: 'id', op: 'eq', value: id }],
+      });
 
       toast.success('Email configuration removed');
       fetchConfigs();
@@ -158,12 +167,12 @@ const ReportSettingsConfig = () => {
 
   const toggleEmailConfig = async (id: string, isEnabled: boolean) => {
     try {
-      const { error } = await supabase
-        .from('report_email_config')
-        .update({ is_enabled: !isEnabled })
-        .eq('id', id);
-
-      if (error) throw error;
+      await apiDbQuery({
+        table: 'report_email_config',
+        action: 'update',
+        payload: { is_enabled: !isEnabled },
+        filters: [{ field: 'id', op: 'eq', value: id }],
+      });
 
       toast.success(isEnabled ? 'Configuration disabled' : 'Configuration enabled');
       fetchConfigs();
@@ -184,30 +193,32 @@ const ReportSettingsConfig = () => {
 
       if (existingSchedule) {
         // Update existing schedule
-        const { error } = await supabase
-          .from('report_schedule_config')
-          .update({
+        await apiDbQuery({
+          table: 'report_schedule_config',
+          action: 'update',
+          payload: {
             schedule_time: newScheduleTime,
             days_of_week: newScheduleDays,
             timezone: newScheduleTimezone,
-          })
-          .eq('id', existingSchedule.id);
-
-        if (error) throw error;
+          },
+          filters: [{ field: 'id', op: 'eq', value: existingSchedule.id }],
+        });
 
         toast.success('Schedule updated successfully');
       } else {
         // Insert new schedule
-        const { error } = await supabase.from('report_schedule_config').insert({
-          location_id: locationId,
-          report_type: newScheduleReportType,
-          schedule_time: newScheduleTime,
-          days_of_week: newScheduleDays,
-          timezone: newScheduleTimezone,
-          is_enabled: true,
+        await apiDbQuery({
+          table: 'report_schedule_config',
+          action: 'insert',
+          payload: {
+            location_id: locationId,
+            report_type: newScheduleReportType,
+            schedule_time: newScheduleTime,
+            days_of_week: newScheduleDays,
+            timezone: newScheduleTimezone,
+            is_enabled: true,
+          },
         });
-
-        if (error) throw error;
 
         toast.success('Schedule created successfully');
       }
@@ -221,12 +232,12 @@ const ReportSettingsConfig = () => {
 
   const toggleScheduleConfig = async (id: string, isEnabled: boolean) => {
     try {
-      const { error } = await supabase
-        .from('report_schedule_config')
-        .update({ is_enabled: !isEnabled })
-        .eq('id', id);
-
-      if (error) throw error;
+      await apiDbQuery({
+        table: 'report_schedule_config',
+        action: 'update',
+        payload: { is_enabled: !isEnabled },
+        filters: [{ field: 'id', op: 'eq', value: id }],
+      });
 
       toast.success(isEnabled ? 'Schedule disabled' : 'Schedule enabled');
       fetchConfigs();
@@ -238,9 +249,11 @@ const ReportSettingsConfig = () => {
 
   const deleteScheduleConfig = async (id: string) => {
     try {
-      const { error } = await supabase.from('report_schedule_config').delete().eq('id', id);
-
-      if (error) throw error;
+      await apiDbQuery({
+        table: 'report_schedule_config',
+        action: 'delete',
+        filters: [{ field: 'id', op: 'eq', value: id }],
+      });
 
       toast.success('Schedule removed');
       fetchConfigs();

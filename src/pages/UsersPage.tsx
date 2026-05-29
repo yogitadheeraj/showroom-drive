@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
 import { demoAutofillData } from '@/lib/demoAutofillData';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery, apiInvokeFunction } from '@/lib/apiClient';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2 } from 'lucide-react';
+import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2, MoreHorizontal } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, DEALER_ASSIGNABLE_ROLES, type AppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
@@ -70,27 +77,43 @@ const UsersPage = () => {
   useEffect(() => {
     if (!dealerLoading) {
       if (isSuperAdmin) {
-        supabase.from('dealers').select('id, name').eq('is_active', true).order('name')
-          .then(({ data }) => setDealers(data || []));
+        apiDbQuery<any[]>({
+          table: 'dealers',
+          action: 'select',
+          select: 'id, name',
+          filters: [{ field: 'is_active', op: 'eq', value: true }],
+          order: [{ field: 'name', ascending: true }],
+        }).then((data) => setDealers(data || []));
       }
       fetchUsers();
-      let query = supabase.from('locations').select('*');
+      const locationFilters: Array<{ field: string; op: 'eq'; value: string }> = [];
       if (isSuperAdmin && selectedDealerFilter !== 'all') {
-        query = query.eq('dealer_id', selectedDealerFilter);
+        locationFilters.push({ field: 'dealer_id', op: 'eq', value: selectedDealerFilter });
       } else if (isSalesAdmin && profile?.location_id) {
-        query = query.eq('id', profile.location_id);
+        locationFilters.push({ field: 'id', op: 'eq', value: profile.location_id });
       } else if (!isSuperAdmin && dealerId) {
-        query = query.eq('dealer_id', dealerId);
+        locationFilters.push({ field: 'dealer_id', op: 'eq', value: dealerId });
       }
-      query.then(({ data }) => setLocations(data || []));
+
+      apiDbQuery<any[]>({
+        table: 'locations',
+        action: 'select',
+        select: '*',
+        filters: locationFilters,
+      }).then((data) => setLocations(data || []));
     }
   }, [dealerId, dealerLoading, isSuperAdmin, isSalesAdmin, profile?.location_id, selectedDealerFilter]);
 
   const fetchUsers = async () => {
-    const [{ data: profiles }, { data: roles }, { data: allLocations }] = await Promise.all([
-      supabase.from('profiles').select('*').order('full_name'),
-      supabase.from('user_roles').select('*'),
-      supabase.from('locations').select('id, dealer_id'),
+    const [profiles, roles, allLocations] = await Promise.all([
+      apiDbQuery<any[]>({
+        table: 'profiles',
+        action: 'select',
+        select: '*',
+        order: [{ field: 'full_name', ascending: true }],
+      }),
+      apiDbQuery<any[]>({ table: 'user_roles', action: 'select', select: '*' }),
+      apiDbQuery<any[]>({ table: 'locations', action: 'select', select: 'id, dealer_id' }),
     ]);
 
     const locationDealerMap = (allLocations || []).reduce((acc: Record<string, string>, loc: any) => {
@@ -125,13 +148,8 @@ const UsersPage = () => {
 
     const userIds = merged.map((u) => u.user_id).filter(Boolean);
     if (userIds.length > 0) {
-      const { data: verificationData, error: verificationError } = await supabase.functions.invoke('staff-verification-status', {
-        body: { userIds },
-      });
-
-      if (!verificationError) {
-        setVerificationByUserId((verificationData as any)?.statusByUserId || {});
-      }
+      const verificationData = await apiInvokeFunction<any>('staff-verification-status', { userIds });
+      setVerificationByUserId((verificationData as any)?.statusByUserId || {});
     } else {
       setVerificationByUserId({});
     }
@@ -142,11 +160,13 @@ const UsersPage = () => {
       return;
     }
 
-    const { data: drives } = await supabase
-      .from('test_drives')
-      .select('assigned_sales_person_id, assigned_gro_id, status, location_id')
-      .in('location_id', visibleLocationIds as string[])
-      .limit(5000);
+    const drives = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: 'assigned_sales_person_id, assigned_gro_id, status, location_id',
+      filters: [{ field: 'location_id', op: 'in', value: visibleLocationIds }],
+      limit: 5000,
+    });
 
     const metrics: Record<string, { assigned: number; active: number; completed: number }> = {};
     const ensure = (profileId: string) => {
@@ -172,10 +192,7 @@ const UsersPage = () => {
     if (!u?.user_id) return;
     setResendingVerificationByUserId((prev) => ({ ...prev, [u.user_id]: true }));
     try {
-      const { data, error } = await supabase.functions.invoke('resend-staff-verification', {
-        body: { userId: u.user_id },
-      });
-      if (error) throw error;
+      const data = await apiInvokeFunction<any>('resend-staff-verification', { userId: u.user_id });
       if ((data as any)?.error) throw new Error((data as any).error as string);
 
       if ((data as any)?.alreadyVerified) {
@@ -214,17 +231,14 @@ const UsersPage = () => {
 
     setSaving(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-staff-user', {
-        body: {
-          email: createForm.email,
-          password: createForm.password,
-          fullName: createForm.fullName,
-          role: createForm.role,
-          locationId: createForm.locationId || null,
-          can_use_demo_data: !!createForm.can_use_demo_data,
-        },
+      const data = await apiInvokeFunction<any>('create-staff-user', {
+        email: createForm.email,
+        password: createForm.password,
+        fullName: createForm.fullName,
+        role: createForm.role,
+        locationId: createForm.locationId || null,
+        can_use_demo_data: !!createForm.can_use_demo_data,
       });
-      if (error) throw error;
       if (data?.error) throw new Error(data.error as string);
 
       const verificationNote = data?.verificationEmailSent
@@ -263,19 +277,29 @@ const UsersPage = () => {
       const currentRole = editingUser.user_roles?.[0];
 
       if (currentRole) {
-        await supabase.from('user_roles')
-          .update({ role: editForm.role as any })
-          .eq('user_id', editingUser.user_id);
+        await apiDbQuery({
+          table: 'user_roles',
+          action: 'update',
+          filters: [{ field: 'user_id', op: 'eq', value: editingUser.user_id }],
+          payload: { role: editForm.role as any },
+        });
       } else {
-        await supabase.from('user_roles').insert({
-          user_id: editingUser.user_id,
-          role: editForm.role as any,
+        await apiDbQuery({
+          table: 'user_roles',
+          action: 'insert',
+          payload: {
+            user_id: editingUser.user_id,
+            role: editForm.role as any,
+          },
         });
       }
 
-      await supabase.from('profiles')
-        .update({ location_id: editForm.locationId || null })
-        .eq('user_id', editingUser.user_id);
+      await apiDbQuery({
+        table: 'profiles',
+        action: 'update',
+        filters: [{ field: 'user_id', op: 'eq', value: editingUser.user_id }],
+        payload: { location_id: editForm.locationId || null },
+      });
 
       toast({ title: 'Updated', description: `${editingUser.full_name} is now ${editForm.role}` });
       setEditingUser(null);
@@ -305,12 +329,12 @@ const UsersPage = () => {
     const nextActive = !isUserActive(u);
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_active: nextActive })
-        .eq('user_id', u.user_id);
-
-      if (error) throw error;
+      await apiDbQuery({
+        table: 'profiles',
+        action: 'update',
+        filters: [{ field: 'user_id', op: 'eq', value: u.user_id }],
+        payload: { is_active: nextActive },
+      });
 
       toast({ title: nextActive ? 'User unblocked' : 'User blocked' });
       fetchUsers();
@@ -326,11 +350,7 @@ const UsersPage = () => {
 
     setSaving(true);
     try {
-      const { data, error } = await supabase.functions.invoke('delete-staff-user', {
-        body: { userId: u.user_id },
-      });
-
-      if (error) throw error;
+      const data = await apiInvokeFunction<any>('delete-staff-user', { userId: u.user_id });
       if (data?.error) throw new Error(data.error as string);
 
       toast({ title: 'User deleted' });
@@ -443,17 +463,7 @@ const UsersPage = () => {
                       {verificationByUserId[u.user_id] ? (
                         <Badge variant="secondary" className="bg-success/10 text-success">Yes</Badge>
                       ) : (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="bg-destructive/10 text-destructive">No</Badge>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!!resendingVerificationByUserId[u.user_id] || saving}
-                            onClick={() => handleResendVerificationForUser(u)}
-                          >
-                            {resendingVerificationByUserId[u.user_id] ? 'Sending...' : 'Send Verification'}
-                          </Button>
-                        </div>
+                        <Badge variant="secondary" className="bg-destructive/10 text-destructive">No</Badge>
                       )}
                     </td>
                     <td className="p-3">
@@ -490,35 +500,49 @@ const UsersPage = () => {
                       </Badge>
                     </td>
                     <td className="p-3">
-                      <div className="flex gap-1">
-                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openEditDialog(u)} disabled={!canEditTargetUser(u) || saving}>
-                          <Pencil className="h-3 w-3 mr-1" /> Edit
-                        </Button>
-                        {canBlockDeleteStaff && (
-                          <Button
-                            size="sm"
-                            variant={isUserActive(u) ? 'destructive' : 'outline'}
-                            onClick={() => openConfirmAction('toggle-block', u)}
-                            disabled={u.user_id === user?.id || saving}
-                          >
-                            {isUserActive(u) ? (
-                              <><Lock className="h-3 w-3 mr-1" /> Block</>
-                            ) : (
-                              <><Unlock className="h-3 w-3 mr-1" /> Unblock</>
-                            )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled={saving}>
+                            <MoreHorizontal className="h-4 w-4" />
                           </Button>
-                        )}
-                        {canBlockDeleteStaff && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openConfirmAction('delete', u)}
-                            disabled={u.user_id === user?.id || saving}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => openEditDialog(u)} disabled={!canEditTargetUser(u) || saving}>
+                            <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleResendVerificationForUser(u)}
+                            disabled={verificationByUserId[u.user_id] || !!resendingVerificationByUserId[u.user_id] || saving}
                           >
-                            <Trash2 className="h-3 w-3 mr-1" /> Delete
-                          </Button>
-                        )}
-                      </div>
+                            <Mail className="h-3.5 w-3.5 mr-2" />
+                            {resendingVerificationByUserId[u.user_id] ? 'Sending Verification...' : 'Send Verification'}
+                          </DropdownMenuItem>
+                          {canBlockDeleteStaff && (
+                            <DropdownMenuItem
+                              onClick={() => openConfirmAction('toggle-block', u)}
+                              disabled={u.user_id === user?.id || saving}
+                            >
+                              {isUserActive(u) ? (
+                                <><Lock className="h-3.5 w-3.5 mr-2" /> Block</>
+                              ) : (
+                                <><Unlock className="h-3.5 w-3.5 mr-2" /> Unblock</>
+                              )}
+                            </DropdownMenuItem>
+                          )}
+                          {canBlockDeleteStaff && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => openConfirmAction('delete', u)}
+                                disabled={u.user_id === user?.id || saving}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                         </>
                       );
@@ -557,17 +581,7 @@ const UsersPage = () => {
                   {verificationByUserId[u.user_id] ? (
                     <Badge variant="secondary" className="bg-success/10 text-success">Yes</Badge>
                   ) : (
-                    <>
-                      <Badge variant="secondary" className="bg-destructive/10 text-destructive">No</Badge>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!!resendingVerificationByUserId[u.user_id] || saving}
-                        onClick={() => handleResendVerificationForUser(u)}
-                      >
-                        {resendingVerificationByUserId[u.user_id] ? 'Sending...' : 'Send Verification'}
-                      </Button>
-                    </>
+                    <Badge variant="secondary" className="bg-destructive/10 text-destructive">No</Badge>
                   )}
                 </div>
 
@@ -608,35 +622,51 @@ const UsersPage = () => {
                   </div>
                 </div>
 
-                <Button size="sm" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openEditDialog(u)} disabled={!canEditTargetUser(u)}>
-                  <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit Role & Location
-                </Button>
-                {canBlockDeleteStaff && (
-                  <Button
-                    size="sm"
-                    variant={isUserActive(u) ? 'destructive' : 'outline'}
-                    className="w-full"
-                    onClick={() => openConfirmAction('toggle-block', u)}
-                    disabled={u.user_id === user?.id || saving}
-                  >
-                    {isUserActive(u) ? (
-                      <><Lock className="h-3.5 w-3.5 mr-1.5" /> Block User</>
-                    ) : (
-                      <><Unlock className="h-3.5 w-3.5 mr-1.5" /> Unblock User</>
-                    )}
-                  </Button>
-                )}
-                {canBlockDeleteStaff && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => openConfirmAction('delete', u)}
-                    disabled={u.user_id === user?.id || saving}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete User
-                  </Button>
-                )}
+                <div className="flex justify-end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled={saving}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem onClick={() => openEditDialog(u)} disabled={!canEditTargetUser(u) || saving}>
+                        <Pencil className="h-3.5 w-3.5 mr-2" /> Edit Role & Location
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleResendVerificationForUser(u)}
+                        disabled={verificationByUserId[u.user_id] || !!resendingVerificationByUserId[u.user_id] || saving}
+                      >
+                        <Mail className="h-3.5 w-3.5 mr-2" />
+                        {resendingVerificationByUserId[u.user_id] ? 'Sending Verification...' : 'Send Verification'}
+                      </DropdownMenuItem>
+                      {canBlockDeleteStaff && (
+                        <DropdownMenuItem
+                          onClick={() => openConfirmAction('toggle-block', u)}
+                          disabled={u.user_id === user?.id || saving}
+                        >
+                          {isUserActive(u) ? (
+                            <><Lock className="h-3.5 w-3.5 mr-2" /> Block User</>
+                          ) : (
+                            <><Unlock className="h-3.5 w-3.5 mr-2" /> Unblock User</>
+                          )}
+                        </DropdownMenuItem>
+                      )}
+                      {canBlockDeleteStaff && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => openConfirmAction('delete', u)}
+                            disabled={u.user_id === user?.id || saving}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete User
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
                     </>
                   );
                 })()}

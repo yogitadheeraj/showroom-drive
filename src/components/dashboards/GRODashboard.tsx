@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { apiDbQuery } from '@/lib/apiClient';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,21 +25,51 @@ const GRODashboard = () => {
 
   const fetchTestDrives = async () => {
     if (!profile?.location_id) return;
-    const { data } = await supabase.from('test_drives')
-      .select('*, customers(*), vehicles(*), locations(*)')
-      .eq('location_id', profile.location_id)
-      .order('scheduled_date', { ascending: true });
-    setTestDrives(data || []);
+    const drives = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: '*',
+      filters: [{ field: 'location_id', op: 'eq', value: profile.location_id }],
+      order: [{ field: 'scheduled_date', ascending: true }],
+    });
+
+    const customerIds = Array.from(new Set((drives || []).map((d) => d.customer_id).filter(Boolean)));
+    const vehicleIds = Array.from(new Set((drives || []).map((d) => d.vehicle_id).filter(Boolean)));
+    const locationIds = Array.from(new Set((drives || []).map((d) => d.location_id).filter(Boolean)));
+
+    const [customers, vehicles, locations] = await Promise.all([
+      customerIds.length ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: customerIds }] }) : Promise.resolve([]),
+      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
+      locationIds.length ? apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: locationIds }] }) : Promise.resolve([]),
+    ]);
+
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+    const locationMap = new Map(locations.map((l) => [l.id, l]));
+
+    const enriched = (drives || []).map((d) => ({
+      ...d,
+      customers: customerMap.get(d.customer_id) || null,
+      vehicles: vehicleMap.get(d.vehicle_id) || null,
+      locations: locationMap.get(d.location_id) || null,
+    }));
+
+    setTestDrives(enriched);
     const today = new Date().toISOString().split('T')[0];
     setStats({
-      today: (data || []).filter(t => t.scheduled_date === today).length,
-      upcoming: (data || []).filter(t => t.status === 'scheduled' || t.status === 'confirmed').length,
-      completed: (data || []).filter(t => t.status === 'completed').length,
+      today: enriched.filter(t => t.scheduled_date === today).length,
+      upcoming: enriched.filter(t => t.status === 'scheduled' || t.status === 'confirmed').length,
+      completed: enriched.filter(t => t.status === 'completed').length,
     });
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await supabase.from('test_drives').update({ status: status as any }).eq('id', id);
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: { status },
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
     fetchTestDrives();
   };
 

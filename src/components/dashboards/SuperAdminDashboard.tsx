@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,7 @@ import {
   Cell,
 } from 'recharts';
 import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye, MailCheck, AlertTriangle, RefreshCw, LayoutDashboard, ShieldCheck } from 'lucide-react';
-import { APP_ROLE, AppRole } from '@/constants/roles';
+import { APP_ROLE } from '@/constants/roles';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
@@ -127,7 +127,13 @@ const SuperAdminDashboard = () => {
   useEffect(() => {
     if (!isSuperAdmin) return;
     const fetchDealers = async () => {
-      const { data } = await supabase.from('dealers').select('id, name').eq('is_active', true).order('name');
+      const data = await apiDbQuery<any[]>({
+        table: 'dealers',
+        action: 'select',
+        select: 'id, name',
+        filters: [{ field: 'is_active', op: 'eq', value: true }],
+        order: [{ field: 'name', ascending: true }],
+      });
       setDealers(data || []);
     };
     fetchDealers();
@@ -136,9 +142,15 @@ const SuperAdminDashboard = () => {
   useEffect(() => {
     if (dealerLoading && !isSuperAdmin) return;
     const fetchLocations = async () => {
-      let query = supabase.from('locations').select('id, name, dealer_id').eq('is_active', true);
-      if (activeDealerId) query = query.eq('dealer_id', activeDealerId);
-      const { data } = await query.order('name');
+      const filters: Array<{ field: string; op: 'eq'; value: unknown }> = [{ field: 'is_active', op: 'eq', value: true }];
+      if (activeDealerId) filters.push({ field: 'dealer_id', op: 'eq', value: activeDealerId });
+      const data = await apiDbQuery<any[]>({
+        table: 'locations',
+        action: 'select',
+        select: 'id, name, dealer_id',
+        filters,
+        order: [{ field: 'name', ascending: true }],
+      });
       setLocations(data || []);
     };
     fetchLocations();
@@ -148,9 +160,15 @@ const SuperAdminDashboard = () => {
   useEffect(() => {
     if (dealerLoading && !isSuperAdmin) return;
     const fetchBrands = async () => {
-      let query = supabase.from('brands').select('id, dealer_id').order('name');
-      if (activeDealerId) query = query.eq('dealer_id', activeDealerId);
-      const { data } = await query;
+      const filters: Array<{ field: string; op: 'eq'; value: unknown }> = [];
+      if (activeDealerId) filters.push({ field: 'dealer_id', op: 'eq', value: activeDealerId });
+      const data = await apiDbQuery<any[]>({
+        table: 'brands',
+        action: 'select',
+        select: 'id, dealer_id',
+        filters,
+        order: [{ field: 'name', ascending: true }],
+      });
       setBrands(data || []);
     };
     fetchBrands();
@@ -164,24 +182,26 @@ const SuperAdminDashboard = () => {
         : locations.map(l => l.id);
       if (locationIds.length === 0) { setStaffMembers([]); return; }
 
-      const [{ data: profiles }, { data: roles }] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('id, user_id, full_name, location_id, is_active')
-          .in('location_id', locationIds)
-          .order('full_name'),
-        supabase
-          .from('user_roles')
-          .select('user_id, role'),
+      const [profiles, roles] = await Promise.all([
+        apiDbQuery<any[]>({
+          table: 'profiles',
+          action: 'select',
+          select: 'id, user_id, full_name, location_id, is_active',
+          filters: [{ field: 'location_id', op: 'in', value: locationIds }],
+          order: [{ field: 'full_name', ascending: true }],
+        }),
+        apiDbQuery<any[]>({
+          table: 'user_roles',
+          action: 'select',
+          select: 'user_id, role',
+        }),
       ]);
 
-      const merged = (profiles || []).map((p) => {
-        const roleRow = (roles || []).find((r) => r.user_id === p.user_id);
-        return {
-          ...p,
-          role: roleRow?.role || null,
-        };
-      });
+      const roleMap = new Map((roles || []).map((r: any) => [r.user_id, r]));
+      const merged = (profiles || []).map((p) => ({
+        ...p,
+        role: roleMap.get(p.user_id)?.role || null,
+      }));
 
       setStaffMembers(merged);
     };
@@ -197,9 +217,16 @@ const SuperAdminDashboard = () => {
       if (locationIds.length === 0 && !isSuperAdmin) {
         setTestDrives([]); setStats({ total: 0, scheduled: 0, completed: 0, noShow: 0, cancelled: 0 }); setRepeatedCustomers([]); return;
       }
-      let query = supabase.from('test_drives').select('*, customers(*), vehicles(*), locations(*)');
-      if (locationIds.length > 0) query = query.in('location_id', locationIds);
-      const { data: td } = await query.order('scheduled_date', { ascending: false }).limit(500);
+
+      const params = new URLSearchParams();
+      params.set('limit', '500');
+      params.set('include_related', 'true');
+      if (locationIds.length > 0) {
+        params.set('location_ids', locationIds.join(','));
+      }
+
+      const td = await apiGet<any[]>(`/api/test-drives?${params.toString()}`);
+
       setTestDrives(td || []);
       const total = td?.length || 0;
       setStats({
@@ -211,7 +238,15 @@ const SuperAdminDashboard = () => {
       });
       const customerIds = [...new Set(td?.map(t => t.customer_id) || [])];
       if (customerIds.length > 0) {
-        const { data: customers } = await supabase.from('customers').select('*').gt('total_test_drives', 1).in('id', customerIds);
+        const customers = await apiDbQuery<any[]>({
+          table: 'customers',
+          action: 'select',
+          select: '*',
+          filters: [
+            { field: 'total_test_drives', op: 'gt', value: 1 },
+            { field: 'id', op: 'in', value: customerIds },
+          ],
+        });
         setRepeatedCustomers(customers || []);
       } else { setRepeatedCustomers([]); }
     };
@@ -223,37 +258,52 @@ const SuperAdminDashboard = () => {
 
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const [{ data: authEmailLogs }, { data: emailState }, { data: failedLogs }, { data: customerDriveLogs }] = await Promise.all([
-      supabase
-        .from('email_send_log')
-        .select('status, error_message, created_at, template_name')
-        .in('template_name', AUTH_EMAIL_TEMPLATES)
-        .gte('created_at', since)
-        .order('created_at', { ascending: false })
-        .limit(300),
-      supabase
-        .from('email_send_state')
-        .select('retry_after_until')
-        .eq('id', 1)
-        .maybeSingle(),
-      supabase
-        .from('email_send_log')
-        .select('id, recipient_email, template_name, status, error_message, created_at')
-        .in('template_name', AUTH_EMAIL_TEMPLATES)
-        .in('status', ['failed', 'dlq', 'rate_limited'])
-        .gte('created_at', since)
-        .order('created_at', { ascending: false })
-        .limit(40),
-      supabase
-        .from('email_send_log')
-        .select('status, template_name, created_at')
-        .in('template_name', TEST_DRIVE_EMAIL_TEMPLATES)
-        .gte('created_at', since)
-        .order('created_at', { ascending: false })
-        .limit(300),
+    const [authEmailLogs, emailStateRows, failedLogs, customerDriveLogs] = await Promise.all([
+      apiDbQuery<any[]>({
+        table: 'email_send_log',
+        action: 'select',
+        select: 'status, error_message, created_at, template_name',
+        filters: [
+          { field: 'template_name', op: 'in', value: AUTH_EMAIL_TEMPLATES },
+          { field: 'created_at', op: 'gte', value: since },
+        ],
+        order: [{ field: 'created_at', ascending: false }],
+        limit: 300,
+      }),
+      apiDbQuery<any[]>({
+        table: 'email_send_state',
+        action: 'select',
+        select: 'retry_after_until',
+        filters: [{ field: 'id', op: 'eq', value: 1 }],
+        limit: 1,
+      }),
+      apiDbQuery<any[]>({
+        table: 'email_send_log',
+        action: 'select',
+        select: 'id, recipient_email, template_name, status, error_message, created_at',
+        filters: [
+          { field: 'template_name', op: 'in', value: AUTH_EMAIL_TEMPLATES },
+          { field: 'status', op: 'in', value: ['failed', 'dlq', 'rate_limited'] },
+          { field: 'created_at', op: 'gte', value: since },
+        ],
+        order: [{ field: 'created_at', ascending: false }],
+        limit: 40,
+      }),
+      apiDbQuery<any[]>({
+        table: 'email_send_log',
+        action: 'select',
+        select: 'status, template_name, created_at',
+        filters: [
+          { field: 'template_name', op: 'in', value: TEST_DRIVE_EMAIL_TEMPLATES },
+          { field: 'created_at', op: 'gte', value: since },
+        ],
+        order: [{ field: 'created_at', ascending: false }],
+        limit: 300,
+      }),
     ]);
 
     const logs = authEmailLogs || [];
+    const emailState = emailStateRows?.[0] || null;
     const sent = logs.filter((row) => row.status === 'sent').length;
     const failed = logs.filter((row) => row.status === 'failed').length;
     const dlq = logs.filter((row) => row.status === 'dlq').length;
@@ -298,25 +348,37 @@ const SuperAdminDashboard = () => {
       const activitySince = new Date();
       activitySince.setDate(activitySince.getDate() - 7);
 
-      let sessionQuery = supabase
-        .from('staff_activity_sessions')
-        .select('*')
-        .gte('login_at', activitySince.toISOString())
-        .order('login_at', { ascending: false });
-
-      let eventQuery = supabase
-        .from('staff_activity_events')
-        .select('*')
-        .gte('happened_at', activitySince.toISOString())
-        .order('happened_at', { ascending: false })
-        .limit(1000);
+      const sessionFilters: Array<{ field: string; op: 'gte' | 'in'; value: unknown }> = [
+        { field: 'login_at', op: 'gte', value: activitySince.toISOString() },
+      ];
+      const eventFilters: Array<{ field: string; op: 'gte' | 'in'; value: unknown }> = [
+        { field: 'happened_at', op: 'gte', value: activitySince.toISOString() },
+      ];
 
       if (locationIds.length > 0) {
-        sessionQuery = sessionQuery.in('location_id', locationIds);
-        eventQuery = eventQuery.in('location_id', locationIds);
+        sessionFilters.push({ field: 'location_id', op: 'in', value: locationIds });
+        eventFilters.push({ field: 'location_id', op: 'in', value: locationIds });
       }
 
-      const [{ data: sessions }, { data: events }] = await Promise.all([sessionQuery, eventQuery]);
+      const [sessions, events] = await Promise.all([
+        apiDbQuery<any[]>({
+          table: 'staff_activity_sessions',
+          action: 'select',
+          select: '*',
+          filters: sessionFilters,
+          order: [{ field: 'login_at', ascending: false }],
+          limit: 1000,
+        }),
+        apiDbQuery<any[]>({
+          table: 'staff_activity_events',
+          action: 'select',
+          select: '*',
+          filters: eventFilters,
+          order: [{ field: 'happened_at', ascending: false }],
+          limit: 1000,
+        }),
+      ]);
+
       setActivitySessions(sessions || []);
       setActivityEvents(events || []);
     };
@@ -402,6 +464,15 @@ const SuperAdminDashboard = () => {
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     if (hours === 0) return `${minutes}m`;
     return `${hours}h ${minutes}m`;
+  };
+
+  const getAssignedName = (drive: any) => {
+    const salesName = drive?.assigned_sales_person?.full_name;
+    const groName = drive?.assigned_gro?.full_name;
+    if (salesName && groName) return `${salesName} / ${groName}`;
+    if (salesName) return salesName;
+    if (groName) return groName;
+    return 'NA';
   };
 
   const getStaffActivitySummary = (staff: any) => {
@@ -827,6 +898,7 @@ const SuperAdminDashboard = () => {
                       <th className="text-left p-3 text-muted-foreground font-medium">Date</th>
                       <th className="text-left p-3 text-muted-foreground font-medium">Status</th>
                       <th className="text-left p-3 text-muted-foreground font-medium">Source</th>
+                      <th className="text-left p-3 text-muted-foreground font-medium">Assigned</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -845,10 +917,11 @@ const SuperAdminDashboard = () => {
                         <td className="p-3">
                           <Badge variant="outline" className="capitalize">{td.source}</Badge>
                         </td>
+                        <td className="p-3 text-muted-foreground">{getAssignedName(td)}</td>
                       </tr>
                     ))}
                     {testDrives.length === 0 && (
-                      <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No test drives found</td></tr>
+                      <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No test drives found</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -873,6 +946,9 @@ const SuperAdminDashboard = () => {
                         <div className="flex items-center gap-1"><Car className="h-3 w-3 text-muted-foreground" /><span className="text-foreground truncate">{td.vehicles?.brand} {td.vehicles?.model}</span></div>
                         <div className="flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" /><span className="text-muted-foreground truncate">{td.locations?.name}</span></div>
                         <div className="flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" /><span className="text-muted-foreground">{td.scheduled_date}</span></div>
+                        <div className="col-span-2 text-muted-foreground">
+                          Assigned: <span className="text-foreground">{getAssignedName(td)}</span>
+                        </div>
                         <div><Badge variant="outline" className="capitalize text-[10px]">{td.source}</Badge></div>
                       </div>
                     </CardContent>

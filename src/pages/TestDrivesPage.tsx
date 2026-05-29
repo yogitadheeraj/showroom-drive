@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
+import { apiDbQuery } from '@/lib/apiClient';
+import { sendTransactionalEmail } from '@/lib/functionService';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -68,26 +69,69 @@ const TestDrivesPage = () => {
   }, [statusFilter, dealerLocationIds, dealerLoading]);
 
   const fetchTestDrives = async () => {
-    let query = supabase
-      .from('test_drives')
-      .select('*, customers(*), vehicles(*), locations(*), profiles!test_drives_assigned_sales_person_id_fkey(full_name)')
-      .order('scheduled_date', { ascending: false });
+    const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [];
 
     if (role === APP_ROLE.SALES) {
       if (!profile?.id) {
         setTestDrives([]);
         return;
       }
-      query = query.eq('assigned_sales_person_id', profile.id);
+      filters.push({ field: 'assigned_sales_person_id', op: 'eq', value: profile.id });
     }
 
-    if (statusFilter !== 'all') query = query.eq('status', statusFilter as any);
+    if (statusFilter !== 'all') {
+      filters.push({ field: 'status', op: 'eq', value: statusFilter });
+    }
+
     if (role !== APP_ROLE.SUPERADMIN && dealerLocationIds && dealerLocationIds.length > 0) {
-      query = query.in('location_id', dealerLocationIds);
+      filters.push({ field: 'location_id', op: 'in', value: dealerLocationIds });
     }
 
-    const { data } = await query;
-    setTestDrives(data || []);
+    const drives = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: '*',
+      filters,
+      order: [
+        { field: 'scheduled_date', ascending: false },
+        { field: 'scheduled_time', ascending: true },
+      ],
+    });
+
+    const customerIds = Array.from(new Set(drives.map((d) => d.customer_id).filter(Boolean)));
+    const vehicleIds = Array.from(new Set(drives.map((d) => d.vehicle_id).filter(Boolean)));
+    const locationIds = Array.from(new Set(drives.map((d) => d.location_id).filter(Boolean)));
+    const profileIds = Array.from(new Set(drives.map((d) => d.assigned_sales_person_id).filter(Boolean)));
+
+    const [customers, vehicles, locations, profiles] = await Promise.all([
+      customerIds.length
+        ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: customerIds }] })
+        : Promise.resolve([]),
+      vehicleIds.length
+        ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: vehicleIds }] })
+        : Promise.resolve([]),
+      locationIds.length
+        ? apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: locationIds }] })
+        : Promise.resolve([]),
+      profileIds.length
+        ? apiDbQuery<any[]>({ table: 'profiles', action: 'select', select: 'id, full_name', filters: [{ field: 'id', op: 'in', value: profileIds }] })
+        : Promise.resolve([]),
+    ]);
+console.log({ drives, customers, vehicles, locations, profiles });
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+    const locationMap = new Map(locations.map((l) => [l.id, l]));
+    const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+    setTestDrives(
+      drives.map((d) => ({
+        ...d,
+        customers: customerMap.get(d.customer_id) || null,
+        vehicles: vehicleMap.get(d.vehicle_id) || null,
+        locations: locationMap.get(d.location_id) || null,
+        profiles: profileMap.get(d.assigned_sales_person_id) || null,
+      })),
+    );
   };
 
   const handleReschedule = async () => {
@@ -95,7 +139,10 @@ const TestDrivesPage = () => {
     const original = testDrives.find((t) => t.id === rescheduleId);
     if (!original) return;
 
-    const { data: newDrive } = await supabase.from('test_drives').insert({
+    const [newDrive] = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'insert',
+      values: [{
       customer_id: original.customer_id,
       vehicle_id: original.vehicle_id,
       location_id: original.location_id,
@@ -105,14 +152,19 @@ const TestDrivesPage = () => {
       scheduled_time: newTime,
       source: original.source,
       rescheduled_from: rescheduleId,
-    }).select('id').single();
+      }],
+    });
 
-    await supabase.from('test_drives').update({ status: 'rescheduled' as any }).eq('id', rescheduleId);
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: { status: 'rescheduled' },
+      filters: [{ field: 'id', op: 'eq', value: rescheduleId }],
+    });
 
     // Send reschedule email to customer
     if (original.customers?.email) {
-      await supabase.functions.invoke('send-transactional-email', {
-        body: {
+      await sendTransactionalEmail({
           templateName: 'test-drive-rescheduled',
           recipientEmail: original.customers.email,
           idempotencyKey: `td-rescheduled-${newDrive?.id || rescheduleId}`,
@@ -125,7 +177,6 @@ const TestDrivesPage = () => {
             originalDate: original.scheduled_date,
             originalTime: original.scheduled_time,
           },
-        },
       });
     }
 
@@ -140,18 +191,19 @@ const TestDrivesPage = () => {
     if (!cancelId) return;
     const original = testDrives.find((t) => t.id === cancelId);
 
-    await supabase
-      .from('test_drives')
-      .update({
-        status: 'cancelled' as any,
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: {
+        status: 'cancelled',
         cancelled_reason: cancelReason,
-      })
-      .eq('id', cancelId);
+      },
+      filters: [{ field: 'id', op: 'eq', value: cancelId }],
+    });
 
     // Send cancel email to customer
     if (original?.customers?.email) {
-      await supabase.functions.invoke('send-transactional-email', {
-        body: {
+      await sendTransactionalEmail({
           templateName: 'test-drive-cancelled',
           recipientEmail: original.customers.email,
           idempotencyKey: `td-cancelled-${cancelId}`,
@@ -163,7 +215,6 @@ const TestDrivesPage = () => {
             scheduledTime: original.scheduled_time,
             cancelReason: cancelReason || undefined,
           },
-        },
       });
     }
 
@@ -180,36 +231,41 @@ const TestDrivesPage = () => {
       const stage = leadTemperature === 'hot' ? 'qualified' : 'new';
       const statusNote = `[${new Date().toLocaleString()}] Lead marked ${leadTemperature.toUpperCase()} from Test Drives page.`;
 
-      const { data: existingOpportunity } = await (supabase as any)
-        .from('sales_opportunities')
-        .select('id, notes')
-        .eq('customer_id', leadDialogDrive.customer_id)
-        .eq('owner_profile_id', profile.id)
-        .eq('location_id', leadDialogDrive.location_id)
-        .not('stage', 'in', '(won,lost)')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const existingOpportunities = await apiDbQuery<any[]>({
+        table: 'sales_opportunities',
+        action: 'select',
+        select: 'id, notes',
+        filters: [
+          { field: 'customer_id', op: 'eq', value: leadDialogDrive.customer_id },
+          { field: 'owner_profile_id', op: 'eq', value: profile.id },
+          { field: 'location_id', op: 'eq', value: leadDialogDrive.location_id },
+          { field: 'stage', op: 'not_in', value: ['won', 'lost'] },
+        ],
+        order: [{ field: 'updated_at', ascending: false }],
+        limit: 1,
+      });
+      const existingOpportunity = existingOpportunities?.[0] || null;
 
       let opportunityId = '';
       if (existingOpportunity?.id) {
-        const { error: updateError } = await (supabase as any)
-          .from('sales_opportunities')
-          .update({
+        await apiDbQuery({
+          table: 'sales_opportunities',
+          action: 'update',
+          payload: {
             latest_test_drive_id: leadDialogDrive.id,
             temperature: leadTemperature,
             stage,
             notes: `${existingOpportunity.notes || ''}\n${statusNote}`.trim(),
             updated_at: new Date().toISOString(),
-          })
-          .eq('id', existingOpportunity.id);
-
-        if (updateError) throw updateError;
+          },
+          filters: [{ field: 'id', op: 'eq', value: existingOpportunity.id }],
+        });
         opportunityId = existingOpportunity.id;
       } else {
-        const { data: createdOpportunity, error: createError } = await (supabase as any)
-          .from('sales_opportunities')
-          .insert({
+        const createdOpportunityRows = await apiDbQuery<any[]>({
+          table: 'sales_opportunities',
+          action: 'insert',
+          values: [{
             customer_id: leadDialogDrive.customer_id,
             latest_test_drive_id: leadDialogDrive.id,
             location_id: leadDialogDrive.location_id,
@@ -217,11 +273,11 @@ const TestDrivesPage = () => {
             temperature: leadTemperature,
             stage,
             notes: statusNote,
-          })
-          .select('id')
-          .single();
+          }],
+        });
+        const createdOpportunity = createdOpportunityRows?.[0] || null;
 
-        if (createError || !createdOpportunity?.id) throw createError || new Error('Unable to create opportunity');
+        if (!createdOpportunity?.id) throw new Error('Unable to create opportunity');
         opportunityId = createdOpportunity.id;
       }
 
@@ -233,9 +289,10 @@ const TestDrivesPage = () => {
         ? new Date(followUpTaskDueAt).toISOString()
         : new Date(Date.now() + (leadTemperature === 'hot' ? 24 : 72) * 60 * 60 * 1000).toISOString();
 
-      const { error: taskError } = await (supabase as any)
-        .from('sales_tasks')
-        .insert({
+      const insertedTasks = await apiDbQuery<any[]>({
+        table: 'sales_tasks',
+        action: 'insert',
+        values: [{
           opportunity_id: opportunityId,
           test_drive_id: leadDialogDrive.id,
           customer_id: leadDialogDrive.customer_id,
@@ -244,9 +301,10 @@ const TestDrivesPage = () => {
           due_at: dueAt,
           status: 'open',
           priority: leadTemperature === 'hot' ? 'high' : 'medium',
-        });
+        }],
+      });
 
-      if (taskError) throw taskError;
+      if (!insertedTasks?.length) throw new Error('Unable to create follow-up task');
 
       toast({ title: 'Opportunity created', description: 'Lead and follow-up task saved successfully.' });
       setLeadDialogDrive(null);
@@ -312,6 +370,7 @@ const TestDrivesPage = () => {
                     <th className="text-left p-3 text-muted-foreground font-medium">Actions</th>
                   </tr>
                 </thead>
+                {console.log(testDrives)}
                 <tbody>
                   {testDrives.map((td) => {
                     const durationMinutes = getDurationMinutes(td);

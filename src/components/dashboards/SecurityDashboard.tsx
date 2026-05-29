@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
+import { getStorageSignedUrl, listStorageFiles, removeStorageFiles, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -49,11 +50,7 @@ const SecurityDashboard = () => {
 
   const fetchTestDriveDocuments = async (testDriveId: string) => {
     try {
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .list(`test-drives/${testDriveId}`, { limit: 100 });
-
-      if (error) throw error;
+      const data = await listStorageFiles('documents', `test-drives/${testDriveId}`, 100);
 
       setTestDriveDocuments((prev) => ({
         ...prev,
@@ -65,47 +62,70 @@ const SecurityDashboard = () => {
   };
 
   const fetchDrives = async () => {
-    let query = supabase
-      .from('test_drives')
-        .select('*, customers(*), vehicles(*), locations(*), profiles!test_drives_assigned_sales_person_id_fkey(id, full_name, phone)');
+    const filters = profile?.location_id ? [{ field: 'location_id', op: 'eq' as const, value: profile.location_id }] : [];
+    const drives = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: '*',
+      filters,
+      order: [
+        { field: 'scheduled_date', ascending: true },
+        { field: 'scheduled_time', ascending: true },
+      ],
+    });
 
-    if (profile?.location_id) query = query.eq('location_id', profile.location_id);
-    const { data } = await query
-      .order('scheduled_date', { ascending: true })
-      .order('scheduled_time', { ascending: true });
+    const customerIds = Array.from(new Set(drives.map((d: any) => d.customer_id).filter(Boolean)));
+    const vehicleIds = Array.from(new Set(drives.map((d: any) => d.vehicle_id).filter(Boolean)));
+    const locationIds = Array.from(new Set(drives.map((d: any) => d.location_id).filter(Boolean)));
+    const profileIds = Array.from(new Set(drives.map((d: any) => d.assigned_sales_person_id).filter(Boolean)));
 
-    setTestDrives(data || []);
-      console.log('Fetching test drives with query:', data);
-      // Debug: Check if assigned_sales_profile is populated
-      if (data?.length) {
-        console.log('First drive:', {
-          id: data[0].id,
-          assigned_sales_person_id: data[0].assigned_sales_person_id,
-            profiles: data[0].profiles,
-        });
-      }
+    const [customers, vehicles, locations, profiles] = await Promise.all([
+      customerIds.length ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: customerIds }] }) : Promise.resolve([]),
+      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
+      locationIds.length ? apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: locationIds }] }) : Promise.resolve([]),
+      profileIds.length ? apiDbQuery<any[]>({ table: 'profiles', action: 'select', select: 'id, full_name, phone', filters: [{ field: 'id', op: 'in', value: profileIds }] }) : Promise.resolve([]),
+    ]);
 
-    if (!data?.length) {
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+    const locationMap = new Map(locations.map((l) => [l.id, l]));
+    const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+    setTestDrives(
+      drives.map((d) => ({
+        ...d,
+        customers: customerMap.get(d.customer_id) || null,
+        vehicles: vehicleMap.get(d.vehicle_id) || null,
+        locations: locationMap.get(d.location_id) || null,
+        profiles: profileMap.get(d.assigned_sales_person_id) || null,
+      })),
+    );
+
+    if (!drives?.length) {
       setSecurityLogsByDrive({});
       return;
     }
 
-    const driveIds = new Set((data || []).map((d) => d.id));
-    const { data: activityEvents } = await supabase
-      .from('staff_activity_events')
-      .select('event_type, event_label, happened_at, role, metadata, profiles:profile_id(full_name, phone)')
-      .in('event_type', [
-        'test_drive_check_in',
-        'test_drive_check_out',
-        'test_drive_completed',
-        'vehicle_inspection_pre',
-        'vehicle_inspection_post',
-        'license_verified',
-        'license_rejected',
-        'test_drive_started',
-      ])
-      .order('happened_at', { ascending: false })
-      .limit(1200);
+    const driveIds = new Set((drives || []).map((d) => d.id));
+    const activityEvents = await apiDbQuery<any[]>({
+      table: 'staff_activity_events',
+      action: 'select',
+      select: 'event_type, event_label, happened_at, role, metadata, profiles:profile_id(full_name, phone)',
+      filters: [
+        { field: 'event_type', op: 'in', value: [
+          'test_drive_check_in',
+          'test_drive_check_out',
+          'test_drive_completed',
+          'vehicle_inspection_pre',
+          'vehicle_inspection_post',
+          'license_verified',
+          'license_rejected',
+          'test_drive_started',
+        ] },
+      ],
+      order: [{ field: 'happened_at', ascending: false }],
+      limit: 1200,
+    });
 
     const logsByDrive: Record<string, any[]> = {};
     for (const event of activityEvents || []) {
@@ -128,8 +148,8 @@ const SecurityDashboard = () => {
 
     setSecurityLogsByDrive(logsByDrive);
 
-    if (data) {
-      data.forEach((testDrive) => {
+    if (drives) {
+      drives.forEach((testDrive) => {
         void fetchTestDriveDocuments(testDrive.id);
       });
     }
@@ -148,8 +168,7 @@ const SecurityDashboard = () => {
 
       const ext = file.name.split('.').pop();
       const path = `test-drives/${testDriveId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
-      if (uploadError) throw uploadError;
+      await uploadToStorage('documents', path, file);
 
       if (profile?.user_id) {
         await logStaffActivity({
@@ -174,11 +193,7 @@ const SecurityDashboard = () => {
 
   const handleDeleteDocument = async (testDriveId: string, filename: string) => {
     try {
-      const { error } = await supabase.storage
-        .from('documents')
-        .remove([`test-drives/${testDriveId}/${filename}`]);
-
-      if (error) throw error;
+      await removeStorageFiles('documents', [`test-drives/${testDriveId}/${filename}`]);
 
       toast({ title: 'Document deleted' });
       void fetchTestDriveDocuments(testDriveId);
@@ -189,13 +204,9 @@ const SecurityDashboard = () => {
 
   const viewDocument = async (testDriveId: string, filename: string) => {
     try {
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(`test-drives/${testDriveId}/${filename}`, 300);
+      const signedUrl = await getStorageSignedUrl('documents', `test-drives/${testDriveId}/${filename}`, 300);
 
-      if (error) throw error;
-
-      setSelectedDoc({ url: data.signedUrl, filename });
+      setSelectedDoc({ url: signedUrl, filename });
       setDocViewOpen(true);
     } catch (err: any) {
       toast({ title: 'Failed to view document', description: err.message, variant: 'destructive' });
@@ -205,12 +216,26 @@ const SecurityDashboard = () => {
   const checkIn = async (id: string) => {
     let drive = testDrives.find((item) => item.id === id);
     if (!drive || !drive.key_handed_at || !drive.customers?.driving_license_verified || !drive.pre_drive_km || !drive.pre_drive_fuel_level) {
-      const { data: freshDrive } = await supabase
-        .from('test_drives')
-        .select('*, customers(*), vehicles(*), locations(*)')
-        .eq('id', id)
-        .maybeSingle();
-      if (freshDrive) drive = freshDrive;
+      const freshDrives = await apiDbQuery<any[]>({
+        table: 'test_drives',
+        action: 'select',
+        select: '*',
+        filters: [{ field: 'id', op: 'eq', value: id }],
+        limit: 1,
+      });
+      const freshDrive = freshDrives?.[0] || null;
+      if (freshDrive) {
+        // Fetch related data for fresh drive
+        const customers = await apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.customer_id }] });
+        const vehicles = await apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.vehicle_id }] });
+        const locations = await apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.location_id }] });
+        drive = {
+          ...freshDrive,
+          customers: customers?.[0] || null,
+          vehicles: vehicles?.[0] || null,
+          locations: locations?.[0] || null,
+        };
+      }
     }
 
     if (!drive?.key_handed_at) {
@@ -240,10 +265,12 @@ const SecurityDashboard = () => {
       return;
     }
 
-    await supabase
-      .from('test_drives')
-      .update({ security_checked_in_at: new Date().toISOString(), status: 'in_progress' as any })
-      .eq('id', id);
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: { security_checked_in_at: new Date().toISOString(), status: 'in_progress' },
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
 
     if (profile?.user_id) {
       await logStaffActivity({
@@ -264,12 +291,26 @@ const SecurityDashboard = () => {
   const checkOut = async (id: string) => {
     let drive = testDrives.find((item) => item.id === id);
     if (!drive || !drive.key_handed_at || !drive.post_drive_km || !drive.post_drive_fuel_level) {
-      const { data: freshDrive } = await supabase
-        .from('test_drives')
-        .select('*, customers(*), vehicles(*), locations(*)')
-        .eq('id', id)
-        .maybeSingle();
-      if (freshDrive) drive = freshDrive;
+      const freshDrives = await apiDbQuery<any[]>({
+        table: 'test_drives',
+        action: 'select',
+        select: '*',
+        filters: [{ field: 'id', op: 'eq', value: id }],
+        limit: 1,
+      });
+      const freshDrive = freshDrives?.[0] || null;
+      if (freshDrive) {
+        // Fetch related data for fresh drive
+        const customers = await apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.customer_id }] });
+        const vehicles = await apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.vehicle_id }] });
+        const locations = await apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.location_id }] });
+        drive = {
+          ...freshDrive,
+          customers: customers?.[0] || null,
+          vehicles: vehicles?.[0] || null,
+          locations: locations?.[0] || null,
+        };
+      }
     }
     if (!drive?.key_handed_at) {
       toast({
@@ -292,10 +333,15 @@ const SecurityDashboard = () => {
 
     const completedAt = new Date().toISOString();
 
-    await supabase.from('test_drives').update({
-      security_checked_out_at: completedAt,
-      status: 'key_handover_to_sales' as any,
-    }).eq('id', id);
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: {
+        security_checked_out_at: completedAt,
+        status: 'key_handover_to_sales',
+      },
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
 
     if (profile?.user_id) {
       await logStaffActivity({
@@ -322,22 +368,27 @@ const SecurityDashboard = () => {
         || licenseUrl.split('/storage/v1/object/sign/documents/')[1];
 
       if (bucketPath) {
-        const { data } = await supabase.storage.from('documents').createSignedUrl(bucketPath, 300);
-        setPreviewUrl(data?.signedUrl || licenseUrl);
+        const signedUrl = await getStorageSignedUrl('documents', bucketPath, 300);
+        setPreviewUrl(signedUrl || licenseUrl);
       } else {
         setPreviewUrl(licenseUrl);
       }
       return;
     }
 
-    const { data } = await supabase.storage.from('documents').createSignedUrl(licenseUrl, 300);
-    setPreviewUrl(data?.signedUrl || licenseUrl);
+    const signedUrl = await getStorageSignedUrl('documents', licenseUrl, 300);
+    setPreviewUrl(signedUrl || licenseUrl);
   };
 
   const confirmVerify = async () => {
     if (!pendingVerifyId) return;
 
-    await supabase.from('customers').update({ driving_license_verified: true }).eq('id', pendingVerifyId);
+    await apiDbQuery({
+      table: 'customers',
+      action: 'update',
+      payload: { driving_license_verified: true },
+      filters: [{ field: 'id', op: 'eq', value: pendingVerifyId }],
+    });
 
     if (profile?.user_id) {
       await logStaffActivity({
@@ -366,7 +417,12 @@ const SecurityDashboard = () => {
   const confirmReject = async () => {
     if (!pendingRejectId) return;
 
-    await supabase.from('customers').update({ driving_license_url: null, driving_license_verified: false }).eq('id', pendingRejectId);
+    await apiDbQuery({
+      table: 'customers',
+      action: 'update',
+      payload: { driving_license_url: null, driving_license_verified: false },
+      filters: [{ field: 'id', op: 'eq', value: pendingRejectId }],
+    });
 
     if (profile?.user_id) {
       await logStaffActivity({
@@ -400,8 +456,7 @@ const SecurityDashboard = () => {
 
       const ext = file.name.split('.').pop();
       const path = `licenses/${customerId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
-      if (uploadError) throw uploadError;
+      await uploadToStorage('documents', path, file);
 
       if (profile?.user_id) {
         await logStaffActivity({
@@ -415,10 +470,12 @@ const SecurityDashboard = () => {
         });
       }
 
-      await supabase
-        .from('customers')
-        .update({ driving_license_url: path, driving_license_verified: false })
-        .eq('id', customerId);
+      await apiDbQuery({
+        table: 'customers',
+        action: 'update',
+        payload: { driving_license_url: path, driving_license_verified: false },
+        filters: [{ field: 'id', op: 'eq', value: customerId }],
+      });
 
       toast({ title: 'License re-uploaded', description: 'Ready for verification' });
       void fetchDrives();

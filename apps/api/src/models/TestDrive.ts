@@ -15,20 +15,33 @@ export interface ITestDrive extends Document {
   customer_id: string;
   vehicle_id: string;
   location_id: string;
-  sales_person_id: string | null;
+  source: string;
+  source_name: string | null;
+  metadata: Record<string, unknown> | null;
+  assigned_sales_person_id: string | null;
+  assigned_gro_id: string | null;
   gro_id: string | null;
-  security_guard_id: string | null;
   status: TestDriveStatus;
   scheduled_date: string;
   scheduled_time: string;
-  actual_start_time: string | null;
-  actual_end_time: string | null;
-  duration_minutes: number | null;
-  odometer_start: number | null;
-  odometer_end: number | null;
-  fuel_level_start: string | null;
-  fuel_level_end: string | null;
+  slot_duration_minutes: number;
+  started_at: string | null;
+  completed_at: string | null;
+  security_checked_in_at: string | null;
+  security_checked_out_at: string | null;
+  key_handed_at: string | null;
+  inspection_submitted_at: string | null;
+  pre_drive_km: number | null;
+  post_drive_km: number | null;
+  pre_drive_fuel_level: string | null;
+  post_drive_fuel_level: string | null;
+  pre_drive_notes: string | null;
+  post_drive_notes: string | null;
+  pre_drive_scratches: string | null;
+  post_drive_scratches: string | null;
+  rescheduled_from: string | null;
   notes: string | null;
+  cancelled_reason: string | null;
   cancellation_reason: string | null;
   feedback_submitted: boolean;
   inspection_checklist: Record<string, unknown> | null;
@@ -43,9 +56,12 @@ const TestDriveSchema = new Schema<ITestDrive>(
     customer_id: { type: String, required: true, index: true },
     vehicle_id: { type: String, required: true, index: true },
     location_id: { type: String, required: true, index: true },
-    sales_person_id: { type: String, default: null, index: true },
+    source: { type: String, default: 'online', index: true },
+    source_name: { type: String, default: null },
+    metadata: { type: Schema.Types.Mixed, default: null },
+    assigned_sales_person_id: { type: String, default: null, index: true },
+    assigned_gro_id: { type: String, default: null, index: true },
     gro_id: { type: String, default: null },
-    security_guard_id: { type: String, default: null },
     status: {
       type: String,
       enum: ['scheduled', 'confirmed', 'show', 'in_progress', 'completed', 'no_show', 'cancelled', 'rescheduled'],
@@ -54,14 +70,24 @@ const TestDriveSchema = new Schema<ITestDrive>(
     },
     scheduled_date: { type: String, required: true, index: true },
     scheduled_time: { type: String, required: true },
-    actual_start_time: { type: String, default: null },
-    actual_end_time: { type: String, default: null },
-    duration_minutes: { type: Number, default: null },
-    odometer_start: { type: Number, default: null },
-    odometer_end: { type: Number, default: null },
-    fuel_level_start: { type: String, default: null },
-    fuel_level_end: { type: String, default: null },
+    slot_duration_minutes: { type: Number, default: 30 },
+    started_at: { type: String, default: null },
+    completed_at: { type: String, default: null },
+    security_checked_in_at: { type: String, default: null },
+    security_checked_out_at: { type: String, default: null },
+    key_handed_at: { type: String, default: null },
+    inspection_submitted_at: { type: String, default: null },
+    pre_drive_km: { type: Number, default: null },
+    post_drive_km: { type: Number, default: null },
+    pre_drive_fuel_level: { type: String, default: null },
+    post_drive_fuel_level: { type: String, default: null },
+    pre_drive_notes: { type: String, default: null },
+    post_drive_notes: { type: String, default: null },
+    pre_drive_scratches: { type: String, default: null },
+    post_drive_scratches: { type: String, default: null },
+    rescheduled_from: { type: String, default: null, index: true },
     notes: { type: String, default: null },
+    cancelled_reason: { type: String, default: null },
     cancellation_reason: { type: String, default: null },
     feedback_submitted: { type: Boolean, default: false },
     inspection_checklist: { type: Schema.Types.Mixed, default: null },

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Link, useNavigate } from 'react-router-dom';
+import { apiDbQuery, apiGet, apiPatch } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -93,16 +93,65 @@ const GROCalendarView = () => {
     }
     const startDate = viewMode === 'week' ? startOfWeek(currentDate, { weekStartsOn: 1 }) : currentDate;
     const endDate = viewMode === 'week' ? addDays(startDate, 6) : currentDate;
+    const drives = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: '*',
+      filters: [
+        { field: 'location_id', op: 'eq', value: profile.location_id },
+        { field: 'scheduled_date', op: 'gte', value: format(startDate, 'yyyy-MM-dd') },
+        { field: 'scheduled_date', op: 'lte', value: format(endDate, 'yyyy-MM-dd') },
+      ],
+      order: [
+        { field: 'scheduled_date', ascending: true },
+        { field: 'scheduled_time', ascending: true },
+      ],
+    });
 
-    const { data } = await supabase.from('test_drives')
-      .select('*, customers(*), vehicles(*), locations(*), profiles!test_drives_assigned_sales_person_id_fkey(id, full_name)')
-      .eq('location_id', profile.location_id)
-      .gte('scheduled_date', format(startDate, 'yyyy-MM-dd'))
-      .lte('scheduled_date', format(endDate, 'yyyy-MM-dd'))
-      .order('scheduled_date', { ascending: true })
-      .order('scheduled_time', { ascending: true });
+    const customerIds = Array.from(new Set(drives.map((d) => d.customer_id).filter(Boolean)));
+    const vehicleIds = Array.from(new Set(drives.map((d) => d.vehicle_id).filter(Boolean)));
+    const profileIds = Array.from(new Set(drives.map((d) => d.assigned_sales_person_id).filter(Boolean)));
 
-    setTestDrives(data || []);
+    const [customers, vehicles, profiles] = await Promise.all([
+      customerIds.length
+        ? apiDbQuery<any[]>({
+            table: 'customers',
+            action: 'select',
+            select: '*',
+            filters: [{ field: 'id', op: 'in', value: customerIds }],
+          })
+        : Promise.resolve([]),
+      vehicleIds.length
+        ? apiDbQuery<any[]>({
+            table: 'vehicles',
+            action: 'select',
+            select: '*',
+            filters: [{ field: 'id', op: 'in', value: vehicleIds }],
+          })
+        : Promise.resolve([]),
+      profileIds.length
+        ? apiDbQuery<any[]>({
+            table: 'profiles',
+            action: 'select',
+            select: 'id, full_name',
+            filters: [{ field: 'id', op: 'in', value: profileIds }],
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+    const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+    const enriched = drives.map((drive) => ({
+      ...drive,
+      customers: customerMap.get(drive.customer_id) || null,
+      vehicles: vehicleMap.get(drive.vehicle_id) || null,
+      locations: locationDetails && locationDetails.id === drive.location_id ? locationDetails : null,
+      profiles: profileMap.get(drive.assigned_sales_person_id) || null,
+    }));
+
+    setTestDrives(enriched);
   };
 
   const fetchSalesPersons = async () => {
@@ -111,16 +160,42 @@ const GROCalendarView = () => {
       return;
     }
 
-    const { data: rolesData } = await supabase.from('user_roles').select('user_id').eq('role', 'sales');
-    if (!rolesData?.length) { setSalesPersons([]); return; }
-    const userIds = rolesData.map(r => r.user_id);
-    const { data } = await supabase.from('profiles')
-      .select('id, full_name, user_id, location_id, locations(name)')
-      .eq('location_id', profile.location_id)
-      .eq('is_active', true)
-      .order('full_name', { ascending: true })
-      .in('user_id', userIds);
-    setSalesPersons(data || []);
+    const rolesData = await apiGet<any[]>('/api/user-roles');
+    const assignableRoleUserIds = Array.from(
+      new Set(
+        (rolesData || [])
+          .filter((role) => ['sales', 'sales_admin', 'branch_admin'].includes(String(role.role || '').toLowerCase()))
+          .map((role) => role.user_id)
+          .filter(Boolean),
+      ),
+    );
+
+    if (!assignableRoleUserIds.length) {
+      setSalesPersons([]);
+      return;
+    }
+
+    const profiles = await apiGet<any[]>(`/api/profiles?location_id=${encodeURIComponent(profile.location_id)}&is_active=true`);
+    const filteredProfiles = (profiles || []).filter((item) => assignableRoleUserIds.includes(item.user_id));
+    filteredProfiles.sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')));
+
+    const locationIds = Array.from(new Set(filteredProfiles.map((item) => item.location_id).filter(Boolean)));
+    const locationRows = locationIds.length
+      ? await apiDbQuery<any[]>({
+          table: 'locations',
+          action: 'select',
+          select: 'id, name',
+          filters: [{ field: 'id', op: 'in', value: locationIds }],
+        })
+      : [];
+    const locationMap = new Map(locationRows.map((location) => [location.id, location]));
+
+    setSalesPersons(
+      filteredProfiles.map((item) => ({
+        ...item,
+        locations: item.location_id ? locationMap.get(item.location_id) || null : null,
+      })),
+    );
   };
 
   const fetchLocationVehicles = async () => {
@@ -129,13 +204,9 @@ const GROCalendarView = () => {
       return;
     }
 
-    const { data } = await supabase.from('vehicles')
-      .select('id, brand, model, location_id, available_units, total_units')
-      .eq('location_id', profile.location_id)
-      .eq('is_active', true)
-      .eq('is_available', true)
-      .order('brand', { ascending: true })
-      .order('model', { ascending: true });
+    const data = await apiGet<any[]>(
+      `/api/vehicles?location_id=${encodeURIComponent(profile.location_id)}&is_active=true&is_available=true`,
+    );
 
     setLocationVehicles(data || []);
   };
@@ -149,24 +220,39 @@ const GROCalendarView = () => {
       return;
     }
 
-    const [locationRes, hoursRes, blockedRes, specialRes] = await Promise.all([
-      supabase.from('locations').select('*').eq('id', profile.location_id).maybeSingle(),
-      supabase.from('location_operating_hours').select('*').eq('location_id', profile.location_id),
-      supabase.from('location_blocked_slots').select('*').eq('location_id', profile.location_id),
-      supabase.from('location_special_periods').select('*').eq('location_id', profile.location_id),
+    const [location, hours, blocked, special] = await Promise.all([
+      apiGet<any>(`/api/locations/${encodeURIComponent(profile.location_id)}`),
+      apiDbQuery<any[]>({
+        table: 'location_operating_hours',
+        action: 'select',
+        select: '*',
+        filters: [{ field: 'location_id', op: 'eq', value: profile.location_id }],
+      }),
+      apiDbQuery<any[]>({
+        table: 'location_blocked_slots',
+        action: 'select',
+        select: '*',
+        filters: [{ field: 'location_id', op: 'eq', value: profile.location_id }],
+      }),
+      apiDbQuery<any[]>({
+        table: 'location_special_periods',
+        action: 'select',
+        select: '*',
+        filters: [{ field: 'location_id', op: 'eq', value: profile.location_id }],
+      }),
     ]);
 
-    setLocationDetails(locationRes.data || null);
-    setOperatingHours(hoursRes.data || []);
-    setBlockedSlots(blockedRes.data || []);
-    setSpecialPeriods(specialRes.data || []);
+    setLocationDetails(location || null);
+    setOperatingHours(hours || []);
+    setBlockedSlots(blocked || []);
+    setSpecialPeriods(special || []);
   };
 
   const handleAssign = async () => {
     if (!assignDialog.testDriveId || !selectedSalesPerson) return;
-    await supabase.from('test_drives')
-      .update({ assigned_sales_person_id: selectedSalesPerson })
-      .eq('id', assignDialog.testDriveId);
+    await apiPatch(`/api/test-drives/${encodeURIComponent(assignDialog.testDriveId)}`, {
+      assigned_sales_person_id: selectedSalesPerson,
+    });
     setAssignDialog({ open: false, testDriveId: null });
     setSelectedSalesPerson('');
     fetchTestDrives();
@@ -323,12 +409,22 @@ const GROCalendarView = () => {
   };
 
   const getBookingsForTimeSlot = (date: Date, startTime: string) => {
+    const slotDuration = getLocationSlotDuration(locationDetails);
+    const slotStartMinutes = toMinutes(startTime);
+    if (slotStartMinutes === null) return [];
+    const slotEndMinutes = slotStartMinutes + slotDuration;
+
     return filteredTestDrives.filter((td) => {
       if (!td.scheduled_date || !td.scheduled_time) return false;
       const bookingDate = parseISO(td.scheduled_date);
-      const bookingStart = td.scheduled_time.substring(0, 5);
+      if (!isSameDay(bookingDate, date)) return false;
 
-      return isSameDay(bookingDate, date) && bookingStart === startTime;
+      const bookingStartMinutes = toMinutes(td.scheduled_time);
+      if (bookingStartMinutes === null) return false;
+
+      // Place each booking in the slot window where its start time falls,
+      // so non-boundary times like 14:17 still appear in the planner.
+      return bookingStartMinutes >= slotStartMinutes && bookingStartMinutes < slotEndMinutes;
     });
   };
 

@@ -36,13 +36,27 @@ export async function getCustomerById(id: string) {
 
 export async function listCustomers(filters: Record<string, unknown> = {}) {
   const q: Record<string, unknown> = {};
+  if (filters.id) {
+    q.id = String(filters.id);
+  }
+  if (filters.phone) {
+    q.phone = String(filters.phone);
+  }
+  if (filters.email) {
+    const normalizedEmail = String(filters.email || '').trim().toLowerCase();
+    if (normalizedEmail) {
+      q.email = new RegExp(`^${escapeRegex(normalizedEmail)}$`, 'i');
+    }
+  }
   if (filters.search) {
     q.$or = [
       { full_name: { $regex: String(filters.search), $options: 'i' } },
       { phone: { $regex: String(filters.search), $options: 'i' } },
     ];
   }
-  const docs = await Customer.find(q).sort({ full_name: 1 }).limit(200).lean();
+  const limit = Number(filters.limit);
+  const resolvedLimit = Number.isFinite(limit) && limit > 0 ? limit : 200;
+  const docs = await Customer.find(q).sort({ full_name: 1 }).limit(resolvedLimit).lean();
   return docs.map((d) => { const o = { ...d } as any; delete o._id; return o; });
 }
 

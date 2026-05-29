@@ -199,9 +199,8 @@ function generateEmailHTML(report: ReportData): string {
     <!-- Sales People Performance -->
     <div class="section">
       <div class="section-title">👥 Sales Person Performance</div>
-      ${
-        report.salesPeople.length > 0
-          ? `<table>
+      ${report.salesPeople.length > 0
+      ? `<table>
           <thead><tr>
             <th>Sales Person</th>
             <th>Assigned</th>
@@ -210,16 +209,15 @@ function generateEmailHTML(report: ReportData): string {
           </tr></thead>
           <tbody>${salesPeopleRows}</tbody>
         </table>`
-          : '<p style="color: #6b7280;">No sales person data available for this period.</p>'
-      }
+      : '<p style="color: #6b7280;">No sales person data available for this period.</p>'
+    }
     </div>
 
     <!-- Security Checkpoint -->
     <div class="section">
       <div class="section-title">🔒 Security Checkpoint</div>
-      ${
-        report.security.length > 0
-          ? `<table>
+      ${report.security.length > 0
+      ? `<table>
           <thead><tr>
             <th>Security Officer</th>
             <th>Check-ins</th>
@@ -227,16 +225,15 @@ function generateEmailHTML(report: ReportData): string {
           </tr></thead>
           <tbody>${securityRows}</tbody>
         </table>`
-          : '<p style="color: #6b7280;">No security checkpoint data available for this period.</p>'
-      }
+      : '<p style="color: #6b7280;">No security checkpoint data available for this period.</p>'
+    }
     </div>
 
     <!-- GRO Performance -->
     <div class="section">
       <div class="section-title">📋 GRO Performance</div>
-      ${
-        report.gro.length > 0
-          ? `<table>
+      ${report.gro.length > 0
+      ? `<table>
           <thead><tr>
             <th>GRO</th>
             <th>Assigned</th>
@@ -244,8 +241,8 @@ function generateEmailHTML(report: ReportData): string {
           </tr></thead>
           <tbody>${groRows}</tbody>
         </table>`
-          : '<p style="color: #6b7280;">No GRO data available for this period.</p>'
-      }
+      : '<p style="color: #6b7280;">No GRO data available for this period.</p>'
+    }
     </div>
 
     <!-- Activity Summary -->
@@ -258,17 +255,16 @@ function generateEmailHTML(report: ReportData): string {
         </div>
       </div>
       <h4 style="margin: 12px 0 8px 0; font-size: 13px; font-weight: 600;">Event Type Breakdown</h4>
-      ${
-        eventTypeRows
-          ? `<table>
+      ${eventTypeRows
+      ? `<table>
           <thead><tr>
             <th>Event Type</th>
             <th>Count</th>
           </tr></thead>
           <tbody>${eventTypeRows}</tbody>
         </table>`
-          : '<p style="color: #6b7280; font-size: 13px;">No activity events recorded.</p>'
-      }
+      : '<p style="color: #6b7280; font-size: 13px;">No activity events recorded.</p>'
+    }
     </div>
 
     <!-- Role Activity -->
@@ -282,16 +278,16 @@ function generateEmailHTML(report: ReportData): string {
         </tr></thead>
         <tbody>
           ${Object.entries(report.activitySummary.roleActivity)
-            .map(
-              ([role, data]: [string, any]) => `
+      .map(
+        ([role, data]: [string, any]) => `
             <tr style="border-bottom: 1px solid #e5e7eb;">
               <td style="padding: 12px; font-size: 13px; text-transform: uppercase;">${role}</td>
               <td style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600;">${data.events}</td>
               <td style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600;">${data.sessions}</td>
             </tr>
           `
-            )
-            .join('')}
+      )
+      .join('')}
         </tbody>
       </table>
     </div>

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 
 const COLORS = ['hsl(220,80%,50%)', 'hsl(145,65%,42%)', 'hsl(38,95%,55%)', 'hsl(0,75%,55%)', 'hsl(200,80%,50%)'];
@@ -19,9 +19,11 @@ const DataCenterPage = () => {
 
   useEffect(() => {
     if (!dealerLoading) {
-      let query = supabase.from('locations').select('*');
-      if (dealerId) query = query.eq('dealer_id', dealerId);
-      query.then(({ data }) => setLocations(data || []));
+      const params = new URLSearchParams();
+      if (dealerId) params.set('dealer_id', dealerId);
+      apiGet<any[]>(`/api/locations${params.toString() ? `?${params.toString()}` : ''}`)
+        .then((data) => setLocations(data || []))
+        .catch(() => setLocations([]));
     }
   }, [dealerId, dealerLoading]);
 
@@ -30,14 +32,31 @@ const DataCenterPage = () => {
   }, [selectedLocation, dealerLocationIds, dealerLoading]);
 
   const fetchAnalytics = async () => {
-    let query = supabase.from('test_drives').select('*, vehicles(brand, model), locations(name)');
+    const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [];
     if (selectedLocation !== 'all') {
-      query = query.eq('location_id', selectedLocation);
+      filters.push({ field: 'location_id', op: 'eq', value: selectedLocation });
     } else if (dealerLocationIds && dealerLocationIds.length > 0) {
-      query = query.in('location_id', dealerLocationIds);
+      filters.push({ field: 'location_id', op: 'in', value: dealerLocationIds });
     }
-    const { data: testDrives } = await query;
+
+    const testDrives = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: '*',
+      filters,
+    });
     if (!testDrives) return;
+
+    const vehicleIds = Array.from(new Set(testDrives.map((td) => td.vehicle_id).filter(Boolean)));
+    const vehicles = vehicleIds.length
+      ? await apiDbQuery<any[]>({
+          table: 'vehicles',
+          action: 'select',
+          select: 'id, brand, model',
+          filters: [{ field: 'id', op: 'in', value: vehicleIds }],
+        })
+      : [];
+    const vehicleMap = new Map((vehicles || []).map((vehicle) => [vehicle.id, vehicle]));
 
     const statusCounts: Record<string, number> = {};
     testDrives.forEach(td => {
@@ -53,7 +72,8 @@ const DataCenterPage = () => {
 
     const vehicleCounts: Record<string, number> = {};
     testDrives.forEach(td => {
-      const name = `${td.vehicles?.brand} ${td.vehicles?.model}`;
+      const vehicle = vehicleMap.get(td.vehicle_id);
+      const name = `${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim() || 'Unknown Vehicle';
       vehicleCounts[name] = (vehicleCounts[name] || 0) + 1;
     });
     setVehicleData(Object.entries(vehicleCounts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name, count })));

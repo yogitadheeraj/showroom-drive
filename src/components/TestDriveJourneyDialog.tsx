@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { sendTransactionalEmail } from '@/lib/functionService';
 import {
   Mail, Car, ShieldCheck, KeyRound, ClipboardCheck,
   CheckCircle2, AlertCircle, MessageSquare, Star, Building2,
@@ -177,8 +177,7 @@ export function TestDriveJourneyDialog({ testDrive, open, onClose }: Props) {
 
     setSending(true);
     try {
-      const { error } = await supabase.functions.invoke('send-transactional-email', {
-        body: {
+      await sendTransactionalEmail({
           templateName: 'test-drive-journey',
           recipientEmail: customerEmail,
           templateData: {
@@ -195,10 +194,7 @@ export function TestDriveJourneyDialog({ testDrive, open, onClose }: Props) {
             enquiryId,
             totalDurationMinutes: durationMinutes,
           },
-        },
       });
-
-      if (error) throw error;
 
       toast({ title: 'Journey email sent!', description: `Full journey steps sent to ${customerEmail}` });
     } catch (err: any) {

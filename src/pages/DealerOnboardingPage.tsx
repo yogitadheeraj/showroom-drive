@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
+import { apiDbQuery, apiRpc } from '@/lib/apiClient';
+import { authResendSignupVerification, authSignUp } from '@/lib/authClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,21 +66,24 @@ const DealerOnboardingPage = () => {
       const slug = emailPrefix || dealerData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
       // Check for duplicate slug before creating anything
-      const { data: existingDealer } = await supabase
-        .from('dealers')
-        .select('id')
-        .eq('slug', slug)
-        .maybeSingle();
+      const existingDealers = await apiDbQuery<any[]>({
+        table: 'dealers',
+        action: 'select',
+        select: 'id',
+        filters: [{ field: 'slug', op: 'eq', value: slug }],
+        limit: 1,
+      });
+      const existingDealer = existingDealers?.[0] || null;
       if (existingDealer) {
         throw new Error('A dealership with this email already exists. Please use a different email address.');
       }
 
       // 1. Create admin account
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: accountData.email,
-        password: accountData.password,
-        options: { data: { full_name: accountData.fullName } },
-      });
+      const { data: authData, error: authError } = await authSignUp(
+        accountData.email,
+        accountData.password,
+        accountData.fullName
+      );
       if (authError) {
         if (authError.message === 'UNVERIFIED_EMAIL_EXISTS_RESEND_CONFIRM') {
           const wantsResend = window.confirm(
@@ -87,11 +91,7 @@ const DealerOnboardingPage = () => {
           );
 
           if (wantsResend) {
-            const { error: resendError } = await supabase.auth.resend({
-              type: 'signup',
-              email: accountData.email.trim().toLowerCase(),
-              options: { emailRedirectTo: `${window.location.origin}/auth` },
-            });
+            const { error: resendError } = await authResendSignupVerification(accountData.email);
 
             if (resendError) throw resendError;
 
@@ -114,7 +114,7 @@ const DealerOnboardingPage = () => {
       // 2. Create dealer, brands, and locations via security definer function
       const validBrands = brands.filter(b => b.trim());
 
-      const { error: onboardError } = await supabase.rpc('onboard_dealer', {
+      await apiRpc('onboard_dealer', {
         _dealer_name: dealerData.name,
         _slug: slug,
         _contact_email: dealerData.contactEmail,
@@ -132,7 +132,6 @@ const DealerOnboardingPage = () => {
           email: loc.email || '',
         })),
       } as any);
-      if (onboardError) throw onboardError;
 
       toast({ title: 'Dealership created!', description: 'Please check your email to verify your account, then log in.' });
       navigate('/auth');

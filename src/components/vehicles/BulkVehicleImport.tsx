@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -120,7 +121,11 @@ const BulkVehicleImport = ({ locations, onImportComplete }: BulkVehicleImportPro
       transmission: r.transmission || null,
     }));
 
-    const { error } = await supabase.from('vehicles').insert(payload);
+    const { error } = await apiDbQuery({
+      table: 'vehicles',
+      action: 'insert',
+      payload,
+    });
     setImporting(false);
 
     if (error) {

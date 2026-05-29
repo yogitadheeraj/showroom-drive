@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { demoAutofillData } from '@/lib/demoAutofillData';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery, apiGet, apiInvokeFunction, apiPost } from '@/lib/apiClient';
+import { createCustomer, findCustomerByPhone, updateCustomer } from '@/lib/customerService';
+import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { isLocationCurrentlyOpen } from '@/lib/slotAvailability';
@@ -16,8 +18,6 @@ import { useToast } from '@/hooks/use-toast';
 import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2 } from 'lucide-react';
 
 type Step = 'customer' | 'license' | 'confirm';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 const WalkinPage = () => {
   const { profile, role } = useAuth();
@@ -53,10 +53,15 @@ const WalkinPage = () => {
   useEffect(() => {
     if (dealerLoading) return;
 
-    let query = supabase.from('locations').select('*').eq('is_active', true);
-    if (dealerId) query = query.eq('dealer_id', dealerId);
+    const filters: Array<{ field: string; op: 'eq'; value: unknown }> = [{ field: 'is_active', op: 'eq', value: true }];
+    if (dealerId) filters.push({ field: 'dealer_id', op: 'eq', value: dealerId });
 
-    query.then(({ data }) => {
+    apiDbQuery<any[]>({
+      table: 'locations',
+      action: 'select',
+      select: '*',
+      filters,
+    }).then((data) => {
       let locs = data || [];
       if (role === APP_ROLE.DEALER_ADMIN) {
         locs = locs.filter((l: any) => !l.disabled_for_dealer_admin);
@@ -90,20 +95,10 @@ const WalkinPage = () => {
     if (formData.locationId) {
       const loadVehicles = async () => {
         try {
-          const { data: sessionData } = await supabase.auth.getSession();
-          const token = sessionData.session?.access_token;
-
-          const response = await fetch(
-            `${API_BASE_URL}/api/vehicles?location_id=${encodeURIComponent(formData.locationId)}&is_available=true&is_active=true`,
-            {
-              method: 'GET',
-              headers: token ? { Authorization: `Bearer ${token}` } : {},
-            },
+          const rows = await apiGet<any[]>(
+            `/api/vehicles?location_id=${encodeURIComponent(formData.locationId)}&is_available=true&is_active=true`
           );
-
-          const json = await response.json().catch(() => ({}));
-          const rows = Array.isArray(json?.data) ? json.data : [];
-          setVehicles(rows);
+          setVehicles(rows || []);
         } catch (error) {
           console.error('Failed to load vehicles from API', error);
           setVehicles([]);
@@ -231,52 +226,88 @@ const WalkinPage = () => {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const { data: existing } = await supabase.from('customers').select('id').eq('phone', formData.phone).maybeSingle();
+      const existing = await findCustomerByPhone(formData.phone);
       let customerId: string;
       if (existing) {
         customerId = existing.id;
+        await updateCustomer(customerId, {
+          full_name: formData.fullName,
+          email: formData.email || null,
+          preferred_contact: formData.preferredContact,
+        });
       } else {
-        const { data, error } = await supabase.from('customers').insert({
+        const row = await createCustomer({
           full_name: formData.fullName, phone: formData.phone,
           email: formData.email || null, preferred_contact: formData.preferredContact,
-        }).select('id').single();
-        if (error) throw error;
-        customerId = data.id;
+        });
+        if (!row?.id) throw new Error('Failed to create customer');
+        customerId = row.id;
       }
 
       // Upload license if provided
       if (licenseFile) {
         const ext = licenseFile.name.split('.').pop();
         const path = `licenses/${customerId}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('documents').upload(path, licenseFile);
-        if (uploadError) {
+        try {
+          await uploadToStorage('documents', path, licenseFile);
+          const publicUrl = await getStoragePublicUrl('documents', path);
+          await updateCustomer(customerId, { driving_license_url: publicUrl });
+        } catch (uploadError) {
           console.error('License upload failed:', uploadError);
-        } else {
-          const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(path);
-          await supabase.from('customers').update({ driving_license_url: publicUrl }).eq('id', customerId);
         }
       }
 
       const now = new Date();
-      const { data: testDrive, error } = await supabase.from('test_drives').insert({
-        customer_id: customerId, vehicle_id: formData.vehicleId,
+      const testDrivePayload = {
+        customer_id: customerId,
+        vehicle_id: formData.vehicleId,
         location_id: formData.locationId,
         scheduled_date: now.toISOString().split('T')[0],
         scheduled_time: now.toTimeString().slice(0, 5),
-        source: 'walkin', status: 'show' as any,
+        source: 'walkin',
+        status: 'show' as any,
         assigned_sales_person_id: role === APP_ROLE.SALES ? profile?.id : null,
-      }).select('id, assigned_sales_person_id').single();
-      if (error) throw error;
+        assigned_gro_id: null,
+        slot_duration_minutes: 30,
+        notes: null,
+        metadata: {
+          created_via: 'walkin_page',
+          preferred_contact: formData.preferredContact,
+        },
+        started_at: null,
+        completed_at: null,
+        security_checked_in_at: null,
+        security_checked_out_at: null,
+        key_handed_at: null,
+        inspection_submitted_at: null,
+        pre_drive_km: null,
+        post_drive_km: null,
+        pre_drive_fuel_level: null,
+        post_drive_fuel_level: null,
+        pre_drive_notes: null,
+        post_drive_notes: null,
+        pre_drive_scratches: null,
+        post_drive_scratches: null,
+        rescheduled_from: null,
+        cancelled_reason: null,
+      };
+
+      const testDrive = await apiPost<any>('/api/test-drives', testDrivePayload as Record<string, unknown>);
+      if (!testDrive?.id) throw new Error('Failed to create test drive');
 
       // Fetch assigned sales person details for email
       let assignedSalesName: string | null = null;
       let assignedSalesPhone: string | null = null;
       const assignedId = testDrive.assigned_sales_person_id;
       if (assignedId) {
-        const { data: sp } = await supabase.from('profiles')
-          .select('full_name, phone')
-          .eq('id', assignedId)
-          .single();
+        const spRows = await apiDbQuery<any[]>({
+          table: 'profiles',
+          action: 'select',
+          select: 'full_name, phone',
+          filters: [{ field: 'id', op: 'eq', value: assignedId }],
+          limit: 1,
+        });
+        const sp = spRows?.[0] || null;
         if (sp) {
           assignedSalesName = sp.full_name;
           assignedSalesPhone = sp.phone;
@@ -291,17 +322,23 @@ const WalkinPage = () => {
       if (formData.phone) {
         const waMessage = `✅ *Walk-in Test Drive Registered*\n\nHi ${formData.fullName},\n\nYour walk-in test drive has been registered:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n🕒 *Time:* ${walkinTime}\n\nYour sales team will guide you shortly.`;
 
-        const { error: waError } = await supabase.functions.invoke('send-whatsapp', {
-          body: {
+        let waError: unknown = null;
+        try {
+          await apiInvokeFunction('send-whatsapp', {
             to: formData.phone,
             message: waMessage,
             customerId,
             testDriveId: testDrive.id,
             purpose: 'booking_confirmed',
-          },
-        });
+          });
+        } catch (error) {
+          waError = error;
+        }
 
-        await supabase.from('communications').insert({
+        await apiDbQuery({
+          table: 'communications',
+          action: 'insert',
+          payload: {
           customer_id: customerId,
           test_drive_id: testDrive.id,
           type: 'whatsapp',
@@ -311,13 +348,15 @@ const WalkinPage = () => {
           body: waMessage,
           status: waError ? 'failed' : 'sent',
           sent_at: waError ? null : new Date().toISOString(),
+          },
         });
       }
 
       // Send email confirmation and log communication.
       if (formData.email) {
-        const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
-          body: {
+        let emailError: unknown = null;
+        try {
+          await apiInvokeFunction('send-transactional-email', {
             templateName: 'booking-confirmation',
             recipientEmail: formData.email,
             idempotencyKey: `walkin-confirm-${testDrive.id}`,
@@ -328,12 +367,17 @@ const WalkinPage = () => {
               scheduledDate: now.toISOString().split('T')[0],
               scheduledTime: now.toTimeString().slice(0, 5),
             },
-          },
-        });
+          });
+        } catch (error) {
+          emailError = error;
+        }
 
         const emailBody = `Your walk-in test drive for ${vehicleName} is registered at ${locationName} on ${walkinTime}. Please contact your sales team for help.`;
 
-        await supabase.from('communications').insert({
+        await apiDbQuery({
+          table: 'communications',
+          action: 'insert',
+          payload: {
           customer_id: customerId,
           test_drive_id: testDrive.id,
           type: 'email',
@@ -343,25 +387,24 @@ const WalkinPage = () => {
           body: emailBody,
           status: emailError ? 'failed' : 'sent',
           sent_at: emailError ? null : new Date().toISOString(),
+          },
         });
       }
 
       // Send sales person assignment email if email and sales person assigned
       if (formData.email && assignedSalesName) {
-        supabase.functions.invoke('send-transactional-email', {
-          body: {
-            templateName: 'sales-assignment',
-            recipientEmail: formData.email,
-            idempotencyKey: `sales-assign-${testDrive.id}`,
-            templateData: {
-              customerName: formData.fullName,
-              vehicleName,
-              locationName,
-              scheduledDate: now.toISOString().split('T')[0],
-              scheduledTime: now.toTimeString().slice(0, 5),
-              salesPersonName: assignedSalesName,
-              salesPersonPhone: assignedSalesPhone,
-            },
+        apiInvokeFunction('send-transactional-email', {
+          templateName: 'sales-assignment',
+          recipientEmail: formData.email,
+          idempotencyKey: `sales-assign-${testDrive.id}`,
+          templateData: {
+            customerName: formData.fullName,
+            vehicleName,
+            locationName,
+            scheduledDate: now.toISOString().split('T')[0],
+            scheduledTime: now.toTimeString().slice(0, 5),
+            salesPersonName: assignedSalesName,
+            salesPersonPhone: assignedSalesPhone,
           },
         }).catch(err => console.error('Sales assignment email failed:', err));
       }

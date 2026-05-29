@@ -99,6 +99,10 @@ function parseSort(order: DbOrder[] = []) {
   }, {});
 }
 
+function hasFilterOnField(filters: DbFilter[] = [], field: string) {
+  return filters.some((filter) => filter.field === field);
+}
+
 function withMetadata(input: Record<string, unknown>) {
   const now = new Date().toISOString();
   return {
@@ -112,7 +116,20 @@ function withMetadata(input: Record<string, unknown>) {
 export async function runDbQuery(request: DbQueryRequest) {
   const table = safeTable(request.table);
   const model = getCollectionModel(table);
-  const where = buildMongoFilter(request.filters || []);
+  const isLocationSpecialPeriods = table === 'location_special_periods';
+  const normalizedFilters = [...(request.filters || [])];
+
+  // Keep soft-deleted rows hidden by default unless caller explicitly asks otherwise.
+  if (isLocationSpecialPeriods && request.action === 'select') {
+    if (!hasFilterOnField(normalizedFilters, 'is_deleted')) {
+      normalizedFilters.push({ field: 'is_deleted', op: 'neq', value: true });
+    }
+    if (!hasFilterOnField(normalizedFilters, 'is_active')) {
+      normalizedFilters.push({ field: 'is_active', op: 'neq', value: false });
+    }
+  }
+
+  const where = buildMongoFilter(normalizedFilters);
   const projection = parseProjection(request.select);
   const sort = parseSort(request.order || []);
 
@@ -140,7 +157,13 @@ export async function runDbQuery(request: DbQueryRequest) {
 
   if (request.action === 'insert') {
     const list = Array.isArray(request.values) ? request.values : [request.values || {}];
-    const docs = list.map((item) => withMetadata(item));
+    const docs = list.map((item) =>
+      withMetadata(
+        isLocationSpecialPeriods
+          ? { is_active: true, is_deleted: false, ...(item || {}) }
+          : item
+      )
+    );
     const created = await model.insertMany(docs, { ordered: true });
     return { data: created.map((row) => toPlain(row.toObject() as Record<string, unknown>)) };
   }
@@ -152,6 +175,25 @@ export async function runDbQuery(request: DbQueryRequest) {
   }
 
   if (request.action === 'delete') {
+    if (isLocationSpecialPeriods) {
+      const rows = await model.find(where).lean();
+      await model.updateMany(where, {
+        $set: {
+          is_active: false,
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      });
+      const updatedRows = await model.find(where).lean();
+
+      return {
+        data: (updatedRows.length > 0 ? updatedRows : rows).map((row) =>
+          toPlain(row as Record<string, unknown>)
+        ),
+      };
+    }
+
     const rows = await model.find(where).lean();
     await model.deleteMany(where);
     return { data: rows.map((row) => toPlain(row as Record<string, unknown>)) };

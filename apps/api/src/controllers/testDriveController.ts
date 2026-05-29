@@ -12,11 +12,26 @@ export async function getTestDrivesController(req: Request, res: Response) {
   try {
     const filters: Record<string, unknown> = {};
     if (req.query.location_id) filters.location_id = req.query.location_id;
+    if (req.query.location_ids) {
+      filters.location_ids = String(req.query.location_ids)
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+    }
     if (req.query.customer_id) filters.customer_id = req.query.customer_id;
     if (req.query.vehicle_id) filters.vehicle_id = req.query.vehicle_id;
     if (req.query.sales_person_id) filters.sales_person_id = req.query.sales_person_id;
     if (req.query.status) filters.status = req.query.status;
     if (req.query.scheduled_date) filters.scheduled_date = req.query.scheduled_date;
+    if (req.query.limit) {
+      const parsed = Number(req.query.limit);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        filters.limit = parsed;
+      }
+    }
+    if (req.query.include_related !== undefined) {
+      filters.include_related = String(req.query.include_related) !== 'false';
+    }
     if (req.query.statuses) {
       filters.statuses = String(req.query.statuses).split(',').map((s) => s.trim());
     }

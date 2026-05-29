@@ -27,6 +27,21 @@ import {
   updateBrandController,
 } from '../controllers/brandController.js';
 import {
+  createLocationSpecialPeriodController,
+  deleteLocationSpecialPeriodController,
+  getLocationSpecialPeriodController,
+  listLocationSpecialPeriodsController,
+  updateLocationSpecialPeriodController,
+} from '../controllers/locationSpecialPeriodController.js';
+import {
+  bulkUpsertLocationOperatingHoursController,
+  createLocationOperatingHourController,
+  deleteLocationOperatingHourController,
+  getLocationOperatingHourController,
+  listLocationOperatingHoursController,
+  updateLocationOperatingHourController,
+} from '../controllers/locationOperatingHourController.js';
+import {
   createTestDriveController,
   deleteTestDriveController,
   getTestDriveController,
@@ -129,6 +144,21 @@ apiRouter.get('/brands/:id', getBrandController);
 apiRouter.post('/brands', requireAuth, createBrandController);
 apiRouter.patch('/brands/:id', requireAuth, updateBrandController);
 apiRouter.delete('/brands/:id', requireAuth, deleteBrandController);
+
+// Location Special Periods
+apiRouter.get('/location-special-periods', listLocationSpecialPeriodsController);
+apiRouter.get('/location-special-periods/:id', getLocationSpecialPeriodController);
+apiRouter.post('/location-special-periods', requireAuth, createLocationSpecialPeriodController);
+apiRouter.patch('/location-special-periods/:id', requireAuth, updateLocationSpecialPeriodController);
+apiRouter.delete('/location-special-periods/:id', requireAuth, deleteLocationSpecialPeriodController);
+
+// Location Operating Hours
+apiRouter.get('/location-operating-hours', listLocationOperatingHoursController);
+apiRouter.get('/location-operating-hours/:id', getLocationOperatingHourController);
+apiRouter.post('/location-operating-hours', requireAuth, createLocationOperatingHourController);
+apiRouter.patch('/location-operating-hours/:id', requireAuth, updateLocationOperatingHourController);
+apiRouter.delete('/location-operating-hours/:id', requireAuth, deleteLocationOperatingHourController);
+apiRouter.post('/location-operating-hours/bulk-upsert', requireAuth, bulkUpsertLocationOperatingHoursController);
 
 // Test Drives
 apiRouter.get('/test-drives', requireAuth, getTestDrivesController);

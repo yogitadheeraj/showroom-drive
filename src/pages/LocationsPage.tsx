@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
+import { createLocation, updateLocation } from '@/lib/locationBrandService';
+import { bulkUpsertLocationOperatingHours, listLocationOperatingHours } from '@/lib/locationOperatingHoursService';
+import {
+  createLocationSpecialPeriod,
+  deleteLocationSpecialPeriod,
+  listLocationSpecialPeriods,
+  updateLocationSpecialPeriod,
+} from '@/lib/locationSpecialPeriodsService';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -96,9 +104,14 @@ const LocationsPage = () => {
   }, [dealerId, dealerLoading]);
 
   const fetchLocations = async () => {
-    let query = supabase.from('locations').select('*').order('name');
-    if (dealerId) query = query.eq('dealer_id', dealerId);
-    const { data } = await query;
+    const filters = dealerId ? [{ field: 'dealer_id', op: 'eq' as const, value: dealerId }] : undefined;
+    const data = await apiDbQuery<any[]>({
+      table: 'locations',
+      action: 'select',
+      select: '*',
+      filters,
+      order: [{ field: 'name', ascending: true }],
+    });
     setLocations(data || []);
 
     if (data) {
@@ -115,19 +128,38 @@ const LocationsPage = () => {
     const todayStr = today.toISOString().split('T')[0];
 
     if (dealerIds.length > 0 || locationIds.length > 0) {
-      const [{ data: dealersData }, { data: brandsData }, { data: todayHoursData }, { data: activePeriods }] = await Promise.all([
+      const [dealersData, brandsData, todayHoursData, activePeriods] = await Promise.all([
         dealerIds.length > 0
-          ? supabase.from('dealers').select('id, name').in('id', dealerIds)
-          : Promise.resolve({ data: [] as any[] }),
+          ? apiDbQuery<any[]>({
+              table: 'dealers',
+              action: 'select',
+              select: 'id, name',
+              filters: [{ field: 'id', op: 'in', value: dealerIds }],
+            })
+          : Promise.resolve([] as any[]),
         dealerIds.length > 0
-          ? supabase.from('brands').select('dealer_id, name').in('dealer_id', dealerIds).order('name')
-          : Promise.resolve({ data: [] as any[] }),
+          ? apiDbQuery<any[]>({
+              table: 'brands',
+              action: 'select',
+              select: 'dealer_id, name',
+              filters: [{ field: 'dealer_id', op: 'in', value: dealerIds }],
+              order: [{ field: 'name', ascending: true }],
+            })
+          : Promise.resolve([] as any[]),
         locationIds.length > 0
-          ? supabase.from('location_operating_hours').select('location_id, open_time, close_time, is_closed').in('location_id', locationIds).eq('day_of_week', dayOfWeek)
-          : Promise.resolve({ data: [] as any[] }),
+          ? listLocationOperatingHours({ locationIds, dayOfWeek })
+          : Promise.resolve([] as any[]),
         locationIds.length > 0
-          ? supabase.from('location_special_periods').select('*').in('location_id', locationIds).lte('start_date', todayStr).gte('end_date', todayStr)
-          : Promise.resolve({ data: [] as any[] }),
+          ? Promise.all(
+              locationIds.map((locationId) =>
+                listLocationSpecialPeriods({
+                  location_id: locationId,
+                  start_date: todayStr,
+                  end_date: todayStr,
+                })
+              )
+            ).then((parts) => parts.flat())
+          : Promise.resolve([] as any[]),
       ]);
 
       const dealerNameMap = (dealersData || []).reduce((acc: Record<string, string>, dealer: any) => {
@@ -183,14 +215,26 @@ const LocationsPage = () => {
   };
 
   const fetchDevices = async (locationId: string) => {
-    const { data } = await supabase.from('location_devices').select('*').eq('location_id', locationId).order('created_at', { ascending: false });
+    const data = await apiDbQuery<any[]>({
+      table: 'location_devices',
+      action: 'select',
+      select: '*',
+      filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+      order: [{ field: 'created_at', ascending: false }],
+    });
     setDevices(prev => ({ ...prev, [locationId]: data || [] }));
   };
 
   const fetchStaffCount = async (locationId: string) => {
     try {
-      const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('location_id', locationId);
-      setStaffCounts(prev => ({ ...prev, [locationId]: count || 0 }));
+      const rows = await apiDbQuery<any[]>({
+        table: 'profiles',
+        action: 'select',
+        select: 'id',
+        filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+        limit: 5000,
+      });
+      setStaffCounts(prev => ({ ...prev, [locationId]: rows?.length || 0 }));
     } catch (err) {
       console.error('Error fetching staff count:', err);
       setStaffCounts(prev => ({ ...prev, [locationId]: 0 }));
@@ -205,15 +249,45 @@ const LocationsPage = () => {
       next7.setDate(next7.getDate() + 7);
       const next7Str = next7.toISOString().split('T')[0];
 
-      const [{ count }, { count: todayCount }, { count: next7Count }] = await Promise.all([
-        supabase.from('test_drives').select('id', { count: 'exact', head: true }).eq('location_id', locationId).in('status', ['confirmed', 'show', 'in_progress', 'scheduled']),
-        supabase.from('test_drives').select('id', { count: 'exact', head: true }).eq('location_id', locationId).eq('scheduled_date', todayStr).in('status', ['confirmed', 'show', 'in_progress', 'scheduled']),
-        supabase.from('test_drives').select('id', { count: 'exact', head: true }).eq('location_id', locationId).gte('scheduled_date', todayStr).lte('scheduled_date', next7Str).in('status', ['confirmed', 'show', 'in_progress', 'scheduled']),
+      const [allRows, todayRows, next7Rows] = await Promise.all([
+        apiDbQuery<any[]>({
+          table: 'test_drives',
+          action: 'select',
+          select: 'id',
+          filters: [
+            { field: 'location_id', op: 'eq', value: locationId },
+            { field: 'status', op: 'in', value: ['confirmed', 'show', 'in_progress', 'scheduled'] },
+          ],
+          limit: 5000,
+        }),
+        apiDbQuery<any[]>({
+          table: 'test_drives',
+          action: 'select',
+          select: 'id',
+          filters: [
+            { field: 'location_id', op: 'eq', value: locationId },
+            { field: 'scheduled_date', op: 'eq', value: todayStr },
+            { field: 'status', op: 'in', value: ['confirmed', 'show', 'in_progress', 'scheduled'] },
+          ],
+          limit: 5000,
+        }),
+        apiDbQuery<any[]>({
+          table: 'test_drives',
+          action: 'select',
+          select: 'id',
+          filters: [
+            { field: 'location_id', op: 'eq', value: locationId },
+            { field: 'scheduled_date', op: 'gte', value: todayStr },
+            { field: 'scheduled_date', op: 'lte', value: next7Str },
+            { field: 'status', op: 'in', value: ['confirmed', 'show', 'in_progress', 'scheduled'] },
+          ],
+          limit: 5000,
+        }),
       ]);
 
-      setTestDriveCounts(prev => ({ ...prev, [locationId]: count || 0 }));
-      setTestDriveTodayCounts(prev => ({ ...prev, [locationId]: todayCount || 0 }));
-      setTestDriveNext7DaysCounts(prev => ({ ...prev, [locationId]: next7Count || 0 }));
+      setTestDriveCounts(prev => ({ ...prev, [locationId]: allRows?.length || 0 }));
+      setTestDriveTodayCounts(prev => ({ ...prev, [locationId]: todayRows?.length || 0 }));
+      setTestDriveNext7DaysCounts(prev => ({ ...prev, [locationId]: next7Rows?.length || 0 }));
     } catch (err) {
       console.error('Error fetching test drive count:', err);
       setTestDriveCounts(prev => ({ ...prev, [locationId]: 0 }));
@@ -223,7 +297,19 @@ const LocationsPage = () => {
   };
 
   const fetchSchedules = async (locationId: string) => {
-    const { data } = await supabase.from('test_drives').select('id, scheduled_date, scheduled_time, status').eq('location_id', locationId).gte('scheduled_date', new Date().toISOString().split('T')[0]).order('scheduled_date').order('scheduled_time');
+    const data = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: 'id, scheduled_date, scheduled_time, status',
+      filters: [
+        { field: 'location_id', op: 'eq', value: locationId },
+        { field: 'scheduled_date', op: 'gte', value: new Date().toISOString().split('T')[0] },
+      ],
+      order: [
+        { field: 'scheduled_date', ascending: true },
+        { field: 'scheduled_time', ascending: true },
+      ],
+    });
     setSchedules(prev => ({ ...prev, [locationId]: data || [] }));
   };
 
@@ -240,12 +326,14 @@ const LocationsPage = () => {
   const saveSlotDuration = async () => {
     if (!slotDurationDialog) return;
     try {
-      const { error } = await supabase
-        .from('locations')
-        .update({ slot_duration_minutes: slotDuration })
-        .eq('id', slotDurationDialog);
-
-      if (error) {
+      try {
+        await apiDbQuery({
+          table: 'locations',
+          action: 'update',
+          payload: { slot_duration_minutes: slotDuration },
+          filters: [{ field: 'id', op: 'eq', value: slotDurationDialog }],
+        });
+      } catch (error: any) {
         if (!isMissingSlotDurationColumnError(error)) throw error;
 
         const location = locations.find((loc) => loc.id === slotDurationDialog);
@@ -254,14 +342,16 @@ const LocationsPage = () => {
           slot_duration_minutes: slotDuration,
         };
 
-        const { error: metadataError } = await supabase
-          .from('locations')
-          .update({ metadata } as any)
-          .eq('id', slotDurationDialog);
-
-        if (metadataError) {
+        try {
+          await apiDbQuery({
+            table: 'locations',
+            action: 'update',
+            payload: { metadata } as any,
+            filters: [{ field: 'id', op: 'eq', value: slotDurationDialog }],
+          });
+        } catch (metadataError: any) {
           if (isMissingMetadataColumnError(metadataError)) {
-            throw new Error('Database schema is outdated. Run: npm run supabase:repair:columns and execute SQL in Supabase SQL Editor.');
+            throw new Error('Database schema is outdated. Please run the schema repair script and apply the SQL migration in your database console.');
           }
           throw metadataError;
         }
@@ -283,10 +373,10 @@ const LocationsPage = () => {
     }
     const payload = { ...formData, dealer_id: dealerId };
     if (editingId) {
-      await supabase.from('locations').update(payload).eq('id', editingId);
+      await updateLocation(editingId, payload as Record<string, unknown>);
       toast({ title: 'Location updated' });
     } else {
-      await supabase.from('locations').insert(payload);
+      await createLocation(payload as Record<string, unknown>);
       toast({ title: 'Location added' });
     }
     setShowDialog(false);
@@ -314,7 +404,7 @@ const LocationsPage = () => {
   };
 
   const openHoursDialog = async (locationId: string) => {
-    const { data } = await supabase.from('location_operating_hours').select('*').eq('location_id', locationId).order('day_of_week');
+    const data = await listLocationOperatingHours({ locationId });
     const fullHours = DAYS.map((_, i) => {
       const existing = data?.find(d => d.day_of_week === i);
       return existing || { location_id: locationId, day_of_week: i, open_time: '09:00', close_time: '19:00', is_closed: false, id: null };
@@ -331,14 +421,16 @@ const LocationsPage = () => {
     if (!hoursDialog) return;
     setSavingHours(true);
     try {
-      for (const h of hours) {
-        const row = { location_id: hoursDialog, day_of_week: h.day_of_week, open_time: h.open_time, close_time: h.close_time, is_closed: h.is_closed };
-        if (h.id) {
-          await supabase.from('location_operating_hours').update(row).eq('id', h.id);
-        } else {
-          await supabase.from('location_operating_hours').insert(row);
-        }
-      }
+      await bulkUpsertLocationOperatingHours(
+        hoursDialog,
+        hours.map((h) => ({
+          id: h.id || undefined,
+          day_of_week: h.day_of_week,
+          open_time: h.open_time,
+          close_time: h.close_time,
+          is_closed: h.is_closed,
+        })),
+      );
       toast({ title: 'Operating hours saved' });
       if (profile?.user_id) {
         await logStaffActivity({
@@ -369,13 +461,17 @@ const LocationsPage = () => {
     }
 
     try {
-      await supabase.from('location_devices').insert({
+      await apiDbQuery({
+        table: 'location_devices',
+        action: 'insert',
+        payload: {
         location_id: deviceDialog,
         name: newDevice.name,
         device_type: newDevice.device_type,
         serial_number: newDevice.serial_number || null,
         notes: newDevice.notes || null,
         is_active: true
+        },
       });
 
       toast({ title: 'Device added successfully' });
@@ -402,7 +498,11 @@ const LocationsPage = () => {
     if (!confirm('Are you sure you want to delete this device?')) return;
 
     try {
-      await supabase.from('location_devices').delete().eq('id', deviceId);
+      await apiDbQuery({
+        table: 'location_devices',
+        action: 'delete',
+        filters: [{ field: 'id', op: 'eq', value: deviceId }],
+      });
       toast({ title: 'Device deleted' });
       if (profile?.user_id) {
         await logStaffActivity({
@@ -423,7 +523,12 @@ const LocationsPage = () => {
 
   const toggleDevice = async (locationId: string, deviceId: string, isActive: boolean) => {
     try {
-      await supabase.from('location_devices').update({ is_active: !isActive }).eq('id', deviceId);
+      await apiDbQuery({
+        table: 'location_devices',
+        action: 'update',
+        payload: { is_active: !isActive },
+        filters: [{ field: 'id', op: 'eq', value: deviceId }],
+      });
       fetchDevices(locationId);
     } catch (err: any) {
       toast({ title: 'Failed to update device', variant: 'destructive' });
@@ -471,17 +576,14 @@ const LocationsPage = () => {
   };
 
   const openSpecialPeriodsDialog = async (locationId: string) => {
-    const { data, error } = await supabase
-      .from('location_special_periods')
-      .select('*')
-      .eq('location_id', locationId)
-      .order('start_date', { ascending: false });
-
-    if (error) {
-      toast({ title: 'Failed to load saved records', description: error.message, variant: 'destructive' });
-      setSpecialPeriods([]);
-    } else {
+    try {
+      const data = await listLocationSpecialPeriods({
+        location_id: locationId,
+      });
       setSpecialPeriods(data || []);
+    } catch (error: any) {
+      toast({ title: 'Failed to load saved records', description: error?.message || 'Unable to load periods', variant: 'destructive' });
+      setSpecialPeriods([]);
     }
 
     resetSpecialPeriodForm();
@@ -526,25 +628,21 @@ const LocationsPage = () => {
         notes: newPeriod.notes || null,
       };
 
-      const { error: saveError } = editingSpecialPeriodId
-        ? await supabase.from('location_special_periods').update(payload).eq('id', editingSpecialPeriodId)
-        : await supabase.from('location_special_periods').insert({
+      if (editingSpecialPeriodId) {
+        await updateLocationSpecialPeriod(editingSpecialPeriodId, payload as any);
+      } else {
+        await createLocationSpecialPeriod({
           location_id: specialPeriodsDialog,
           ...payload,
-        });
-
-      if (saveError) throw saveError;
+        } as any);
+      }
 
       toast({ title: editingSpecialPeriodId ? 'Special period updated' : 'Special period added' });
       resetSpecialPeriodForm();
 
-      const { data: refreshed, error: refreshError } = await supabase
-        .from('location_special_periods')
-        .select('*')
-        .eq('location_id', specialPeriodsDialog)
-        .order('start_date', { ascending: false });
-
-      if (refreshError) throw refreshError;
+      const refreshed = await listLocationSpecialPeriods({
+        location_id: specialPeriodsDialog,
+      });
 
       setSpecialPeriods(refreshed || []);
       fetchLocations();
@@ -556,19 +654,14 @@ const LocationsPage = () => {
   const deleteSpecialPeriod = async (periodId: string) => {
     if (!confirm('Delete this special period?')) return;
     try {
-      const { error: deleteError } = await supabase.from('location_special_periods').delete().eq('id', periodId);
-      if (deleteError) throw deleteError;
+      await deleteLocationSpecialPeriod(periodId);
 
       toast({ title: 'Period removed' });
 
       if (specialPeriodsDialog) {
-        const { data: refreshed, error: refreshError } = await supabase
-          .from('location_special_periods')
-          .select('*')
-          .eq('location_id', specialPeriodsDialog)
-          .order('start_date', { ascending: false });
-
-        if (refreshError) throw refreshError;
+        const refreshed = await listLocationSpecialPeriods({
+          location_id: specialPeriodsDialog,
+        });
 
         setSpecialPeriods(refreshed || []);
         fetchLocations();

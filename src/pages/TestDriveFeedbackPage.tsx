@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
 import { Car, Clock3, Star, CheckCircle2 } from 'lucide-react';
 
 type FeedbackBadge = 'Lightning Fast' | 'Smooth Experience' | 'Detailed Guidance' | 'Premium Attention';
@@ -75,17 +75,56 @@ const TestDriveFeedbackPage = () => {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('test_drives')
-        .select('id, customer_id, status, scheduled_date, scheduled_time, started_at, completed_at, security_checked_in_at, security_checked_out_at, metadata, customers(full_name, email, phone), vehicles(brand, model), locations(name)')
-        .eq('id', tdId)
-        .maybeSingle();
+      const rows = await apiDbQuery<any[]>({
+        table: 'test_drives',
+        action: 'select',
+        select: 'id, customer_id, vehicle_id, location_id, status, scheduled_date, scheduled_time, started_at, completed_at, security_checked_in_at, security_checked_out_at, metadata',
+        filters: [{ field: 'id', op: 'eq', value: tdId }],
+        limit: 1,
+      });
 
-      if (error) {
-        toast({ title: 'Unable to load test drive', description: error.message, variant: 'destructive' });
+      const drive = rows?.[0] || null;
+      if (!drive) {
         setLoading(false);
         return;
       }
+
+      const [customerRows, vehicleRows, locationRows] = await Promise.all([
+        drive.customer_id
+          ? apiDbQuery<any[]>({
+              table: 'customers',
+              action: 'select',
+              select: 'id, full_name, email, phone',
+              filters: [{ field: 'id', op: 'eq', value: drive.customer_id }],
+              limit: 1,
+            })
+          : Promise.resolve([]),
+        drive.vehicle_id
+          ? apiDbQuery<any[]>({
+              table: 'vehicles',
+              action: 'select',
+              select: 'id, brand, model',
+              filters: [{ field: 'id', op: 'eq', value: drive.vehicle_id }],
+              limit: 1,
+            })
+          : Promise.resolve([]),
+        drive.location_id
+          ? apiDbQuery<any[]>({
+              table: 'locations',
+              action: 'select',
+              select: 'id, name',
+              filters: [{ field: 'id', op: 'eq', value: drive.location_id }],
+              limit: 1,
+            })
+          : Promise.resolve([]),
+      ]);
+
+      const data = {
+        ...drive,
+        customers: customerRows?.[0] || null,
+        vehicles: vehicleRows?.[0] || null,
+        locations: locationRows?.[0] || null,
+      };
 
       setTestDrive(data);
       setCustomerName(data?.customers?.full_name || '');
@@ -109,29 +148,32 @@ const TestDriveFeedbackPage = () => {
     }
 
     setSubmitting(true);
-    const { error } = await supabase.from('test_drive_feedback').insert({
-      test_drive_id: tdId,
-      customer_id: testDrive.customer_id,
-      enquiry_id: enquiryId,
-      customer_name: customerName.trim(),
-      customer_email: customerEmail.trim() || null,
-      customer_phone: customerPhone.trim() || null,
-      rating,
-      experience_badge: systemBadge,
-      total_duration_minutes: durationMinutes,
-      feedback_text: feedbackText.trim() || null,
-      would_recommend: wouldRecommend,
-    });
+    try {
+      await apiDbQuery({
+        table: 'test_drive_feedback',
+        action: 'insert',
+        payload: {
+          test_drive_id: tdId,
+          customer_id: testDrive.customer_id,
+          enquiry_id: enquiryId,
+          customer_name: customerName.trim(),
+          customer_email: customerEmail.trim() || null,
+          customer_phone: customerPhone.trim() || null,
+          rating,
+          experience_badge: systemBadge,
+          total_duration_minutes: durationMinutes,
+          feedback_text: feedbackText.trim() || null,
+          would_recommend: wouldRecommend,
+        },
+      });
 
-    setSubmitting(false);
-
-    if (error) {
-      toast({ title: 'Failed to submit feedback', description: error.message, variant: 'destructive' });
-      return;
+      setSubmitted(true);
+      toast({ title: 'Feedback submitted', description: 'Thank you for sharing your test drive experience.' });
+    } catch (error: any) {
+      toast({ title: 'Failed to submit feedback', description: error?.message || 'Unable to submit feedback', variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitted(true);
-    toast({ title: 'Feedback submitted', description: 'Thank you for sharing your test drive experience.' });
   };
 
   if (loading) {

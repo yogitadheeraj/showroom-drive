@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
 import { useSearchParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Car, Clock, User, Timer } from 'lucide-react';
@@ -135,36 +135,102 @@ const WaitingBoardPage = () => {
   useEffect(() => {
     fetchData();
 
-    // Real-time subscription for instant updates
-    const channel = supabase
-      .channel('waiting-board')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'test_drives' },
-        () => fetchData()
-      )
-      .subscribe();
-
     // Update clock every second for real-time timer
     const clockInterval = setInterval(() => setNow(new Date()), 1000);
+    const pollInterval = setInterval(() => {
+      fetchData();
+    }, 15000);
 
     return () => {
-      supabase.removeChannel(channel);
       clearInterval(clockInterval);
+      clearInterval(pollInterval);
     };
   }, [locationId]);
 
   const fetchData = async () => {
-    let query = supabase.from('test_drives')
-      .select('*, customers(full_name), vehicles(brand, model), profiles!test_drives_assigned_sales_person_id_fkey(full_name), locations(name)')
-      .eq('scheduled_date', format(new Date(), 'yyyy-MM-dd'))
-      .in('status', ['scheduled', 'confirmed', 'show', 'in_progress'])
-      .order('scheduled_time', { ascending: true });
+    const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [
+      { field: 'scheduled_date', op: 'eq', value: format(new Date(), 'yyyy-MM-dd') },
+      { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+    ];
+    if (locationId) {
+      filters.push({ field: 'location_id', op: 'eq', value: locationId });
+    }
 
-    if (locationId) query = query.eq('location_id', locationId);
-    const { data } = await query;
-    setTestDrives(data || []);
-    if (data?.[0]?.locations?.name) setLocationName(data[0].locations.name);
+    const drives = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: '*',
+      filters,
+      order: [{ field: 'scheduled_time', ascending: true }],
+    });
+
+    const customerIds = Array.from(new Set((drives || []).map((d) => d.customer_id).filter(Boolean)));
+    const vehicleIds = Array.from(new Set((drives || []).map((d) => d.vehicle_id).filter(Boolean)));
+    const salesProfileIds = Array.from(new Set((drives || []).map((d) => d.assigned_sales_person_id).filter(Boolean)));
+    const locationIds = Array.from(new Set((drives || []).map((d) => d.location_id).filter(Boolean)));
+
+    const [customers, vehicles, profiles, locations] = await Promise.all([
+      customerIds.length
+        ? apiDbQuery<any[]>({
+            table: 'customers',
+            action: 'select',
+            select: 'id, full_name',
+            filters: [{ field: 'id', op: 'in', value: customerIds }],
+          })
+        : Promise.resolve([]),
+      vehicleIds.length
+        ? apiDbQuery<any[]>({
+            table: 'vehicles',
+            action: 'select',
+            select: 'id, brand, model',
+            filters: [{ field: 'id', op: 'in', value: vehicleIds }],
+          })
+        : Promise.resolve([]),
+      salesProfileIds.length
+        ? apiDbQuery<any[]>({
+            table: 'profiles',
+            action: 'select',
+            select: 'id, full_name',
+            filters: [{ field: 'id', op: 'in', value: salesProfileIds }],
+          })
+        : Promise.resolve([]),
+      locationIds.length
+        ? apiDbQuery<any[]>({
+            table: 'locations',
+            action: 'select',
+            select: 'id, name',
+            filters: [{ field: 'id', op: 'in', value: locationIds }],
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const customerMap = (customers || []).reduce((acc: Record<string, any>, row: any) => {
+      acc[row.id] = row;
+      return acc;
+    }, {});
+    const vehicleMap = (vehicles || []).reduce((acc: Record<string, any>, row: any) => {
+      acc[row.id] = row;
+      return acc;
+    }, {});
+    const profileMap = (profiles || []).reduce((acc: Record<string, any>, row: any) => {
+      acc[row.id] = row;
+      return acc;
+    }, {});
+    const locationMap = (locations || []).reduce((acc: Record<string, any>, row: any) => {
+      acc[row.id] = row;
+      return acc;
+    }, {});
+
+    const hydrated = (drives || []).map((drive: any) => ({
+      ...drive,
+      customers: customerMap[drive.customer_id] || null,
+      vehicles: vehicleMap[drive.vehicle_id] || null,
+      profiles: profileMap[drive.assigned_sales_person_id] || null,
+      locations: locationMap[drive.location_id] || null,
+    }));
+
+    setTestDrives(hydrated);
+    if (hydrated?.[0]?.locations?.name) setLocationName(hydrated[0].locations.name);
   };
 
   const getETA = (td: any) => {

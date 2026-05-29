@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { apiDbQuery } from '@/lib/apiClient';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,13 +47,20 @@ const BlockedSlotsManager = () => {
 
   const fetchSlots = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('location_blocked_slots')
-      .select('*')
-      .eq('location_id', locationId!)
-      .gte('blocked_date', format(startOfToday(), 'yyyy-MM-dd'))
-      .order('blocked_date', { ascending: true })
-      .order('start_time', { ascending: true });
+    const today = format(startOfToday(), 'yyyy-MM-dd');
+    const data = await apiDbQuery<any[]>({
+      table: 'location_blocked_slots',
+      action: 'select',
+      select: '*',
+      filters: [
+        { field: 'location_id', op: 'eq', value: locationId! },
+        { field: 'blocked_date', op: 'gte', value: today },
+      ],
+      order: [
+        { field: 'blocked_date', ascending: true },
+        { field: 'start_time', ascending: true },
+      ],
+    });
     setSlots(data || []);
     setLoading(false);
   };
@@ -64,33 +72,33 @@ const BlockedSlotsManager = () => {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from('location_blocked_slots').insert({
-      location_id: locationId,
-      blocked_date: format(newDate, 'yyyy-MM-dd'),
-      start_time: newStart,
-      end_time: newEnd,
-      reason: newReason.trim() || null,
-      block_source: 'manual',
+    await apiDbQuery({
+      table: 'location_blocked_slots',
+      action: 'insert',
+      payload: {
+        location_id: locationId,
+        blocked_date: format(newDate, 'yyyy-MM-dd'),
+        start_time: newStart,
+        end_time: newEnd,
+        reason: newReason.trim() || null,
+        block_source: 'manual',
+      },
     });
-    if (error) {
-      toast.error('Failed to block slot');
-    } else {
-      toast.success('Time slot blocked');
-      setDialogOpen(false);
-      resetForm();
-      fetchSlots();
-    }
+    toast.success('Time slot blocked');
+    setDialogOpen(false);
+    resetForm();
+    fetchSlots();
     setSaving(false);
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from('location_blocked_slots').delete().eq('id', id);
-    if (error) {
-      toast.error('Failed to unblock slot');
-    } else {
-      toast.success('Slot unblocked');
-      fetchSlots();
-    }
+    await apiDbQuery({
+      table: 'location_blocked_slots',
+      action: 'delete',
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
+    toast.success('Slot unblocked');
+    fetchSlots();
   };
 
   const resetForm = () => {

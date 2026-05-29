@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useEffect, useRef, useState } from 'react';
+import { apiDbQuery, apiPatch } from '@/lib/apiClient';
+import { sendTransactionalEmail } from '@/lib/functionService';
+import { getStorageSignedUrl, listStorageFiles, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +47,7 @@ const SalesDashboard = () => {
   const [oppNoteText, setOppNoteText] = useState('');
   const [taskNotesDialog, setTaskNotesDialog] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
   const [taskNoteText, setTaskNoteText] = useState('');
+  const notifiedHandoverIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
 
   const formatStatusLabel = (status: string) =>
@@ -131,76 +134,75 @@ const SalesDashboard = () => {
   useEffect(() => {
     if (!profile?.id) return;
 
-    const channel = supabase
-      .channel(`sales-completion-notify-${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'test_drives',
-          filter: `assigned_sales_person_id=eq.${profile.id}`,
-        },
-        async (payload) => {
-          const before = payload.old as any;
-          const after = payload.new as any;
-
-          if (after?.status !== 'key_handover_to_sales' || before?.status === 'key_handover_to_sales') return;
-
-          const { data: drive } = await supabase
-            .from('test_drives')
-            .select('id, customers(full_name)')
-            .eq('id', after.id)
-            .maybeSingle();
-
-          const customerName = drive?.customers?.full_name || 'Customer';
-
-          toast({
-            title: 'Key handover to sales',
-            description: `Please take follow up from Mr. ${customerName} and close the drive.`,
-          });
-
-          void fetchAssignedDrives();
-        }
-      )
-      .subscribe();
+    const interval = setInterval(() => {
+      void fetchAssignedDrives();
+    }, 20000);
 
     return () => {
-      void supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, [profile?.id, toast]);
 
   const fetchAssignedDrives = async () => {
     if (!profile?.id) return;
-    const { data } = await supabase.from('test_drives')
-      .select('*, customers(*), vehicles(*), locations(*)')
-      .eq('assigned_sales_person_id', profile.id)
-      .order('scheduled_date', { ascending: true });
+    const drives = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: '*',
+      filters: [{ field: 'assigned_sales_person_id', op: 'eq', value: profile.id }],
+      order: [{ field: 'scheduled_date', ascending: true }],
+    });
 
-    const drives = data || [];
-    setTestDrives(drives);
+    const customerIds = Array.from(new Set(drives.map((d) => d.customer_id).filter(Boolean)));
+    const vehicleIds = Array.from(new Set(drives.map((d) => d.vehicle_id).filter(Boolean)));
+    const locationIds = Array.from(new Set(drives.map((d) => d.location_id).filter(Boolean)));
 
-    const locationIds = Array.from(new Set(drives.map((drive: any) => drive.location_id).filter(Boolean)));
-    if (locationIds.length > 0) {
-      const { data: securityProfiles } = await supabase
-        .from('profiles')
-        .select('id, user_id, full_name, phone, location_id, is_active')
-        .in('location_id', locationIds)
-        .eq('is_active', true)
-        .order('full_name');
+    const [customers, vehicles, locations] = await Promise.all([
+      customerIds.length ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: customerIds }] }) : Promise.resolve([]),
+      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
+      locationIds.length ? apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: locationIds }] }) : Promise.resolve([]),
+    ]);
 
-      const profiles = securityProfiles || [];
-      const userIds = profiles.map((profileRow: any) => profileRow.user_id).filter(Boolean);
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+    const locationMap = new Map(locations.map((l) => [l.id, l]));
+
+    const enrichedDrives = drives.map((d) => ({
+      ...d,
+      customers: customerMap.get(d.customer_id) || null,
+      vehicles: vehicleMap.get(d.vehicle_id) || null,
+      locations: locationMap.get(d.location_id) || null,
+    }));
+    setTestDrives(enrichedDrives);
+
+    const profileLocationIds = Array.from(new Set(enrichedDrives.map((drive: any) => drive.location_id).filter(Boolean)));
+    if (profileLocationIds.length > 0) {
+      const securityProfiles = await apiDbQuery<any[]>({
+        table: 'profiles',
+        action: 'select',
+        select: 'id, user_id, full_name, phone, location_id, is_active',
+        filters: [
+          { field: 'location_id', op: 'in', value: profileLocationIds },
+          { field: 'is_active', op: 'eq', value: true },
+        ],
+        order: [{ field: 'full_name', ascending: true }],
+      });
+
+      const userIds = (securityProfiles || []).map((p: any) => p.user_id).filter(Boolean);
 
       if (userIds.length > 0) {
-        const { data: securityRoles } = await supabase
-          .from('user_roles')
-          .select('user_id, role')
-          .eq('role', APP_ROLE.SECURITY)
-          .in('user_id', userIds);
+        const securityRoles = await apiDbQuery<any[]>({
+          table: 'user_roles',
+          action: 'select',
+          select: 'user_id, role',
+          filters: [
+            { field: 'role', op: 'eq', value: APP_ROLE.SECURITY },
+            { field: 'user_id', op: 'in', value: userIds },
+          ],
+        });
 
         const securityUserIds = new Set((securityRoles || []).map((row: any) => row.user_id));
-        const uniqueContacts = profiles
+        const uniqueContacts = securityProfiles
           .filter((profileRow: any) => securityUserIds.has(profileRow.user_id))
           .reduce((acc: Array<{ id: string; full_name: string; phone: string | null }>, profileRow: any) => {
             if (!acc.some((entry) => entry.id === profileRow.id)) {
@@ -220,7 +222,7 @@ const SalesDashboard = () => {
     if (drives.length > 0) {
       await Promise.all(
         drives.map(async (drive) => {
-          const { data: docs } = await supabase.storage.from('documents').list(`test-drives/${drive.id}`, { limit: 200 });
+          const docs = await listStorageFiles('documents', `test-drives/${drive.id}`, 200);
           setInspectionDocsByDrive((prev) => ({ ...prev, [drive.id]: docs || [] }));
         })
       );
@@ -234,27 +236,42 @@ const SalesDashboard = () => {
     }
 
     const driveIds = new Set(drives.map((d) => d.id));
-    const { data: securityEvents } = await supabase
-      .from('staff_activity_events')
-      .select('event_type, event_label, happened_at, metadata, profiles:profile_id(full_name)')
-      .eq('role', 'security')
-      .in('event_type', [
-        'test_drive_check_in',
-        'test_drive_check_out',
-        'test_drive_completed',
-        'vehicle_inspection_pre',
-        'vehicle_inspection_post',
-        'license_verified',
-      ])
-      .order('happened_at', { ascending: false })
-      .limit(1000);
+    const securityEvents = await apiDbQuery<any[]>({
+      table: 'staff_activity_events',
+      action: 'select',
+      select: 'event_type, event_label, happened_at, metadata, profile_id, role',
+      filters: [
+        { field: 'role', op: 'eq', value: 'security' },
+        { field: 'event_type', op: 'in', value: [
+          'test_drive_check_in',
+          'test_drive_check_out',
+          'test_drive_completed',
+          'vehicle_inspection_pre',
+          'vehicle_inspection_post',
+          'license_verified',
+        ] },
+      ],
+      order: [{ field: 'happened_at', ascending: false }],
+      limit: 1000,
+    });
+
+    const activityProfileIds = Array.from(new Set((securityEvents || []).map((event: any) => event.profile_id).filter(Boolean)));
+    const eventProfiles = activityProfileIds.length
+      ? await apiDbQuery<any[]>({
+          table: 'profiles',
+          action: 'select',
+          select: 'id, full_name',
+          filters: [{ field: 'id', op: 'in', value: activityProfileIds }],
+        })
+      : [];
+    const profileNameMap = new Map((eventProfiles || []).map((row: any) => [row.id, row.full_name]));
 
     const perDrive: Record<string, any> = {};
     for (const event of securityEvents || []) {
       const testDriveId = (event as any)?.metadata?.testDriveId;
       if (!testDriveId || !driveIds.has(testDriveId)) continue;
 
-      const fullName = (event as any)?.profiles?.full_name || 'Security';
+      const fullName = profileNameMap.get((event as any)?.profile_id) || 'Security';
       if (!perDrive[testDriveId]) perDrive[testDriveId] = { logs: [] };
 
       perDrive[testDriveId].logs.push({
@@ -279,53 +296,119 @@ const SalesDashboard = () => {
     }
 
     setSecurityEventsByDrive(perDrive);
+
+    const keyHandoverDrives = enrichedDrives.filter((drive: any) => drive.status === 'key_handover_to_sales');
+    keyHandoverDrives.forEach((drive: any) => {
+      if (notifiedHandoverIdsRef.current.has(drive.id)) return;
+      notifiedHandoverIdsRef.current.add(drive.id);
+      const customerName = drive?.customers?.full_name || 'Customer';
+      toast({
+        title: 'Key handover to sales',
+        description: `Please take follow up from Mr. ${customerName} and close the drive.`,
+      });
+    });
   };
 
   const fetchLeadWorkspace = async () => {
     if (!profile?.id) return;
 
-    const [opportunityRes, taskRes] = await Promise.all([
-      (supabase as any)
-        .from('sales_opportunities')
-        .select('id, customer_id, latest_test_drive_id, temperature, stage, updated_at, notes, customers(id, full_name, phone, email), test_drives!sales_opportunities_latest_test_drive_id_fkey(id, scheduled_date, vehicles(brand, model))')
-        .eq('owner_profile_id', profile.id)
-        .order('updated_at', { ascending: false })
-        .limit(50),
-      (supabase as any)
-        .from('sales_tasks')
-          .select('id, title, due_at, status, priority, test_drive_id, created_at, customers(id, full_name, phone, email)')
-        .eq('assigned_to_profile_id', profile.id)
-        .eq('status', 'open')
-        .order('due_at', { ascending: true, nullsFirst: false })
-        .limit(50),
-    ]);
+    try {
+      const [opportunities, tasks] = await Promise.all([
+        apiDbQuery<any[]>({
+          table: 'sales_opportunities',
+          action: 'select',
+          select: 'id, customer_id, latest_test_drive_id, temperature, stage, updated_at, notes, owner_profile_id, location_id',
+          filters: [{ field: 'owner_profile_id', op: 'eq', value: profile.id }],
+          order: [{ field: 'updated_at', ascending: false }],
+          limit: 50,
+        }),
+        apiDbQuery<any[]>({
+          table: 'sales_tasks',
+          action: 'select',
+          select: 'id, title, due_at, status, priority, test_drive_id, created_at, customer_id, assigned_to_profile_id, opportunity_id',
+          filters: [
+            { field: 'assigned_to_profile_id', op: 'eq', value: profile.id },
+            { field: 'status', op: 'eq', value: 'open' },
+          ],
+          order: [{ field: 'due_at', ascending: true }],
+          limit: 50,
+        }),
+      ]);
 
-    if (opportunityRes.error) {
-      setSalesOpportunities([]);
-    } else {
-      // Deduplicate opportunities by customer_id + latest_test_drive_id to prevent duplicates
-      const seenCombo = new Set<string>();
-      const uniqueOpportunities = (opportunityRes.data || []).filter((opp: any) => {
+      const oppCustomerIds = Array.from(new Set((opportunities || []).map((opp: any) => opp.customer_id).filter(Boolean)));
+      const oppDriveIds = Array.from(new Set((opportunities || []).map((opp: any) => opp.latest_test_drive_id).filter(Boolean)));
+      const taskCustomerIds = Array.from(new Set((tasks || []).map((task: any) => task.customer_id).filter(Boolean)));
+      const allCustomerIds = Array.from(new Set([...oppCustomerIds, ...taskCustomerIds]));
+
+      const [customers, latestDrives] = await Promise.all([
+        allCustomerIds.length
+          ? apiDbQuery<any[]>({
+              table: 'customers',
+              action: 'select',
+              select: 'id, full_name, phone, email',
+              filters: [{ field: 'id', op: 'in', value: allCustomerIds }],
+            })
+          : Promise.resolve([]),
+        oppDriveIds.length
+          ? apiDbQuery<any[]>({
+              table: 'test_drives',
+              action: 'select',
+              select: 'id, scheduled_date, vehicle_id',
+              filters: [{ field: 'id', op: 'in', value: oppDriveIds }],
+            })
+          : Promise.resolve([]),
+      ]);
+
+      const vehicleIds = Array.from(new Set((latestDrives || []).map((drive: any) => drive.vehicle_id).filter(Boolean)));
+      const vehicles = vehicleIds.length
+        ? await apiDbQuery<any[]>({
+            table: 'vehicles',
+            action: 'select',
+            select: 'id, brand, model',
+            filters: [{ field: 'id', op: 'in', value: vehicleIds }],
+          })
+        : [];
+
+      const customerMap = new Map((customers || []).map((row: any) => [row.id, row]));
+      const vehicleMap = new Map((vehicles || []).map((row: any) => [row.id, row]));
+      const driveMap = new Map((latestDrives || []).map((row: any) => [row.id, row]));
+
+      const seenOppCombo = new Set<string>();
+      const uniqueOpportunities = (opportunities || []).filter((opp: any) => {
         const key = `${opp.customer_id}-${opp.latest_test_drive_id}`;
-        if (seenCombo.has(key)) return false;
-        seenCombo.add(key);
+        if (seenOppCombo.has(key)) return false;
+        seenOppCombo.add(key);
         return true;
-      }).slice(0, 12);
+      }).slice(0, 12).map((opp: any) => {
+        const drive = driveMap.get(opp.latest_test_drive_id);
+        return {
+          ...opp,
+          customers: customerMap.get(opp.customer_id) || null,
+          test_drives: drive
+            ? {
+                id: drive.id,
+                scheduled_date: drive.scheduled_date,
+                vehicles: vehicleMap.get(drive.vehicle_id) || null,
+              }
+            : null,
+        };
+      });
       setSalesOpportunities(uniqueOpportunities);
-    }
 
-    if (taskRes.error) {
-      setSalesTasks([]);
-    } else {
-      // Deduplicate tasks by test_drive_id + title to prevent duplicates
-      const seenCombo = new Set<string>();
-      const uniqueTasks = (taskRes.data || []).filter((task: any) => {
+      const seenTaskCombo = new Set<string>();
+      const uniqueTasks = (tasks || []).filter((task: any) => {
         const key = `${task.test_drive_id}-${task.title}`;
-        if (seenCombo.has(key)) return false;
-        seenCombo.add(key);
+        if (seenTaskCombo.has(key)) return false;
+        seenTaskCombo.add(key);
         return true;
-      }).slice(0, 12);
+      }).slice(0, 12).map((task: any) => ({
+        ...task,
+        customers: customerMap.get(task.customer_id) || null,
+      }));
       setSalesTasks(uniqueTasks);
+    } catch {
+      setSalesOpportunities([]);
+      setSalesTasks([]);
     }
   };
 
@@ -341,37 +424,43 @@ const SalesDashboard = () => {
     const stage = selectedTemperature === 'hot' ? 'qualified' : 'new';
     const statusNote = `[${new Date().toLocaleString()}] Lead marked ${selectedTemperature.toUpperCase()} after test drive completion.`;
 
-    const { data: existingOpportunity } = await (supabase as any)
-      .from('sales_opportunities')
-      .select('id, notes')
-      .eq('customer_id', td.customer_id)
-      .eq('owner_profile_id', profile.id)
-      .eq('location_id', td.location_id)
-      .not('stage', 'in', '(won,lost)')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const existingOppRows = await apiDbQuery<any[]>({
+      table: 'sales_opportunities',
+      action: 'select',
+      select: 'id, notes',
+      filters: [
+        { field: 'customer_id', op: 'eq', value: td.customer_id },
+        { field: 'owner_profile_id', op: 'eq', value: profile.id },
+        { field: 'location_id', op: 'eq', value: td.location_id },
+        { field: 'stage', op: 'not_in', value: ['won', 'lost'] },
+      ],
+      order: [{ field: 'updated_at', ascending: false }],
+      limit: 1,
+    });
+    const existingOpportunity = existingOppRows?.[0] || null;
 
     let opportunityId: string;
     if (existingOpportunity?.id) {
       const mergedNotes = `${existingOpportunity.notes || ''}\n${statusNote}`.trim();
-      const { error: updateError } = await (supabase as any)
-        .from('sales_opportunities')
-        .update({
+      await apiDbQuery({
+        table: 'sales_opportunities',
+        action: 'update',
+        payload: {
           latest_test_drive_id: td.id,
           temperature: selectedTemperature,
           stage,
           notes: mergedNotes,
           updated_at: completedAt,
-        })
-        .eq('id', existingOpportunity.id);
-
-      if (updateError) throw updateError;
+        },
+        filters: [{ field: 'id', op: 'eq', value: existingOpportunity.id }],
+      });
       opportunityId = existingOpportunity.id;
     } else {
-      const { data: insertedOpportunity, error: insertError } = await (supabase as any)
-        .from('sales_opportunities')
-        .insert({
+      const insertedOpportunity = await apiDbQuery<any>({
+        table: 'sales_opportunities',
+        action: 'insert',
+        select: 'id',
+        payload: {
           customer_id: td.customer_id,
           latest_test_drive_id: td.id,
           location_id: td.location_id,
@@ -379,12 +468,11 @@ const SalesDashboard = () => {
           temperature: selectedTemperature,
           stage,
           notes: statusNote,
-        })
-        .select('id')
-        .single();
-
-      if (insertError || !insertedOpportunity?.id) throw insertError || new Error('Unable to create opportunity');
-      opportunityId = insertedOpportunity.id;
+        },
+      });
+      const row = Array.isArray(insertedOpportunity) ? insertedOpportunity[0] : insertedOpportunity;
+      if (!row?.id) throw new Error('Unable to create opportunity');
+      opportunityId = row.id;
     }
 
     const finalTaskTitle = (taskTitle || '').trim() || (selectedTemperature === 'hot'
@@ -396,19 +484,25 @@ const SalesDashboard = () => {
       : new Date(Date.now() + (selectedTemperature === 'hot' ? 24 : 72) * 60 * 60 * 1000).toISOString();
 
     // Check if task already exists for this test drive to prevent duplicates
-    const { data: existingTask } = await (supabase as any)
-      .from('sales_tasks')
-      .select('id')
-      .eq('test_drive_id', td.id)
-      .eq('assigned_to_profile_id', profile.id)
-      .eq('status', 'open')
-      .maybeSingle();
+    const existingTasks = await apiDbQuery<any[]>({
+      table: 'sales_tasks',
+      action: 'select',
+      select: 'id',
+      filters: [
+        { field: 'test_drive_id', op: 'eq', value: td.id },
+        { field: 'assigned_to_profile_id', op: 'eq', value: profile.id },
+        { field: 'status', op: 'eq', value: 'open' },
+      ],
+      limit: 1,
+    });
+    const existingTask = existingTasks?.[0] || null;
 
     // Only insert task if it doesn't already exist
     if (!existingTask?.id) {
-      const { error: taskError } = await (supabase as any)
-        .from('sales_tasks')
-        .insert({
+      await apiDbQuery({
+        table: 'sales_tasks',
+        action: 'insert',
+        payload: {
           opportunity_id: opportunityId,
           test_drive_id: td.id,
           customer_id: td.customer_id,
@@ -417,9 +511,8 @@ const SalesDashboard = () => {
           due_at: dueAt,
           status: 'open',
           priority: selectedTemperature === 'hot' ? 'high' : 'medium',
-        });
-
-      if (taskError) throw taskError;
+        },
+      });
     }
   };
 
@@ -427,22 +520,25 @@ const SalesDashboard = () => {
     if (!oppNotesDialog.opportunityId || !oppNoteText.trim()) return;
 
     try {
-      const { data: opp } = await (supabase as any)
-        .from('sales_opportunities')
-        .select('notes')
-        .eq('id', oppNotesDialog.opportunityId)
-        .maybeSingle();
+      const oppRows = await apiDbQuery<any[]>({
+        table: 'sales_opportunities',
+        action: 'select',
+        select: 'notes',
+        filters: [{ field: 'id', op: 'eq', value: oppNotesDialog.opportunityId }],
+        limit: 1,
+      });
+      const opp = oppRows?.[0] || null;
 
       const timestamp = new Date().toLocaleString();
       const newNote = `[${timestamp}] ${oppNoteText.trim()}`;
       const updatedNotes = opp?.notes ? `${opp.notes}\n\n${newNote}` : newNote;
 
-      const { error } = await (supabase as any)
-        .from('sales_opportunities')
-        .update({ notes: updatedNotes })
-        .eq('id', oppNotesDialog.opportunityId);
-
-      if (error) throw error;
+      await apiDbQuery({
+        table: 'sales_opportunities',
+        action: 'update',
+        payload: { notes: updatedNotes },
+        filters: [{ field: 'id', op: 'eq', value: oppNotesDialog.opportunityId }],
+      });
 
       toast({ title: 'Note added successfully' });
       setOppNotesDialog({ open: false, opportunityId: null });
@@ -466,12 +562,12 @@ const SalesDashboard = () => {
   };
 
   const viewInspectionMedia = async (testDriveId: string, filename: string) => {
-    const { data, error } = await supabase.storage.from('documents').createSignedUrl(`test-drives/${testDriveId}/${filename}`, 300);
-    if (error || !data?.signedUrl) {
-      toast({ title: 'Failed to open media', description: error?.message || 'Unable to generate preview URL', variant: 'destructive' });
+    const signedUrl = await getStorageSignedUrl('documents', `test-drives/${testDriveId}/${filename}`, 300);
+    if (!signedUrl) {
+      toast({ title: 'Failed to open media', description: 'Unable to generate preview URL', variant: 'destructive' });
       return;
     }
-    setInspectionDocView({ url: data.signedUrl, filename });
+    setInspectionDocView({ url: signedUrl, filename });
   };
 
   const handleUploadLicense = async (testDriveId: string, customerId: string, file: File) => {
@@ -487,9 +583,13 @@ const SalesDashboard = () => {
 
       const ext = file.name.split('.').pop();
       const path = `licenses/${customerId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
-      if (uploadError) throw uploadError;
-      await supabase.from('customers').update({ driving_license_url: path }).eq('id', customerId);
+      await uploadToStorage('documents', path, file);
+      await apiDbQuery({
+        table: 'customers',
+        action: 'update',
+        payload: { driving_license_url: path },
+        filters: [{ field: 'id', op: 'eq', value: customerId }],
+      });
       toast({ title: 'License uploaded successfully' });
       fetchAssignedDrives();
     } catch (err: any) {
@@ -500,9 +600,14 @@ const SalesDashboard = () => {
   };
 
   const handleGiveKeyAndStart = async (id: string) => {
-    await supabase.from('test_drives').update({
-      key_handed_at: new Date().toISOString(),
-    } as any).eq('id', id);
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: {
+        key_handed_at: new Date().toISOString(),
+      },
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
     if (user?.id) {
       await logStaffActivity({
         userId: user.id,
@@ -524,10 +629,15 @@ const SalesDashboard = () => {
   ) => {
     const id = td.id;
     const completedAt = new Date().toISOString();
-    await supabase.from('test_drives').update({
-      status: 'completed' as any,
-      completed_at: completedAt,
-    }).eq('id', id);
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: {
+        status: 'completed',
+        completed_at: completedAt,
+      },
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
 
     if (td?.customers?.email) {
       const customerName = td.customers.full_name || 'Customer';
@@ -535,8 +645,7 @@ const SalesDashboard = () => {
       const surveyLink = 'https://survey.showroom-drive.com/feedback'; // Replace with actual survey link
 
       // Send follow-up email
-      await supabase.functions.invoke('send-transactional-email', {
-        body: {
+      await sendTransactionalEmail({
           templateName: 'sales-follow-up',
           recipientEmail: td.customers.email,
           idempotencyKey: `test-drive-followup-${id}`,
@@ -546,12 +655,12 @@ const SalesDashboard = () => {
             surveyLink,
             thankYouMessage: 'Thank you for choosing us for your test drive experience!',
           },
-        },
       });
 
       // Send completed summary email
-      const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
-        body: {
+      let emailError: unknown = null;
+      try {
+        await sendTransactionalEmail({
           templateName: 'test-drive-completed',
           recipientEmail: td.customers.email,
           idempotencyKey: `test-drive-completed-${id}`,
@@ -565,8 +674,10 @@ const SalesDashboard = () => {
               ? Math.round((new Date(completedAt).getTime() - new Date(td.started_at).getTime()) / 60000)
               : undefined,
           },
-        },
-      });
+        });
+      } catch (error) {
+        emailError = error;
+      }
 
       if (emailError) {
         toast({
@@ -612,14 +723,17 @@ const SalesDashboard = () => {
   const handleReschedule = async () => {
     if (!rescheduleDrive?.id || !newDate || !newTime) return;
 
-    await supabase.from('test_drives')
-      .update({
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: {
         scheduled_date: newDate,
         scheduled_time: `${newTime}:00`,
-        status: 'rescheduled' as any,
+        status: 'rescheduled',
         notes: `${rescheduleDrive.notes || ''}\n[${new Date().toLocaleString()}] Rescheduled by ${profile?.full_name || 'Sales'} to ${newDate} ${newTime}`.trim(),
-      })
-      .eq('id', rescheduleDrive.id);
+      },
+      filters: [{ field: 'id', op: 'eq', value: rescheduleDrive.id }],
+    });
 
     if (user?.id) {
       await logStaffActivity({

@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
 
 
 import {
@@ -91,6 +91,10 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [newLeadCount, setNewLeadCount] = useState(0);
+  const leadPollRef = useRef({
+    lastCheckedAt: new Date().toISOString(),
+    seenIds: new Set<string>(),
+  });
   const activityStateRef = useRef({
     lastTickAt: Date.now(),
     lastInteractionAt: Date.now(),
@@ -128,28 +132,56 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!user || !role) return;
 
-    const locationFilter = role === APP_ROLE.SUPERADMIN || !profile?.location_id
-      ? undefined
-      : `location_id=eq.${profile.location_id}`;
+    let cancelled = false;
+    leadPollRef.current.lastCheckedAt = new Date().toISOString();
+    leadPollRef.current.seenIds.clear();
 
-    const channel = supabase
-      .channel(`new-lead-notifications-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
+    const pollLeads = async () => {
+      const nowIso = new Date().toISOString();
+      const filters: Array<{ field: string; op: 'eq' | 'gte'; value: unknown }> = [
+        { field: 'created_at', op: 'gte', value: leadPollRef.current.lastCheckedAt },
+      ];
+
+      if (role !== APP_ROLE.SUPERADMIN && profile?.location_id) {
+        filters.push({ field: 'location_id', op: 'eq', value: profile.location_id });
+      }
+
+      try {
+        const leads = await apiDbQuery<any[]>({
           table: 'test_drives',
-          ...(locationFilter ? { filter: locationFilter } : {}),
-        },
-        () => {
-          setNewLeadCount((count) => Math.min(count + 1, 99));
+          action: 'select',
+          select: 'id, created_at',
+          filters,
+          order: [{ field: 'created_at', ascending: true }],
+          limit: 200,
+        });
+
+        if (cancelled) return;
+
+        let increment = 0;
+        (leads || []).forEach((lead: any) => {
+          if (!lead?.id || leadPollRef.current.seenIds.has(lead.id)) return;
+          leadPollRef.current.seenIds.add(lead.id);
+          increment += 1;
+        });
+
+        if (increment > 0) {
+          setNewLeadCount((count) => Math.min(count + increment, 99));
         }
-      )
-      .subscribe();
+      } catch {
+        // Intentionally no toast: this polling is best-effort only.
+      } finally {
+        leadPollRef.current.lastCheckedAt = nowIso;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void pollLeads();
+    }, 20000);
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      window.clearInterval(intervalId);
     };
   }, [profile?.location_id, role, user]);
 

@@ -1,4 +1,9 @@
-import { supabase } from '@/integrations/supabase/client'
+import { apiDbQuery } from '@/lib/apiClient'
+import {
+  sendDailyActivityReports,
+  sendDailyTestDriveReports,
+  triggerScheduledReports,
+} from '@/lib/functionService'
 
 export interface ReportTriggerOptions {
   reportTypes?: ('test_drive_daily' | 'activity_daily')[]
@@ -11,18 +16,10 @@ export interface ReportTriggerOptions {
  */
 export async function triggerTestDriveReports(options: ReportTriggerOptions = {}) {
   try {
-    const response = await supabase.functions.invoke('send-daily-test-drive-reports', {
-      body: {
-        reportDate: options.reportDate || new Date().toISOString().split('T')[0],
-        locationIds: options.locationIds,
-      },
+    return await sendDailyTestDriveReports({
+      reportDate: options.reportDate || new Date().toISOString().split('T')[0],
+      locationIds: options.locationIds,
     })
-
-    if (response.error) {
-      throw response.error
-    }
-
-    return response.data
   } catch (error) {
     console.error('Error triggering test drive reports:', error)
     throw error
@@ -34,18 +31,10 @@ export async function triggerTestDriveReports(options: ReportTriggerOptions = {}
  */
 export async function triggerActivityReports(options: ReportTriggerOptions = {}) {
   try {
-    const response = await supabase.functions.invoke('send-daily-activity-reports', {
-      body: {
-        reportDate: options.reportDate || new Date().toISOString().split('T')[0],
-        locationIds: options.locationIds,
-      },
+    return await sendDailyActivityReports({
+      reportDate: options.reportDate || new Date().toISOString().split('T')[0],
+      locationIds: options.locationIds,
     })
-
-    if (response.error) {
-      throw response.error
-    }
-
-    return response.data
   } catch (error) {
     console.error('Error triggering activity reports:', error)
     throw error
@@ -58,15 +47,7 @@ export async function triggerActivityReports(options: ReportTriggerOptions = {})
  */
 export async function triggerScheduledReportCheck() {
   try {
-    const response = await supabase.functions.invoke('trigger-scheduled-reports', {
-      body: {},
-    })
-
-    if (response.error) {
-      throw response.error
-    }
-
-    return response.data
+    return await triggerScheduledReports({})
   } catch (error) {
     console.error('Error triggering scheduled report check:', error)
     throw error
@@ -78,13 +59,12 @@ export async function triggerScheduledReportCheck() {
  */
 export async function getReportSchedules(locationId: string) {
   try {
-    const { data, error } = await supabase
-      .from('report_schedule_config')
-      .select('*')
-      .eq('location_id', locationId)
-
-    if (error) throw error
-    return data
+    return await apiDbQuery<any[]>({
+      table: 'report_schedule_config',
+      action: 'select',
+      select: '*',
+      filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+    })
   } catch (error) {
     console.error('Error fetching report schedules:', error)
     throw error
@@ -96,13 +76,12 @@ export async function getReportSchedules(locationId: string) {
  */
 export async function getReportEmailRecipients(locationId: string) {
   try {
-    const { data, error } = await supabase
-      .from('report_email_config')
-      .select('*')
-      .eq('location_id', locationId)
-
-    if (error) throw error
-    return data
+    return await apiDbQuery<any[]>({
+      table: 'report_email_config',
+      action: 'select',
+      select: '*',
+      filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+    })
   } catch (error) {
     console.error('Error fetching email recipients:', error)
     throw error
@@ -114,15 +93,14 @@ export async function getReportEmailRecipients(locationId: string) {
  */
 export async function getReportHistory(locationId: string, limit = 30) {
   try {
-    const { data, error } = await supabase
-      .from('daily_test_drive_reports')
-      .select('*')
-      .eq('location_id', locationId)
-      .order('sent_at', { ascending: false })
-      .limit(limit)
-
-    if (error) throw error
-    return data
+    return await apiDbQuery<any[]>({
+      table: 'daily_test_drive_reports',
+      action: 'select',
+      select: '*',
+      filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+      order: [{ field: 'sent_at', ascending: false }],
+      limit,
+    })
   } catch (error) {
     console.error('Error fetching report history:', error)
     throw error
@@ -134,15 +112,14 @@ export async function getReportHistory(locationId: string, limit = 30) {
  */
 export async function getActivityReportHistory(locationId: string, limit = 30) {
   try {
-    const { data, error } = await supabase
-      .from('activity_report_logs')
-      .select('*')
-      .eq('location_id', locationId)
-      .order('sent_at', { ascending: false })
-      .limit(limit)
-
-    if (error) throw error
-    return data
+    return await apiDbQuery<any[]>({
+      table: 'activity_report_logs',
+      action: 'select',
+      select: '*',
+      filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+      order: [{ field: 'sent_at', ascending: false }],
+      limit,
+    })
   } catch (error) {
     console.error('Error fetching activity report history:', error)
     throw error

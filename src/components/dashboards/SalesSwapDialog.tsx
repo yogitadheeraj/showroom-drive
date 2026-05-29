@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -43,26 +43,60 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
   }, [mode, open, targetPersonId]);
 
   const fetchSalesTeam = async () => {
-    const { data: rolesData } = await supabase.from('user_roles').select('user_id').eq('role', 'sales');
+    const rolesData = await apiDbQuery<any[]>({
+      table: 'user_roles',
+      action: 'select',
+      select: 'user_id',
+      filters: [{ field: 'role', op: 'eq', value: 'sales' }],
+    });
     if (!rolesData?.length) return;
     const userIds = rolesData.map(r => r.user_id);
-    const { data } = await supabase.from('profiles')
-      .select('id, full_name, user_id')
-      .eq('location_id', profile.location_id)
-      .eq('is_active', true)
-      .in('user_id', userIds);
+    const data = await apiDbQuery<any[]>({
+      table: 'profiles',
+      action: 'select',
+      select: 'id, full_name, user_id',
+      filters: [
+        { field: 'location_id', op: 'eq', value: profile.location_id },
+        { field: 'is_active', op: 'eq', value: true },
+        { field: 'user_id', op: 'in', value: userIds },
+      ],
+    });
 
     setSalesPersons((data || []).filter(sp => sp.id !== profile.id));
   };
 
   const fetchTargetDrives = async (personId: string) => {
-    const { data } = await supabase.from('test_drives')
-      .select('id, scheduled_date, scheduled_time, status, customers(full_name), vehicles(brand, model)')
-      .eq('assigned_sales_person_id', personId)
-      .in('status', ['scheduled', 'confirmed', 'show'])
-      .order('scheduled_date', { ascending: true });
+    const drives = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: '*',
+      filters: [
+        { field: 'assigned_sales_person_id', op: 'eq', value: personId },
+        { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show'] },
+      ],
+      order: [{ field: 'scheduled_date', ascending: true }],
+    });
 
-    setTargetPersonDrives((data || []).filter(d => d.id !== testDrive?.id));
+    const customerIds = Array.from(new Set((drives || []).map((d: any) => d.customer_id).filter(Boolean)));
+    const vehicleIds = Array.from(new Set((drives || []).map((d: any) => d.vehicle_id).filter(Boolean)));
+
+    const [customers, vehicles] = await Promise.all([
+      customerIds.length ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: 'id, full_name', filters: [{ field: 'id', op: 'in', value: customerIds }] }) : Promise.resolve([]),
+      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: 'id, brand, model', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
+    ]);
+
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+
+    const enriched = (drives || [])
+      .map((d) => ({
+        ...d,
+        customers: customerMap.get(d.customer_id) || null,
+        vehicles: vehicleMap.get(d.vehicle_id) || null,
+      }))
+      .filter(d => d.id !== testDrive?.id);
+
+    setTargetPersonDrives(enriched);
   };
 
   const appendAssignmentNote = (baseNotes: string | null | undefined, note: string) => {
@@ -76,14 +110,15 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
     const targetName = salesPersons.find(s => s.id === targetPersonId)?.full_name || 'Unknown';
     const note = `Reassigned from ${profile?.full_name || 'Unknown'} to ${targetName}${comment ? `: ${comment}` : ''}`;
 
-    const { error } = await supabase.from('test_drives')
-      .update({
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: {
         assigned_sales_person_id: targetPersonId,
         notes: appendAssignmentNote(testDrive.notes, note),
-      })
-      .eq('id', testDrive.id);
-
-    if (error) throw error;
+      },
+      filters: [{ field: 'id', op: 'eq', value: testDrive.id }],
+    });
 
     if (profile?.user_id) {
       await logStaffActivity({
@@ -105,12 +140,16 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
     const sourcePersonId = profile?.id;
     if (!sourcePersonId) throw new Error('Profile not loaded');
 
-    const { data: targetDrive, error: targetDriveError } = await supabase.from('test_drives')
-      .select('id, assigned_sales_person_id, notes')
-      .eq('id', targetDriveId)
-      .maybeSingle();
+    const targetDrives = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: 'id, assigned_sales_person_id, notes',
+      filters: [{ field: 'id', op: 'eq', value: targetDriveId }],
+      limit: 1,
+    });
 
-    if (targetDriveError || !targetDrive?.assigned_sales_person_id) {
+    const targetDrive = targetDrives?.[0] || null;
+    if (!targetDrive?.assigned_sales_person_id) {
       throw new Error('Target drive not available for swap');
     }
 
@@ -119,23 +158,25 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
     const sourceNote = `Swapped with ${targetName}${comment ? `: ${comment}` : ''}`;
     const targetNote = `Swapped with ${profile?.full_name || 'Unknown'}${comment ? `: ${comment}` : ''}`;
 
-    const { error: sourceError } = await supabase.from('test_drives')
-      .update({
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: {
         assigned_sales_person_id: targetPersonId,
         notes: appendAssignmentNote(testDrive.notes, sourceNote),
-      })
-      .eq('id', sourceDriveId);
+      },
+      filters: [{ field: 'id', op: 'eq', value: sourceDriveId }],
+    });
 
-    if (sourceError) throw sourceError;
-
-    const { error: targetError } = await supabase.from('test_drives')
-      .update({
+    await apiDbQuery({
+      table: 'test_drives',
+      action: 'update',
+      payload: {
         assigned_sales_person_id: sourcePersonId,
         notes: appendAssignmentNote(targetDrive.notes, targetNote),
-      })
-      .eq('id', targetDriveId);
-
-    if (targetError) throw targetError;
+      },
+      filters: [{ field: 'id', op: 'eq', value: targetDriveId }],
+    });
 
     if (profile?.user_id) {
       await logStaffActivity({

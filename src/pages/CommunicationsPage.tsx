@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { MessageSquare, User, Clock, Send, Mail, Phone } from 'lucide-react';
+import { apiDbQuery } from '@/lib/apiClient';
 
 const CommunicationsPage = () => {
   const [communications, setCommunications] = useState<any[]>([]);
@@ -17,22 +17,70 @@ const CommunicationsPage = () => {
   }, [typeFilter, dealerLocationIds, dealerLoading]);
 
   const fetchCommunications = async () => {
-    let query = supabase.from('communications')
-      .select('*, customers(full_name, phone), test_drives(scheduled_date, location_id)')
-      .order('created_at', { ascending: false });
-    if (typeFilter !== 'all') query = query.eq('type', typeFilter as any);
-    const { data } = await query;
-    
-    let filtered = data || [];
-    if (dealerLocationIds && dealerLocationIds.length > 0) {
-      filtered = filtered.filter(c => {
-        if (c.test_drive_id && c.test_drives?.location_id) {
-          return dealerLocationIds.includes(c.test_drives.location_id);
-        }
-        return !c.test_drive_id;
+    try {
+      const filters = typeFilter !== 'all'
+        ? [{ field: 'type', op: 'eq' as const, value: typeFilter }]
+        : undefined;
+
+      const baseComms = await apiDbQuery<any[]>({
+        table: 'communications',
+        action: 'select',
+        select: '*',
+        filters,
+        order: [{ field: 'created_at', ascending: false }],
+        limit: 500,
       });
+
+      const customerIds = Array.from(
+        new Set((baseComms || []).map((c: any) => c.customer_id).filter(Boolean))
+      );
+      const testDriveIds = Array.from(
+        new Set((baseComms || []).map((c: any) => c.test_drive_id).filter(Boolean))
+      );
+
+      const [customers, testDrives] = await Promise.all([
+        customerIds.length
+          ? apiDbQuery<any[]>({
+              table: 'customers',
+              action: 'select',
+              select: 'id, full_name, phone, email',
+              filters: [{ field: 'id', op: 'in', value: customerIds }],
+              limit: Math.max(1000, customerIds.length),
+            })
+          : Promise.resolve([] as any[]),
+        testDriveIds.length
+          ? apiDbQuery<any[]>({
+              table: 'test_drives',
+              action: 'select',
+              select: 'id, scheduled_date, location_id',
+              filters: [{ field: 'id', op: 'in', value: testDriveIds }],
+              limit: Math.max(1000, testDriveIds.length),
+            })
+          : Promise.resolve([] as any[]),
+      ]);
+
+      const customerMap = new Map((customers || []).map((c: any) => [c.id, c]));
+      const testDriveMap = new Map((testDrives || []).map((td: any) => [td.id, td]));
+
+      let enriched = (baseComms || []).map((c: any) => ({
+        ...c,
+        customers: c.customer_id ? customerMap.get(c.customer_id) || null : null,
+        test_drives: c.test_drive_id ? testDriveMap.get(c.test_drive_id) || null : null,
+      }));
+
+      if (dealerLocationIds && dealerLocationIds.length > 0) {
+        enriched = enriched.filter((c: any) => {
+          if (c.test_drive_id && c.test_drives?.location_id) {
+            return dealerLocationIds.includes(c.test_drives.location_id);
+          }
+          return !c.test_drive_id;
+        });
+      }
+
+      setCommunications(enriched);
+    } catch {
+      setCommunications([]);
     }
-    setCommunications(filtered);
   };
 
   const typeColor: Record<string, string> = {

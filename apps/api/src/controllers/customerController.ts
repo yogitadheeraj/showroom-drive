@@ -18,12 +18,12 @@ export async function createCustomerController(req: Request, res: Response) {
 
   const existingByPhone = phone ? await customerService.findCustomerByPhone(phone) : null;
   if (existingByPhone) {
-    return res.status(409).json({ error: 'Customer already exists with this phone number', data: existingByPhone });
+    return res.status(200).json({ data: existingByPhone });
   }
 
   const existingByEmail = email ? await customerService.findCustomerByEmail(email) : null;
   if (existingByEmail) {
-    return res.status(409).json({ error: 'Customer already exists with this email address', data: existingByEmail });
+    return res.status(200).json({ data: existingByEmail });
   }
 
   const data = await customerService.createCustomer({

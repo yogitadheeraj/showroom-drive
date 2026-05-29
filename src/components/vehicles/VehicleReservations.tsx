@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,23 +47,53 @@ const VehicleReservations = () => {
   }, [dealerId]);
 
   const fetchReservations = async () => {
-    const { data } = await supabase
-      .from('vehicle_reservations')
-      .select('*, vehicles(brand, model, variant), customers(full_name, phone)')
-      .order('created_at', { ascending: false });
-    setReservations(data || []);
+    const reservationData = await apiDbQuery<any[]>({
+      table: 'vehicle_reservations',
+      action: 'select',
+      select: '*',
+      order: [{ field: 'created_at', ascending: false }],
+    });
+
+    const vehicleIds = Array.from(new Set((reservationData || []).map((r) => r.vehicle_id).filter(Boolean)));
+    const customerIds = Array.from(new Set((reservationData || []).map((r) => r.customer_id).filter(Boolean)));
+
+    const [vehicles, customers] = await Promise.all([
+      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: 'id, brand, model, variant', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
+      customerIds.length ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: 'id, full_name, phone', filters: [{ field: 'id', op: 'in', value: customerIds }] }) : Promise.resolve([]),
+    ]);
+
+    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+
+    setReservations(
+      (reservationData || []).map((r) => ({
+        ...r,
+        vehicles: vehicleMap.get(r.vehicle_id) || null,
+        customers: customerMap.get(r.customer_id) || null,
+      }))
+    );
   };
 
   const fetchVehicles = async () => {
-    let query = supabase.from('vehicles').select('id, brand, model, variant, location_id, locations(dealer_id)').eq('is_active', true);
-    const { data } = await query;
+    const data = await apiDbQuery<any[]>({
+      table: 'vehicles',
+      action: 'select',
+      select: 'id, brand, model, variant, location_id, locations(dealer_id)',
+      filters: [{ field: 'is_active', op: 'eq', value: true }],
+    });
     let filtered = data || [];
     if (dealerId) filtered = filtered.filter((v: any) => v.locations?.dealer_id === dealerId);
     setVehicles(filtered);
   };
 
   const fetchCustomers = async () => {
-    const { data } = await supabase.from('customers').select('id, full_name, phone').order('full_name').limit(200);
+    const data = await apiDbQuery<any[]>({
+      table: 'customers',
+      action: 'select',
+      select: 'id, full_name, phone',
+      order: [{ field: 'full_name', ascending: true }],
+      limit: 200,
+    });
     setCustomers(data || []);
   };
 
@@ -72,28 +103,33 @@ const VehicleReservations = () => {
       return;
     }
     const vehicle = vehicles.find(v => v.id === formData.vehicle_id);
-    const { error } = await supabase.from('vehicle_reservations').insert({
-      vehicle_id: formData.vehicle_id,
-      customer_id: formData.customer_id || null,
-      reserved_by_profile_id: profile?.id || null,
-      location_id: vehicle?.location_id,
-      reservation_type: formData.reservation_type,
-      reserved_until: new Date(formData.reserved_until).toISOString(),
-      deposit_amount: parseFloat(formData.deposit_amount) || 0,
-      notes: formData.notes || null,
+    await apiDbQuery({
+      table: 'vehicle_reservations',
+      action: 'insert',
+      payload: {
+        vehicle_id: formData.vehicle_id,
+        customer_id: formData.customer_id || null,
+        reserved_by_profile_id: profile?.id || null,
+        location_id: vehicle?.location_id,
+        reservation_type: formData.reservation_type,
+        reserved_until: new Date(formData.reserved_until).toISOString(),
+        deposit_amount: parseFloat(formData.deposit_amount) || 0,
+        notes: formData.notes || null,
+      },
     });
 
-    if (error) {
-      toast({ title: 'Failed to create reservation', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Reservation created' });
-      setShowDialog(false);
-      fetchReservations();
-    }
+    toast({ title: 'Reservation created' });
+    setShowDialog(false);
+    fetchReservations();
   };
 
   const handleCancel = async (id: string) => {
-    await supabase.from('vehicle_reservations').update({ status: 'cancelled' }).eq('id', id);
+    await apiDbQuery({
+      table: 'vehicle_reservations',
+      action: 'update',
+      payload: { status: 'cancelled' },
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
     toast({ title: 'Reservation cancelled' });
     fetchReservations();
   };
