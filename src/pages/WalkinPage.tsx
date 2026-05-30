@@ -16,12 +16,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2, CalendarDays, Clock } from 'lucide-react';
+import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2, CalendarDays, Clock, AlertCircle, Phone, Mail, MessageSquare, MapPin } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { COUNTRIES, validatePhoneForCountry, validateEmail } from '@/lib/countries';
+
+const CONTACT_OPTIONS = [
+  { value: 'phone', label: 'Phone', icon: Phone },
+  { value: 'email', label: 'Email', icon: Mail },
+  { value: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
+];
 
 type Step = 'customer' | 'license' | 'confirm';
 
 const WalkinPage = () => {
   const { profile, role } = useAuth();
+  const isDealerLevel = [APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN].includes(role as any);
   const { dealerId, loading: dealerLoading } = useDealerContext();
   const [locations, setLocations] = useState<any[]>([]);
   const [locationStatus, setLocationStatus] = useState<Record<string, { isOpen: boolean; openTime: string | null; closeTime: string | null }>>({});
@@ -34,10 +43,13 @@ const WalkinPage = () => {
   const maxDateStr = maxDateObj.toISOString().split('T')[0];
 
   const [formData, setFormData] = useState({
-    fullName: '', phone: '', email: '', preferredContact: 'phone',
+    firstName: '', lastName: '',
+    countryCode: '+91', phone: '', email: '',
+    preferredContact: ['phone'] as string[],
     locationId: profile?.location_id || '', vehicleId: '',
     scheduledDate: todayStr, scheduledTime: '',
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [timeSlots, setTimeSlots] = useState<Array<{ startTime: string; endTime: string }>>([]);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
   const canUseDemoData = false;
@@ -45,7 +57,12 @@ const WalkinPage = () => {
   const handleDemoAutofill = () => {
     setFormData((prev) => ({
       ...prev,
-      ...demoAutofillData.WalkinPage,
+      firstName: 'Demo',
+      lastName: 'User',
+      countryCode: '+91',
+      phone: '9999999999',
+      email: demoAutofillData.WalkinPage.email,
+      preferredContact: ['phone'],
       locationId: prev.locationId || demoAutofillData.WalkinPage.locationId,
       scheduledDate: prev.scheduledDate,
     }));
@@ -228,14 +245,46 @@ const WalkinPage = () => {
   const selectedLocation = locations.find(l => l.id === formData.locationId);
   const selectedLocationStatus = formData.locationId ? locationStatus[formData.locationId] : null;
 
+  // Auto-set phone country code from the selected location's country
+  useEffect(() => {
+    if (!formData.locationId || locations.length === 0) return;
+    const loc = locations.find(l => l.id === formData.locationId);
+    if (!loc?.country) return;
+    const country = COUNTRIES.find(c => c.name === loc.country);
+    if (!country) return;
+    if (country.dialCode !== formData.countryCode) {
+      setFormData(p => ({ ...p, countryCode: country.dialCode, phone: '' }));
+      setFormErrors(p => ({ ...p, phone: '' }));
+    }
+  }, [formData.locationId, locations]);
+
   const filteredVehicles = useMemo(() => {
       return vehicles.filter((vehicle) => vehicle.is_demo && vehicle.total_units>0 && vehicle.available_units>0);
     }, [vehicles]);
 
   // Only allow booking if required fields are filled and location is open for today
   const isBookingToday = formData.scheduledDate === todayStr;
+
+  const validateCustomerStep = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!formData.firstName.trim()) errs.firstName = 'First name is required';
+    else if (formData.firstName.trim().length > 40) errs.firstName = 'First name must be 40 characters or fewer';
+    if (!formData.lastName.trim()) errs.lastName = 'Last name is required';
+    else if (formData.lastName.trim().length > 40) errs.lastName = 'Last name must be 40 characters or fewer';
+    const phoneErr = !formData.phone.trim()
+      ? 'Phone number is required'
+      : validatePhoneForCountry(formData.phone, formData.countryCode);
+    if (phoneErr) errs.phone = phoneErr;
+    const emailErr = validateEmail(formData.email);
+    if (emailErr) errs.email = emailErr;
+    if (!formData.vehicleId) errs.vehicleId = 'Please select a vehicle';
+    if (!formData.locationId) errs.locationId = 'Location is required';
+    setFormErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const canProceedFromCustomer = (() => {
-    if (!(formData.fullName && formData.phone && formData.vehicleId && formData.locationId)) return false;
+    if (!(formData.firstName && formData.phone && formData.email && formData.vehicleId && formData.locationId)) return false;
     // For today, location must be currently open
     if (isBookingToday && !selectedLocationStatus?.isOpen) return false;
     // For future dates, a time slot must be selected
@@ -246,19 +295,21 @@ const WalkinPage = () => {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const existing = await findCustomerByPhone(formData.phone);
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+      const fullPhone = `${formData.countryCode}${formData.phone}`;
+      const existing = await findCustomerByPhone(fullPhone);
       let customerId: string;
       if (existing) {
         customerId = existing.id;
         await updateCustomer(customerId, {
-          full_name: formData.fullName,
+          full_name: fullName,
           email: formData.email || null,
-          preferred_contact: formData.preferredContact,
+          preferred_contact: formData.preferredContact.join(','),
         });
       } else {
         const row = await createCustomer({
-          full_name: formData.fullName, phone: formData.phone,
-          email: formData.email || null, preferred_contact: formData.preferredContact,
+          full_name: fullName, phone: fullPhone,
+          email: formData.email || null, preferred_contact: formData.preferredContact.join(','),
         });
         if (!row?.id) throw new Error('Failed to create customer');
         customerId = row.id;
@@ -295,7 +346,7 @@ const WalkinPage = () => {
         notes: null,
         metadata: {
           created_via: 'walkin_page',
-          preferred_contact: formData.preferredContact,
+          preferred_contact: formData.preferredContact.join(','),
         },
         started_at: null,
         completed_at: null,
@@ -337,12 +388,12 @@ const WalkinPage = () => {
 
       // Send WhatsApp confirmation and log communication.
       if (formData.phone) {
-        const waMessage = `✅ *Walk-in Test Drive Registered*\n\nHi ${formData.fullName},\n\nYour walk-in test drive has been registered:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n🕒 *Time:* ${walkinTime}\n\nYour sales team will guide you shortly.`;
+        const waMessage = `✅ *Walk-in Test Drive Registered*\n\nHi ${fullName},\n\nYour walk-in test drive has been registered:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n🕒 *Time:* ${walkinTime}\n\nYour sales team will guide you shortly.`;
 
         let waError: unknown = null;
         try {
           await apiInvokeFunction('send-whatsapp', {
-            to: formData.phone,
+            to: fullPhone,
             message: waMessage,
             customerId,
             testDriveId: testDrive.id,
@@ -357,7 +408,7 @@ const WalkinPage = () => {
           test_drive_id: testDrive.id,
           type: 'whatsapp',
           purpose: 'booking_confirmed',
-          sent_to: formData.phone,
+          sent_to: fullPhone,
           subject: null,
           body: waMessage,
           status: waError ? 'failed' : 'sent',
@@ -374,11 +425,12 @@ const WalkinPage = () => {
             recipientEmail: formData.email,
             idempotencyKey: `walkin-confirm-${testDrive.id}`,
             templateData: {
-              customerName: formData.fullName,
+              customerName: fullName,
               vehicleName,
               locationName,
               scheduledDate: scheduledDateStr,
-              scheduledTime: scheduledTimeStr,            },
+              scheduledTime: scheduledTimeStr,
+            },
           });
         } catch (error) {
           emailError = error;
@@ -406,7 +458,7 @@ const WalkinPage = () => {
           recipientEmail: formData.email,
           idempotencyKey: `sales-assign-${testDrive.id}`,
           templateData: {
-            customerName: formData.fullName,
+            customerName: fullName,
             vehicleName,
             locationName,
             scheduledDate: scheduledDateStr,
@@ -417,8 +469,9 @@ const WalkinPage = () => {
         }).catch(err => console.error('Sales assignment email failed:', err));
       }
 
-      toast({ title: walkinToday ? 'Walk-in registered' : 'Booking created', description: `${formData.fullName} has been ${walkinToday ? 'checked in' : 'booked for ' + scheduledDateStr + ' at ' + scheduledTimeStr}${assignedSalesName ? `. Sales executive: ${assignedSalesName}` : ''}.` });
-      setFormData({ fullName: '', phone: '', email: '', preferredContact: 'phone', locationId: profile?.location_id || '', vehicleId: '', scheduledDate: todayStr, scheduledTime: '' });
+      toast({ title: walkinToday ? 'Walk-in registered' : 'Booking created', description: `${fullName} has been ${walkinToday ? 'checked in' : 'booked for ' + scheduledDateStr + ' at ' + scheduledTimeStr}${assignedSalesName ? `. Sales executive: ${assignedSalesName}` : ''}.` });
+      setFormData(prev => ({ firstName: '', lastName: '', countryCode: prev.countryCode, phone: '', email: '', preferredContact: ['phone'], locationId: isDealerLevel ? prev.locationId : (profile?.location_id || ''), vehicleId: '', scheduledDate: todayStr, scheduledTime: '' }));
+      setFormErrors({});
       removeLicense();
       setStep('customer');
     } catch (err: any) {
@@ -442,6 +495,54 @@ const WalkinPage = () => {
         <h1 className="text-2xl font-heading font-bold text-foreground mb-2">Walk-in Registration</h1>
         <p className="text-muted-foreground mb-6">Register a walk-in customer for a test drive</p>
 
+        {/* Location selector — Dealer Admin / SuperAdmin */}
+        {isDealerLevel && (
+          <Card className="mb-6 shadow-card border-border/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <MapPin className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground mb-1.5">Select Location</p>
+                  <Select
+                    value={formData.locationId}
+                    onValueChange={v => setFormData(p => ({ ...p, locationId: v, vehicleId: '', scheduledTime: '' }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Choose a location to begin..." /></SelectTrigger>
+                    <SelectContent>
+                      {locations.map(l => {
+                        const s = locationStatus[l.id];
+                        const lc = COUNTRIES.find(c => c.name === l.country);
+                        return (
+                          <SelectItem key={l.id} value={l.id}>
+                            <span className="flex items-center gap-2">
+                              {lc && <span>{lc.flag}</span>}
+                              <span className="font-medium">{l.name}</span>
+                              <span className="text-xs text-muted-foreground">{l.city}{l.state ? `, ${l.state}` : ''}</span>
+                              {s && <span className={`text-[10px] font-semibold ml-1 ${s.isOpen ? 'text-success' : 'text-destructive'}`}>● {s.isOpen ? 'Open' : 'Closed'}</span>}
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {formData.locationId && selectedLocation?.country && (() => {
+                  const c = COUNTRIES.find(cnt => cnt.name === selectedLocation.country);
+                  return c ? (
+                    <div className="shrink-0 flex flex-col items-center gap-0.5">
+                      <span className="text-xl">{c.flag}</span>
+                      <span className="font-mono text-xs text-muted-foreground">{c.dialCode}</span>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {(!isDealerLevel || formData.locationId) ? (<>
         {/* Stepper */}
         <div className="flex items-center gap-1 mb-8">
           {steps.map((s, i) => (
@@ -482,43 +583,124 @@ const WalkinPage = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Full Name <span className="text-destructive">*</span></Label>
+                  <div className="space-y-1.5">
+                    <Label>First Name <span className="text-destructive">*</span></Label>
                     <Input
-                      placeholder="Enter full name"
-                      value={formData.fullName}
-                      onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))}
+                      placeholder="First name"
+                      value={formData.firstName}
+                      maxLength={40}
+                      className={cn(formErrors.firstName ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                      onChange={e => {
+                        setFormData(p => ({ ...p, firstName: e.target.value }));
+                        if (formErrors.firstName) setFormErrors(p => ({ ...p, firstName: '' }));
+                      }}
                     />
+                    {formErrors.firstName && (
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {formErrors.firstName}
+                      </p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Phone <span className="text-destructive">*</span></Label>
+                  <div className="space-y-1.5">
+                    <Label>Last Name <span className="text-destructive">*</span></Label>
                     <Input
-                      placeholder="+91 98765 43210"
-                      value={formData.phone}
-                      onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))}
+                      placeholder="Last name"
+                      value={formData.lastName}
+                      maxLength={40}
+                      className={cn(formErrors.lastName ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                      onChange={e => {
+                        setFormData(p => ({ ...p, lastName: e.target.value }));
+                        if (formErrors.lastName) setFormErrors(p => ({ ...p, lastName: '' }));
+                      }}
                     />
+                    {formErrors.lastName && (
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {formErrors.lastName}
+                      </p>
+                    )}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Email <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                    <Input
-                      type="email"
-                      placeholder="customer@email.com"
-                      value={formData.email}
-                      onChange={e => setFormData(p => ({ ...p, email: e.target.value }))}
-                    />
+
+                <div className="space-y-1.5">
+                  <Label>Phone <span className="text-destructive">*</span></Label>
+                  <div className="flex gap-2">
+                    <div className="flex items-center gap-1.5 h-9 px-3 rounded-md border border-input bg-muted/50 text-sm w-[130px] shrink-0 select-none">
+                      <span>{COUNTRIES.find(c => c.dialCode === formData.countryCode)?.flag ?? '🌍'}</span>
+                      <span className="font-mono">{formData.countryCode}</span>
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        type="tel"
+                        placeholder={COUNTRIES.find(c => c.dialCode === formData.countryCode)?.phoneHint || 'Phone number'}
+                        value={formData.phone}
+                        className={cn(formErrors.phone ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                        onChange={e => {
+                          setFormData(p => ({ ...p, phone: e.target.value.replace(/\D/g, '') }));
+                          if (formErrors.phone) setFormErrors(p => ({ ...p, phone: '' }));
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Preferred Contact</Label>
-                    <Select value={formData.preferredContact} onValueChange={v => setFormData(p => ({ ...p, preferredContact: v }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="phone">Phone</SelectItem>
-                        <SelectItem value="email">Email</SelectItem>
-                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Country code auto-applied from location country ({selectedLocation?.country || 'not set'}).
+                  </p>
+                  {formErrors.phone && (
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {formErrors.phone}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Email <span className="text-destructive">*</span></Label>
+                  <p className="text-[11px] text-muted-foreground">Customer will receive all booking confirmations and communications via this email.</p>
+                  <Input
+                    type="email"
+                    placeholder="customer@email.com"
+                    value={formData.email}
+                    className={cn(formErrors.email ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                    onChange={e => {
+                      setFormData(p => ({ ...p, email: e.target.value }));
+                      if (formErrors.email) setFormErrors(p => ({ ...p, email: '' }));
+                    }}
+                  />
+                  {formErrors.email && (
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {formErrors.email}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Preferred Contact <span className="text-muted-foreground text-xs">(select all that apply)</span></Label>
+                  <div className="flex flex-wrap gap-2 pt-0.5">
+                    {CONTACT_OPTIONS.map(opt => {
+                      const selected = formData.preferredContact.includes(opt.value);
+                      const Icon = opt.icon;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setFormData(p => {
+                              const current = p.preferredContact;
+                              const next = current.includes(opt.value)
+                                ? current.filter(v => v !== opt.value)
+                                : [...current, opt.value];
+                              return { ...p, preferredContact: next.length ? next : [opt.value] };
+                            });
+                          }}
+                          className={cn(
+                            'flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-all',
+                            selected
+                              ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                              : 'bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5" /> {opt.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -530,6 +712,16 @@ const WalkinPage = () => {
                         <div>
                           <p className="font-medium text-foreground">{selectedLocation?.name || 'Your Location'}</p>
                           <p className="text-xs text-muted-foreground">{selectedLocation?.address || 'Default profile location is applied automatically'}</p>
+                          {selectedLocation?.country && (() => {
+                            const c = COUNTRIES.find(cnt => cnt.name === selectedLocation.country);
+                            return (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <span>{c?.flag ?? '🌍'}</span>
+                                <span>{selectedLocation.country}</span>
+                                {c && <span className="font-mono text-[10px] bg-muted/60 px-1 rounded">{c.dialCode}</span>}
+                              </p>
+                            );
+                          })()}
                         </div>
                         {locationStatus[formData.locationId] && (
                           <Badge variant={locationStatus[formData.locationId]?.isOpen ? 'default' : 'destructive'} className="ml-2 shrink-0">
@@ -715,7 +907,11 @@ const WalkinPage = () => {
                         Please select a time slot for the chosen date.
                       </p>
                     )}
-                    <Button onClick={() => setStep('license')} disabled={!canProceedFromCustomer} className="w-full">
+                    <Button
+                      onClick={() => { if (validateCustomerStep()) setStep('license'); }}
+                      disabled={!canProceedFromCustomer}
+                      className="w-full"
+                    >
                       Next <ArrowRight className="h-4 w-4 ml-1" />
                     </Button>
                   </div>
@@ -821,8 +1017,8 @@ const WalkinPage = () => {
                 <div className="rounded-xl border border-border divide-y divide-border">
                   <div className="p-4">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Customer</p>
-                    <p className="font-medium text-foreground">{formData.fullName}</p>
-                    <p className="text-sm text-muted-foreground">{formData.phone}{formData.email && ` • ${formData.email}`}</p>
+                    <p className="font-medium text-foreground">{`${formData.firstName} ${formData.lastName}`.trim()}</p>
+                    <p className="text-sm text-muted-foreground">{formData.countryCode} {formData.phone}{formData.email && ` • ${formData.email}`}</p>
                   </div>
                   <div className="p-4">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Vehicle</p>
@@ -908,6 +1104,15 @@ const WalkinPage = () => {
             </>
           )}
         </Card>
+        </>) : (
+          <Card className="shadow-card">
+            <CardContent className="p-12 text-center">
+              <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-30" />
+              <p className="text-muted-foreground font-medium">Select a location above to begin</p>
+              <p className="text-xs text-muted-foreground mt-1">Choose the branch where the customer has walked in.</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -6,10 +6,16 @@ export interface ILocation extends Document {
   name: string;
   city: string | null;
   state: string | null;
+  country: string | null;
   address: string | null;
   pincode: string | null;
   phone: string | null;
   email: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  googleplaceid: string | null;
+  maplink: string | null;
+  currency_type: string | null;
   is_active: boolean;
   slot_duration_minutes: number;
   max_concurrent_test_drives: number;
@@ -25,10 +31,16 @@ const LocationSchema = new Schema<ILocation>(
     name: { type: String, required: true },
     city: { type: String, default: null },
     state: { type: String, default: null },
+    country: { type: String, default: null },
     address: { type: String, default: null },
     pincode: { type: String, default: null },
     phone: { type: String, default: null },
     email: { type: String, default: null },
+    latitude: { type: String, default: null },
+    longitude: { type: String, default: null },
+    googleplaceid: { type: String, default: null },
+    maplink: { type: String, default: null },
+    currency_type: { type: String, default: null },
     is_active: { type: Boolean, default: true },
     slot_duration_minutes: { type: Number, default: 30 },
     max_concurrent_test_drives: { type: Number, default: 1 },

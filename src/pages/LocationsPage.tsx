@@ -23,6 +23,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
 import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, ChevronRight, Users, Calendar, AlertCircle, Lock, CalendarX } from 'lucide-react';
 import { logStaffActivity } from '@/lib/activityLogger';
+import { cn } from '@/lib/utils';
+import { COUNTRIES, validatePhoneForCountry, validateEmail } from '@/lib/countries';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -52,7 +54,8 @@ const LocationsPage = () => {
 
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
+  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
+  const [locErrors, setLocErrors] = useState<Record<string, string>>({});
   const [hoursDialog, setHoursDialog] = useState<string | null>(null);
   const [hours, setHours] = useState<any[]>([]);
   const [savingHours, setSavingHours] = useState(false);
@@ -366,23 +369,61 @@ const LocationsPage = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!formData.name || !formData.address || !formData.city) {
-      toast({ title: 'Missing fields', variant: 'destructive' });
-      return;
-    }
-    const payload = { ...formData, dealer_id: dealerId };
-    if (editingId) {
-      await updateLocation(editingId, payload as Record<string, unknown>);
-      toast({ title: 'Location updated' });
+  const validateLocationStep1 = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!formData.name.trim()) errs.name = 'Location name is required';
+    if (!formData.address.trim()) errs.address = 'Address is required';
+    if (!formData.city.trim()) errs.city = 'City is required';
+    if (!formData.state.trim()) errs.state = 'State/Province is required';
+    if (!formData.country.trim()) errs.country = 'Country is required';
+    setLocErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const validateLocationStep2 = (): boolean => {
+    const step2Errs: Record<string, string> = {};
+    if (!formData.phone.trim()) {
+      step2Errs.phone = 'Phone is required';
     } else {
-      await createLocation(payload as Record<string, unknown>);
-      toast({ title: 'Location added' });
+      const selectedCountry = COUNTRIES.find(c => c.name === formData.country);
+      if (selectedCountry) {
+        // Strip dial code prefix if the user included it, then validate the local part
+        let localPart = formData.phone.replace(/[\s\-()]/g, '');
+        if (localPart.startsWith(selectedCountry.dialCode)) {
+          localPart = localPart.slice(selectedCountry.dialCode.length);
+        }
+        const phoneErr = validatePhoneForCountry(localPart, selectedCountry.dialCode);
+        if (phoneErr) step2Errs.phone = phoneErr;
+      } else if (!/^\+?[\d\s\-(). ]{7,20}$/.test(formData.phone)) {
+        step2Errs.phone = 'Enter a valid phone number';
+      }
     }
-    setShowDialog(false);
-    setEditingId(null);
-    setFormData({ name: '', address: '', city: '', state: '', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
-    fetchLocations();
+    const emailErr = validateEmail(formData.email);
+    if (emailErr) step2Errs.email = emailErr;
+    if (!formData.currency_type) step2Errs.currency_type = 'Currency is required';
+    setLocErrors(prev => ({ ...prev, ...step2Errs }));
+    return Object.keys(step2Errs).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateLocationStep2()) return;
+    const payload = { ...formData, dealer_id: dealerId };
+    try {
+      if (editingId) {
+        await updateLocation(editingId, payload as Record<string, unknown>);
+        toast({ title: 'Location updated' });
+      } else {
+        await createLocation(payload as Record<string, unknown>);
+        toast({ title: 'Location added' });
+      }
+      setShowDialog(false);
+      setEditingId(null);
+      setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
+      setLocErrors({});
+      fetchLocations();
+    } catch (err: any) {
+      toast({ title: 'Failed to save location', description: err.message, variant: 'destructive' });
+    }
   };
 
   const editLocation = (loc: any) => {
@@ -392,6 +433,7 @@ const LocationsPage = () => {
       address: loc.address,
       city: loc.city,
       state: loc.state || '',
+      country: loc.country || 'India',
       phone: loc.phone || '',
       email: loc.email || '',
       latitude: loc.latitude || '',
@@ -400,6 +442,7 @@ const LocationsPage = () => {
       maplink: loc.maplink || '',
       currency_type: loc.currency_type || 'INR'
     });
+    setLocErrors({});
     setShowDialog(true);
   };
 
@@ -696,7 +739,7 @@ const LocationsPage = () => {
             <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">Locations</h1>
             <p className="text-sm text-muted-foreground mt-1">Manage your dealership locations and devices</p>
           </div>
-          <Button onClick={() => { setEditingId(null); setShowDialog(true); }}
+          <Button onClick={() => { setEditingId(null); setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' }); setLocErrors({}); setStep(1); setShowDialog(true); }}
             className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" /> Add Location
           </Button>
@@ -723,6 +766,16 @@ const LocationsPage = () => {
                       <h3 className="text-base font-heading font-bold text-foreground leading-tight truncate">{loc.name}</h3>
                       <p className="text-xs text-muted-foreground truncate">{loc.address}</p>
                       <p className="text-xs text-muted-foreground truncate">{loc.city}{loc.state ? `, ${loc.state}` : ''}</p>
+                      {loc.country && (() => {
+                        const c = COUNTRIES.find(cnt => cnt.name === loc.country);
+                        return (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <span>{c?.flag ?? '🌍'}</span>
+                            <span>{loc.country}</span>
+                            {c && <span className="font-mono text-[10px] bg-muted/60 px-1 rounded">{c.dialCode}</span>}
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
                   <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 h-7 w-7 p-0" onClick={() => editLocation(loc)} title="Edit Location">
@@ -891,48 +944,118 @@ const LocationsPage = () => {
               // Step 1: Basic Info
               // Step 2: Geo/Contact/Map/Currency
               const step1Fields = (
-                <div className="space-y-4">
-                  <div className="space-y-2"><Label>Name *</Label><Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} /></div>
-                  <div className="space-y-2"><Label>Address *</Label><Input value={formData.address} onChange={e => setFormData(p => ({ ...p, address: e.target.value }))} /></div>
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    <div className="space-y-2"><Label>City *</Label><Input value={formData.city} onChange={e => setFormData(p => ({ ...p, city: e.target.value }))} /></div>
-                    <div className="space-y-2"><Label>State</Label><Input value={formData.state} onChange={e => setFormData(p => ({ ...p, state: e.target.value }))} /></div>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>Country <span className="text-destructive">*</span></Label>
+                    <select
+                      className={cn('w-full h-9 px-3 py-2 border rounded-md text-sm bg-background', locErrors.country ? 'border-destructive' : 'border-input')}
+                      value={formData.country}
+                      onChange={e => { setFormData(p => ({ ...p, country: e.target.value })); setLocErrors(p => ({ ...p, country: '' })); }}
+                    >
+                      <option value="">Select country</option>
+                      {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.flag} {c.name}</option>)}
+                    </select>
+                    {locErrors.country && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.country}</p>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Location Name <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={formData.name}
+                      placeholder="e.g. Mumbai Showroom"
+                      className={cn(locErrors.name ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                      onChange={e => { setFormData(p => ({ ...p, name: e.target.value })); setLocErrors(p => ({ ...p, name: '' })); }}
+                    />
+                    {locErrors.name && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.name}</p>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Address <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={formData.address}
+                      placeholder="Street address"
+                      className={cn(locErrors.address ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                      onChange={e => { setFormData(p => ({ ...p, address: e.target.value })); setLocErrors(p => ({ ...p, address: '' })); }}
+                    />
+                    {locErrors.address && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.address}</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>City <span className="text-destructive">*</span></Label>
+                      <Input
+                        value={formData.city}
+                        placeholder="City"
+                        className={cn(locErrors.city ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                        onChange={e => { setFormData(p => ({ ...p, city: e.target.value })); setLocErrors(p => ({ ...p, city: '' })); }}
+                      />
+                      {locErrors.city && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.city}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>State / Province <span className="text-destructive">*</span></Label>
+                      <Input
+                        value={formData.state}
+                        placeholder="State"
+                        className={cn(locErrors.state ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                        onChange={e => { setFormData(p => ({ ...p, state: e.target.value })); setLocErrors(p => ({ ...p, state: '' })); }}
+                      />
+                      {locErrors.state && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.state}</p>}
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
                     <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-                    <Button onClick={() => setStep(2)} className="bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
+                    <Button onClick={() => { if (validateLocationStep1()) setStep(2); }} className="bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
                   </div>
                 </div>
               );
+              const selectedCountry = COUNTRIES.find(c => c.name === formData.country);
               const step2Fields = (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    <div className="space-y-2"><Label>Phone</Label><Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} /></div>
-                    <div className="space-y-2"><Label>Email</Label><Input value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} /></div>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>Phone <span className="text-destructive">*</span></Label>
+                    {selectedCountry && (
+                      <p className="text-[11px] text-muted-foreground">{selectedCountry.flag} {selectedCountry.name} ({selectedCountry.dialCode}) — {selectedCountry.phoneHint}</p>
+                    )}
+                    <Input
+                      value={formData.phone}
+                      placeholder={selectedCountry ? `${selectedCountry.dialCode} ...` : '+XX ...'}
+                      className={cn(locErrors.phone ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                      onChange={e => { setFormData(p => ({ ...p, phone: e.target.value })); setLocErrors(p => ({ ...p, phone: '' })); }}
+                    />
+                    {locErrors.phone && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.phone}</p>}
                   </div>
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    <div className="space-y-2"><Label>Latitude</Label><Input value={formData.latitude} onChange={e => setFormData(p => ({ ...p, latitude: e.target.value }))} placeholder="e.g. 28.6139" /></div>
-                    <div className="space-y-2"><Label>Longitude</Label><Input value={formData.longitude} onChange={e => setFormData(p => ({ ...p, longitude: e.target.value }))} placeholder="e.g. 77.2090" /></div>
+                  <div className="space-y-1.5">
+                    <Label>Email <span className="text-destructive">*</span></Label>
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      placeholder="location@dealership.com"
+                      className={cn(locErrors.email ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                      onChange={e => { setFormData(p => ({ ...p, email: e.target.value })); setLocErrors(p => ({ ...p, email: '' })); }}
+                    />
+                    {locErrors.email && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.email}</p>}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Google Place ID</Label>
-                    <Input value={formData.googleplaceid} onChange={e => setFormData(p => ({ ...p, googleplaceid: e.target.value }))} placeholder="Google Place ID (optional)" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Custom Map Link</Label>
-                    <Input value={formData.maplink} onChange={e => setFormData(p => ({ ...p, maplink: e.target.value }))} placeholder="Paste Google Maps link (optional)" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Currency</Label>
+                  <div className="space-y-1.5">
+                    <Label>Currency <span className="text-destructive">*</span></Label>
                     <select
-                      className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
+                      className={cn('w-full h-9 px-3 py-2 border rounded-md text-sm bg-background', locErrors.currency_type ? 'border-destructive' : 'border-input')}
                       value={formData.currency_type}
-                      onChange={e => setFormData(p => ({ ...p, currency_type: e.target.value }))}
+                      onChange={e => { setFormData(p => ({ ...p, currency_type: e.target.value })); setLocErrors(p => ({ ...p, currency_type: '' })); }}
                     >
                       {currencies.map(c => (
                         <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
                       ))}
                     </select>
+                    {locErrors.currency_type && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.currency_type}</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5"><Label>Latitude</Label><Input value={formData.latitude} onChange={e => setFormData(p => ({ ...p, latitude: e.target.value }))} placeholder="e.g. 28.6139" /></div>
+                    <div className="space-y-1.5"><Label>Longitude</Label><Input value={formData.longitude} onChange={e => setFormData(p => ({ ...p, longitude: e.target.value }))} placeholder="e.g. 77.2090" /></div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Google Place ID</Label>
+                    <Input value={formData.googleplaceid} onChange={e => setFormData(p => ({ ...p, googleplaceid: e.target.value }))} placeholder="Google Place ID (optional)" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Custom Map Link</Label>
+                    <Input value={formData.maplink} onChange={e => setFormData(p => ({ ...p, maplink: e.target.value }))} placeholder="Paste Google Maps link (optional)" />
                   </div>
                   <div className="flex justify-between gap-2 pt-2">
                     <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
