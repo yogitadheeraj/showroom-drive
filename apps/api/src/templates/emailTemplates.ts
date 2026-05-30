@@ -42,7 +42,7 @@ function base(previewText: string, bodyContent: string): string {
 
 function detailRow(label: string, value: string | undefined | null): string {
   if (!value) return '';
-  const displayLabel = label.endsWith(':') ? label : `${label}:`;
+  const displayLabel = label.endsWith(':') ? label : `${label}: `;
   return `<div class="details row"><span class="label">${displayLabel}</span><span>${value}</span></div>`;
 }
 

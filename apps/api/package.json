@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --inspect --trace-warnings src/index.js",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "echo \"No API linter configured yet\""

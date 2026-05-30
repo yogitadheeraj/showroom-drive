@@ -99,9 +99,12 @@ const GROCalendarView = () => {
 
   // Real-time: auto-refresh + toast when any test drive status changes
   useTestDriveRealtime(profile?.location_id, (event) => {
+   const [testDriveId] = Object.keys(event);
+    const eventData = event[testDriveId];
+    const statusLabel = eventData.status.replace(/_/g, ' ');
     toast({
       title: 'Test Drive Updated',
-      description: `${event.customer_name} — ${event.vehicle_name} is now "${event.status.replace(/_/g, ' ')}"`,
+      description: `Test Drive Id : - ${testDriveId} is now "${statusLabel}"`,
     });
     void fetchTestDrives();
   });
@@ -213,20 +216,11 @@ const GROCalendarView = () => {
 
   const handleReschedule = async () => {
     if (!rescheduleId || !rescheduleDate || !rescheduleTime) return;
-    const original = testDrives.find((t) => t.id === rescheduleId);
-    if (!original) return;
-    await apiPost('/api/test-drives', {
-      customer_id: original.customer_id,
-      vehicle_id: original.vehicle_id,
-      location_id: original.location_id,
-      assigned_sales_person_id: original.assigned_sales_person_id,
-      assigned_gro_id: original.assigned_gro_id,
+    await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleId)}`, {
       scheduled_date: rescheduleDate,
-      scheduled_time: rescheduleTime,
-      source: original.source,
-      rescheduled_from: rescheduleId,
+      scheduled_time: `${rescheduleTime}:00`,
+      status: 'rescheduled',
     });
-    await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleId)}`, { status: 'rescheduled' });
     setRescheduleId(null);
     setRescheduleDate('');
     setRescheduleTime('');

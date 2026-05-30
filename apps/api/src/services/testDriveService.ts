@@ -185,8 +185,8 @@ export async function createTestDrive(data: Record<string, unknown>) {
   void writeTestDriveEvent({
     test_drive_id:  toPlain(doc).id,
     status:         toPlain(doc).status || 'scheduled',
-    customer_name:  '',
-    vehicle_name:   '',
+    customer_id:    toPlain(doc).customer_id || null,
+    vehicle_id:     toPlain(doc).vehicle_id || null,
     scheduled_date: toPlain(doc).scheduled_date || null,
     scheduled_time: toPlain(doc).scheduled_time || null,
     location_id:    toPlain(doc).location_id,
@@ -274,8 +274,8 @@ async function afterStatusChange(td: any, status: string) {
   await writeTestDriveEvent({
     test_drive_id:  td.id,
     status,
-    customer_name:  customerName,
-    vehicle_name:   vehicleName,
+    customer_id:  td.customer_id,
+    vehicle_id:   td.vehicle_id,
     scheduled_date: td.scheduled_date || null,
     scheduled_time: td.scheduled_time || null,
     location_id:    td.location_id,
@@ -287,8 +287,8 @@ async function afterStatusChange(td: any, status: string) {
 async function writeTestDriveEvent(data: {
   test_drive_id: string;
   status: string;
-  customer_name: string;
-  vehicle_name: string;
+  customer_id: string;
+  vehicle_id: string;
   scheduled_date: string | null;
   scheduled_time: string | null;
   location_id: string;
@@ -296,7 +296,7 @@ async function writeTestDriveEvent(data: {
   if (!getApps().length || !data.location_id) return;
   try {
     const db = getDatabase();
-    await db.ref(`test_drive_events/${data.location_id}`).set({
+    await db.ref(`test_drive_events/${data.location_id}/${data.test_drive_id}`).set({
       ...data,
       updated_at: new Date().toISOString(),
     });

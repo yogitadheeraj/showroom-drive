@@ -37,10 +37,7 @@ const WalkinPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [step, setStep] = useState<Step>('customer');
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const maxDateObj = new Date();
-  maxDateObj.setDate(maxDateObj.getDate() + 30);
-  const maxDateStr = maxDateObj.toISOString().split('T')[0];
+  const todayStr = new Date().toLocaleDateString('en-CA').split('T')[0];
 
   const [formData, setFormData] = useState({
     firstName: '', lastName: '',
@@ -243,6 +240,11 @@ const WalkinPage = () => {
 
   const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId);
   const selectedLocation = locations.find(l => l.id === formData.locationId);
+  const maxDateStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + (selectedLocation?.advance_booking_days ?? 30));
+    return d.toLocaleDateString('en-CA').split('T')[0];
+  })();
   const selectedLocationStatus = formData.locationId ? locationStatus[formData.locationId] : null;
 
   // Auto-set phone country code from the selected location's country

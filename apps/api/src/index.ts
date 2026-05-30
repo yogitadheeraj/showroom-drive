@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import mongoose from 'mongoose';
+import { getApps, deleteApp } from 'firebase-admin/app';
 import { env } from './config/env.js';
 import { initFirebaseAdmin } from './config/firebaseAdmin.js';
 import { attachAuthUser } from './middleware/auth.js';
@@ -31,7 +32,7 @@ async function start() {
 
   // Background email queue processor — runs every 30 seconds
   const EMAIL_PROCESSOR_INTERVAL_MS = 30_000;
-  setInterval(async () => {
+  const emailInterval = setInterval(async () => {
     try {
       const result = await processEmailQueues();
       if (result.processed > 0) {
@@ -42,9 +43,22 @@ async function start() {
     }
   }, EMAIL_PROCESSOR_INTERVAL_MS);
 
-  app.listen(env.port, () => {
+  const server = app.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`);
   });
+
+  async function shutdown(signal: string) {
+    console.log(`[shutdown] ${signal} received — closing gracefully`);
+    clearInterval(emailInterval);
+    server.close();
+    await mongoose.disconnect();
+    const apps = getApps();
+    if (apps.length) await deleteApp(apps[0]);
+    process.exit(0);
+  }
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT',  () => shutdown('SIGINT'));
 }
 
 start().catch((error) => {

@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
-import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, ChevronRight, Users, Calendar, AlertCircle, Lock, CalendarX } from 'lucide-react';
+import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, ChevronRight, Users, Calendar, AlertCircle, Lock, CalendarX, CalendarDays } from 'lucide-react';
 import { logStaffActivity } from '@/lib/activityLogger';
 import { cn } from '@/lib/utils';
 import { COUNTRIES, validatePhoneForCountry, validateEmail } from '@/lib/countries';
@@ -62,6 +62,9 @@ const LocationsPage = () => {
   const [slotDurationDialog, setSlotDurationDialog] = useState<string | null>(null);
   const [slotDuration, setSlotDuration] = useState<number>(30);
   const [slotDurations, setSlotDurations] = useState<Record<string, number>>({});
+  const [advBookingDaysDialog, setAdvBookingDaysDialog] = useState<string | null>(null);
+  const [advBookingDays, setAdvBookingDays] = useState<number>(30);
+  const [advBookingDaysMap, setAdvBookingDaysMap] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const { dealerId, loading: dealerLoading } = useDealerContext();
   const { role, profile } = useAuth();
@@ -119,10 +122,13 @@ const LocationsPage = () => {
 
     if (data) {
       const durations: Record<string, number> = {};
+      const advDays: Record<string, number> = {};
       data.forEach(loc => {
         durations[loc.id] = getLocationSlotDuration(loc);
+        advDays[loc.id] = loc.advance_booking_days ?? 30;
       });
       setSlotDurations(durations);
+      setAdvBookingDaysMap(advDays);
     }
     const locationIds = (data || []).map((loc) => loc.id);
     const dealerIds = Array.from(new Set((data || []).map((loc) => loc.dealer_id).filter(Boolean)));
@@ -324,6 +330,29 @@ const LocationsPage = () => {
   const openSlotDurationDialog = (locationId: string) => {
     setSlotDuration(slotDurations[locationId] || 30);
     setSlotDurationDialog(locationId);
+  };
+
+  const openAdvBookingDaysDialog = (locationId: string) => {
+    setAdvBookingDays(advBookingDaysMap[locationId] ?? 30);
+    setAdvBookingDaysDialog(locationId);
+  };
+
+  const saveAdvBookingDays = async () => {
+    if (!advBookingDaysDialog) return;
+    try {
+      await apiDbQuery({
+        table: 'locations',
+        action: 'update',
+        payload: { advance_booking_days: advBookingDays },
+        filters: [{ field: 'id', op: 'eq', value: advBookingDaysDialog }],
+      });
+      setAdvBookingDaysMap(prev => ({ ...prev, [advBookingDaysDialog]: advBookingDays }));
+      toast({ title: 'Booking window saved', description: `Customers can book up to ${advBookingDays} days ahead` });
+      setAdvBookingDaysDialog(null);
+      fetchLocations();
+    } catch (err: any) {
+      toast({ title: 'Failed to save booking window', description: err.message, variant: 'destructive' });
+    }
   };
 
   const saveSlotDuration = async () => {
@@ -918,6 +947,9 @@ const LocationsPage = () => {
                         <Button size="sm" className="w-full mt-2 bg-violet-500 text-white hover:bg-violet-600 text-xs h-9 font-medium" onClick={() => openSlotDurationDialog(loc.id)}>
                           <Clock className="h-3.5 w-3.5 mr-1.5" /> Slot Duration: {slotDurations[loc.id] || 30}m
                         </Button>
+                        <Button size="sm" className="w-full mt-2 bg-emerald-600 text-white hover:bg-emerald-700 text-xs h-9 font-medium" onClick={() => openAdvBookingDaysDialog(loc.id)}>
+                          <CalendarDays className="h-3.5 w-3.5 mr-1.5" /> Book Ahead: {advBookingDaysMap[loc.id] ?? 30}d
+                        </Button>
                       </>
                     ) : (
                       <div className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-muted/50 border border-border/50">
@@ -1421,6 +1453,65 @@ const LocationsPage = () => {
               <Button onClick={saveSlotDuration} className="bg-violet-500 text-white hover:bg-violet-600">
                 Save Duration
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Advance Booking Days Dialog */}
+        <Dialog open={!!advBookingDaysDialog} onOpenChange={() => setAdvBookingDaysDialog(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-heading flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-emerald-600" />
+                Advance Booking Window
+              </DialogTitle>
+              <DialogDescription>
+                How many days ahead customers can book at {locations.find(l => l.id === advBookingDaysDialog)?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Select Days Ahead</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[7, 14, 21, 30, 45, 60, 90, 120].map(d => (
+                    <button
+                      key={d}
+                      onClick={() => setAdvBookingDays(d)}
+                      className={`p-2.5 rounded-lg border-2 text-sm font-semibold transition-colors ${
+                        advBookingDays === d
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'
+                          : 'border-border bg-card hover:border-emerald-300'
+                      }`}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm shrink-0">Custom:</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={advBookingDays}
+                    onChange={e => setAdvBookingDays(Math.min(365, Math.max(1, parseInt(e.target.value) || 1)))}
+                    className="h-9 w-24"
+                  />
+                  <span className="text-sm text-muted-foreground">days</span>
+                </div>
+              </div>
+              <div className="bg-muted/50 border border-border rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">Window:</span> {advBookingDays} days from today
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  The walk-in and online booking forms will block dates beyond this limit.
+                </p>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setAdvBookingDaysDialog(null)}>Cancel</Button>
+              <Button onClick={saveAdvBookingDays} className="bg-emerald-600 text-white hover:bg-emerald-700">Save</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

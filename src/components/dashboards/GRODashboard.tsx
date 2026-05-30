@@ -43,9 +43,12 @@ const GRODashboard = () => {
 
   // Real-time: auto-refresh + toast when any test drive status changes
   useTestDriveRealtime(profile?.location_id, (event) => {
-    toast({
+    const [testDriveId] = Object.keys(event);
+    const eventData = event[testDriveId];
+    const statusLabel = eventData.status.replace(/_/g, ' ');
+     toast({
       title: 'Test Drive Updated',
-      description: `${event.customer_name} — ${event.vehicle_name} is now "${event.status.replace(/_/g, ' ')}"`,
+      description: `Test Drive Id : - ${testDriveId} is now "${statusLabel}"`,
     });
     fetchTestDrives();
   });

@@ -20,7 +20,6 @@ const FollowUpReminderConfigSchema = new Schema<IFollowUpReminderConfig>(
   {
     id: { type: String, required: true, unique: true, index: true },
     location_id: { type: String, required: true, index: true, unique: true },
-    dealer_id: { type: String, default: null, index: true },
     reminder_enabled: { type: Boolean, default: true },
     reminder_before_minutes: { type: Number, default: 30, min: 1, max: 120 },
     reminder_message: {

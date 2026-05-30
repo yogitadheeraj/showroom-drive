@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { apiGet, apiPost, apiPatch } from '@/lib/apiClient';
+import { apiGet, apiPost, apiPatch, apiDbQuery } from '@/lib/apiClient';
 import { sendTransactionalEmail } from '@/lib/functionService';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { Card, CardContent } from '@/components/ui/card';
@@ -77,10 +77,12 @@ const TestDrivesPage = () => {
 
   // Real-time: auto-refresh + toast when any test drive status changes at this location
   useTestDriveRealtime(profile?.location_id, (event) => {
-    const statusLabel = event.status.replace(/_/g, ' ');
-    toast({
+    const [testDriveId] = Object.keys(event);
+    const eventData = event[testDriveId];
+    const statusLabel = eventData.status.replace(/_/g, ' ');
+      toast({
       title: 'Test Drive Updated',
-      description: `${event.customer_name} — ${event.vehicle_name} is now "${statusLabel}"`,
+      description: `Test Drive Id : - ${testDriveId} is now "${statusLabel}"`,
     });
     fetchTestDrives();
   });
@@ -111,26 +113,18 @@ const TestDrivesPage = () => {
     const original = testDrives.find((t) => t.id === rescheduleId);
     if (!original) return;
 
-    const newDrive = await apiPost<any>('/api/test-drives', {
-      customer_id: original.customer_id,
-      vehicle_id: original.vehicle_id,
-      location_id: original.location_id,
-      assigned_sales_person_id: original.assigned_sales_person_id,
-      assigned_gro_id: original.assigned_gro_id,
+    await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleId)}`, {
       scheduled_date: newDate,
-      scheduled_time: newTime,
-      source: original.source,
-      rescheduled_from: rescheduleId,
+      scheduled_time: `${newTime}:00`,
+      status: 'rescheduled',
     });
-
-    await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleId)}`, { status: 'rescheduled' });
 
     // Send reschedule email to customer
     if (original.customers?.email) {
       await sendTransactionalEmail({
           templateName: 'test-drive-rescheduled',
           recipientEmail: original.customers.email,
-          idempotencyKey: `td-rescheduled-${newDrive?.id || rescheduleId}`,
+          idempotencyKey: `td-rescheduled-${rescheduleId}-${newDate}`,
           templateData: {
             customerName: original.customers.full_name || '',
             vehicleName: `${original.vehicles?.brand || ''} ${original.vehicles?.model || ''}`.trim(),
@@ -419,17 +413,17 @@ const TestDrivesPage = () => {
                       <Button size="sm" variant="outline" className="text-xs border-primary/40 text-primary hover:bg-primary/10" onClick={() => setJourneyDrive(td)}>
                         <Route className="h-3 w-3 mr-1" /> Journey
                       </Button>
-                      {['scheduled', 'confirmed', 'show', 'no_show'].includes(td.status) && (
+                      {['scheduled', 'confirmed', 'show', 'no_show', 'rescheduled'].includes(td.status) && (
                         <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" onClick={() => setRescheduleId(td.id)}>
                           <RefreshCw className="h-3 w-3 mr-1" /> Reschedule
                         </Button>
                       )}
-                      {['scheduled', 'confirmed', 'show'].includes(td.status) && (
+                      {['scheduled', 'confirmed', 'show', 'rescheduled'].includes(td.status) && (
                         <Button size="sm" variant="outline" className="text-xs border-warning/50 text-warning hover:bg-warning/10" onClick={() => setNoShowId(td.id)}>
                           <CalendarX className="h-3 w-3 mr-1" /> No Show
                         </Button>
                       )}
-                      {['scheduled', 'confirmed'].includes(td.status) && (
+                      {['scheduled', 'confirmed', 'rescheduled'].includes(td.status) && (
                         <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs" onClick={() => setCancelId(td.id)}>
                           <Ban className="h-3 w-3 mr-1" /> Cancel
                         </Button>
@@ -447,7 +441,7 @@ const TestDrivesPage = () => {
                               <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm
                             </Button>
                           )}
-                          {(['scheduled', 'confirmed'] as string[]).includes(td.status) && (
+                          {(['scheduled', 'confirmed', 'rescheduled'] as string[]).includes(td.status) && (
                             <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>
                               <CheckCircle className="h-3 w-3 mr-1" /> Show
                             </Button>
@@ -467,7 +461,7 @@ const TestDrivesPage = () => {
                       {/* Sales / Admin: Assign Key + Key Handover */}
                       {([APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
                         <>
-                          {(td.status === 'show' || td.status === 'scheduled') && !td.key_handed_at && td.customers?.driving_license_verified && (
+                          {(td.status === 'show' || td.status === 'scheduled'|| td.status === 'rescheduled') && !td.key_handed_at && td.customers?.driving_license_verified && (
                             <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleAssignKey(td.id)} disabled={assigningKey === td.id}>
                               <Key className="h-3 w-3 mr-1" /> Assign Key
                             </Button>

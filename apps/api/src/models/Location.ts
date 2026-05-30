@@ -19,6 +19,7 @@ export interface ILocation extends Document {
   is_active: boolean;
   slot_duration_minutes: number;
   max_concurrent_test_drives: number;
+  advance_booking_days: number;
   time_zone: string | null;
   created_at: string;
   updated_at: string;
@@ -44,6 +45,7 @@ const LocationSchema = new Schema<ILocation>(
     is_active: { type: Boolean, default: true },
     slot_duration_minutes: { type: Number, default: 30 },
     max_concurrent_test_drives: { type: Number, default: 1 },
+    advance_booking_days: { type: Number, default: 30 },
     time_zone: { type: String, default: null },
     created_at: { type: String, default: () => new Date().toISOString() },
     updated_at: { type: String, default: () => new Date().toISOString() },
