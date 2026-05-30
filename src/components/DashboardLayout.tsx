@@ -3,6 +3,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { apiGet, apiDbQuery } from '@/lib/apiClient';
 import { useToast } from '@/hooks/use-toast';
+import { useDealerContext } from '@/hooks/useDealerContext';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 
 import {
@@ -103,6 +111,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { user, role, profile, signOut } = useAuth();
+  const { dealerLocations, selectedLocationId, setSelectedLocationId } = useDealerContext();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -533,6 +542,37 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           }
         />
         <div className="p-3 sm:p-6 animate-fade-in">
+          {role === APP_ROLE.DEALER_ADMIN && dealerLocations.length > 1 && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-border bg-muted/50 px-4 py-2.5 dark:border-white/10 dark:bg-white/5">
+              <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground whitespace-nowrap">Filter by location:</span>
+              <Select
+                value={selectedLocationId ?? '__all__'}
+                onValueChange={(v) => setSelectedLocationId(v === '__all__' ? null : v)}
+              >
+                <SelectTrigger className="h-8 w-64 max-w-full text-sm">
+                  <SelectValue placeholder="All Locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Locations</SelectItem>
+                  {dealerLocations.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      {loc.name}{loc.city ? ` — ${loc.city}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedLocationId && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedLocationId(null)}
+                  className="ml-auto text-xs text-muted-foreground underline hover:text-foreground"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
           {children}
         </div>
       </main>

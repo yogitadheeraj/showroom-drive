@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { AppRole } from '@/constants/roles';
+import { apiPost } from '@/lib/apiClient';
 
 const ACTIVITY_SESSION_KEY = 'staff_activity_session_id_v1';
 
@@ -135,27 +136,34 @@ export const logStaffActivity = async ({
 
   const now = new Date().toISOString();
 
+  const eventPayload = {
+    session_id: resolvedSessionId,
+    user_id: userId,
+    profile_id: profileId ?? null,
+    location_id: locationId ?? null,
+    role: role ?? null,
+    event_type: eventType,
+    event_label: label,
+    route: route ?? null,
+    metadata: metadata ?? null,
+    happened_at: now,
+  };
+
   const [{ error: eventError }, { error: sessionError }] = await Promise.all([
-    supabase.from('staff_activity_events').insert({
-      session_id: resolvedSessionId,
-      user_id: userId,
-      profile_id: profileId ?? null,
-      location_id: locationId ?? null,
-      role: role ?? null,
-      event_type: eventType,
-      event_label: label,
-      route: route ?? null,
-      metadata: metadata ?? null,
-      happened_at: now,
-    } as never),
+    supabase.from('staff_activity_events').insert(eventPayload as never),
     supabase.from('staff_activity_sessions').update({
       last_seen_at: now,
       is_online: true,
     } as never).eq('id', resolvedSessionId),
   ]);
 
-  if (eventError) console.error('Failed to log staff activity', eventError);
+  if (eventError) console.error('Failed to log staff activity (Supabase)', eventError);
   if (sessionError) console.error('Failed to update activity session', sessionError);
+
+  // Mirror to MongoDB (backend API) so apiDbQuery-based readers (e.g. ActivityInsightsMini) see the event.
+  apiPost('/api/activity/events', eventPayload).catch((err) =>
+    console.error('Failed to mirror activity event to API', err)
+  );
 };
 
 export const updateActivitySession = async (

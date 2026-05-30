@@ -79,7 +79,7 @@ export async function listTestDrives(filters: Record<string, unknown> = {}) {
 
   const [customers, vehicles, locations, profiles] = await Promise.all([
     customerIds.length > 0
-      ? Customer.find({ id: { $in: customerIds } }, { id: 1, full_name: 1, phone: 1, email: 1 }).lean()
+      ? Customer.find({ id: { $in: customerIds } }, { id: 1, full_name: 1, phone: 1, email: 1, driving_license_url: 1, driving_license_verified: 1 }).lean()
       : Promise.resolve([] as any[]),
     vehicleIds.length > 0
       ? Vehicle.find({ id: { $in: vehicleIds } }, { id: 1, brand: 1, model: 1, variant: 1 }).lean()
@@ -112,6 +112,8 @@ export async function listTestDrives(filters: Record<string, unknown> = {}) {
             full_name: customer.full_name,
             phone: customer.phone,
             email: customer.email,
+            driving_license_url: customer.driving_license_url ?? null,
+            driving_license_verified: customer.driving_license_verified ?? false,
           }
         : null,
       vehicles: vehicle

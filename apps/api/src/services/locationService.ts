@@ -13,7 +13,10 @@ export async function listLocations(filters: Record<string, unknown> = {}) {
   if (typeof filters.is_active === 'boolean') query.is_active = filters.is_active;
   else if (filters.is_active === 'true') query.is_active = true;
   else if (filters.is_active === 'false') query.is_active = false;
-  if (filters.ids) {
+  if (filters.location_id) {
+    // location_id used by location-scoped roles to restrict to their own location
+    query.id = filters.location_id;
+  } else if (filters.ids) {
     const ids = String(filters.ids).split(',').map((s) => s.trim()).filter(Boolean);
     if (ids.length > 0) query.id = { $in: ids };
   }

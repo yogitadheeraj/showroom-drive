@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import * as vehicleService from '../services/vehicleService.js';
 
 export async function listVehiclesController(req: Request, res: Response) {
-  const data = await vehicleService.listVehicles(req.query as Record<string, unknown>);
+  const filters = { ...req.query } as Record<string, unknown>;
+
+  const data = await vehicleService.listVehicles(filters);
   res.json({ data });
 }
 

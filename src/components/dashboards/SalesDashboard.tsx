@@ -42,6 +42,7 @@ const SalesDashboard = () => {
   const [inspectionDocView, setInspectionDocView] = useState<{ url: string; filename: string } | null>(null);
   const [securityContacts, setSecurityContacts] = useState<Array<{ id: string; full_name: string; phone: string | null }>>([]);
   const [completionLeadDialogDrive, setCompletionLeadDialogDrive] = useState<any>(null);
+  const [completionStep, setCompletionStep] = useState<1 | 2>(1);
   const [leadTemperature, setLeadTemperature] = useState<LeadTemperature>('cold');
   const [followUpTaskTitle, setFollowUpTaskTitle] = useState('');
   const [followUpTaskDueAt, setFollowUpTaskDueAt] = useState('');
@@ -712,6 +713,7 @@ const SalesDashboard = () => {
     }
 
     setCompletionLeadDialogDrive(null);
+    setCompletionStep(1);
     setLeadTemperature('cold');
     setFollowUpTaskTitle('');
     setFollowUpTaskDueAt('');
@@ -1354,170 +1356,200 @@ const SalesDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!completionLeadDialogDrive} onOpenChange={(open) => !open && setCompletionLeadDialogDrive(null)}>
-        <DialogContent>
+      <Dialog open={!!completionLeadDialogDrive} onOpenChange={(open) => { if (!open) { setCompletionLeadDialogDrive(null); setCompletionStep(1); } }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-heading">Close Test Drive As Opportunity</DialogTitle>
-            <DialogDescription>
+            <div className="flex items-center justify-between gap-2">
+              <DialogTitle className="font-heading text-base">Close Test Drive As Opportunity</DialogTitle>
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-full shrink-0">Step {completionStep} of 2</span>
+            </div>
+            <DialogDescription className="text-xs">
               {completionLeadDialogDrive?.customers?.full_name} • {completionLeadDialogDrive?.vehicles?.brand} {completionLeadDialogDrive?.vehicles?.model}
             </DialogDescription>
+            {/* Step progress bar */}
+            <div className="flex gap-1.5 mt-2">
+              <div className={`h-1 flex-1 rounded-full transition-colors ${completionStep >= 1 ? 'bg-primary' : 'bg-muted'}`} />
+              <div className={`h-1 flex-1 rounded-full transition-colors ${completionStep >= 2 ? 'bg-primary' : 'bg-muted'}`} />
+            </div>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Lead Temperature</Label>
-              <Select value={leadTemperature} onValueChange={(value: LeadTemperature) => setLeadTemperature(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select lead temperature" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="hot">Hot Lead (customer wants to buy)</SelectItem>
-                  <SelectItem value="cold">Cold Lead (follow up later)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Follow-up Task Title</Label>
-              <Input
-                value={followUpTaskTitle}
-                onChange={(event) => setFollowUpTaskTitle(event.target.value)}
-                placeholder={leadTemperature === 'hot'
-                  ? 'Call customer for booking amount and finance options'
-                  : 'Follow up after test drive and capture objections'}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Task Due At</Label>
-              <Input type="datetime-local" value={followUpTaskDueAt} onChange={(event) => setFollowUpTaskDueAt(event.target.value)} />
-            </div>
 
-            {/* Handover Questions */}
-            {presetHandoverQuestions.length > 0 && (
-              <div className="space-y-2 border-t border-border pt-4">
-                <Label className="flex items-center gap-1.5 text-sm font-semibold">
-                  <CheckSquare className="h-4 w-4 text-primary" /> Customer Questions During Test Drive
-                </Label>
-                <p className="text-xs text-muted-foreground">Check all questions or topics that were compulsory at the test drive, that is mandatory for every test drive.</p>
-                <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
-                  {presetHandoverQuestions.map((q) => (
-                    <div key={q} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`hq-${q}`}
-                        checked={selectedQuestions.includes(q)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedQuestions(prev => [...prev, q]);
-                          } else {
-                            setSelectedQuestions(prev => prev.filter(x => x !== q));
-                          }
-                        }}
-                      />
-                      <label htmlFor={`hq-${q}`} className="text-sm cursor-pointer select-none">{q}</label>
-                    </div>
-                  ))}
+          {/* ── Step 1: Drive Feedback ── */}
+          {completionStep === 1 && (
+            <div className="space-y-4 py-1">
+              <div>
+                <Label className="text-sm font-semibold mb-2 block">Lead Temperature</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setLeadTemperature('hot')}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 py-4 px-3 transition-colors ${
+                      leadTemperature === 'hot'
+                        ? 'border-warning bg-warning/10 text-warning'
+                        : 'border-border bg-background text-muted-foreground hover:border-warning/40'
+                    }`}
+                  >
+                    <span className="text-2xl">🔥</span>
+                    <span className="text-sm font-semibold">Hot Lead</span>
+                    <span className="text-[11px] text-center leading-tight opacity-80">Customer wants to buy now</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLeadTemperature('cold')}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 py-4 px-3 transition-colors ${
+                      leadTemperature === 'cold'
+                        ? 'border-info bg-info/10 text-info'
+                        : 'border-border bg-background text-muted-foreground hover:border-info/40'
+                    }`}
+                  >
+                    <span className="text-2xl">❄️</span>
+                    <span className="text-sm font-semibold">Cold Lead</span>
+                    <span className="text-[11px] text-center leading-tight opacity-80">Follow up later</span>
+                  </button>
                 </div>
               </div>
-            )}
 
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Additional Handover Notes / Comments</Label>
-              <Textarea
-                placeholder="Any additional notes about customer questions, concerns, or observations during the test drive…"
-                value={handoverNotes}
-                onChange={e => setHandoverNotes(e.target.value)}
-                rows={3}
-              />
-            </div>
-
-            {/* HOT LEAD — Booking / Payment section */}
-            {leadTemperature === 'hot' && (
-              <div className="space-y-3 border-t-2 border-warning/40 pt-4 bg-warning/5 -mx-1 px-1 rounded-lg">
-                <Label className="flex items-center gap-1.5 text-sm font-semibold text-warning-foreground">
-                  <BookOpen className="h-4 w-4 text-warning" /> Book Car — Payment Details
-                </Label>
-                <p className="text-xs text-muted-foreground">Customer wants to buy. Collect booking amount now or send a payment link.</p>
-
+              {presetHandoverQuestions.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Payment Method</Label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setBookingPaymentMethod('cash')}
-                      className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
-                        bookingPaymentMethod === 'cash'
-                          ? 'border-success bg-success/10 text-success'
-                          : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
-                      }`}
-                    >
-                      <Banknote className="h-4 w-4" /> Cash
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBookingPaymentMethod('payment_link')}
-                      className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
-                        bookingPaymentMethod === 'payment_link'
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
-                      }`}
-                    >
-                      <Link2 className="h-4 w-4" /> Payment Link
-                    </button>
+                  <Label className="flex items-center gap-1.5 text-sm font-semibold">
+                    <CheckSquare className="h-4 w-4 text-primary" /> Questions Covered During Drive
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Tick all topics that were covered (mandatory checklist).</p>
+                  <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+                    {presetHandoverQuestions.map((q) => (
+                      <div key={q} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`hq-${q}`}
+                          checked={selectedQuestions.includes(q)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectedQuestions(prev => [...prev, q]);
+                            else setSelectedQuestions(prev => prev.filter(x => x !== q));
+                          }}
+                        />
+                        <label htmlFor={`hq-${q}`} className="text-sm cursor-pointer select-none">{q}</label>
+                      </div>
+                    ))}
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Booking Amount (₹)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 50000"
-                    value={bookingAmount}
-                    onChange={e => setBookingAmount(e.target.value)}
-                  />
-                </div>
-
-                {bookingPaymentMethod === 'payment_link' && (
-                  <div className="space-y-2">
-                    <Label>Payment Link URL</Label>
-                    <Input
-                      type="url"
-                      placeholder="https://razorpay.com/l/your-link"
-                      value={bookingPaymentLink}
-                      onChange={e => setBookingPaymentLink(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">This link will be included in the booking confirmation email sent to the customer.</p>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label>Booking Notes</Label>
-                  <Input
-                    placeholder="e.g. Colour preference: White, Finance pre-approved"
-                    value={bookingNotes}
-                    onChange={e => setBookingNotes(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2 pt-1">
-              <Button onClick={handleCompleteWithLead} className="w-full bg-success text-success-foreground hover:bg-success/90">
-                <FileCheck className="h-4 w-4 mr-1.5" />
-                {leadTemperature === 'hot' ? 'Complete Drive + Create Opportunity' : 'Complete Drive + Create Opportunity + Task'}
-              </Button>
-              {leadTemperature === 'hot' && bookingAmount && parseFloat(bookingAmount) > 0 && (
-                <Button
-                  onClick={async () => {
-                    // First complete the drive + create opportunity, then create booking
-                    await handleCompleteWithLead();
-                    // The booking will be created using the stored state before reset
-                    // We need to call createBooking before state resets
-                  }}
-                  variant="outline"
-                  className="w-full border-warning/50 text-warning hover:bg-warning/10 hidden"
-                />
               )}
+
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Handover Notes / Observations</Label>
+                <Textarea
+                  placeholder="Customer questions, concerns, observations during the test drive…"
+                  value={handoverNotes}
+                  onChange={e => setHandoverNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              <Button
+                className="w-full"
+                onClick={() => setCompletionStep(2)}
+              >
+                Next — Follow-up & Actions →
+              </Button>
             </div>
-          </div>
+          )}
+
+          {/* ── Step 2: Follow-up & Close ── */}
+          {completionStep === 2 && (
+            <div className="space-y-4 py-1">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Follow-up Task Title</Label>
+                <Input
+                  value={followUpTaskTitle}
+                  onChange={(event) => setFollowUpTaskTitle(event.target.value)}
+                  placeholder={leadTemperature === 'hot'
+                    ? 'Call customer for booking amount and finance options'
+                    : 'Follow up after test drive and capture objections'}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Task Due At</Label>
+                <Input type="datetime-local" value={followUpTaskDueAt} onChange={(event) => setFollowUpTaskDueAt(event.target.value)} />
+              </div>
+
+              {/* HOT LEAD — Booking / Payment section */}
+              {leadTemperature === 'hot' && (
+                <div className="space-y-3 rounded-xl border-2 border-warning/40 bg-warning/5 p-4">
+                  <Label className="flex items-center gap-1.5 text-sm font-semibold text-warning-foreground">
+                    <BookOpen className="h-4 w-4 text-warning" /> Book Car — Payment Details
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Collect booking amount now or send a payment link.</p>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Payment Method</Label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBookingPaymentMethod('cash')}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
+                          bookingPaymentMethod === 'cash'
+                            ? 'border-success bg-success/10 text-success'
+                            : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
+                        }`}
+                      >
+                        <Banknote className="h-4 w-4" /> Cash
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBookingPaymentMethod('payment_link')}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
+                          bookingPaymentMethod === 'payment_link'
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
+                        }`}
+                      >
+                        <Link2 className="h-4 w-4" /> Payment Link
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Booking Amount (₹)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="e.g. 50000"
+                      value={bookingAmount}
+                      onChange={e => setBookingAmount(e.target.value)}
+                    />
+                  </div>
+
+                  {bookingPaymentMethod === 'payment_link' && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Payment Link URL</Label>
+                      <Input
+                        type="url"
+                        placeholder="https://razorpay.com/l/your-link"
+                        value={bookingPaymentLink}
+                        onChange={e => setBookingPaymentLink(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Booking Notes</Label>
+                    <Input
+                      placeholder="e.g. Colour preference: White, Finance pre-approved"
+                      value={bookingNotes}
+                      onChange={e => setBookingNotes(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setCompletionStep(1)}>
+                  ← Back
+                </Button>
+                <Button onClick={handleCompleteWithLead} className="flex-1 bg-success text-success-foreground hover:bg-success/90">
+                  <FileCheck className="h-4 w-4 mr-1.5" />
+                  {leadTemperature === 'hot' ? 'Complete + Book' : 'Complete + Create Task'}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

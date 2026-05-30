@@ -56,7 +56,7 @@ const TEST_DRIVE_EMAIL_TEMPLATES = ['booking-confirmation', 'sales-follow-up'];
 
 const SuperAdminDashboard = () => {
   const { role } = useAuth();
-  const { dealerId: contextDealerId, loading: dealerLoading } = useDealerContext();
+  const { dealerId: contextDealerId, loading: dealerLoading, selectedLocationId } = useDealerContext();
   const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
 
   const savedPrefs = (() => {
@@ -102,6 +102,8 @@ const SuperAdminDashboard = () => {
 
   const [selectedDealer, setSelectedDealer] = useState(savedPrefs.selectedDealer || 'all');
   const [selectedLocation, setSelectedLocation] = useState(savedPrefs.selectedLocation || 'all');
+  // For dealer_admin, the global context selection drives filtering; superadmin uses internal state.
+  const activeSelectedLocation = isSuperAdmin ? selectedLocation : (selectedLocationId ?? 'all');
   const [testDriveView, setTestDriveView] = useState<'grid' | 'chart'>(() => (savedPrefs.testDriveView === 'chart' ? 'chart' : 'grid'));
   const [testDriveChartType, setTestDriveChartType] = useState<'pie' | 'line' | 'bar'>(() => {
     const type = savedPrefs.testDriveChartType;
@@ -183,8 +185,8 @@ const SuperAdminDashboard = () => {
   useEffect(() => {
     if (dealerLoading && !isSuperAdmin) return;
     const fetchStaff = async () => {
-      const locationIds = selectedLocation !== 'all'
-        ? [selectedLocation]
+      const locationIds = activeSelectedLocation !== 'all'
+        ? [activeSelectedLocation]
         : locations.map(l => l.id);
       if (locationIds.length === 0) { setStaffMembers([]); return; }
 
@@ -212,12 +214,12 @@ const SuperAdminDashboard = () => {
       setStaffMembers(merged);
     };
     fetchStaff();
-  }, [selectedLocation, locations, dealerLoading, isSuperAdmin]);
+  }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin]);
 
   const fetchTestDrivesData = useCallback(async () => {
     if (dealerLoading && !isSuperAdmin) return;
-    const locationIds = selectedLocation !== 'all'
-      ? [selectedLocation]
+    const locationIds = activeSelectedLocation !== 'all'
+      ? [activeSelectedLocation]
       : locations.map((l: any) => l.id);
     if (locationIds.length === 0 && !isSuperAdmin) {
       setTestDrives([]); setStats({ total: 0, scheduled: 0, completed: 0, noShow: 0, cancelled: 0 }); setRepeatedCustomers([]); return;
@@ -254,7 +256,7 @@ const SuperAdminDashboard = () => {
       });
       setRepeatedCustomers(customers || []);
     } else { setRepeatedCustomers([]); }
-  }, [selectedLocation, locations, dealerLoading, isSuperAdmin]);
+  }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin]);
 
   useEffect(() => {
     void fetchTestDrivesData();
@@ -262,8 +264,8 @@ const SuperAdminDashboard = () => {
 
   // Firestore real-time: auto-refresh Staff-wise insights when any location updates
   useEffect(() => {
-    const locationIds = selectedLocation !== 'all'
-      ? [selectedLocation]
+    const locationIds = activeSelectedLocation !== 'all'
+      ? [activeSelectedLocation]
       : locations.map((l: any) => l.id);
     if (locationIds.length === 0) return;
 
@@ -289,7 +291,7 @@ const SuperAdminDashboard = () => {
     });
 
     return () => unsubs.forEach((u) => u());
-  }, [selectedLocation, locations, fetchTestDrivesData]);
+  }, [activeSelectedLocation, locations, fetchTestDrivesData]);
 
   const fetchAuthDiagnostics = useCallback(async () => {
     setAuthDiagnostics((prev) => ({ ...prev, loading: true }));
@@ -380,8 +382,8 @@ const SuperAdminDashboard = () => {
     if (dealerLoading && !isSuperAdmin) return;
 
     const fetchActivityData = async () => {
-      const locationIds = selectedLocation !== 'all'
-        ? [selectedLocation]
+      const locationIds = activeSelectedLocation !== 'all'
+        ? [activeSelectedLocation]
         : locations.map(l => l.id);
       const activitySince = new Date();
       activitySince.setDate(activitySince.getDate() - 7);
@@ -422,7 +424,7 @@ const SuperAdminDashboard = () => {
     };
 
     void fetchActivityData();
-  }, [selectedLocation, locations, dealerLoading, isSuperAdmin]);
+  }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin]);
 
   const filteredStaff = staffMembers;
 
@@ -684,34 +686,7 @@ const SuperAdminDashboard = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Filter className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Filter by:</span>
-          </div>
-
-          {isSuperAdmin && (
-            <Select value={selectedDealer} onValueChange={setSelectedDealer}>
-              <SelectTrigger className="w-[150px] h-9 text-sm font-medium">
-                <SelectValue placeholder="All Dealers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Dealers</SelectItem>
-                {dealers.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
-
-          <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-            <SelectTrigger className="w-[150px] h-9 text-sm font-medium">
-              <SelectValue placeholder="All Locations" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Locations</SelectItem>
-              {locations.map(loc => <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+     
       </div>
 
       {/* ── KPI Stat Cards ── */}

@@ -78,7 +78,7 @@ const SecurityDashboard = () => {
     }
 
     const driveIds = new Set(enrichedDrives.map((d) => d.id));
-    const eventTypes = 'test_drive_check_in,test_drive_check_out,test_drive_completed,vehicle_inspection_pre,vehicle_inspection_post,license_verified,license_rejected,test_drive_started';
+    const eventTypes = 'test_drive_check_in,test_drive_check_out,test_drive_completed,vehicle_inspection_pre,vehicle_inspection_post,license_verified,license_rejected,test_drive_started, license_uploaded';
     const activityEvents = await apiGet<any[]>(`/api/activity/events?event_types=${encodeURIComponent(eventTypes)}&limit=1200`) || [];
 
     const actorProfileIds = Array.from(new Set(activityEvents.map((e: any) => e.profile_id).filter(Boolean)));

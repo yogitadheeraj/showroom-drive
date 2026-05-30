@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { SELECTED_LOCATION_KEY } from '@/hooks/useDealerContext';
 
 type DbFilterOp = 'eq' | 'neq' | 'in' | 'not_in' | 'gt' | 'gte' | 'lt' | 'lte' | 'like' | 'ilike' | 'is';
 
@@ -27,6 +28,12 @@ async function buildHeaders(init?: HeadersInit, includeJson = true) {
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
+
+  // Forward the dealer-admin selected location so the backend can scope queries
+  try {
+    const selectedLocId = localStorage.getItem(SELECTED_LOCATION_KEY);
+    if (selectedLocId) headers.set('X-Selected-Location-Id', selectedLocId);
+  } catch { /* storage unavailable */ }
 
   return headers;
 }

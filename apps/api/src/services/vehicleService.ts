@@ -9,7 +9,11 @@ function lean(doc: any) {
 
 export async function listVehicles(filters: Record<string, unknown> = {}) {
   const q: Record<string, unknown> = {};
-  if (filters.location_id) q.location_id = filters.location_id;
+  if (filters.location_ids && Array.isArray(filters.location_ids) && filters.location_ids.length > 0) {
+    q.location_id = { $in: filters.location_ids };
+  } else if (filters.location_id) {
+    q.location_id = filters.location_id;
+  }
   if (typeof filters.is_active === 'boolean') q.is_active = filters.is_active;
   if (typeof filters.is_available === 'boolean') q.is_available = filters.is_available;
   if (filters.brand) q.brand = filters.brand;

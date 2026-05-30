@@ -36,7 +36,10 @@ export async function touchSessionController(req: Request, res: Response) {
 }
 
 export async function listOnlineSessionsController(req: Request, res: Response) {
-  const locationId = req.query.location_id as string | undefined;
-  const data = await activityService.listOnlineSessions(locationId);
+  const filters: Record<string, unknown> = {};
+  if (req.query.location_id) filters.location_id = req.query.location_id as string;
+  const locationIds = filters.location_ids as string[] | undefined;
+  const locationId = filters.location_id as string | undefined;
+  const data = await activityService.listOnlineSessions(locationId, locationIds);
   res.json({ data });
 }

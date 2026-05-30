@@ -26,7 +26,11 @@ export async function listEvents(filters: Record<string, unknown> = {}, limit = 
   const q: Record<string, unknown> = {};
   if (filters.user_id) q.user_id = filters.user_id;
   if (filters.profile_id) q.profile_id = filters.profile_id;
-  if (filters.location_id) q.location_id = filters.location_id;
+  if (filters.location_ids && Array.isArray(filters.location_ids) && filters.location_ids.length > 0) {
+    q.location_id = { $in: filters.location_ids };
+  } else if (filters.location_id) {
+    q.location_id = filters.location_id;
+  }
   if (filters.session_id) q.session_id = filters.session_id;
   if (filters.event_type) q.event_type = filters.event_type;
   if (filters.role) q.role = filters.role;
@@ -76,9 +80,13 @@ export async function getActiveSessionByUserId(userId: string) {
   const o = { ...doc } as any; delete o._id; return o;
 }
 
-export async function listOnlineSessions(locationId?: string) {
+export async function listOnlineSessions(locationId?: string, locationIds?: string[]) {
   const q: Record<string, unknown> = { is_online: true };
-  if (locationId) q.location_id = locationId;
+  if (locationIds && locationIds.length > 0) {
+    q.location_id = { $in: locationIds };
+  } else if (locationId) {
+    q.location_id = locationId;
+  }
   const docs = await StaffActivitySession.find(q).sort({ last_seen_at: -1 }).lean();
   return docs.map((d) => { const o = { ...d } as any; delete o._id; return o; });
 }

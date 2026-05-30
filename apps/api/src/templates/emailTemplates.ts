@@ -17,9 +17,9 @@ function base(previewText: string, bodyContent: string): string {
     .body h2 { margin: 0 0 16px; font-size: 18px; }
     .body p { margin: 0 0 12px; line-height: 1.6; color: #3f3f46; }
     .details { background: #f4f4f5; border-radius: 6px; padding: 16px 20px; margin: 16px 0; }
-    .details .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e4e4e7; font-size: 13px; }
+    .details .row { display: flex; justify-content: space-between; gap: 24px; padding: 8px 0; border-bottom: 1px solid #e4e4e7; font-size: 13px; }
     .details .row:last-child { border-bottom: none; }
-    .details .row .label { color: #71717a; }
+    .details .row .label { color: #71717a; white-space: nowrap; }
     .cta { display: inline-block; background: #18181b; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 14px; font-weight: 600; margin: 16px 0; }
     .footer { padding: 20px 32px; font-size: 12px; color: #a1a1aa; border-top: 1px solid #f4f4f5; }
     .preview { display: none; font-size: 1px; color: transparent; }
@@ -42,7 +42,8 @@ function base(previewText: string, bodyContent: string): string {
 
 function detailRow(label: string, value: string | undefined | null): string {
   if (!value) return '';
-  return `<div class="details row"><span class="label">${label}</span><span>${value}</span></div>`;
+  const displayLabel = label.endsWith(':') ? label : `${label}:`;
+  return `<div class="details row"><span class="label">${displayLabel}</span><span>${value}</span></div>`;
 }
 
 // ── Templates ────────────────────────────────────────────────────────────────

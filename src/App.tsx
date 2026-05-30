@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
+import { DealerContextProvider } from "@/hooks/useDealerContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -42,6 +43,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <DealerContextProvider>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/book" element={<BookingPage />} />
@@ -67,6 +69,7 @@ const App = () => (
             <Route path="/activity-logs" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.ACTIVITY_LOGS]}><ActivityLogsPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </DealerContextProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

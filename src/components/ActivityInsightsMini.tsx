@@ -9,7 +9,7 @@ import { APP_ROLE } from '@/constants/roles';
 
 const TD_EVENT_TYPES = [
   'test_drive_started', 'test_drive_completed', 'test_drive_rescheduled',
-  'test_drive_check_in', 'test_drive_check_out', 'key_handover',
+  'test_drive_check_in', 'test_drive_check_out', 'key_handover','license_uploaded', 'license_verified', 'license_rejected', 'vehicle_inspection_pre', 'vehicle_inspection_post',
 ];
 
 interface Counts {
@@ -78,6 +78,7 @@ export function ActivityInsightsMini() {
       ]);
 
       const events = eventsRows || [];
+      console.log('Fetched events:', events);
       setCounts({
         tdEvents: events.filter(e => TD_EVENT_TYPES.includes(e.event_type)).length,
         staffEvents: events.length,
