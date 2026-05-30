@@ -22,7 +22,21 @@ export async function getProfileById(id: string) {
 export async function listProfiles(filters: Record<string, unknown> = {}) {
   const q: Record<string, unknown> = {};
   if (filters.location_id) q.location_id = filters.location_id;
+  if (filters.location_ids) {
+    const ids = String(filters.location_ids).split(',').map((s) => s.trim()).filter(Boolean);
+    if (ids.length > 0) q.location_id = { $in: ids };
+  }
   if (typeof filters.is_active === 'boolean') q.is_active = filters.is_active;
+  else if (filters.is_active === 'true') q.is_active = true;
+  else if (filters.is_active === 'false') q.is_active = false;
+  if (filters.ids) {
+    const ids = String(filters.ids).split(',').map((s) => s.trim()).filter(Boolean);
+    if (ids.length > 0) q.id = { $in: ids };
+  }
+  if (filters.user_ids) {
+    const ids = String(filters.user_ids).split(',').map((s) => s.trim()).filter(Boolean);
+    if (ids.length > 0) q.user_id = { $in: ids };
+  }
   const docs = await Profile.find(q).sort({ full_name: 1 }).lean();
   return docs.map((d) => { const o = { ...d } as any; delete o._id; return o; });
 }

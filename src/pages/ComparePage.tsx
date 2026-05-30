@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiDbQuery, apiPost } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -205,10 +205,7 @@ const ComparePage = () => {
         customer = customerRow;
       }
 
-      await apiDbQuery({
-        table: 'communications',
-        action: 'insert',
-        payload: {
+      await apiPost('/api/communications', {
           customer_id: customer.id,
           type: 'sms',
           purpose: 'custom',
@@ -216,8 +213,7 @@ const ComparePage = () => {
           subject: `Availability Enquiry - ${vehicle.brand} ${vehicle.model}`,
           body: payload.message.trim(),
           status: 'pending',
-        },
-      });
+        });
 
       setSentAvailabilityEnquiry((prev) => ({ ...prev, [vehicle.id]: true }));
       setAvailabilityEnquiry((prev) => ({

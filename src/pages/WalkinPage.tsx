@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import { demoAutofillData } from '@/lib/demoAutofillData';
-import { apiDbQuery, apiGet, apiInvokeFunction, apiPost } from '@/lib/apiClient';
+import { apiGet, apiInvokeFunction, apiPost } from '@/lib/apiClient';
 import { createCustomer, findCustomerByPhone, updateCustomer } from '@/lib/customerService';
 import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
@@ -64,15 +64,9 @@ const WalkinPage = () => {
   useEffect(() => {
     if (dealerLoading) return;
 
-    const filters: Array<{ field: string; op: 'eq'; value: unknown }> = [{ field: 'is_active', op: 'eq', value: true }];
-    if (dealerId) filters.push({ field: 'dealer_id', op: 'eq', value: dealerId });
-
-    apiDbQuery<any[]>({
-      table: 'locations',
-      action: 'select',
-      select: '*',
-      filters,
-    }).then((data) => {
+    const params = new URLSearchParams({ is_active: 'true' });
+    if (dealerId) params.set('dealer_id', dealerId);
+    apiGet<any[]>(`/api/locations?${params}`).then((data) => {
       let locs = data || [];
       if (role === APP_ROLE.DEALER_ADMIN) {
         locs = locs.filter((l: any) => !l.disabled_for_dealer_admin);
@@ -329,15 +323,9 @@ const WalkinPage = () => {
       let assignedSalesPhone: string | null = null;
       const assignedId = testDrive.assigned_sales_person_id;
       if (assignedId) {
-        const spRows = await apiDbQuery<any[]>({
-          table: 'profiles',
-          action: 'select',
-          select: 'full_name, phone',
-          filters: [{ field: 'id', op: 'eq', value: assignedId }],
-          limit: 1,
-        });
-        const sp = spRows?.[0] || null;
-        if (sp) {
+        const spRows = await apiGet<any[]>(`/api/profiles/${encodeURIComponent(assignedId)}`);
+      const sp = Array.isArray(spRows) ? spRows[0] : spRows;
+      if (sp) {
           assignedSalesName = sp.full_name;
           assignedSalesPhone = sp.phone;
         }
@@ -364,10 +352,7 @@ const WalkinPage = () => {
           waError = error;
         }
 
-        await apiDbQuery({
-          table: 'communications',
-          action: 'insert',
-          payload: {
+        await apiPost('/api/communications', {
           customer_id: customerId,
           test_drive_id: testDrive.id,
           type: 'whatsapp',
@@ -377,7 +362,6 @@ const WalkinPage = () => {
           body: waMessage,
           status: waError ? 'failed' : 'sent',
           sent_at: waError ? null : new Date().toISOString(),
-          },
         });
       }
 
@@ -402,10 +386,7 @@ const WalkinPage = () => {
 
         const emailBody = `Your walk-in test drive for ${vehicleName} is registered at ${locationName} on ${walkinTime}. Please contact your sales team for help.`;
 
-        await apiDbQuery({
-          table: 'communications',
-          action: 'insert',
-          payload: {
+        await apiPost('/api/communications', {
           customer_id: customerId,
           test_drive_id: testDrive.id,
           type: 'email',
@@ -415,7 +396,6 @@ const WalkinPage = () => {
           body: emailBody,
           status: emailError ? 'failed' : 'sent',
           sent_at: emailError ? null : new Date().toISOString(),
-          },
         });
       }
 

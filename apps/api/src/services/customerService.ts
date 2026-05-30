@@ -48,6 +48,10 @@ export async function listCustomers(filters: Record<string, unknown> = {}) {
       q.email = new RegExp(`^${escapeRegex(normalizedEmail)}$`, 'i');
     }
   }
+  if (filters.ids) {
+    const ids = String(filters.ids).split(',').map((s) => s.trim()).filter(Boolean);
+    if (ids.length > 0) q.id = { $in: ids };
+  }
   if (filters.search) {
     q.$or = [
       { full_name: { $regex: String(filters.search), $options: 'i' } },

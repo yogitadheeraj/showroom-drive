@@ -18,3 +18,9 @@ export async function updateCommunicationStatusController(req: Request, res: Res
   if (!data) return res.status(404).json({ error: 'Communication not found' });
   res.json({ data });
 }
+
+export async function updateCommunicationController(req: Request, res: Response) {
+  const data = await communicationService.updateCommunication(req.params.id, req.body);
+  if (!data) return res.status(404).json({ error: 'Communication not found' });
+  res.json({ data });
+}

@@ -9,7 +9,7 @@ import { Notification } from '../models/Notification.js';
 import { sendMail } from './mailService.js';
 import { notifyTestDriveStatusChange } from './firebaseService.js';
 import { getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getDatabase } from 'firebase-admin/database';
 
 function toPlain(doc: any) {
   const obj = doc.toObject ? doc.toObject() : { ...doc };
@@ -32,6 +32,17 @@ export async function listTestDrives(filters: Record<string, unknown> = {}) {
   if (filters.scheduled_date) query.scheduled_date = filters.scheduled_date;
   if (filters.statuses && Array.isArray(filters.statuses)) {
     query.status = { $in: filters.statuses };
+  }
+  if (filters.ids) {
+    const ids = String(filters.ids).split(',').map((s) => s.trim()).filter(Boolean);
+    if (ids.length > 0) query.id = { $in: ids };
+  }
+  if (filters.created_at_gte) query.created_at = { $gte: String(filters.created_at_gte) };
+  if (filters.date_gte || filters.date_lte) {
+    const dateQ: Record<string, string> = {};
+    if (filters.date_gte) dateQ.$gte = String(filters.date_gte);
+    if (filters.date_lte) dateQ.$lte = String(filters.date_lte);
+    query.scheduled_date = dateQ;
   }
   const limit = typeof filters.limit === 'number' && filters.limit > 0 ? filters.limit : undefined;
   const includeRelated = filters.include_related !== false;
@@ -168,6 +179,16 @@ export async function createTestDrive(data: Record<string, unknown>) {
   await doc.save();
   // Non-blocking: send emails + in-app notifications
   void sendTestDriveBookedNotifications(toPlain(doc)).catch(() => null);
+  // Non-blocking: write real-time creation event to RTDB
+  void writeTestDriveEvent({
+    test_drive_id:  toPlain(doc).id,
+    status:         toPlain(doc).status || 'scheduled',
+    customer_name:  '',
+    vehicle_name:   '',
+    scheduled_date: toPlain(doc).scheduled_date || null,
+    scheduled_time: toPlain(doc).scheduled_time || null,
+    location_id:    toPlain(doc).location_id,
+  }).catch(() => null);
   return toPlain(doc);
 }
 
@@ -247,22 +268,38 @@ async function afterStatusChange(td: any, status: string) {
     scheduledTime:        td.scheduled_time,
   }).catch(() => null);
 
-  // 2. Firestore real-time signal — one document per location, overwritten each time
-  if (!getApps().length) return;
+  // 2. Realtime Database signal — one record per location, overwritten each time
+  await writeTestDriveEvent({
+    test_drive_id:  td.id,
+    status,
+    customer_name:  customerName,
+    vehicle_name:   vehicleName,
+    scheduled_date: td.scheduled_date || null,
+    scheduled_time: td.scheduled_time || null,
+    location_id:    td.location_id,
+  });
+}
+
+// ─── Write a real-time event to Firebase Realtime Database ───────────────────
+
+async function writeTestDriveEvent(data: {
+  test_drive_id: string;
+  status: string;
+  customer_name: string;
+  vehicle_name: string;
+  scheduled_date: string | null;
+  scheduled_time: string | null;
+  location_id: string;
+}) {
+  if (!getApps().length || !data.location_id) return;
   try {
-    const db = getFirestore();
-    await db.collection('test_drive_events').doc(td.location_id).set({
-      test_drive_id:  td.id,
-      status,
-      customer_name:  customerName,
-      vehicle_name:   vehicleName,
-      scheduled_date: td.scheduled_date || null,
-      scheduled_time: td.scheduled_time || null,
-      location_id:    td.location_id,
-      updated_at:     new Date().toISOString(),
+    const db = getDatabase();
+    await db.ref(`test_drive_events/${data.location_id}`).set({
+      ...data,
+      updated_at: new Date().toISOString(),
     });
   } catch {
-    // Firestore not available — silently skip
+    // RTDB not available — silently skip
   }
 }
 

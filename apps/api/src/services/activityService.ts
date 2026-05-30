@@ -29,6 +29,11 @@ export async function listEvents(filters: Record<string, unknown> = {}, limit = 
   if (filters.location_id) q.location_id = filters.location_id;
   if (filters.session_id) q.session_id = filters.session_id;
   if (filters.event_type) q.event_type = filters.event_type;
+  if (filters.role) q.role = filters.role;
+  if (filters.event_types) {
+    const types = String(filters.event_types).split(',').map((s) => s.trim()).filter(Boolean);
+    if (types.length > 0) q.event_type = { $in: types };
+  }
   const docs = await StaffActivityEvent.find(q).sort({ happened_at: -1 }).limit(limit).lean();
   return docs.map((d) => { const o = { ...d } as any; delete o._id; return o; });
 }

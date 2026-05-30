@@ -35,6 +35,10 @@ export async function getTestDrivesController(req: Request, res: Response) {
     if (req.query.statuses) {
       filters.statuses = String(req.query.statuses).split(',').map((s) => s.trim());
     }
+    if (req.query.ids) filters.ids = req.query.ids;
+    if (req.query.created_at_gte) filters.created_at_gte = req.query.created_at_gte;
+    if (req.query.date_gte) filters.date_gte = req.query.date_gte;
+    if (req.query.date_lte) filters.date_lte = req.query.date_lte;
     const [data, count] = await Promise.all([listTestDrives(filters), countTestDrives(filters)]);
     res.status(200).json({ data, count, error: null });
   } catch (error) {

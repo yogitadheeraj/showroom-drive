@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { demoAutofillData } from '@/lib/demoAutofillData';
-import { apiDbQuery, apiInvokeFunction } from '@/lib/apiClient';
+import { apiGet, apiPost, apiPatch, apiInvokeFunction } from '@/lib/apiClient';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -77,43 +77,26 @@ const UsersPage = () => {
   useEffect(() => {
     if (!dealerLoading) {
       if (isSuperAdmin) {
-        apiDbQuery<any[]>({
-          table: 'dealers',
-          action: 'select',
-          select: 'id, name',
-          filters: [{ field: 'is_active', op: 'eq', value: true }],
-          order: [{ field: 'name', ascending: true }],
-        }).then((data) => setDealers(data || []));
+        apiGet<any[]>('/api/dealers?is_active=true').then((data) => setDealers(data || []));
       }
       fetchUsers();
-      const locationFilters: Array<{ field: string; op: 'eq'; value: string }> = [];
+      const locationParams = new URLSearchParams();
       if (isSuperAdmin && selectedDealerFilter !== 'all') {
-        locationFilters.push({ field: 'dealer_id', op: 'eq', value: selectedDealerFilter });
+        locationParams.set('dealer_id', selectedDealerFilter);
       } else if (isSalesAdmin && profile?.location_id) {
-        locationFilters.push({ field: 'id', op: 'eq', value: profile.location_id });
+        locationParams.set('ids', profile.location_id);
       } else if (!isSuperAdmin && dealerId) {
-        locationFilters.push({ field: 'dealer_id', op: 'eq', value: dealerId });
+        locationParams.set('dealer_id', dealerId);
       }
-
-      apiDbQuery<any[]>({
-        table: 'locations',
-        action: 'select',
-        select: '*',
-        filters: locationFilters,
-      }).then((data) => setLocations(data || []));
+      apiGet<any[]>(`/api/locations?${locationParams}`).then((data) => setLocations(data || []));
     }
   }, [dealerId, dealerLoading, isSuperAdmin, isSalesAdmin, profile?.location_id, selectedDealerFilter]);
 
   const fetchUsers = async () => {
     const [profiles, roles, allLocations] = await Promise.all([
-      apiDbQuery<any[]>({
-        table: 'profiles',
-        action: 'select',
-        select: '*',
-        order: [{ field: 'full_name', ascending: true }],
-      }),
-      apiDbQuery<any[]>({ table: 'user_roles', action: 'select', select: '*' }),
-      apiDbQuery<any[]>({ table: 'locations', action: 'select', select: 'id, dealer_id' }),
+      apiGet<any[]>('/api/profiles'),
+      apiGet<any[]>('/api/user-roles'),
+      apiGet<any[]>('/api/locations'),
     ]);
 
     const locationDealerMap = (allLocations || []).reduce((acc: Record<string, string>, loc: any) => {
@@ -160,13 +143,7 @@ const UsersPage = () => {
       return;
     }
 
-    const drives = await apiDbQuery<any[]>({
-      table: 'test_drives',
-      action: 'select',
-      select: 'assigned_sales_person_id, assigned_gro_id, status, location_id',
-      filters: [{ field: 'location_id', op: 'in', value: visibleLocationIds }],
-      limit: 5000,
-    });
+    const drives = await apiGet<any[]>(`/api/test-drives?location_ids=${encodeURIComponent(visibleLocationIds.join(','))}&include_related=false&limit=5000`);
 
     const metrics: Record<string, { assigned: number; active: number; completed: number }> = {};
     const ensure = (profileId: string) => {
@@ -277,29 +254,12 @@ const UsersPage = () => {
       const currentRole = editingUser.user_roles?.[0];
 
       if (currentRole) {
-        await apiDbQuery({
-          table: 'user_roles',
-          action: 'update',
-          filters: [{ field: 'user_id', op: 'eq', value: editingUser.user_id }],
-          payload: { role: editForm.role as any },
-        });
+        await apiPost('/api/user-roles', { user_id: editingUser.user_id, role: editForm.role });
       } else {
-        await apiDbQuery({
-          table: 'user_roles',
-          action: 'insert',
-          payload: {
-            user_id: editingUser.user_id,
-            role: editForm.role as any,
-          },
-        });
+        await apiPost('/api/user-roles', { user_id: editingUser.user_id, role: editForm.role });
       }
 
-      await apiDbQuery({
-        table: 'profiles',
-        action: 'update',
-        filters: [{ field: 'user_id', op: 'eq', value: editingUser.user_id }],
-        payload: { location_id: editForm.locationId || null },
-      });
+      await apiPatch(`/api/profiles/${encodeURIComponent(editingUser.id)}`, { location_id: editForm.locationId || null });
 
       toast({ title: 'Updated', description: `${editingUser.full_name} is now ${editForm.role}` });
       setEditingUser(null);
@@ -329,12 +289,7 @@ const UsersPage = () => {
     const nextActive = !isUserActive(u);
     setSaving(true);
     try {
-      await apiDbQuery({
-        table: 'profiles',
-        action: 'update',
-        filters: [{ field: 'user_id', op: 'eq', value: u.user_id }],
-        payload: { is_active: nextActive },
-      });
+      await apiPatch(`/api/profiles/${encodeURIComponent(u.id)}`, { is_active: nextActive });
 
       toast({ title: nextActive ? 'User unblocked' : 'User blocked' });
       fetchUsers();

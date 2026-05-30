@@ -5,6 +5,7 @@ import { env } from './config/env.js';
 import { initFirebaseAdmin } from './config/firebaseAdmin.js';
 import { attachAuthUser } from './middleware/auth.js';
 import { apiRouter } from './routes/index.js';
+import { processEmailQueues } from './services/emailProcessorService.js';
 
 const app = express();
 
@@ -27,6 +28,19 @@ async function start() {
 
   initFirebaseAdmin();
   await mongoose.connect(env.mongoUri);
+
+  // Background email queue processor — runs every 30 seconds
+  const EMAIL_PROCESSOR_INTERVAL_MS = 30_000;
+  setInterval(async () => {
+    try {
+      const result = await processEmailQueues();
+      if (result.processed > 0) {
+        console.log(`[emailProcessor] Processed ${result.processed} emails`);
+      }
+    } catch (err) {
+      console.error('[emailProcessor] Error during queue processing', err);
+    }
+  }, EMAIL_PROCESSOR_INTERVAL_MS);
 
   app.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`);

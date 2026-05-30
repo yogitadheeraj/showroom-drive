@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiDbQuery, apiRpc } from '@/lib/apiClient';
+import { apiGet, apiRpc } from '@/lib/apiClient';
 import { authResendSignupVerification, authSignUp } from '@/lib/authClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,13 +66,7 @@ const DealerOnboardingPage = () => {
       const slug = emailPrefix || dealerData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
       // Check for duplicate slug before creating anything
-      const existingDealers = await apiDbQuery<any[]>({
-        table: 'dealers',
-        action: 'select',
-        select: 'id',
-        filters: [{ field: 'slug', op: 'eq', value: slug }],
-        limit: 1,
-      });
+      const existingDealers = await apiGet<any[]>(`/api/dealers?slug=${encodeURIComponent(slug)}`);
       const existingDealer = existingDealers?.[0] || null;
       if (existingDealer) {
         throw new Error('A dealership with this email already exists. Please use a different email address.');

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiGet, apiPost, apiPatch } from '@/lib/apiClient';
 import { sendTransactionalEmail } from '@/lib/functionService';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { Card, CardContent } from '@/components/ui/card';
@@ -86,69 +86,24 @@ const TestDrivesPage = () => {
   });
 
   const fetchTestDrives = async () => {
-    const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [];
+    const params = new URLSearchParams();
 
     if (role === APP_ROLE.SALES) {
       if (!profile?.id) {
         setTestDrives([]);
         return;
       }
-      filters.push({ field: 'assigned_sales_person_id', op: 'eq', value: profile.id });
+      params.set('sales_person_id', profile.id);
     }
 
-    if (statusFilter !== 'all') {
-      filters.push({ field: 'status', op: 'eq', value: statusFilter });
-    }
+    if (statusFilter !== 'all') params.set('status', statusFilter);
 
     if (role !== APP_ROLE.SUPERADMIN && dealerLocationIds && dealerLocationIds.length > 0) {
-      filters.push({ field: 'location_id', op: 'in', value: dealerLocationIds });
+      params.set('location_ids', dealerLocationIds.join(','));
     }
 
-    const drives = await apiDbQuery<any[]>({
-      table: 'test_drives',
-      action: 'select',
-      select: '*',
-      filters,
-      order: [
-        { field: 'scheduled_date', ascending: false },
-        { field: 'scheduled_time', ascending: true },
-      ],
-    });
-
-    const customerIds = Array.from(new Set(drives.map((d) => d.customer_id).filter(Boolean)));
-    const vehicleIds = Array.from(new Set(drives.map((d) => d.vehicle_id).filter(Boolean)));
-    const locationIds = Array.from(new Set(drives.map((d) => d.location_id).filter(Boolean)));
-    const profileIds = Array.from(new Set(drives.map((d) => d.assigned_sales_person_id).filter(Boolean)));
-
-    const [customers, vehicles, locations, profiles] = await Promise.all([
-      customerIds.length
-        ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: customerIds }] })
-        : Promise.resolve([]),
-      vehicleIds.length
-        ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: vehicleIds }] })
-        : Promise.resolve([]),
-      locationIds.length
-        ? apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: locationIds }] })
-        : Promise.resolve([]),
-      profileIds.length
-        ? apiDbQuery<any[]>({ table: 'profiles', action: 'select', select: 'id, full_name', filters: [{ field: 'id', op: 'in', value: profileIds }] })
-        : Promise.resolve([]),
-    ]);
-console.log({ drives, customers, vehicles, locations, profiles });
-    const customerMap = new Map(customers.map((c) => [c.id, c]));
-    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
-    const locationMap = new Map(locations.map((l) => [l.id, l]));
-    const profileMap = new Map(profiles.map((p) => [p.id, p]));
-
-    setTestDrives(
-      drives.map((d) => ({
-        ...d,
-        customers: customerMap.get(d.customer_id) || null,
-        vehicles: vehicleMap.get(d.vehicle_id) || null,
-        locations: locationMap.get(d.location_id) || null,
-        profiles: profileMap.get(d.assigned_sales_person_id) || null,
-      })),
-    );
+    const drives = await apiGet<any[]>(`/api/test-drives?${params}`);
+    setTestDrives(drives || []);
   };
 
   const handleReschedule = async () => {
@@ -156,10 +111,7 @@ console.log({ drives, customers, vehicles, locations, profiles });
     const original = testDrives.find((t) => t.id === rescheduleId);
     if (!original) return;
 
-    const [newDrive] = await apiDbQuery<any[]>({
-      table: 'test_drives',
-      action: 'insert',
-      values: [{
+    const newDrive = await apiPost<any>('/api/test-drives', {
       customer_id: original.customer_id,
       vehicle_id: original.vehicle_id,
       location_id: original.location_id,
@@ -169,15 +121,9 @@ console.log({ drives, customers, vehicles, locations, profiles });
       scheduled_time: newTime,
       source: original.source,
       rescheduled_from: rescheduleId,
-      }],
     });
 
-    await apiDbQuery({
-      table: 'test_drives',
-      action: 'update',
-      payload: { status: 'rescheduled' },
-      filters: [{ field: 'id', op: 'eq', value: rescheduleId }],
-    });
+    await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleId)}`, { status: 'rescheduled' });
 
     // Send reschedule email to customer
     if (original.customers?.email) {
@@ -208,14 +154,9 @@ console.log({ drives, customers, vehicles, locations, profiles });
     if (!cancelId) return;
     const original = testDrives.find((t) => t.id === cancelId);
 
-    await apiDbQuery({
-      table: 'test_drives',
-      action: 'update',
-      payload: {
-        status: 'cancelled',
-        cancelled_reason: cancelReason,
-      },
-      filters: [{ field: 'id', op: 'eq', value: cancelId }],
+    await apiPatch(`/api/test-drives/${encodeURIComponent(cancelId)}`, {
+      status: 'cancelled',
+      cancelled_reason: cancelReason,
     });
 
     // Send cancel email to customer
@@ -334,7 +275,7 @@ console.log({ drives, customers, vehicles, locations, profiles });
   };
 
   const updateStatus = async (id: string, newStatus: string) => {
-    await apiDbQuery({ table: 'test_drives', action: 'update', payload: { status: newStatus }, filters: [{ field: 'id', op: 'eq', value: id }] });
+    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { status: newStatus });
     toast({ title: 'Status updated' });
     fetchTestDrives();
   };
@@ -342,7 +283,7 @@ console.log({ drives, customers, vehicles, locations, profiles });
   const handleAssignKey = async (id: string) => {
     setAssigningKey(id);
     try {
-      await apiDbQuery({ table: 'test_drives', action: 'update', payload: { key_handed_at: new Date().toISOString(), status: 'in_progress' }, filters: [{ field: 'id', op: 'eq', value: id }] });
+      await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { key_handed_at: new Date().toISOString(), status: 'in_progress' });
       toast({ title: 'Key assigned', description: 'Test drive is now in progress.' });
     } finally {
       setAssigningKey(null);
@@ -353,7 +294,7 @@ console.log({ drives, customers, vehicles, locations, profiles });
   const handleSecurityCheckIn = async (id: string) => {
     setSecurityActionId(id);
     try {
-      await apiDbQuery({ table: 'test_drives', action: 'update', payload: { security_checked_in_at: new Date().toISOString(), status: 'in_progress' }, filters: [{ field: 'id', op: 'eq', value: id }] });
+      await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { security_checked_in_at: new Date().toISOString(), status: 'in_progress' });
       toast({ title: 'Test drive started' });
     } finally {
       setSecurityActionId(null);
@@ -364,7 +305,7 @@ console.log({ drives, customers, vehicles, locations, profiles });
   const handleSecurityCheckOut = async (id: string) => {
     setSecurityActionId(id);
     try {
-      await apiDbQuery({ table: 'test_drives', action: 'update', payload: { security_checked_out_at: new Date().toISOString() }, filters: [{ field: 'id', op: 'eq', value: id }] });
+      await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { security_checked_out_at: new Date().toISOString() });
       toast({ title: 'Vehicle returned' });
     } finally {
       setSecurityActionId(null);
@@ -373,7 +314,7 @@ console.log({ drives, customers, vehicles, locations, profiles });
   };
 
   const handleKeyHandoverComplete = async (td: any) => {
-    await apiDbQuery({ table: 'test_drives', action: 'update', payload: { key_handover_completed_at: new Date().toISOString(), status: 'completed' }, filters: [{ field: 'id', op: 'eq', value: td.id }] });
+    await apiPatch(`/api/test-drives/${encodeURIComponent(td.id)}`, { key_handover_completed_at: new Date().toISOString(), status: 'completed' });
     fetchTestDrives();
     setLeadDialogDrive(td);
     setLeadTemperature('cold');
@@ -575,11 +516,11 @@ console.log({ drives, customers, vehicles, locations, profiles });
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>New Date</Label>
-                <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+                <Input type="date" value={newDate} min={new Date().toISOString().split('T')[0]} onChange={(e) => setNewDate(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>New Time</Label>
-                <Input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
+                <Input type="time" value={newTime} min={newDate === new Date().toISOString().split('T')[0] ? `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}` : undefined} onChange={(e) => setNewTime(e.target.value)} />
               </div>
               <Button onClick={handleReschedule} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">Confirm Reschedule</Button>
             </div>
@@ -623,12 +564,7 @@ console.log({ drives, customers, vehicles, locations, profiles });
                 className="bg-warning text-warning-foreground hover:bg-warning/90"
                 onClick={async () => {
                   if (!noShowId) return;
-                  await apiDbQuery({
-                    table: 'test_drives',
-                    action: 'update',
-                    payload: { status: 'no_show' },
-                    filters: [{ field: 'id', op: 'eq', value: noShowId }],
-                  });
+                  await apiPatch(`/api/test-drives/${encodeURIComponent(noShowId)}`, { status: 'no_show' });
                   setNoShowId(null);
                   fetchTestDrives();
                 }}

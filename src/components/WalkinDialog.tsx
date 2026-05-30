@@ -234,7 +234,7 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
         try {
           await apiInvokeFunction('send-whatsapp', { to: formData.phone, message: waMessage, customerId, testDriveId: testDrive.id, purpose: 'booking_confirmed' });
         } catch (e) { waError = e; }
-        await apiDbQuery({ table: 'communications', action: 'insert', payload: { customer_id: customerId, test_drive_id: testDrive.id, type: 'whatsapp', purpose: 'booking_confirmed', sent_to: formData.phone, subject: null, body: waMessage, status: waError ? 'failed' : 'sent', sent_at: waError ? null : new Date().toISOString() } });
+        await apiPost('/api/communications', { customer_id: customerId, test_drive_id: testDrive.id, type: 'whatsapp', purpose: 'booking_confirmed', sent_to: formData.phone, subject: null, body: waMessage, status: waError ? 'failed' : 'sent', sent_at: waError ? null : new Date().toISOString() } as Record<string, unknown>);
       }
 
       if (formData.email) {
@@ -242,7 +242,7 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
         try {
           await apiInvokeFunction('send-transactional-email', { templateName: 'booking-confirmation', recipientEmail: formData.email, idempotencyKey: `walkin-confirm-${testDrive.id}`, templateData: { customerName: formData.fullName, vehicleName, locationName, scheduledDate: scheduledDateStr, scheduledTime: scheduledTimeStr } });
         } catch (e) { emailError = e; }
-        await apiDbQuery({ table: 'communications', action: 'insert', payload: { customer_id: customerId, test_drive_id: testDrive.id, type: 'email', purpose: 'booking_confirmed', sent_to: formData.email, subject: 'Walk-in Test Drive Confirmation', body: `Your test drive for ${vehicleName} at ${locationName} on ${scheduledDateStr} ${scheduledTimeStr}.`, status: emailError ? 'failed' : 'sent', sent_at: emailError ? null : new Date().toISOString() } });
+        await apiPost('/api/communications', { customer_id: customerId, test_drive_id: testDrive.id, type: 'email', purpose: 'booking_confirmed', sent_to: formData.email, subject: 'Walk-in Test Drive Confirmation', body: `Your test drive for ${vehicleName} at ${locationName} on ${scheduledDateStr} ${scheduledTimeStr}.`, status: emailError ? 'failed' : 'sent', sent_at: emailError ? null : new Date().toISOString() } as Record<string, unknown>);
       }
 
       toast({ title: walkinToday ? 'Walk-in registered' : 'Booking created', description: `${formData.fullName} has been ${walkinToday ? 'checked in' : `booked for ${scheduledDateStr} at ${scheduledTimeStr}`}.` });

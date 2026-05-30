@@ -10,6 +10,9 @@ function lean(doc: any) {
 export async function listDealers(filters: Record<string, unknown> = {}) {
   const q: Record<string, unknown> = {};
   if (typeof filters.is_active === 'boolean') q.is_active = filters.is_active;
+  else if (filters.is_active === 'true') q.is_active = true;
+  else if (filters.is_active === 'false') q.is_active = false;
+  if (filters.slug) q.slug = filters.slug;
   const docs = await Dealer.find(q).sort({ name: 1 }).lean();
   return docs.map((d) => { const o = { ...d } as any; delete o._id; return o; });
 }

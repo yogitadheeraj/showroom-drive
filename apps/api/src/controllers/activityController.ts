@@ -5,7 +5,10 @@ import * as activityService from '../services/activityService.js';
 
 export async function listEventsController(req: Request, res: Response) {
   const limit = Number(req.query.limit) || 200;
-  const data = await activityService.listEvents(req.query as Record<string, unknown>, limit);
+  const filters: Record<string, unknown> = { ...req.query };
+  if (req.query.event_types) filters.event_types = req.query.event_types;
+  if (req.query.role) filters.role = req.query.role;
+  const data = await activityService.listEvents(filters, limit);
   res.json({ data });
 }
 

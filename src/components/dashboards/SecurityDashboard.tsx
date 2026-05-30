@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiGet, apiPatch } from '@/lib/apiClient';
 import { getStorageSignedUrl, listStorageFiles, removeStorageFiles, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -67,80 +67,35 @@ const SecurityDashboard = () => {
   };
 
   const fetchDrives = async () => {
-    const filters = profile?.location_id ? [{ field: 'location_id', op: 'eq' as const, value: profile.location_id }] : [];
-    const drives = await apiDbQuery<any[]>({
-      table: 'test_drives',
-      action: 'select',
-      select: '*',
-      filters,
-      order: [
-        { field: 'scheduled_date', ascending: true },
-        { field: 'scheduled_time', ascending: true },
-      ],
-    });
+    const params = new URLSearchParams();
+    if (profile?.location_id) params.set('location_id', profile.location_id);
+    const enrichedDrives = await apiGet<any[]>(`/api/test-drives?${params.toString()}`) || [];
+    setTestDrives(enrichedDrives);
 
-    const customerIds = Array.from(new Set(drives.map((d: any) => d.customer_id).filter(Boolean)));
-    const vehicleIds = Array.from(new Set(drives.map((d: any) => d.vehicle_id).filter(Boolean)));
-    const locationIds = Array.from(new Set(drives.map((d: any) => d.location_id).filter(Boolean)));
-    const profileIds = Array.from(new Set(drives.map((d: any) => d.assigned_sales_person_id).filter(Boolean)));
-
-    const [customers, vehicles, locations, profiles] = await Promise.all([
-      customerIds.length ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: customerIds }] }) : Promise.resolve([]),
-      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
-      locationIds.length ? apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: locationIds }] }) : Promise.resolve([]),
-      profileIds.length ? apiDbQuery<any[]>({ table: 'profiles', action: 'select', select: 'id, full_name, phone', filters: [{ field: 'id', op: 'in', value: profileIds }] }) : Promise.resolve([]),
-    ]);
-
-    const customerMap = new Map(customers.map((c) => [c.id, c]));
-    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
-    const locationMap = new Map(locations.map((l) => [l.id, l]));
-    const profileMap = new Map(profiles.map((p) => [p.id, p]));
-
-    setTestDrives(
-      drives.map((d) => ({
-        ...d,
-        customers: customerMap.get(d.customer_id) || null,
-        vehicles: vehicleMap.get(d.vehicle_id) || null,
-        locations: locationMap.get(d.location_id) || null,
-        profiles: profileMap.get(d.assigned_sales_person_id) || null,
-      })),
-    );
-
-    if (!drives?.length) {
+    if (!enrichedDrives.length) {
       setSecurityLogsByDrive({});
       return;
     }
 
-    const driveIds = new Set((drives || []).map((d) => d.id));
-    const activityEvents = await apiDbQuery<any[]>({
-      table: 'staff_activity_events',
-      action: 'select',
-      select: 'event_type, event_label, happened_at, role, metadata, profiles:profile_id(full_name, phone)',
-      filters: [
-        { field: 'event_type', op: 'in', value: [
-          'test_drive_check_in',
-          'test_drive_check_out',
-          'test_drive_completed',
-          'vehicle_inspection_pre',
-          'vehicle_inspection_post',
-          'license_verified',
-          'license_rejected',
-          'test_drive_started',
-        ] },
-      ],
-      order: [{ field: 'happened_at', ascending: false }],
-      limit: 1200,
-    });
+    const driveIds = new Set(enrichedDrives.map((d) => d.id));
+    const eventTypes = 'test_drive_check_in,test_drive_check_out,test_drive_completed,vehicle_inspection_pre,vehicle_inspection_post,license_verified,license_rejected,test_drive_started';
+    const activityEvents = await apiGet<any[]>(`/api/activity/events?event_types=${encodeURIComponent(eventTypes)}&limit=1200`) || [];
+
+    const actorProfileIds = Array.from(new Set(activityEvents.map((e: any) => e.profile_id).filter(Boolean)));
+    const actorProfiles = actorProfileIds.length
+      ? await apiGet<any[]>(`/api/profiles?ids=${encodeURIComponent(actorProfileIds.join(','))}`) || []
+      : [];
+    const actorMap = new Map((actorProfiles as any[]).map((p: any) => [p.id, p]));
 
     const logsByDrive: Record<string, any[]> = {};
-    for (const event of activityEvents || []) {
+    for (const event of activityEvents) {
       const testDriveId = (event as any)?.metadata?.testDriveId;
       if (!testDriveId || !driveIds.has(testDriveId)) continue;
       if (!logsByDrive[testDriveId]) logsByDrive[testDriveId] = [];
 
-      const actor = (event as any)?.profiles;
-      const byName = actor?.full_name || ((event as any)?.role === 'sales' ? 'Sales' : 'Security');
-      const byPhone = actor?.phone || null;
+      const actor = actorMap.get((event as any)?.profile_id);
+      const byName = (actor as any)?.full_name || ((event as any)?.role === 'sales' ? 'Sales' : 'Security');
+      const byPhone = (actor as any)?.phone || null;
 
       logsByDrive[testDriveId].push({
         eventType: (event as any).event_type,
@@ -153,11 +108,9 @@ const SecurityDashboard = () => {
 
     setSecurityLogsByDrive(logsByDrive);
 
-    if (drives) {
-      drives.forEach((testDrive) => {
-        void fetchTestDriveDocuments(testDrive.id);
-      });
-    }
+    enrichedDrives.forEach((testDrive) => {
+      void fetchTestDriveDocuments(testDrive.id);
+    });
   };
 
   const handleUploadTestDriveDoc = async (testDriveId: string, file: File) => {
@@ -221,25 +174,9 @@ const SecurityDashboard = () => {
   const checkIn = async (id: string) => {
     let drive = testDrives.find((item) => item.id === id);
     if (!drive || !drive.key_handed_at || !drive.customers?.driving_license_verified || !drive.pre_drive_km || !drive.pre_drive_fuel_level) {
-      const freshDrives = await apiDbQuery<any[]>({
-        table: 'test_drives',
-        action: 'select',
-        select: '*',
-        filters: [{ field: 'id', op: 'eq', value: id }],
-        limit: 1,
-      });
-      const freshDrive = freshDrives?.[0] || null;
+      const freshDrive = await apiGet<any>(`/api/test-drives/${encodeURIComponent(id)}`);
       if (freshDrive) {
-        // Fetch related data for fresh drive
-        const customers = await apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.customer_id }] });
-        const vehicles = await apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.vehicle_id }] });
-        const locations = await apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.location_id }] });
-        drive = {
-          ...freshDrive,
-          customers: customers?.[0] || null,
-          vehicles: vehicles?.[0] || null,
-          locations: locations?.[0] || null,
-        };
+        drive = freshDrive;
       }
     }
 
@@ -270,12 +207,7 @@ const SecurityDashboard = () => {
       return;
     }
 
-    await apiDbQuery({
-      table: 'test_drives',
-      action: 'update',
-      payload: { security_checked_in_at: new Date().toISOString(), status: 'in_progress' },
-      filters: [{ field: 'id', op: 'eq', value: id }],
-    });
+    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { security_checked_in_at: new Date().toISOString(), status: 'in_progress' });
 
     if (profile?.user_id) {
       await logStaffActivity({
@@ -296,25 +228,9 @@ const SecurityDashboard = () => {
   const checkOut = async (id: string) => {
     let drive = testDrives.find((item) => item.id === id);
     if (!drive || !drive.key_handed_at || !drive.post_drive_km || !drive.post_drive_fuel_level) {
-      const freshDrives = await apiDbQuery<any[]>({
-        table: 'test_drives',
-        action: 'select',
-        select: '*',
-        filters: [{ field: 'id', op: 'eq', value: id }],
-        limit: 1,
-      });
-      const freshDrive = freshDrives?.[0] || null;
+      const freshDrive = await apiGet<any>(`/api/test-drives/${encodeURIComponent(id)}`);
       if (freshDrive) {
-        // Fetch related data for fresh drive
-        const customers = await apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.customer_id }] });
-        const vehicles = await apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.vehicle_id }] });
-        const locations = await apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'eq', value: freshDrive.location_id }] });
-        drive = {
-          ...freshDrive,
-          customers: customers?.[0] || null,
-          vehicles: vehicles?.[0] || null,
-          locations: locations?.[0] || null,
-        };
+        drive = freshDrive;
       }
     }
     if (!drive?.key_handed_at) {
@@ -338,14 +254,9 @@ const SecurityDashboard = () => {
 
     const completedAt = new Date().toISOString();
 
-    await apiDbQuery({
-      table: 'test_drives',
-      action: 'update',
-      payload: {
-        security_checked_out_at: completedAt,
-        status: 'key_handover_to_sales',
-      },
-      filters: [{ field: 'id', op: 'eq', value: id }],
+    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, {
+      security_checked_out_at: completedAt,
+      status: 'key_handover_to_sales',
     });
 
     if (profile?.user_id) {
@@ -388,12 +299,7 @@ const SecurityDashboard = () => {
   const confirmVerify = async () => {
     if (!pendingVerifyId) return;
 
-    await apiDbQuery({
-      table: 'customers',
-      action: 'update',
-      payload: { driving_license_verified: true },
-      filters: [{ field: 'id', op: 'eq', value: pendingVerifyId }],
-    });
+    await apiPatch(`/api/customers/${encodeURIComponent(pendingVerifyId)}`, { driving_license_verified: true });
 
     if (profile?.user_id) {
       await logStaffActivity({
@@ -422,12 +328,7 @@ const SecurityDashboard = () => {
   const confirmReject = async () => {
     if (!pendingRejectId) return;
 
-    await apiDbQuery({
-      table: 'customers',
-      action: 'update',
-      payload: { driving_license_url: null, driving_license_verified: false },
-      filters: [{ field: 'id', op: 'eq', value: pendingRejectId }],
-    });
+    await apiPatch(`/api/customers/${encodeURIComponent(pendingRejectId)}`, { driving_license_url: null, driving_license_verified: false });
 
     if (profile?.user_id) {
       await logStaffActivity({
@@ -475,12 +376,7 @@ const SecurityDashboard = () => {
         });
       }
 
-      await apiDbQuery({
-        table: 'customers',
-        action: 'update',
-        payload: { driving_license_url: path, driving_license_verified: false },
-        filters: [{ field: 'id', op: 'eq', value: customerId }],
-      });
+      await apiPatch(`/api/customers/${encodeURIComponent(customerId)}`, { driving_license_url: path, driving_license_verified: false });
 
       toast({ title: 'License re-uploaded', description: 'Ready for verification' });
       void fetchDrives();

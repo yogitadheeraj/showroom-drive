@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { getFirestore, doc, onSnapshot } from 'firebase/firestore';
+import { getDatabase, ref, onValue } from 'firebase/database';
 
 export type TestDriveRealtimeEvent = {
   test_drive_id: string;
@@ -28,29 +28,29 @@ export function useTestDriveRealtime(
   useEffect(() => {
     if (!locationId) return;
 
-    let db: ReturnType<typeof getFirestore>;
+    let db: ReturnType<typeof getDatabase>;
     try {
-      db = getFirestore();
+      db = getDatabase();
     } catch {
       // Firebase not configured in this environment
       return;
     }
 
-    const docRef = doc(db, 'test_drive_events', locationId);
+    const dbRef = ref(db, `test_drive_events/${locationId}`);
     let isFirst = true;
 
-    const unsub = onSnapshot(
-      docRef,
+    const unsub = onValue(
+      dbRef,
       (snap) => {
         if (isFirst) {
           isFirst = false;
           return; // skip initial snapshot — we already loaded the page
         }
         if (!snap.exists()) return;
-        onUpdateRef.current(snap.data() as TestDriveRealtimeEvent);
+        onUpdateRef.current(snap.val() as TestDriveRealtimeEvent);
       },
       () => {
-        // Silence Firestore permission / offline errors
+        // Silence RTDB permission / offline errors
       },
     );
 

@@ -301,7 +301,6 @@ export default function AutoAdvantLandingPage() {
                             </div>
                         ))}
                     </div>
-
                 </section>
 
 

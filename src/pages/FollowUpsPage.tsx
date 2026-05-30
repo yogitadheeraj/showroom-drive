@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { useAuth } from '@/hooks/useAuth';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -71,12 +71,7 @@ const FollowUpsPage = () => {
     ].filter(Boolean)));
 
     const customers = customerIds.length
-      ? await apiDbQuery<any[]>({
-          table: 'customers',
-          action: 'select',
-          select: 'id, full_name, phone',
-          filters: [{ field: 'id', op: 'in', value: customerIds }],
-        })
+      ? await apiGet<any[]>(`/api/customers?ids=${encodeURIComponent(customerIds.join(','))}`)
       : [];
 
     const customerMap = (customers || []).reduce((acc: Record<string, any>, row: any) => {

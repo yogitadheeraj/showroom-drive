@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getDatabase, ref, onValue } from 'firebase/database';
 import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,8 +23,10 @@ import {
   YAxis,
   Cell,
 } from 'recharts';
-import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye, MailCheck, AlertTriangle, RefreshCw, LayoutDashboard, ShieldCheck } from 'lucide-react';
+import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye, MailCheck, AlertTriangle, RefreshCw, LayoutDashboard, ShieldCheck, Zap, CheckCheck, TrendingDown } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
+import { TestDriveInsightGrid } from './TestDriveInsightGrid';
+import { StaffActivityGrid } from './StaffActivityGrid';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
@@ -107,6 +110,9 @@ const SuperAdminDashboard = () => {
   });
   const [userInsightRoleFilter, setUserInsightRoleFilter] = useState<'all' | 'sales' | 'gro'>('all');
   const [userInsightWindow, setUserInsightWindow] = useState<'all' | 'today' | 'week' | 'month'>('month');
+  const [tdLastUpdated, setTdLastUpdated] = useState<Date | null>(null);
+  const [tdRefreshing, setTdRefreshing] = useState(false);
+  const [tdUpdateCount, setTdUpdateCount] = useState(0);
 
   const activeDealerId = isSuperAdmin
     ? (selectedDealer === 'all' ? null : selectedDealer)
@@ -208,50 +214,82 @@ const SuperAdminDashboard = () => {
     fetchStaff();
   }, [selectedLocation, locations, dealerLoading, isSuperAdmin]);
 
-  useEffect(() => {
+  const fetchTestDrivesData = useCallback(async () => {
     if (dealerLoading && !isSuperAdmin) return;
-    const fetchData = async () => {
-      const locationIds = selectedLocation !== 'all'
-        ? [selectedLocation]
-        : locations.map(l => l.id);
-      if (locationIds.length === 0 && !isSuperAdmin) {
-        setTestDrives([]); setStats({ total: 0, scheduled: 0, completed: 0, noShow: 0, cancelled: 0 }); setRepeatedCustomers([]); return;
-      }
+    const locationIds = selectedLocation !== 'all'
+      ? [selectedLocation]
+      : locations.map((l: any) => l.id);
+    if (locationIds.length === 0 && !isSuperAdmin) {
+      setTestDrives([]); setStats({ total: 0, scheduled: 0, completed: 0, noShow: 0, cancelled: 0 }); setRepeatedCustomers([]); return;
+    }
 
-      const params = new URLSearchParams();
-      params.set('limit', '500');
-      params.set('include_related', 'true');
-      if (locationIds.length > 0) {
-        params.set('location_ids', locationIds.join(','));
-      }
+    const params = new URLSearchParams();
+    params.set('limit', '500');
+    params.set('include_related', 'true');
+    if (locationIds.length > 0) {
+      params.set('location_ids', locationIds.join(','));
+    }
 
-      const td = await apiGet<any[]>(`/api/test-drives?${params.toString()}`);
+    const td = await apiGet<any[]>(`/api/test-drives?${params.toString()}`);
 
-      setTestDrives(td || []);
-      const total = td?.length || 0;
-      setStats({
-        total,
-        scheduled: td?.filter(t => t.status === 'scheduled').length || 0,
-        completed: td?.filter(t => t.status === 'completed').length || 0,
-        noShow: td?.filter(t => t.status === 'no_show').length || 0,
-        cancelled: td?.filter(t => t.status === 'cancelled').length || 0,
+    setTestDrives(td || []);
+    const total = td?.length || 0;
+    setStats({
+      total,
+      scheduled: td?.filter((t: any) => t.status === 'scheduled').length || 0,
+      completed: td?.filter((t: any) => t.status === 'completed').length || 0,
+      noShow: td?.filter((t: any) => t.status === 'no_show').length || 0,
+      cancelled: td?.filter((t: any) => t.status === 'cancelled').length || 0,
+    });
+    const customerIds = [...new Set(td?.map((t: any) => t.customer_id) || [])];
+    if (customerIds.length > 0) {
+      const customers = await apiDbQuery<any[]>({
+        table: 'customers',
+        action: 'select',
+        select: '*',
+        filters: [
+          { field: 'total_test_drives', op: 'gt', value: 1 },
+          { field: 'id', op: 'in', value: customerIds },
+        ],
       });
-      const customerIds = [...new Set(td?.map(t => t.customer_id) || [])];
-      if (customerIds.length > 0) {
-        const customers = await apiDbQuery<any[]>({
-          table: 'customers',
-          action: 'select',
-          select: '*',
-          filters: [
-            { field: 'total_test_drives', op: 'gt', value: 1 },
-            { field: 'id', op: 'in', value: customerIds },
-          ],
-        });
-        setRepeatedCustomers(customers || []);
-      } else { setRepeatedCustomers([]); }
-    };
-    fetchData();
+      setRepeatedCustomers(customers || []);
+    } else { setRepeatedCustomers([]); }
   }, [selectedLocation, locations, dealerLoading, isSuperAdmin]);
+
+  useEffect(() => {
+    void fetchTestDrivesData();
+  }, [fetchTestDrivesData]);
+
+  // Firestore real-time: auto-refresh Staff-wise insights when any location updates
+  useEffect(() => {
+    const locationIds = selectedLocation !== 'all'
+      ? [selectedLocation]
+      : locations.map((l: any) => l.id);
+    if (locationIds.length === 0) return;
+
+    let db: ReturnType<typeof getDatabase>;
+    try { db = getDatabase(); } catch { return; }
+
+    const unsubs = locationIds.map((locationId: string) => {
+      let isFirst = true;
+      return onValue(
+        ref(db, `test_drive_events/${locationId}`),
+        (snap) => {
+          if (isFirst) { isFirst = false; return; }
+          if (!snap.exists()) return;
+          setTdRefreshing(true);
+          setTdUpdateCount((c) => c + 1);
+          void fetchTestDrivesData().then(() => {
+            setTdRefreshing(false);
+            setTdLastUpdated(new Date());
+          });
+        },
+        () => {},
+      );
+    });
+
+    return () => unsubs.forEach((u) => u());
+  }, [selectedLocation, locations, fetchTestDrivesData]);
 
   const fetchAuthDiagnostics = useCallback(async () => {
     setAuthDiagnostics((prev) => ({ ...prev, loading: true }));
@@ -629,6 +667,7 @@ const SuperAdminDashboard = () => {
       )
     : 0;
   const topPerformer = userWiseInsights[0] || null;
+  const bestCompletionRateUser = userWiseInsights.filter(r => r.total > 0).sort((a, b) => b.completionRate - a.completionRate)[0] || null;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -695,16 +734,56 @@ const SuperAdminDashboard = () => {
         })}
       </div>
 
-      <Card className="shadow-card border-primary/20">
-        <CardHeader className="pb-2">
+      <Card className="shadow-card border-primary/20 relative overflow-hidden">
+        {/* Gradient accent line at top */}
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-primary via-success to-info" />
+
+        <CardHeader className="pb-3 pt-5">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <CardTitle className="font-heading text-base sm:text-lg flex items-center gap-2">
+            <CardTitle className="font-heading text-base sm:text-lg flex items-center gap-2 flex-wrap">
               <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-              User-wise Test Drive Insights
+              Staff-wise Test Drive Insights
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-success bg-success/10 border border-success/20 rounded-full px-2 py-0.5">
+                <span className={`h-1.5 w-1.5 rounded-full bg-success ${tdRefreshing ? 'animate-ping' : 'animate-pulse'}`} />
+                Live
+              </span>
+              <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-primary/70 bg-primary/8 border border-primary/15 rounded-full px-2 py-0.5">
+                <Zap className="h-2.5 w-2.5" /> AI Powered
+              </span>
               <Badge variant="secondary" className="text-xs font-normal">{userWiseInsights.length} users</Badge>
+              {tdUpdateCount > 0 && (
+                <span className="text-[10px] font-bold text-white bg-success rounded-full px-2 py-0.5 animate-bounce">
+                  +{tdUpdateCount} live
+                </span>
+              )}
             </CardTitle>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {tdRefreshing ? (
+                <span className="flex items-center gap-1 text-[11px] text-success font-medium animate-pulse">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  Updating...
+                </span>
+              ) : tdLastUpdated ? (
+                <span className="text-[11px] text-muted-foreground">
+                  Updated {tdLastUpdated.toLocaleTimeString()}
+                </span>
+              ) : null}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                title="Refresh now"
+                onClick={() => {
+                  setTdRefreshing(true);
+                  void fetchTestDrivesData().then(() => {
+                    setTdRefreshing(false);
+                    setTdLastUpdated(new Date());
+                  });
+                }}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 text-muted-foreground ${tdRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
               <Select value={userInsightRoleFilter} onValueChange={(v: 'all' | 'sales' | 'gro') => setUserInsightRoleFilter(v)}>
                 <SelectTrigger className="w-[120px] h-8 text-xs">
                   <SelectValue />
@@ -732,91 +811,163 @@ const SuperAdminDashboard = () => {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
-            <div className="rounded-lg border border-info/20 bg-info/5 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Total Drives</p>
-              <p className="text-xl font-heading font-bold">{totalUserwiseDrives}</p>
+          {/* ── Summary metrics ── */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div className="rounded-xl border border-info/20 bg-info/5 p-3 flex flex-col gap-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><Car className="h-3 w-3" /> Total Drives</p>
+              <p className="text-2xl font-heading font-bold text-foreground">{totalUserwiseDrives}</p>
             </div>
-            <div className="rounded-lg border border-success/20 bg-success/5 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Avg Completion</p>
-              <p className="text-xl font-heading font-bold text-success">{avgCompletionRate}%</p>
+            <div className="rounded-xl border border-success/20 bg-success/5 p-3 flex flex-col gap-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><CheckCheck className="h-3 w-3 text-success" /> Avg Completion</p>
+              <p className="text-2xl font-heading font-bold text-success">{avgCompletionRate}%</p>
+              <div className="h-1 bg-success/20 rounded-full"><div className="h-full bg-success rounded-full" style={{ width: `${Math.min(avgCompletionRate, 100)}%` }} /></div>
             </div>
-            <div className="rounded-lg border border-warning/20 bg-warning/5 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Avg No-show</p>
-              <p className="text-xl font-heading font-bold text-warning">{avgNoShowRate}%</p>
+            <div className="rounded-xl border border-warning/20 bg-warning/5 p-3 flex flex-col gap-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><TrendingDown className="h-3 w-3 text-warning" /> Avg No-show</p>
+              <p className="text-2xl font-heading font-bold text-warning">{avgNoShowRate}%</p>
+              <div className="h-1 bg-warning/20 rounded-full"><div className="h-full bg-warning rounded-full" style={{ width: `${Math.min(avgNoShowRate, 100)}%` }} /></div>
             </div>
-            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Avg Journey</p>
-              <p className="text-xl font-heading font-bold">{avgJourneyMinutes > 0 ? `${avgJourneyMinutes}m` : 'N/A'}</p>
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex flex-col gap-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><Clock className="h-3 w-3 text-primary" /> Avg Journey</p>
+              <p className="text-2xl font-heading font-bold text-foreground">{avgJourneyMinutes > 0 ? `${avgJourneyMinutes}m` : '—'}</p>
             </div>
-            <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Top Performer</p>
-              <p className="text-sm font-semibold text-foreground truncate">{topPerformer?.name || 'N/A'}</p>
-              <p className="text-xs text-muted-foreground">{topPerformer ? `${topPerformer.completed} completed` : 'No data'}</p>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/30 p-3 flex flex-col gap-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><TrendingUp className="h-3 w-3 text-amber-600" /> Top Performer</p>
+              <p className="text-sm font-bold text-foreground truncate leading-tight">{topPerformer?.name || '—'}</p>
+              <p className="text-[11px] text-muted-foreground">{topPerformer ? `${topPerformer.completed} completed` : 'No data'}</p>
+            </div>
+            <div className="rounded-xl border border-success/30 bg-success/5 p-3 flex flex-col gap-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><Zap className="h-3 w-3 text-success" /> Best Rate</p>
+              {bestCompletionRateUser ? (
+                <>
+                  <p className="text-2xl font-heading font-bold text-success leading-tight">{bestCompletionRateUser.completionRate}%</p>
+                  <p className="text-[11px] font-semibold text-foreground truncate">{bestCompletionRateUser.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{bestCompletionRateUser.completed}/{bestCompletionRateUser.total} drives</p>
+                </>
+              ) : <p className="text-sm text-muted-foreground">—</p>}
             </div>
           </div>
 
+          {/* ── AI Insight bar ── */}
+          {userWiseInsights.length > 0 && (
+            <div className="flex items-start gap-3 rounded-xl bg-gradient-to-r from-primary/5 to-info/5 border border-primary/15 px-4 py-3">
+              <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                <Zap className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-0.5">AI Summary</p>
+                <p className="text-xs text-foreground/80 leading-relaxed">
+                  {bestCompletionRateUser
+                    ? <><span className="font-semibold text-foreground">{bestCompletionRateUser.name}</span> leads with <span className="font-semibold text-success">{bestCompletionRateUser.completionRate}%</span> completion ({bestCompletionRateUser.completed}/{bestCompletionRateUser.total} drives). </>
+                    : null}
+                  {avgNoShowRate > 20
+                    ? <><span className="text-warning font-medium">No-show rate is elevated at {avgNoShowRate}%</span> — consider sending follow-up reminders. </>
+                    : <>No-show rate is healthy at <span className="text-success font-medium">{avgNoShowRate}%</span>. </>}
+                  {userWiseInsights.length} staff tracked
+                  {userInsightWindow === 'today' ? ' today' : userInsightWindow === 'week' ? ' over the last 7 days' : userInsightWindow === 'month' ? ' over the last 30 days' : ' across all time'}.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Staff rows ── */}
           {userWiseInsights.length === 0 ? (
-            <div className="rounded-lg border border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
               No user-wise drive data found for selected filters.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1120px] text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground">
-                    <th className="text-left py-2 px-2 font-medium">User</th>
-                    <th className="text-left py-2 px-2 font-medium">Role</th>
-                    <th className="text-right py-2 px-2 font-medium">Assigned</th>
-                    <th className="text-right py-2 px-2 font-medium">Completed</th>
-                    <th className="text-right py-2 px-2 font-medium">Active</th>
-                    <th className="text-right py-2 px-2 font-medium">Started</th>
-                    <th className="text-right py-2 px-2 font-medium">No-show</th>
-                    <th className="text-right py-2 px-2 font-medium">Cancelled</th>
-                    <th className="text-right py-2 px-2 font-medium">Rescheduled</th>
-                    <th className="text-right py-2 px-2 font-medium">Completion %</th>
-                    <th className="text-right py-2 px-2 font-medium">Inspection %</th>
-                    <th className="text-right py-2 px-2 font-medium">Avg Journey</th>
-                    <th className="text-left py-2 px-2 font-medium">Last Drive</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {userWiseInsights.map((row) => (
-                    <tr key={`${row.role}-${row.id}`} className="border-b border-border/60 hover:bg-muted/20">
-                      <td className="py-2 px-2 font-medium text-foreground">{row.name}</td>
-                      <td className="py-2 px-2">
-                        <Badge className={row.role === 'sales' ? 'bg-info/10 text-info text-[10px]' : 'bg-success/10 text-success text-[10px]'}>
+            <div className="space-y-2">
+              {userWiseInsights.map((row, idx) => {
+                const tier = row.completionRate >= 70 ? 'elite' : row.completionRate >= 40 ? 'good' : 'review';
+                const tierConfig = {
+                  elite: { label: '🔥 Top', bg: 'bg-success/10', text: 'text-success', border: 'border-success/20' },
+                  good:  { label: '✓ Good', bg: 'bg-info/10', text: 'text-info', border: 'border-info/20' },
+                  review: { label: '⚠ Review', bg: 'bg-warning/10', text: 'text-warning', border: 'border-warning/20' },
+                }[tier];
+                const barColor = tier === 'elite' ? 'bg-success' : tier === 'good' ? 'bg-info' : 'bg-warning';
+                const textColor = tier === 'elite' ? 'text-success' : tier === 'good' ? 'text-info' : 'text-warning';
+                const initials = row.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
+                const avatarBg = row.role === 'sales' ? 'bg-info/15 text-info' : 'bg-success/15 text-success';
+
+                return (
+                  <div
+                    key={`${row.role}-${row.id}`}
+                    className="group flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-border hover:border-primary/30 hover:bg-muted/20 transition-all duration-200"
+                  >
+                    {/* Rank */}
+                    <span className="w-6 text-xs font-bold text-muted-foreground text-center shrink-0">
+                      {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                    </span>
+
+                    {/* Avatar */}
+                    <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${avatarBg}`}>
+                      {initials}
+                    </div>
+
+                    {/* Name + bar */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-sm text-foreground">{row.name}</span>
+                        <Badge className={row.role === 'sales' ? 'bg-info/10 text-info text-[10px] border-none' : 'bg-success/10 text-success text-[10px] border-none'}>
                           {row.role === 'sales' ? 'Sales' : 'GRO'}
                         </Badge>
-                      </td>
-                      <td className="py-2 px-2 text-right">{row.total}</td>
-                      <td className="py-2 px-2 text-right text-success font-medium">{row.completed}</td>
-                      <td className="py-2 px-2 text-right text-info font-medium">{row.active}</td>
-                      <td className="py-2 px-2 text-right">{row.started}</td>
-                      <td className="py-2 px-2 text-right text-warning font-medium">{row.noShow}</td>
-                      <td className="py-2 px-2 text-right text-destructive font-medium">{row.cancelled}</td>
-                      <td className="py-2 px-2 text-right">{row.rescheduled}</td>
-                      <td className="py-2 px-2 text-right">
-                        <Badge className={row.completionRate >= 70 ? 'bg-success/10 text-success text-[10px]' : row.completionRate >= 40 ? 'bg-warning/10 text-warning text-[10px]' : 'bg-destructive/10 text-destructive text-[10px]'}>
-                          {row.completionRate}%
-                        </Badge>
-                      </td>
-                      <td className="py-2 px-2 text-right">{row.inspectionRate}%</td>
-                      <td className="py-2 px-2 text-right">{row.avgJourneyMinutes ? `${row.avgJourneyMinutes}m` : 'N/A'}</td>
-                      <td className="py-2 px-2 text-xs text-muted-foreground">
-                        {row.latestDriveAt ? new Date(row.latestDriveAt).toLocaleString() : 'N/A'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${tierConfig.bg} ${tierConfig.text} ${tierConfig.border}`}>
+                          {tierConfig.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[180px]">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${barColor}`}
+                            style={{ width: `${row.completionRate}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-bold ${textColor}`}>{row.completionRate}%</span>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="hidden sm:flex items-center gap-4 shrink-0 text-xs text-center">
+                      <div>
+                        <p className="font-bold text-foreground leading-tight">{row.total}</p>
+                        <p className="text-muted-foreground leading-tight">Total</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-success leading-tight">{row.completed}</p>
+                        <p className="text-muted-foreground leading-tight">Done</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-info leading-tight">{row.active}</p>
+                        <p className="text-muted-foreground leading-tight">Active</p>
+                      </div>
+                      <div>
+                        <p className="font-bold text-warning leading-tight">{row.noShow}</p>
+                        <p className="text-muted-foreground leading-tight">No-show</p>
+                      </div>
+                      <div className="hidden md:block">
+                        <p className="font-bold text-foreground leading-tight">{row.cancelled}</p>
+                        <p className="text-muted-foreground leading-tight">Cancelled</p>
+                      </div>
+                      <div className="hidden lg:block">
+                        <p className="font-bold text-foreground leading-tight">{row.avgJourneyMinutes ? `${row.avgJourneyMinutes}m` : '—'}</p>
+                        <p className="text-muted-foreground leading-tight">Avg Trip</p>
+                      </div>
+                      <div className="hidden xl:block">
+                        <p className="font-bold text-[11px] text-foreground leading-tight">
+                          {row.latestDriveAt ? new Date(row.latestDriveAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                        </p>
+                        <p className="text-muted-foreground leading-tight">Last Drive</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
 
-
-
+   
       <Card className="shadow-card">
         <CardHeader className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

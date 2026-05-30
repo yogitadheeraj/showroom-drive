@@ -11,10 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert, Car, RefreshCw, AlertTriangle } from 'lucide-react';
+import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert, Car, RefreshCw, AlertTriangle, CheckCircle2, LayoutList, LayoutGrid, Activity } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import GROCalendarView from './GROCalendarView';
 import BlockedSlotsManager from './BlockedSlotsManager';
+import { TestDriveInsightGrid } from './TestDriveInsightGrid';
+import { StaffActivityGrid } from './StaffActivityGrid';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 
 const GRODashboard = () => {
@@ -22,12 +24,13 @@ const GRODashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [showInsights, setShowInsights] = useState(false);
-  const [stats, setStats] = useState({ today: 0, upcoming: 0, completed: 0 });
+  const [stats, setStats] = useState({ today: 0, upcoming: 0, completed: 0, completionRate: 0 });
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
   const [noShowConfirmId, setNoShowConfirmId] = useState<string | null>(null);
+  const [driveView, setDriveView] = useState<'list' | 'grid'>('list');
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const formatStatusLabel = (status: string) =>
     status
@@ -80,10 +83,12 @@ const GRODashboard = () => {
 
     setTestDrives(enriched);
     const today = new Date().toISOString().split('T')[0];
+    const completedCount = enriched.filter(t => t.status === 'completed').length;
     setStats({
       today: enriched.filter(t => t.scheduled_date === today).length,
       upcoming: enriched.filter(t => t.status === 'scheduled' || t.status === 'confirmed').length,
-      completed: enriched.filter(t => t.status === 'completed').length,
+      completed: completedCount,
+      completionRate: enriched.length > 0 ? Math.round((completedCount / enriched.length) * 100) : 0,
     });
   };
 
@@ -152,9 +157,12 @@ const GRODashboard = () => {
             <p className="text-sm text-muted-foreground">Manage test drive appointments</p>
           </div>
 
-          <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:flex rounded-md border bg-muted p-1 order-3 sm:order-none">
+          <TabsList className="w-full sm:w-auto grid grid-cols-4 sm:flex rounded-md border bg-muted p-1 order-3 sm:order-none">
             <TabsTrigger value="calendar" className="text-xs sm:text-sm">Calendar</TabsTrigger>
-            <TabsTrigger value="queue" className="text-xs sm:text-sm">Queue</TabsTrigger>
+            <TabsTrigger value="test-drives" className="text-xs sm:text-sm">Test Drives</TabsTrigger>
+            <TabsTrigger value="staff-activity" className="text-xs sm:text-sm">
+              <Activity className="h-3.5 w-3.5 mr-1" /> Staff Activity
+            </TabsTrigger>
             <TabsTrigger value="blocked" className="text-xs sm:text-sm">
               <ShieldAlert className="h-3.5 w-3.5 mr-1" /> Blocked
             </TabsTrigger>
@@ -170,11 +178,12 @@ const GRODashboard = () => {
           </div>
         </div>
   {showInsights && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
             { label: "Today's Drives", value: stats.today, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
             { label: 'Upcoming', value: stats.upcoming, icon: Clock, color: 'text-info', bg: 'bg-info/10' },
             { label: 'Completed', value: stats.completed, icon: TrendingUp, color: 'text-success', bg: 'bg-success/10' },
+            { label: 'Completion Rate', value: `${stats.completionRate}%`, icon: CheckCircle2, color: 'text-accent-foreground', bg: 'bg-accent/10' },
           ].map(stat => {
             const Icon = stat.icon;
             return (
@@ -200,7 +209,21 @@ const GRODashboard = () => {
           <GROCalendarView />
         </TabsContent>
 
-        <TabsContent value="queue">
+        <TabsContent value="test-drives" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-foreground">All Test Drives <span className="text-muted-foreground">({testDrives.length})</span></p>
+            <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30">
+              <Button size="sm" variant={driveView === 'list' ? 'secondary' : 'ghost'} className="h-7 px-2.5 text-xs" onClick={() => setDriveView('list')}>
+                <LayoutList className="h-3.5 w-3.5 mr-1" /> List
+              </Button>
+              <Button size="sm" variant={driveView === 'grid' ? 'secondary' : 'ghost'} className="h-7 px-2.5 text-xs" onClick={() => setDriveView('grid')}>
+                <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Grid
+              </Button>
+            </div>
+          </div>
+          {driveView === 'grid' ? (
+            <TestDriveInsightGrid testDrives={testDrives} title="Test Drives — Grouped View" />
+          ) : (
           <Card className="shadow-card">
             <CardContent className="pt-4 sm:pt-6">
               <div className="space-y-3">
@@ -270,6 +293,11 @@ const GRODashboard = () => {
               </div>
             </CardContent>
           </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="staff-activity">
+          <StaffActivityGrid />
         </TabsContent>
 
         <TabsContent value="blocked">
@@ -293,11 +321,11 @@ const GRODashboard = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>New Date</Label>
-              <Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+              <Input type="date" value={newDate} min={new Date().toISOString().split('T')[0]} onChange={(e) => setNewDate(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>New Time</Label>
-              <Input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
+              <Input type="time" value={newTime} min={newDate === new Date().toISOString().split('T')[0] ? `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}` : undefined} onChange={(e) => setNewTime(e.target.value)} />
             </div>
             <Button
               onClick={handleReschedule}

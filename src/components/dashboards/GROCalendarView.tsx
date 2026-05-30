@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Link, useNavigate } from 'react-router-dom';
-import { apiDbQuery, apiGet, apiPatch } from '@/lib/apiClient';
+import { apiGet, apiPatch, apiPost } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,9 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight, Calendar, LayoutGrid, UserPlus, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, LayoutGrid, UserPlus, UserPen, RefreshCw, AlertTriangle } from 'lucide-react';
 import WalkinDialog from '@/components/WalkinDialog';
-import { format, addDays, startOfWeek, isSameDay, parseISO } from 'date-fns';
+import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 
 const statusColor: Record<string, string> = {
   scheduled: 'bg-info/10 text-info border-info/20',
@@ -113,64 +113,12 @@ const GROCalendarView = () => {
     }
     const startDate = viewMode === 'week' ? startOfWeek(currentDate, { weekStartsOn: 1 }) : currentDate;
     const endDate = viewMode === 'week' ? addDays(startDate, 6) : currentDate;
-    const drives = await apiDbQuery<any[]>({
-      table: 'test_drives',
-      action: 'select',
-      select: '*',
-      filters: [
-        { field: 'location_id', op: 'eq', value: profile.location_id },
-        { field: 'scheduled_date', op: 'gte', value: format(startDate, 'yyyy-MM-dd') },
-        { field: 'scheduled_date', op: 'lte', value: format(endDate, 'yyyy-MM-dd') },
-      ],
-      order: [
-        { field: 'scheduled_date', ascending: true },
-        { field: 'scheduled_time', ascending: true },
-      ],
+    const params = new URLSearchParams({
+      location_id: profile.location_id,
+      date_gte: format(startDate, 'yyyy-MM-dd'),
+      date_lte: format(endDate, 'yyyy-MM-dd'),
     });
-
-    const customerIds = Array.from(new Set(drives.map((d) => d.customer_id).filter(Boolean)));
-    const vehicleIds = Array.from(new Set(drives.map((d) => d.vehicle_id).filter(Boolean)));
-    const profileIds = Array.from(new Set(drives.map((d) => d.assigned_sales_person_id).filter(Boolean)));
-
-    const [customers, vehicles, profiles] = await Promise.all([
-      customerIds.length
-        ? apiDbQuery<any[]>({
-            table: 'customers',
-            action: 'select',
-            select: '*',
-            filters: [{ field: 'id', op: 'in', value: customerIds }],
-          })
-        : Promise.resolve([]),
-      vehicleIds.length
-        ? apiDbQuery<any[]>({
-            table: 'vehicles',
-            action: 'select',
-            select: '*',
-            filters: [{ field: 'id', op: 'in', value: vehicleIds }],
-          })
-        : Promise.resolve([]),
-      profileIds.length
-        ? apiDbQuery<any[]>({
-            table: 'profiles',
-            action: 'select',
-            select: 'id, full_name',
-            filters: [{ field: 'id', op: 'in', value: profileIds }],
-          })
-        : Promise.resolve([]),
-    ]);
-
-    const customerMap = new Map(customers.map((c) => [c.id, c]));
-    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
-    const profileMap = new Map(profiles.map((p) => [p.id, p]));
-
-    const enriched = drives.map((drive) => ({
-      ...drive,
-      customers: customerMap.get(drive.customer_id) || null,
-      vehicles: vehicleMap.get(drive.vehicle_id) || null,
-      locations: locationDetails && locationDetails.id === drive.location_id ? locationDetails : null,
-      profiles: profileMap.get(drive.assigned_sales_person_id) || null,
-    }));
-
+    const enriched = await apiGet<any[]>(`/api/test-drives?${params.toString()}`) || [];
     setTestDrives(enriched);
   };
 
@@ -201,14 +149,9 @@ const GROCalendarView = () => {
 
     const locationIds = Array.from(new Set(filteredProfiles.map((item) => item.location_id).filter(Boolean)));
     const locationRows = locationIds.length
-      ? await apiDbQuery<any[]>({
-          table: 'locations',
-          action: 'select',
-          select: 'id, name',
-          filters: [{ field: 'id', op: 'in', value: locationIds }],
-        })
+      ? await apiGet<any[]>(`/api/locations?ids=${encodeURIComponent(locationIds.join(','))}`)
       : [];
-    const locationMap = new Map(locationRows.map((location) => [location.id, location]));
+    const locationMap = new Map((locationRows || []).map((location) => [location.id, location]));
 
     setSalesPersons(
       filteredProfiles.map((item) => ({
@@ -242,24 +185,9 @@ const GROCalendarView = () => {
 
     const [location, hours, blocked, special] = await Promise.all([
       apiGet<any>(`/api/locations/${encodeURIComponent(profile.location_id)}`),
-      apiDbQuery<any[]>({
-        table: 'location_operating_hours',
-        action: 'select',
-        select: '*',
-        filters: [{ field: 'location_id', op: 'eq', value: profile.location_id }],
-      }),
-      apiDbQuery<any[]>({
-        table: 'location_blocked_slots',
-        action: 'select',
-        select: '*',
-        filters: [{ field: 'location_id', op: 'eq', value: profile.location_id }],
-      }),
-      apiDbQuery<any[]>({
-        table: 'location_special_periods',
-        action: 'select',
-        select: '*',
-        filters: [{ field: 'location_id', op: 'eq', value: profile.location_id }],
-      }),
+      apiGet<any[]>(`/api/location-operating-hours?location_id=${encodeURIComponent(profile.location_id)}`),
+      apiGet<any[]>(`/api/location-blocked-slots?location_id=${encodeURIComponent(profile.location_id)}`),
+      apiGet<any[]>(`/api/location-special-periods?location_id=${encodeURIComponent(profile.location_id)}`),
     ]);
 
     setLocationDetails(location || null);
@@ -279,12 +207,7 @@ const GROCalendarView = () => {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await apiDbQuery({
-      table: 'test_drives',
-      action: 'update',
-      payload: { status },
-      filters: [{ field: 'id', op: 'eq', value: id }],
-    });
+    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { status });
     fetchTestDrives();
   };
 
@@ -292,27 +215,18 @@ const GROCalendarView = () => {
     if (!rescheduleId || !rescheduleDate || !rescheduleTime) return;
     const original = testDrives.find((t) => t.id === rescheduleId);
     if (!original) return;
-    await apiDbQuery({
-      table: 'test_drives',
-      action: 'insert',
-      values: [{
-        customer_id: original.customer_id,
-        vehicle_id: original.vehicle_id,
-        location_id: original.location_id,
-        assigned_sales_person_id: original.assigned_sales_person_id,
-        assigned_gro_id: original.assigned_gro_id,
-        scheduled_date: rescheduleDate,
-        scheduled_time: rescheduleTime,
-        source: original.source,
-        rescheduled_from: rescheduleId,
-      }],
+    await apiPost('/api/test-drives', {
+      customer_id: original.customer_id,
+      vehicle_id: original.vehicle_id,
+      location_id: original.location_id,
+      assigned_sales_person_id: original.assigned_sales_person_id,
+      assigned_gro_id: original.assigned_gro_id,
+      scheduled_date: rescheduleDate,
+      scheduled_time: rescheduleTime,
+      source: original.source,
+      rescheduled_from: rescheduleId,
     });
-    await apiDbQuery({
-      table: 'test_drives',
-      action: 'update',
-      payload: { status: 'rescheduled' },
-      filters: [{ field: 'id', op: 'eq', value: rescheduleId }],
-    });
+    await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleId)}`, { status: 'rescheduled' });
     setRescheduleId(null);
     setRescheduleDate('');
     setRescheduleTime('');
@@ -396,6 +310,8 @@ const GROCalendarView = () => {
     const slotDuration = getLocationSlotDuration(locationDetails);
     const slotSet = new Set<string>();
 
+    const plannerDateStrs = new Set(plannerDates.map((d) => format(d, 'yyyy-MM-dd')));
+
     plannerDates.forEach((date) => {
       const dateStr = format(date, 'yyyy-MM-dd');
       const hours = getEffectiveHoursForDate(dateStr);
@@ -410,6 +326,19 @@ const GROCalendarView = () => {
         const mm = String(minutes % 60).padStart(2, '0');
         slotSet.add(`${hh}:${mm}`);
       }
+    });
+
+    // Ensure test drives booked outside configured operating hours are still visible
+    // by adding their time as a slot boundary (snapped to the slot grid).
+    filteredTestDrives.forEach((td) => {
+      if (!td.scheduled_date || !td.scheduled_time) return;
+      if (!plannerDateStrs.has(td.scheduled_date.substring(0, 10))) return;
+      const bookingMinutes = toMinutes(td.scheduled_time);
+      if (bookingMinutes === null) return;
+      const slotStart = Math.floor(bookingMinutes / slotDuration) * slotDuration;
+      const hh = String(Math.floor(slotStart / 60)).padStart(2, '0');
+      const mm = String(slotStart % 60).padStart(2, '0');
+      slotSet.add(`${hh}:${mm}`);
     });
 
     const generatedSlots = Array.from(slotSet).sort((a, b) => (toMinutes(a) || 0) - (toMinutes(b) || 0));
@@ -428,7 +357,7 @@ const GROCalendarView = () => {
     }
 
     return generatedSlots;
-  }, [plannerDates, locationDetails, operatingHours, specialPeriods]);
+  }, [plannerDates, locationDetails, operatingHours, specialPeriods, filteredTestDrives]);
 
   const visibleHours = useMemo(() => {
     const viewDates = viewMode === 'day'
@@ -452,20 +381,20 @@ const GROCalendarView = () => {
   }, [filteredTestDrives, currentDate, viewMode, weekDays]);
 
   const getBookingsForSlot = (date: Date, hour: number) => {
+    const targetDateStr = format(date, 'yyyy-MM-dd');
     return filteredTestDrives.filter(td => {
-      const tdDate = parseISO(td.scheduled_date);
       const tdHour = extractHour(td.scheduled_time);
       if (tdHour === null) return false;
-      return isSameDay(tdDate, date) && tdHour === hour;
+      return td.scheduled_date?.substring(0, 10) === targetDateStr && tdHour === hour;
     });
   };
 
   const getBookingsForModelDate = (date: Date, modelLabel: string) => {
+    const targetDateStr = format(date, 'yyyy-MM-dd');
     return filteredTestDrives.filter((td) => {
       if (!td.scheduled_date) return false;
-      const bookingDate = parseISO(td.scheduled_date);
       const label = `${td?.vehicles?.brand || ''} ${td?.vehicles?.model || ''}`.trim();
-      return isSameDay(bookingDate, date) && label === modelLabel;
+      return td.scheduled_date.substring(0, 10) === targetDateStr && label === modelLabel;
     });
   };
 
@@ -474,11 +403,11 @@ const GROCalendarView = () => {
     const slotStartMinutes = toMinutes(startTime);
     if (slotStartMinutes === null) return [];
     const slotEndMinutes = slotStartMinutes + slotDuration;
+    const targetDateStr = format(date, 'yyyy-MM-dd');
 
     return filteredTestDrives.filter((td) => {
       if (!td.scheduled_date || !td.scheduled_time) return false;
-      const bookingDate = parseISO(td.scheduled_date);
-      if (!isSameDay(bookingDate, date)) return false;
+      if (td.scheduled_date.substring(0, 10) !== targetDateStr) return false;
 
       const bookingStartMinutes = toMinutes(td.scheduled_time);
       if (bookingStartMinutes === null) return false;
@@ -582,7 +511,6 @@ const GROCalendarView = () => {
     const slotBookings = getBookingsForTimeSlot(date, slotTime);
     const slotPast = isPastSlot(date, slotTime);
     const slotDisabled = slotPast || (selectedModelGroup !== 'all' && !isSlotAvailableForSelectedModel(date, slotTime));
-
     return (
       <div className="space-y-1">
         {selectedModelGroup !== 'all' ? (
@@ -643,16 +571,16 @@ const GROCalendarView = () => {
         )}
       </div>
       <div className="flex items-center justify-between mt-1 gap-1">
-        {td.profiles?.full_name ? (
-          <span className="text-[10px] font-medium bg-background/50 px-1.5 py-0.5 rounded truncate">{td.profiles.full_name}</span>
+        {td.assigned_sales_person?.full_name ? (
+          <span className="text-[10px] font-medium bg-background/50 px-1.5 py-0.5 rounded truncate">{td.assigned_sales_person?.full_name}</span>
         ) : (
           <span className="text-[10px] italic opacity-60">Unassigned</span>
         )}
         <div className="flex items-center gap-0.5 shrink-0">
           {canAssign && (
-            <Button size="sm" variant="ghost" className="h-5 w-5 p-0" title={td.profiles?.full_name ? 'Reassign' : 'Assign'}
+            <Button size="sm" variant="ghost" className="h-5 w-5 p-0" title={td.assigned_sales_person?.full_name ? 'Reassign' : 'Assign'}
               onClick={(e) => { e.stopPropagation(); setAssignDialog({ open: true, testDriveId: td.id }); setSelectedSalesPerson(td.assigned_sales_person_id || ''); }}>
-              {td.profiles?.full_name ? <RefreshCw className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
+              {td.assigned_sales_person?.full_name ? <UserPen className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
             </Button>
           )}
           {isIncomplete && (
@@ -912,11 +840,11 @@ const GROCalendarView = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>New Date</Label>
-              <Input type="date" value={rescheduleDate} onChange={(e) => setRescheduleDate(e.target.value)} />
+              <Input type="date" value={rescheduleDate} min={new Date().toISOString().split('T')[0]} onChange={(e) => setRescheduleDate(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>New Time</Label>
-              <Input type="time" value={rescheduleTime} onChange={(e) => setRescheduleTime(e.target.value)} />
+              <Input type="time" value={rescheduleTime} min={rescheduleDate === new Date().toISOString().split('T')[0] ? `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}` : undefined} onChange={(e) => setRescheduleTime(e.target.value)} />
             </div>
             <Button
               onClick={handleReschedule}

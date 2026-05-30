@@ -15,6 +15,15 @@ import { deleteProfileByUserId, upsertProfile } from './profileService.js';
 import { deleteUserRole, getRoleByUserId, upsertUserRole } from './userRoleService.js';
 import { env } from '../config/env.js';
 import { sendMail, staffVerificationTemplate } from './mailService.js';
+import { processEmailQueues } from './emailProcessorService.js';
+import {
+  sendDailyTestDriveReports,
+  sendDailyActivityReports,
+  sendTransactionalEmail,
+  logReportSendAttempt,
+  retryFailedReports,
+} from './reportEmailService.js';
+import { EmailUnsubscribeToken } from '../models/EmailUnsubscribeToken.js';
 
 const CREATEABLE_ROLES = ['dealer_admin', 'sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
 const DEALER_ADMIN_CREATEABLE_ROLES = ['sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
@@ -309,28 +318,94 @@ async function deleteStaffUser(payload: Record<string, unknown>, callerUserId?: 
 }
 
 export async function invokeFunction(name: string, payload: unknown, userId?: string) {
-  if (name === 'create-staff-user') {
-    const body = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>;
-    return createStaffUser(body, userId);
+  const body = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>;
+
+  if (name === 'create-staff-user') return createStaffUser(body, userId);
+  if (name === 'delete-staff-user') return deleteStaffUser(body, userId);
+  if (name === 'staff-verification-status') return getStaffVerificationStatus(body, userId);
+  if (name === 'resend-staff-verification') return resendStaffVerification(body, userId);
+
+  // ── Email ──────────────────────────────────────────────────────────────────
+
+  if (name === 'send-transactional-email') {
+    const recipientEmail = String(body.recipientEmail || body.recipient_email || '');
+    const templateName = String(body.templateName || body.template_name || '');
+    if (!recipientEmail) throw new Error('recipientEmail is required');
+    return sendTransactionalEmail({
+      recipientEmail,
+      templateName,
+      templateData: (body.templateData || body.template_data || {}) as Record<string, unknown>,
+      subject: body.subject as string | undefined,
+      html: body.html as string | undefined,
+      text: body.text as string | undefined,
+      messageId: body.messageId as string | undefined,
+    });
   }
 
-  if (name === 'delete-staff-user') {
-    const body = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>;
-    return deleteStaffUser(body, userId);
+  if (name === 'process-email-queue') {
+    return processEmailQueues();
   }
 
-  if (name === 'staff-verification-status') {
-    const body = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>;
-    return getStaffVerificationStatus(body, userId);
+  if (name === 'handle-email-unsubscribe') {
+    const token = String(body.token || '');
+    const email = String(body.email || '');
+    if (token) {
+      await EmailUnsubscribeToken.findOneAndUpdate(
+        { token },
+        { $set: { unsubscribed_at: new Date() } },
+      );
+      return { success: true, method: 'token' };
+    } else if (email) {
+      await EmailUnsubscribeToken.updateMany(
+        { email },
+        { $set: { unsubscribed_at: new Date() } },
+      );
+      return { success: true, method: 'email' };
+    }
+    throw new Error('token or email is required');
   }
 
-  if (name === 'resend-staff-verification') {
-    const body = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>;
-    return resendStaffVerification(body, userId);
+  // ── Reports ────────────────────────────────────────────────────────────────
+
+  if (name === 'send-daily-test-drive-reports') {
+    return sendDailyTestDriveReports({
+      reportDate: body.reportDate as string | undefined,
+      locationIds: Array.isArray(body.locationIds) ? (body.locationIds as string[]) : undefined,
+    });
   }
+
+  if (name === 'send-daily-activity-reports') {
+    return sendDailyActivityReports({
+      reportDate: body.reportDate as string | undefined,
+      locationIds: Array.isArray(body.locationIds) ? (body.locationIds as string[]) : undefined,
+    });
+  }
+
+  if (name === 'trigger-scheduled-reports') {
+    const today = new Date().toISOString().split('T')[0];
+    const [testDriveResult, activityResult] = await Promise.all([
+      sendDailyTestDriveReports({ reportDate: today }),
+      sendDailyActivityReports({ reportDate: today }),
+    ]);
+    return { testDrive: testDriveResult, activity: activityResult };
+  }
+
+  if (name === 'handle-report-retry' || name === 'process-report-retries') {
+    return retryFailedReports();
+  }
+
+  if (name === 'log-report-send-attempt') {
+    await logReportSendAttempt({
+      reportId: String(body.reportId || body.report_id || ''),
+      status: (body.status as 'sent' | 'failed') || 'failed',
+      errorMessage: body.errorMessage as string | undefined,
+    });
+    return { success: true };
+  }
+
+  // ── Fallback: log unknown invocations ──────────────────────────────────────
 
   const logs = getCollectionModel('function_invocations');
-
   const invocation = {
     id: randomUUID(),
     function_name: name,
@@ -339,12 +414,6 @@ export async function invokeFunction(name: string, payload: unknown, userId?: st
     status: 'queued',
     created_at: new Date().toISOString(),
   };
-
   await logs.create(invocation);
-
-  return {
-    queued: true,
-    invocationId: invocation.id,
-    functionName: name,
-  };
+  return { queued: true, invocationId: invocation.id, functionName: name };
 }

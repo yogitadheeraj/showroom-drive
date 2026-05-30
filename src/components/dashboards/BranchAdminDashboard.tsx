@@ -4,10 +4,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   CalendarCheck, Users, Car, TrendingUp, Clock, ShieldCheck,
   CheckCircle2, AlertCircle, Eye, Filter, LayoutDashboard, MapPin,
+  LayoutGrid, LayoutList, Activity,
 } from 'lucide-react';
 import { APP_ROLE, APP_ROLE_LABELS, APP_ROLE_BADGE_CLASS } from '@/constants/roles';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,6 +18,8 @@ import {
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import { TestDriveInsightGrid } from './TestDriveInsightGrid';
+import { StaffActivityGrid } from './StaffActivityGrid';
 
 const STATUS_COLOR: Record<string, string> = {
   scheduled: 'bg-info/10 text-info border-info/20',
@@ -43,6 +47,7 @@ const BranchAdminDashboard = () => {
   const [allDrives, setAllDrives] = useState<any[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [driveView, setDriveView] = useState<'list' | 'grid'>('list');
   const [selectedPerson, setSelectedPerson] = useState<string>('all');
   const [insightRoleFilter, setInsightRoleFilter] = useState<'all' | 'sales' | 'gro'>('all');
   const [insightWindow, setInsightWindow] = useState<'all' | 'today' | 'week' | 'month'>('month');
@@ -349,7 +354,7 @@ const BranchAdminDashboard = () => {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <CardTitle className="text-base sm:text-lg font-heading flex items-center gap-2">
               <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-              User-wise Test Drive Insights
+              Staff-wise Test Drive Insights
               <Badge variant="secondary" className="text-xs font-normal ml-1">{userWiseInsights.length} users</Badge>
             </CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
@@ -393,6 +398,7 @@ const BranchAdminDashboard = () => {
             </div>
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Top Performer</p>
+           
               <p className="text-sm font-semibold text-foreground truncate">{topPerformer?.name || 'N/A'}</p>
               <p className="text-xs text-muted-foreground">{topPerformer ? `${topPerformer.completed} completed` : 'No data'}</p>
             </div>
@@ -457,7 +463,8 @@ const BranchAdminDashboard = () => {
           <TabsTrigger value="staff-overview">Staff Overview</TabsTrigger>
           <TabsTrigger value="sales-team">Sales Team</TabsTrigger>
           <TabsTrigger value="gro-team">GRO Team</TabsTrigger>
-          <TabsTrigger value="all-drives">All Drives</TabsTrigger>
+          <TabsTrigger value="test-drives">Test Drives</TabsTrigger>
+          <TabsTrigger value="staff-activity"><Activity className="h-3.5 w-3.5 mr-1" />Staff Activity</TabsTrigger>
           <TabsTrigger value="charts">Charts</TabsTrigger>
         </TabsList>
 
@@ -592,8 +599,22 @@ const BranchAdminDashboard = () => {
           ))}
         </TabsContent>
 
-        {/* ── ALL DRIVES ── */}
-        <TabsContent value="all-drives" className="mt-4">
+        {/* ── TEST DRIVES (merged List + Grid) ── */}
+        <TabsContent value="test-drives" className="mt-4 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <p className="text-sm font-medium text-foreground">All Test Drives <span className="text-muted-foreground">({filteredDrives.length})</span></p>
+            <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30">
+              <Button size="sm" variant={driveView === 'list' ? 'secondary' : 'ghost'} className="h-7 px-2.5 text-xs" onClick={() => setDriveView('list')}>
+                <LayoutList className="h-3.5 w-3.5 mr-1" /> List
+              </Button>
+              <Button size="sm" variant={driveView === 'grid' ? 'secondary' : 'ghost'} className="h-7 px-2.5 text-xs" onClick={() => setDriveView('grid')}>
+                <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Grid
+              </Button>
+            </div>
+          </div>
+          {driveView === 'grid' ? (
+            <TestDriveInsightGrid testDrives={allDrives} title="Test Drive Grid" />
+          ) : (
           <Card className="shadow-card">
             <CardHeader className="pb-2">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -652,6 +673,12 @@ const BranchAdminDashboard = () => {
               )}
             </CardContent>
           </Card>
+          )}
+        </TabsContent>
+
+        {/* ── STAFF ACTIVITY ── */}
+        <TabsContent value="staff-activity" className="mt-4">
+          <StaffActivityGrid />
         </TabsContent>
 
         {/* ── CHARTS ── */}

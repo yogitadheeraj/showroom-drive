@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiDbQuery, apiPost } from '@/lib/apiClient';
 import { toast } from 'sonner';
 
 const EnquiryWidget = () => {
@@ -43,10 +43,7 @@ const EnquiryWidget = () => {
 
       if (!customer?.id) throw new Error('Failed to create/find customer');
 
-      await apiDbQuery({
-        table: 'communications',
-        action: 'insert',
-        payload: {
+      await apiPost('/api/communications', {
           customer_id: customer.id,
           type: 'email',
           purpose: 'custom',
@@ -54,8 +51,7 @@ const EnquiryWidget = () => {
           subject: 'Website Enquiry',
           body: form.message.trim(),
           status: 'pending',
-        },
-      });
+        });
 
       setSubmitted(true);
       setForm({ name: '', phone: '', email: '', message: '' });

@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiDbQuery, apiGet, apiPatch, apiPost } from '@/lib/apiClient';
 import { sendTransactionalEmail } from '@/lib/functionService';
 import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 
@@ -137,32 +137,13 @@ const EnquiriesPage = () => {
         setSalesLocations([]);
       }
 
-      const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [
-        { field: 'purpose', op: 'in', value: ['custom', 'follow_up'] },
-      ];
-
-      if (customerIds) {
-        filters.push({ field: 'customer_id', op: 'in', value: customerIds });
-      }
-
-      const comms = await apiDbQuery<any[]>({
-        table: 'communications',
-        action: 'select',
-        select: 'id, customer_id, subject, body, sent_to, status, created_at, parent_id',
-        filters,
-        order: [{ field: 'created_at', ascending: true }],
-        limit: 2000,
-      });
+      const commsParams = new URLSearchParams({ purpose: 'custom,follow_up', order: 'asc', limit: '2000' });
+      if (customerIds) commsParams.set('customer_ids', customerIds.join(','));
+      const comms = await apiGet<any[]>(`/api/communications?${commsParams.toString()}`) || [];
 
       const commCustomerIds = Array.from(new Set((comms || []).map((c: any) => c.customer_id).filter(Boolean)));
       const customers = commCustomerIds.length
-        ? await apiDbQuery<any[]>({
-            table: 'customers',
-            action: 'select',
-            select: 'id, full_name, phone, email',
-            filters: [{ field: 'id', op: 'in', value: commCustomerIds }],
-            limit: Math.max(1000, commCustomerIds.length),
-          })
+        ? await apiGet<any[]>(`/api/customers?ids=${encodeURIComponent(commCustomerIds.join(','))}`)
         : [];
 
       const customerMap = new Map((customers || []).map((c: any) => [c.id, c]));
@@ -209,12 +190,7 @@ const EnquiriesPage = () => {
     if (!editingMessageId) return;
     setSavingEdit(true);
     try {
-      await apiDbQuery({
-        table: 'communications',
-        action: 'update',
-        payload: { body: editText.trim() },
-        filters: [{ field: 'id', op: 'eq', value: editingMessageId }],
-      });
+      await apiPatch(`/api/communications/${encodeURIComponent(editingMessageId)}`, { body: editText.trim() });
 
       toast.success('Enquiry message updated');
       cancelEditMessage();
@@ -254,21 +230,16 @@ const EnquiriesPage = () => {
     setReplying(true);
     try {
       const recipientEmail = selected.customers?.email || selected.sent_to;
-      const insertedRows = await apiDbQuery<any[] | Record<string, any>>({
-        table: 'communications',
-        action: 'insert',
-        payload: {
+      const inserted = await apiPost<any>('/api/communications', {
         customer_id: selected.customer_id,
-        type: 'email' as const,
-        purpose: 'follow_up' as const,
+        type: 'email',
+        purpose: 'follow_up',
         sent_to: recipientEmail,
         subject: `Re: ${selected.subject || 'Website Enquiry'}`,
         body: finalMessage,
         status: 'pending',
         parent_id: selected.id,
-        },
       });
-      const inserted = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
       if (!inserted?.id) throw new Error('Failed to create follow-up communication');
 
       if (selected.customers?.email) {
@@ -288,21 +259,11 @@ const EnquiriesPage = () => {
         }
 
         if (emailError) {
-          await apiDbQuery({
-            table: 'communications',
-            action: 'update',
-            payload: { status: 'failed' },
-            filters: [{ field: 'id', op: 'eq', value: inserted.id }],
-          });
+          await apiPatch(`/api/communications/${encodeURIComponent(inserted.id)}`, { status: 'failed' });
           throw emailError;
         }
 
-        await apiDbQuery({
-          table: 'communications',
-          action: 'update',
-          payload: { status: 'sent', sent_at: new Date().toISOString() },
-          filters: [{ field: 'id', op: 'eq', value: inserted.id }],
-        });
+        await apiPatch(`/api/communications/${encodeURIComponent(inserted.id)}`, { status: 'sent', sent_at: new Date().toISOString() });
       }
 
       toast.success('Reply added to thread');

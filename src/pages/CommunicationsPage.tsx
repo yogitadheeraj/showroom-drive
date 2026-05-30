@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { MessageSquare, User, Clock, Send, Mail, Phone } from 'lucide-react';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiGet } from '@/lib/apiClient';
 
 const CommunicationsPage = () => {
   const [communications, setCommunications] = useState<any[]>([]);
@@ -18,18 +18,9 @@ const CommunicationsPage = () => {
 
   const fetchCommunications = async () => {
     try {
-      const filters = typeFilter !== 'all'
-        ? [{ field: 'type', op: 'eq' as const, value: typeFilter }]
-        : undefined;
-
-      const baseComms = await apiDbQuery<any[]>({
-        table: 'communications',
-        action: 'select',
-        select: '*',
-        filters,
-        order: [{ field: 'created_at', ascending: false }],
-        limit: 500,
-      });
+      const params = new URLSearchParams({ limit: '500' });
+      if (typeFilter !== 'all') params.set('type', typeFilter);
+      const baseComms = await apiGet<any[]>(`/api/communications?${params}`);
 
       const customerIds = Array.from(
         new Set((baseComms || []).map((c: any) => c.customer_id).filter(Boolean))
@@ -40,22 +31,10 @@ const CommunicationsPage = () => {
 
       const [customers, testDrives] = await Promise.all([
         customerIds.length
-          ? apiDbQuery<any[]>({
-              table: 'customers',
-              action: 'select',
-              select: 'id, full_name, phone, email',
-              filters: [{ field: 'id', op: 'in', value: customerIds }],
-              limit: Math.max(1000, customerIds.length),
-            })
+          ? apiGet<any[]>(`/api/customers?ids=${encodeURIComponent(customerIds.join(','))}`)
           : Promise.resolve([] as any[]),
         testDriveIds.length
-          ? apiDbQuery<any[]>({
-              table: 'test_drives',
-              action: 'select',
-              select: 'id, scheduled_date, location_id',
-              filters: [{ field: 'id', op: 'in', value: testDriveIds }],
-              limit: Math.max(1000, testDriveIds.length),
-            })
+          ? apiGet<any[]>(`/api/test-drives?ids=${encodeURIComponent(testDriveIds.join(','))}&include_related=false`)
           : Promise.resolve([] as any[]),
       ]);
 
@@ -76,7 +55,6 @@ const CommunicationsPage = () => {
           return !c.test_drive_id;
         });
       }
-console.log({ enriched });
       setCommunications(enriched);
     } catch {
       setCommunications([]);

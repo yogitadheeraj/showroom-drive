@@ -92,6 +92,7 @@ import {
 import {
   createCommunicationController,
   listCommunicationsController,
+  updateCommunicationController,
   updateCommunicationStatusController,
 } from '../controllers/communicationController.js';
 import {
@@ -238,6 +239,7 @@ apiRouter.patch('/activity/sessions/:id/end', requireAuth, endSessionController)
 // Communications
 apiRouter.get('/communications', requireAuth, listCommunicationsController);
 apiRouter.post('/communications', requireAuth, createCommunicationController);
+apiRouter.patch('/communications/:id', requireAuth, updateCommunicationController);
 apiRouter.patch('/communications/:id/status', requireAuth, updateCommunicationStatusController);
 
 // Notifications

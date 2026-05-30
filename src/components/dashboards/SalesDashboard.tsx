@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiDbQuery, apiPatch, apiPost } from '@/lib/apiClient';
+import { apiGet, apiDbQuery, apiPatch, apiPost } from '@/lib/apiClient';
 import { sendTransactionalEmail } from '@/lib/functionService';
 import { getStorageSignedUrl, listStorageFiles, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
@@ -161,83 +161,34 @@ const SalesDashboard = () => {
 
   const fetchAssignedDrives = async () => {
     if (!profile?.id) return;
-    const drives = await apiDbQuery<any[]>({
-      table: 'test_drives',
-      action: 'select',
-      select: '*',
-      filters: [{ field: 'assigned_sales_person_id', op: 'eq', value: profile.id }],
-      order: [{ field: 'scheduled_date', ascending: true }],
-    });
-
-    const customerIds = Array.from(new Set(drives.map((d) => d.customer_id).filter(Boolean)));
-    const vehicleIds = Array.from(new Set(drives.map((d) => d.vehicle_id).filter(Boolean)));
-    const locationIds = Array.from(new Set(drives.map((d) => d.location_id).filter(Boolean)));
-
-    const [customers, vehicles, locations] = await Promise.all([
-      customerIds.length ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: customerIds }] }) : Promise.resolve([]),
-      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
-      locationIds.length ? apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: locationIds }] }) : Promise.resolve([]),
-    ]);
-
-    const customerMap = new Map(customers.map((c) => [c.id, c]));
-    const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
-    const locationMap = new Map(locations.map((l) => [l.id, l]));
-
-    const enrichedDrives = drives.map((d) => ({
-      ...d,
-      customers: customerMap.get(d.customer_id) || null,
-      vehicles: vehicleMap.get(d.vehicle_id) || null,
-      locations: locationMap.get(d.location_id) || null,
-    }));
+    const enrichedDrives = await apiGet<any[]>(`/api/test-drives?sales_person_id=${encodeURIComponent(profile.id)}`) || [];
     setTestDrives(enrichedDrives);
 
     const profileLocationIds = Array.from(new Set(enrichedDrives.map((drive: any) => drive.location_id).filter(Boolean)));
     if (profileLocationIds.length > 0) {
-      const securityProfiles = await apiDbQuery<any[]>({
-        table: 'profiles',
-        action: 'select',
-        select: 'id, user_id, full_name, phone, location_id, is_active',
-        filters: [
-          { field: 'location_id', op: 'in', value: profileLocationIds },
-          { field: 'is_active', op: 'eq', value: true },
-        ],
-        order: [{ field: 'full_name', ascending: true }],
-      });
+      const [securityProfiles, securityRoles] = await Promise.all([
+        apiGet<any[]>(`/api/profiles?location_ids=${encodeURIComponent(profileLocationIds.join(','))}&is_active=true`),
+        apiGet<any[]>('/api/user-roles?role=security'),
+      ]);
 
-      const userIds = (securityProfiles || []).map((p: any) => p.user_id).filter(Boolean);
+      const securityUserIds = new Set((securityRoles || []).map((row: any) => row.user_id));
+      const uniqueContacts = (securityProfiles || [])
+        .filter((profileRow: any) => securityUserIds.has(profileRow.user_id))
+        .reduce((acc: Array<{ id: string; full_name: string; phone: string | null }>, profileRow: any) => {
+          if (!acc.some((entry) => entry.id === profileRow.id)) {
+            acc.push({ id: profileRow.id, full_name: profileRow.full_name, phone: profileRow.phone || null });
+          }
+          return acc;
+        }, []);
 
-      if (userIds.length > 0) {
-        const securityRoles = await apiDbQuery<any[]>({
-          table: 'user_roles',
-          action: 'select',
-          select: 'user_id, role',
-          filters: [
-            { field: 'role', op: 'eq', value: APP_ROLE.SECURITY },
-            { field: 'user_id', op: 'in', value: userIds },
-          ],
-        });
-
-        const securityUserIds = new Set((securityRoles || []).map((row: any) => row.user_id));
-        const uniqueContacts = securityProfiles
-          .filter((profileRow: any) => securityUserIds.has(profileRow.user_id))
-          .reduce((acc: Array<{ id: string; full_name: string; phone: string | null }>, profileRow: any) => {
-            if (!acc.some((entry) => entry.id === profileRow.id)) {
-              acc.push({ id: profileRow.id, full_name: profileRow.full_name, phone: profileRow.phone || null });
-            }
-            return acc;
-          }, []);
-
-        setSecurityContacts(uniqueContacts);
-      } else {
-        setSecurityContacts([]);
-      }
+      setSecurityContacts(uniqueContacts);
     } else {
       setSecurityContacts([]);
     }
 
-    if (drives.length > 0) {
+    if (enrichedDrives.length > 0) {
       await Promise.all(
-        drives.map(async (drive) => {
+        enrichedDrives.map(async (drive) => {
           const docs = await listStorageFiles('documents', `test-drives/${drive.id}`, 200);
           setInspectionDocsByDrive((prev) => ({ ...prev, [drive.id]: docs || [] }));
         })
@@ -246,39 +197,19 @@ const SalesDashboard = () => {
       setInspectionDocsByDrive({});
     }
 
-    if (!drives.length) {
+    if (!enrichedDrives.length) {
       setSecurityEventsByDrive({});
       return;
     }
 
-    const driveIds = new Set(drives.map((d) => d.id));
-    const securityEvents = await apiDbQuery<any[]>({
-      table: 'staff_activity_events',
-      action: 'select',
-      select: 'event_type, event_label, happened_at, metadata, profile_id, role',
-      filters: [
-        { field: 'role', op: 'eq', value: 'security' },
-        { field: 'event_type', op: 'in', value: [
-          'test_drive_check_in',
-          'test_drive_check_out',
-          'test_drive_completed',
-          'vehicle_inspection_pre',
-          'vehicle_inspection_post',
-          'license_verified',
-        ] },
-      ],
-      order: [{ field: 'happened_at', ascending: false }],
-      limit: 1000,
-    });
+    const driveIds = new Set(enrichedDrives.map((d) => d.id));
+    const securityEvents = await apiGet<any[]>(
+      `/api/activity/events?role=security&event_types=${encodeURIComponent('test_drive_check_in,test_drive_check_out,test_drive_completed,vehicle_inspection_pre,vehicle_inspection_post,license_verified')}&limit=1000`
+    );
 
     const activityProfileIds = Array.from(new Set((securityEvents || []).map((event: any) => event.profile_id).filter(Boolean)));
     const eventProfiles = activityProfileIds.length
-      ? await apiDbQuery<any[]>({
-          table: 'profiles',
-          action: 'select',
-          select: 'id, full_name',
-          filters: [{ field: 'id', op: 'in', value: activityProfileIds }],
-        })
+      ? await apiGet<any[]>(`/api/profiles?ids=${encodeURIComponent(activityProfileIds.join(','))}`)
       : [];
     const profileNameMap = new Map((eventProfiles || []).map((row: any) => [row.id, row.full_name]));
 
@@ -358,35 +289,14 @@ const SalesDashboard = () => {
 
       const [customers, latestDrives] = await Promise.all([
         allCustomerIds.length
-          ? apiDbQuery<any[]>({
-              table: 'customers',
-              action: 'select',
-              select: 'id, full_name, phone, email',
-              filters: [{ field: 'id', op: 'in', value: allCustomerIds }],
-            })
+          ? apiGet<any[]>(`/api/customers?ids=${encodeURIComponent(allCustomerIds.join(','))}`)
           : Promise.resolve([]),
         oppDriveIds.length
-          ? apiDbQuery<any[]>({
-              table: 'test_drives',
-              action: 'select',
-              select: 'id, scheduled_date, vehicle_id',
-              filters: [{ field: 'id', op: 'in', value: oppDriveIds }],
-            })
+          ? apiGet<any[]>(`/api/test-drives?ids=${encodeURIComponent(oppDriveIds.join(','))}`)
           : Promise.resolve([]),
       ]);
 
-      const vehicleIds = Array.from(new Set((latestDrives || []).map((drive: any) => drive.vehicle_id).filter(Boolean)));
-      const vehicles = vehicleIds.length
-        ? await apiDbQuery<any[]>({
-            table: 'vehicles',
-            action: 'select',
-            select: 'id, brand, model',
-            filters: [{ field: 'id', op: 'in', value: vehicleIds }],
-          })
-        : [];
-
       const customerMap = new Map((customers || []).map((row: any) => [row.id, row]));
-      const vehicleMap = new Map((vehicles || []).map((row: any) => [row.id, row]));
       const driveMap = new Map((latestDrives || []).map((row: any) => [row.id, row]));
 
       const seenOppCombo = new Set<string>();
@@ -404,7 +314,7 @@ const SalesDashboard = () => {
             ? {
                 id: drive.id,
                 scheduled_date: drive.scheduled_date,
-                vehicles: vehicleMap.get(drive.vehicle_id) || null,
+                vehicles: drive.vehicles || null,
               }
             : null,
         };
@@ -620,12 +530,7 @@ const SalesDashboard = () => {
       const ext = file.name.split('.').pop();
       const path = `licenses/${customerId}/${Date.now()}.${ext}`;
       await uploadToStorage('documents', path, file);
-      await apiDbQuery({
-        table: 'customers',
-        action: 'update',
-        payload: { driving_license_url: path },
-        filters: [{ field: 'id', op: 'eq', value: customerId }],
-      });
+      await apiPatch(`/api/customers/${encodeURIComponent(customerId)}`, { driving_license_url: path });
       toast({ title: 'License uploaded successfully' });
       fetchAssignedDrives();
     } catch (err: any) {
@@ -636,14 +541,7 @@ const SalesDashboard = () => {
   };
 
   const handleGiveKeyAndStart = async (id: string) => {
-    await apiDbQuery({
-      table: 'test_drives',
-      action: 'update',
-      payload: {
-        key_handed_at: new Date().toISOString(),
-      },
-      filters: [{ field: 'id', op: 'eq', value: id }],
-    });
+    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { key_handed_at: new Date().toISOString() });
     if (user?.id) {
       await logStaffActivity({
         userId: user.id,
@@ -685,12 +583,7 @@ const SalesDashboard = () => {
       completed_at: completedAt,
     };
 
-    await apiDbQuery({
-      table: 'test_drives',
-      action: 'update',
-      payload: feedbackPayload,
-      filters: [{ field: 'id', op: 'eq', value: id }],
-    });
+    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, feedbackPayload as Record<string, unknown>);
 
     if (td?.customers?.email) {
       const customerName = td.customers.full_name || 'Customer';
@@ -776,16 +669,11 @@ const SalesDashboard = () => {
   const handleReschedule = async () => {
     if (!rescheduleDrive?.id || !newDate || !newTime) return;
 
-    await apiDbQuery({
-      table: 'test_drives',
-      action: 'update',
-      payload: {
-        scheduled_date: newDate,
-        scheduled_time: `${newTime}:00`,
-        status: 'rescheduled',
-        notes: `${rescheduleDrive.notes || ''}\n[${new Date().toLocaleString()}] Rescheduled by ${profile?.full_name || 'Sales'} to ${newDate} ${newTime}`.trim(),
-      },
-      filters: [{ field: 'id', op: 'eq', value: rescheduleDrive.id }],
+    await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleDrive.id)}`, {
+      scheduled_date: newDate,
+      scheduled_time: `${newTime}:00`,
+      status: 'rescheduled',
+      notes: `${rescheduleDrive.notes || ''}\n[${new Date().toLocaleString()}] Rescheduled by ${profile?.full_name || 'Sales'} to ${newDate} ${newTime}`.trim(),
     });
 
     if (user?.id) {
@@ -1289,8 +1177,8 @@ const SalesDashboard = () => {
                           setHandoverNotes('');
                           if (td.location_id) {
                             try {
-                              const rows = await apiDbQuery<any[]>({ table: 'locations', action: 'select', select: 'metadata', filters: [{ field: 'id', op: 'eq', value: td.location_id }], limit: 1 });
-                              const meta = rows?.[0]?.metadata || {};
+                              const locationRow = await apiGet<any>(`/api/locations/${encodeURIComponent(td.location_id)}`);
+                              const meta = locationRow?.metadata || {};
                               setPresetHandoverQuestions(Array.isArray(meta.handover_questions) ? meta.handover_questions : []);
                             } catch { setPresetHandoverQuestions([]); }
                           } else { setPresetHandoverQuestions([]); }
@@ -1453,11 +1341,11 @@ const SalesDashboard = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>New Date</Label>
-              <Input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} />
+              <Input type="date" value={newDate} min={new Date().toISOString().split('T')[0]} onChange={e => setNewDate(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>New Time</Label>
-              <Input type="time" value={newTime} onChange={e => setNewTime(e.target.value)} />
+              <Input type="time" value={newTime} min={newDate === new Date().toISOString().split('T')[0] ? `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}` : undefined} onChange={e => setNewTime(e.target.value)} />
             </div>
             <Button onClick={handleReschedule} className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={!newDate || !newTime}>
               Confirm Reschedule

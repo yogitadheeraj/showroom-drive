@@ -21,6 +21,7 @@ export function initFirebaseAdmin() {
       clientEmail: env.firebaseClientEmail,
       privateKey: env.firebasePrivateKey,
     }),
+    databaseURL: env.firebaseDatabaseUrl || `https://${env.firebaseProjectId}-default-rtdb.firebaseio.com`,
   });
 
   initialized = true;

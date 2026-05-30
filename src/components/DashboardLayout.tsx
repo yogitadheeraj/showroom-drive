@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiGet, apiDbQuery } from '@/lib/apiClient';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -201,16 +201,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
     const fetchReminderConfig = async () => {
       try {
-        const rows = await apiDbQuery<any[]>({
-          table: 'follow_up_reminder_config',
-          action: 'select',
-          select: 'reminder_enabled, reminder_before_minutes, reminder_message, tone_type, notify_due_list',
-          filters: [{ field: 'location_id', op: 'eq', value: profile.location_id }],
-          order: [{ field: 'updated_at', ascending: false }],
-          limit: 1,
-        });
+        const row = await apiGet<any>(`/api/follow-up-reminder-config/${encodeURIComponent(profile.location_id)}`);
 
-        const row = rows?.[0] || null;
         if (!row) return;
 
         setFollowUpReminderConfig((prev) => ({
@@ -327,23 +319,17 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
 
     const pollLeads = async () => {
       const nowIso = new Date().toISOString();
-      const filters: Array<{ field: string; op: 'eq' | 'gte'; value: unknown }> = [
-        { field: 'created_at', op: 'gte', value: leadPollRef.current.lastCheckedAt },
-      ];
-
+      const params = new URLSearchParams({
+        created_at_gte: leadPollRef.current.lastCheckedAt,
+        include_related: 'false',
+        limit: '200',
+      });
       if (role !== APP_ROLE.SUPERADMIN && profile?.location_id) {
-        filters.push({ field: 'location_id', op: 'eq', value: profile.location_id });
+        params.set('location_id', profile.location_id);
       }
 
       try {
-        const leads = await apiDbQuery<any[]>({
-          table: 'test_drives',
-          action: 'select',
-          select: 'id, created_at',
-          filters,
-          order: [{ field: 'created_at', ascending: true }],
-          limit: 200,
-        });
+        const leads = await apiGet<any[]>(`/api/test-drives?${params}`);
 
         if (cancelled) return;
 

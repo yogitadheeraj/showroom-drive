@@ -32,7 +32,7 @@ export function ActivityInsightsMini() {
   const [counts, setCounts] = useState<Counts>({ tdEvents: 0, staffEvents: 0, openTasks: 0, activeSessions: 0 });
   const [loading, setLoading] = useState(true);
 
-  const isStaffOnly = ([APP_ROLE.SALES, APP_ROLE.SECURITY, APP_ROLE.GRO] as string[]).includes(role ?? '');
+  const isStaffOnly = ([APP_ROLE.SALES, APP_ROLE.SECURITY] as string[]).includes(role ?? '');
 
   useEffect(() => {
     if (!dealerLoading) void fetchCounts();
