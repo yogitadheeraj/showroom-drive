@@ -112,7 +112,7 @@ const DealerProfileSettings = () => {
     await apiDbQuery({
       table: 'dealers',
       action: 'insert',
-      payload: {
+      values: {
         name,
         slug,
         contact_email: email,

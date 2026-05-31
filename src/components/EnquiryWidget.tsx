@@ -36,7 +36,7 @@ const EnquiryWidget = () => {
         const newCustomers = await apiDbQuery<any[]>({
           table: 'customers',
           action: 'insert',
-          payload: { full_name: form.name.trim(), phone: form.phone.trim(), email: form.email.trim() || null },
+          values: { full_name: form.name.trim(), phone: form.phone.trim(), email: form.email.trim() || null },
         });
         customer = newCustomers?.[0] || null;
       }

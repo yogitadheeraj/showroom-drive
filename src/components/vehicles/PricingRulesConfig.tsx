@@ -98,7 +98,7 @@ const PricingRulesConfig = () => {
       await apiDbQuery({
         table: 'pricing_rules',
         action: 'insert',
-        payload,
+        values: payload,
       });
       toast({ title: 'Pricing rule created' });
     }
@@ -139,7 +139,7 @@ const PricingRulesConfig = () => {
       await apiDbQuery({
         table: 'pricing_discounts',
         action: 'insert',
-        payload,
+        values: payload,
       });
       toast({ title: 'Discount created' });
     }

@@ -220,8 +220,8 @@ apiRouter.post('/customers', requireAuth, createCustomerController);
 apiRouter.patch('/customers/:id', requireAuth, updateCustomerController);
 
 // Vehicles
-apiRouter.get('/vehicles', listVehiclesController);
-apiRouter.get('/vehicles/:id', getVehicleController);
+apiRouter.get('/vehicles', requireAuth, listVehiclesController);
+apiRouter.get('/vehicles/:id', requireAuth, getVehicleController);
 apiRouter.post('/vehicles', requireAuth, createVehicleController);
 apiRouter.patch('/vehicles/:id', requireAuth, updateVehicleController);
 apiRouter.delete('/vehicles/:id', requireAuth, deleteVehicleController);

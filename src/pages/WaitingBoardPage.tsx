@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiDbQuery } from '@/lib/apiClient';
+import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useSearchParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Car, Clock, User, Timer } from 'lucide-react';
@@ -137,15 +138,15 @@ const WaitingBoardPage = () => {
 
     // Update clock every second for real-time timer
     const clockInterval = setInterval(() => setNow(new Date()), 1000);
-    const pollInterval = setInterval(() => {
-      fetchData();
-    }, 15000);
 
     return () => {
       clearInterval(clockInterval);
-      clearInterval(pollInterval);
     };
   }, [locationId]);
+
+  useTestDriveRealtime(locationId, () => {
+    void fetchData();
+  });
 
   const fetchData = async () => {
     const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [

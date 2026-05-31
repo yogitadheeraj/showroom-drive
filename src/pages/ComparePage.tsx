@@ -194,7 +194,7 @@ const ComparePage = () => {
           table: 'customers',
           action: 'insert',
           select: 'id',
-          payload: {
+          values: {
             full_name: payload.name.trim(),
             phone: payload.phone.trim(),
           },

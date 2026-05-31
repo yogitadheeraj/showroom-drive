@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiGet, apiPost, apiPatch, apiDbQuery } from '@/lib/apiClient';
 import { sendTransactionalEmail } from '@/lib/functionService';
@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle } from 'lucide-react';
+import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Users, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveJourneyDialog } from '@/components/TestDriveJourneyDialog';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
@@ -70,6 +70,7 @@ const TestDrivesPage = () => {
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const [assigningKey, setAssigningKey] = useState<string | null>(null);
   const [securityActionId, setSecurityActionId] = useState<string | null>(null);
+  const [groupBySales, setGroupBySales] = useState(false);
 
   useEffect(() => {
     if (!dealerLoading) fetchTestDrives();
@@ -95,18 +96,43 @@ const TestDrivesPage = () => {
         setTestDrives([]);
         return;
       }
+      // Sales only see their own assigned drives
       params.set('sales_person_id', profile.id);
     }
 
     if (statusFilter !== 'all') params.set('status', statusFilter);
 
-    if (role !== APP_ROLE.SUPERADMIN && dealerLocationIds && dealerLocationIds.length > 0) {
+    // Location scoping per role
+    if (role === APP_ROLE.GRO || role === APP_ROLE.SECURITY || role === APP_ROLE.SALES_ADMIN) {
+      // Strictly scoped to their own location
+      if (profile?.location_id) params.set('location_id', profile.location_id);
+    } else if (role !== APP_ROLE.SUPERADMIN && dealerLocationIds && dealerLocationIds.length > 0) {
       params.set('location_ids', dealerLocationIds.join(','));
     }
 
     const drives = await apiGet<any[]>(`/api/test-drives?${params}`);
     setTestDrives(drives || []);
   };
+
+  // Group drives by assigned sales person (for Branch Admin)
+  const displayGroups = useMemo(() => {
+    if (!groupBySales || role !== APP_ROLE.SALES_ADMIN) {
+      return [{ label: '', drives: testDrives }];
+    }
+    const map = new Map<string, any[]>();
+    for (const td of testDrives) {
+      const key = td.assigned_sales_person?.full_name ?? 'Unassigned';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(td);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => {
+        if (a === 'Unassigned') return 1;
+        if (b === 'Unassigned') return -1;
+        return a.localeCompare(b);
+      })
+      .map(([label, drives]) => ({ label, drives }));
+  }, [testDrives, groupBySales, role]);
 
   const handleReschedule = async () => {
     if (!rescheduleId || !newDate || !newTime) return;
@@ -175,14 +201,25 @@ const TestDrivesPage = () => {
     setCancelReason('');
     fetchTestDrives();
   };
-
+  const todayStr = (() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  })();
+  const maxDateStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
   const handleCreateOpportunity = async () => {
     if (!leadDialogDrive?.customer_id || !profile?.id) return;
 
     try {
       const stage = leadTemperature === 'hot' ? 'qualified' : 'new';
       const statusNote = `[${new Date().toLocaleString()}] Lead marked ${leadTemperature.toUpperCase()} from Test Drives page.`;
-
+      await apiPatch(`/api/test-drives/${encodeURIComponent(leadDialogDrive.id)}`, { key_handover_completed_at: new Date().toISOString(), status: 'completed' });
+  
       const existingOpportunities = await apiDbQuery<any[]>({
         table: 'sales_opportunities',
         action: 'select',
@@ -308,13 +345,10 @@ const TestDrivesPage = () => {
   };
 
   const handleKeyHandoverComplete = async (td: any) => {
-    await apiPatch(`/api/test-drives/${encodeURIComponent(td.id)}`, { key_handover_completed_at: new Date().toISOString(), status: 'completed' });
-    fetchTestDrives();
     setLeadDialogDrive(td);
     setLeadTemperature('cold');
     setFollowUpTaskTitle('');
     setFollowUpTaskDueAt('');
-    toast({ title: 'Key handover complete', description: 'Create a follow-up opportunity below.' });
   };
 
   const statusColor: Record<string, string> = {
@@ -336,7 +370,19 @@ const TestDrivesPage = () => {
             <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Test Drives</h1>
             <p className="text-sm text-muted-foreground">Manage all test drive appointments and journey completion quality</p>
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <div className="flex items-center gap-2 flex-wrap">
+            {role === APP_ROLE.SALES_ADMIN && (
+              <Button
+                size="sm"
+                variant={groupBySales ? 'default' : 'outline'}
+                className="text-xs gap-1.5 h-9"
+                onClick={() => setGroupBySales((v) => !v)}
+              >
+                <Users className="h-3.5 w-3.5" />
+                Group by Sales
+              </Button>
+            )}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
@@ -352,6 +398,7 @@ const TestDrivesPage = () => {
               <SelectItem value="rescheduled">Rescheduled</SelectItem>
             </SelectContent>
           </Select>
+          </div>
         </div>
 
         {testDrives.length === 0 ? (
@@ -359,8 +406,18 @@ const TestDrivesPage = () => {
             <CardContent className="p-8 text-center text-muted-foreground">No test drives found for the selected filter</CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {testDrives.map((td) => {
+          <div className="space-y-6">
+            {displayGroups.map(({ label, drives }) => (
+              <div key={label || '__all__'}>
+                {label && (
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
+                    <User className="h-4 w-4 text-primary shrink-0" />
+                    <span className="font-semibold text-sm text-foreground">{label}</span>
+                    <Badge variant="secondary" className="text-xs">{drives.length}</Badge>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {drives.map((td) => {
               const durationMinutes = getDurationMinutes(td);
               const journeyBadge = getDurationBadge(durationMinutes);
 
@@ -392,9 +449,9 @@ const TestDrivesPage = () => {
 
                     {/* ── Sales + Duration ── */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      {td.profiles?.full_name && (
+                      {td.assigned_sales_person?.full_name && (
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <User className="h-3 w-3 shrink-0" />{td.profiles.full_name}
+                          <User className="h-3 w-3 shrink-0" />{td.assigned_sales_person.full_name}
                         </span>
                       )}
                       {journeyBadge && (
@@ -446,16 +503,7 @@ const TestDrivesPage = () => {
                               <CheckCircle className="h-3 w-3 mr-1" /> Show
                             </Button>
                           )}
-                          {td.status === 'show' && (
-                            <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs" onClick={() => updateStatus(td.id, 'in_progress')}>
-                              <PlayCircle className="h-3 w-3 mr-1" /> Start Drive
-                            </Button>
-                          )}
-                          {td.status === 'in_progress' && (
-                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'completed')}>
-                              <CheckCircle2 className="h-3 w-3 mr-1" /> Complete
-                            </Button>
-                          )}
+      
                         </>
                       )}
                       {/* Sales / Admin: Assign Key + Key Handover */}
@@ -473,26 +521,15 @@ const TestDrivesPage = () => {
                           )}
                         </>
                       )}
-                      {/* Security / Admin: Check In + Check Out */}
-                      {([APP_ROLE.SECURITY, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
-                        <>
-                          {td.key_handed_at && !td.security_checked_in_at && td.customers?.driving_license_verified && (
-                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleSecurityCheckIn(td.id)} disabled={securityActionId === td.id}>
-                              <CheckCircle className="h-3 w-3 mr-1" /> Check In
-                            </Button>
-                          )}
-                          {td.security_checked_in_at && !td.security_checked_out_at && (
-                            <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => handleSecurityCheckOut(td.id)} disabled={securityActionId === td.id}>
-                              <XCircle className="h-3 w-3 mr-1" /> Check Out
-                            </Button>
-                          )}
-                        </>
-                      )}
+                     
                     </div>
                   </CardContent>
                 </Card>
               );
             })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -602,7 +639,10 @@ const TestDrivesPage = () => {
               </div>
               <div className="space-y-2">
                 <Label>Task Due At</Label>
-                <Input type="datetime-local" value={followUpTaskDueAt} onChange={(e) => setFollowUpTaskDueAt(e.target.value)} />
+                <Input type="datetime-local"   
+                min={todayStr}
+                      max={maxDateStr} 
+                      value={followUpTaskDueAt} onChange={(e) => setFollowUpTaskDueAt(e.target.value)} />
               </div>
               <Button onClick={handleCreateOpportunity} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
                 Save Opportunity + Task

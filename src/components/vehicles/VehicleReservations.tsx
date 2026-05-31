@@ -106,7 +106,7 @@ const VehicleReservations = () => {
     await apiDbQuery({
       table: 'vehicle_reservations',
       action: 'insert',
-      payload: {
+      values: {
         vehicle_id: formData.vehicle_id,
         customer_id: formData.customer_id || null,
         reserved_by_profile_id: profile?.id || null,
@@ -133,7 +133,17 @@ const VehicleReservations = () => {
     toast({ title: 'Reservation cancelled' });
     fetchReservations();
   };
-
+  const todayStr = (() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  })();
+  const maxDateStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -247,7 +257,9 @@ const VehicleReservations = () => {
               </div>
               <div className="space-y-2">
                 <Label>Reserved Until *</Label>
-                <Input type="datetime-local" value={formData.reserved_until} onChange={e => setFormData(p => ({ ...p, reserved_until: e.target.value }))} />
+                <Input type="datetime-local"
+                   min={todayStr}
+                      max={maxDateStr}  value={formData.reserved_until} onChange={e => setFormData(p => ({ ...p, reserved_until: e.target.value }))} />
               </div>
               <div className="space-y-2">
                 <Label>Notes</Label>

@@ -654,7 +654,7 @@ const BookingPage = () => {
         table: 'test_drives',
         action: 'insert',
         select: 'id, assigned_sales_person_id',
-        payload: {
+        values: {
           customer_id: customerId,
           vehicle_id: formData.vehicleId,
           location_id: formData.locationId,

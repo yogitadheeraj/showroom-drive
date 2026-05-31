@@ -137,7 +137,7 @@ const ReportSettingsConfig = () => {
       await apiDbQuery({
         table: 'report_email_config',
         action: 'insert',
-        payload,
+        values: payload,
       });
 
       toast.success(`${parsedEmails.length} email recipient${parsedEmails.length > 1 ? 's' : ''} added successfully`);
@@ -210,7 +210,7 @@ const ReportSettingsConfig = () => {
         await apiDbQuery({
           table: 'report_schedule_config',
           action: 'insert',
-          payload: {
+          values: {
             location_id: locationId,
             report_type: newScheduleReportType,
             schedule_time: newScheduleTime,

@@ -18,6 +18,7 @@ import {
 import VehicleInspectionDialog from './VehicleInspectionDialog';
 import { logStaffActivity } from '@/lib/activityLogger';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 
 const SecurityDashboard = () => {
   const { profile } = useAuth();
@@ -52,6 +53,10 @@ const SecurityDashboard = () => {
   useEffect(() => {
     fetchDrives();
   }, [profile]);
+
+  useTestDriveRealtime(profile?.location_id, () => {
+    void fetchDrives();
+  });
 
   const fetchTestDriveDocuments = async (testDriveId: string) => {
     try {

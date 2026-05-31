@@ -152,7 +152,7 @@ const TestDriveFeedbackPage = () => {
       await apiDbQuery({
         table: 'test_drive_feedback',
         action: 'insert',
-        payload: {
+        values: {
           test_drive_id: tdId,
           customer_id: testDrive.customer_id,
           enquiry_id: enquiryId,

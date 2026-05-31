@@ -536,7 +536,7 @@ const LocationsPage = () => {
       await apiDbQuery({
         table: 'location_devices',
         action: 'insert',
-        payload: {
+        values: {
         location_id: deviceDialog,
         name: newDevice.name,
         device_type: newDevice.device_type,

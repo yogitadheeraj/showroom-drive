@@ -263,9 +263,7 @@ const GRODashboard = () => {
                         {td.status === 'confirmed' && (
                           <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>Show</Button>
                         )}
-                        {td.status === 'show' && (
-                          <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs" onClick={() => updateStatus(td.id, 'in_progress')}>Start Drive</Button>
-                        )}
+                        
                         {td.status === 'in_progress' && (
                           <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'completed')}>Complete</Button>
                         )}

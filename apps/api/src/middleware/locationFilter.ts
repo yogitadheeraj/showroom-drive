@@ -41,7 +41,6 @@ export function applyLocationScope(
       filters.location_id = locationId;
       delete filters.location_ids;
     }
-    return;
   }
 
   if (role === 'dealer_admin') {

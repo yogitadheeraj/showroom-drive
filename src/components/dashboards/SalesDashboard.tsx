@@ -22,6 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { logStaffActivity } from '@/lib/activityLogger';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 
 type LeadTemperature = 'hot' | 'cold';
 
@@ -148,17 +149,9 @@ const SalesDashboard = () => {
     void fetchLeadWorkspace();
   }, [profile?.id]);
 
-  useEffect(() => {
-    if (!profile?.id) return;
-
-    const interval = setInterval(() => {
-      void fetchAssignedDrives();
-    }, 20000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [profile?.id, toast]);
+  useTestDriveRealtime(profile?.location_id, () => {
+    void fetchAssignedDrives();
+  });
 
   const fetchAssignedDrives = async () => {
     if (!profile?.id) return;
@@ -429,7 +422,7 @@ const SalesDashboard = () => {
       await apiDbQuery({
         table: 'sales_tasks',
         action: 'insert',
-        payload: {
+        values: {
           opportunity_id: opportunityId,
           test_drive_id: td.id,
           customer_id: td.customer_id,
@@ -473,7 +466,7 @@ const SalesDashboard = () => {
           await apiDbQuery({
             table: 'sales_tasks',
             action: 'insert',
-            payload: {
+            values: {
               opportunity_id: oppNotesDialog.opportunityId,
               customer_id: opp?.customer_id || null,
               assigned_to_profile_id: profile.id,
@@ -695,7 +688,17 @@ const SalesDashboard = () => {
     setNewTime('');
     fetchAssignedDrives();
   };
-
+  const todayStr = (() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  })();
+  const maxDateStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
   const handleCompleteWithLead = async () => {
     if (!completionLeadDialogDrive) return;
     const td = completionLeadDialogDrive;
@@ -1466,7 +1469,9 @@ const SalesDashboard = () => {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold">Task Due At</Label>
-                <Input type="datetime-local" value={followUpTaskDueAt} onChange={(event) => setFollowUpTaskDueAt(event.target.value)} />
+                <Input type="datetime-local"  min={todayStr}
+                      max={maxDateStr} 
+                      value={followUpTaskDueAt} onChange={(event) => setFollowUpTaskDueAt(event.target.value)} />
               </div>
 
               {/* HOT LEAD — Booking / Payment section */}
