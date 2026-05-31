@@ -78,6 +78,11 @@ const GROCalendarView = () => {
   const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
   const [specialPeriods, setSpecialPeriods] = useState<any[]>([]);
   const [salesPersons, setSalesPersons] = useState<any[]>([]);
+  const [onLeaveStaff, setOnLeaveStaff] = useState<any[]>([]);
+  const [bulkReassignDialog, setBulkReassignDialog] = useState(false);
+  const [bulkSource, setBulkSource] = useState('');
+  const [bulkTarget, setBulkTarget] = useState('');
+  const [bulkReassigning, setBulkReassigning] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   const [assignDialog, setAssignDialog] = useState<{ open: boolean; testDriveId: string | null }>({ open: false, testDriveId: null });
@@ -128,6 +133,7 @@ const GROCalendarView = () => {
   const fetchSalesPersons = async () => {
     if (!profile?.location_id) {
       setSalesPersons([]);
+      setOnLeaveStaff([]);
       return;
     }
 
@@ -143,25 +149,35 @@ const GROCalendarView = () => {
 
     if (!assignableRoleUserIds.length) {
       setSalesPersons([]);
+      setOnLeaveStaff([]);
       return;
     }
 
     const profiles = await apiGet<any[]>(`/api/profiles?location_id=${encodeURIComponent(profile.location_id)}&is_active=true`);
-    const filteredProfiles = (profiles || []).filter((item) => assignableRoleUserIds.includes(item.user_id));
-    filteredProfiles.sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')));
+    const allProfiles = (profiles || []).filter((item) => assignableRoleUserIds.includes(item.user_id));
+    allProfiles.sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')));
 
-    const locationIds = Array.from(new Set(filteredProfiles.map((item) => item.location_id).filter(Boolean)));
+    const locationIds = Array.from(new Set(allProfiles.map((item) => item.location_id).filter(Boolean)));
     const locationRows = locationIds.length
       ? await apiGet<any[]>(`/api/locations?ids=${encodeURIComponent(locationIds.join(','))}`)
       : [];
     const locationMap = new Map((locationRows || []).map((location) => [location.id, location]));
 
-    setSalesPersons(
-      filteredProfiles.map((item) => ({
-        ...item,
-        locations: item.location_id ? locationMap.get(item.location_id) || null : null,
-      })),
-    );
+    const todayStr = new Date().toISOString().split('T')[0];
+    const withLoc = allProfiles.map((item) => ({
+      ...item,
+      locations: item.location_id ? locationMap.get(item.location_id) || null : null,
+    }));
+
+    // Split into available (not on leave) and on-leave
+    const isOnLeaveNow = (p: any) => {
+      if (p.on_leave && !p.leave_end_date) return true; // indefinite
+      if (p.leave_start_date && p.leave_end_date && p.leave_start_date <= todayStr && p.leave_end_date >= todayStr) return true;
+      return false;
+    };
+
+    setSalesPersons(withLoc.filter((p) => !isOnLeaveNow(p)));
+    setOnLeaveStaff(withLoc.filter((p) => isOnLeaveNow(p)));
   };
 
   const fetchLocationVehicles = async () => {
@@ -207,6 +223,30 @@ const GROCalendarView = () => {
     setAssignDialog({ open: false, testDriveId: null });
     setSelectedSalesPerson('');
     fetchTestDrives();
+  };
+
+  const handleBulkReassign = async () => {
+    if (!bulkSource || !bulkTarget) return;
+    setBulkReassigning(true);
+    try {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const result = await apiPost<{ data: { reassigned: number } }>('/api/test-drives/bulk-reassign', {
+        from_profile_id: bulkSource,
+        to_profile_id: bulkTarget,
+        date: todayStr,
+      });
+      const count = (result as any)?.data?.reassigned ?? (result as any)?.reassigned ?? 0;
+      toast({ title: 'Reassignment complete', description: `${count} test drive(s) moved to ${salesPersons.find(s => s.id === bulkTarget)?.full_name || 'new staff'}.` });
+      setBulkReassignDialog(false);
+      setBulkSource('');
+      setBulkTarget('');
+      void fetchTestDrives();
+      void fetchSalesPersons();
+    } catch {
+      toast({ title: 'Error', description: 'Bulk reassignment failed. Please try again.', variant: 'destructive' });
+    } finally {
+      setBulkReassigning(false);
+    }
   };
 
   const updateStatus = async (id: string, status: string) => {
@@ -664,12 +704,29 @@ const GROCalendarView = () => {
                   {salesPersons.map((sp) => (
                     <SelectItem key={sp.id} value={sp.id}>{sp.full_name}</SelectItem>
                   ))}
+                  {onLeaveStaff.length > 0 && (
+                    <>
+                      <div className="px-2 py-1 text-[10px] font-semibold text-amber-600 uppercase tracking-wide">On Leave</div>
+                      {onLeaveStaff.map((sp) => (
+                        <SelectItem key={sp.id} value={sp.id} className="opacity-50">✈️ {sp.full_name}</SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
 
               <Button className="w-full md:w-auto" onClick={() => setWalkinDialog({ open: true, date: format(currentDate, 'yyyy-MM-dd') })}>
                 + Book Walk-in
               </Button>
+              {onLeaveStaff.length > 0 && (
+                <Button
+                  variant="outline"
+                  className="w-full md:w-auto border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                  onClick={() => { setBulkReassignDialog(true); setBulkSource(''); setBulkTarget(''); }}
+                >
+                  ✈️ Reassign Absent Staff ({onLeaveStaff.length})
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -811,14 +868,39 @@ const GROCalendarView = () => {
                 <SelectValue placeholder="Select sales person" />
               </SelectTrigger>
               <SelectContent>
-                {salesPersons.map(sp => (
-                  <SelectItem key={sp.id} value={sp.id}>
-                    {sp.full_name}{sp.locations?.name ? ` — ${sp.locations.name}` : ''}
-                  </SelectItem>
-                ))}
+                {salesPersons.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">No available staff right now</div>
+                )}
+                {salesPersons.map(sp => {
+                  const driveCount = testDrives.filter(
+                    td => td.assigned_sales_person_id === sp.id &&
+                    td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
+                    ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                  ).length;
+                  return (
+                    <SelectItem key={sp.id} value={sp.id}>
+                      <span className="flex items-center gap-2">
+                        {sp.full_name}{sp.locations?.name ? ` — ${sp.locations.name}` : ''}
+                        {driveCount > 0 && (
+                          <span className="text-[10px] text-muted-foreground">({driveCount} active)</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+                {onLeaveStaff.length > 0 && (
+                  <>
+                    <div className="px-2 pt-2 pb-1 text-[10px] font-semibold text-amber-600 uppercase tracking-wide border-t border-border mt-1">On Leave — cannot assign</div>
+                    {onLeaveStaff.map(sp => (
+                      <SelectItem key={sp.id} value={`_leave_${sp.id}`} disabled className="opacity-40 cursor-not-allowed">
+                        ✈️ {sp.full_name}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
               </SelectContent>
             </Select>
-            <Button onClick={handleAssign} className="w-full" disabled={!selectedSalesPerson}>
+            <Button onClick={handleAssign} className="w-full" disabled={!selectedSalesPerson || selectedSalesPerson.startsWith('_leave_')}>
               Confirm Assignment
             </Button>
           </div>
@@ -880,6 +962,175 @@ const GROCalendarView = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Bulk Reassign Absent Staff Dialog ── */}
+      <Dialog open={bulkReassignDialog} onOpenChange={(o) => { if (!o) { setBulkReassignDialog(false); setBulkSource(''); setBulkTarget(''); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2">
+              <span className="text-amber-500">✈️</span> Reassign Absent Staff Leads
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            <p className="text-sm text-muted-foreground">
+              Select a staff member currently on leave, then choose who should receive their test drives for today.
+            </p>
+
+            {/* Staff on leave list */}
+            {onLeaveStaff.length === 0 ? (
+              <div className="rounded-lg border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+                No staff members are currently on leave.
+              </div>
+            ) : (
+              <>
+                {/* Absent staff with their today drive counts */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Staff on leave today</Label>
+                  <div className="space-y-1.5">
+                    {onLeaveStaff.map((sp) => {
+                      const driveCount = testDrives.filter(
+                        td => td.assigned_sales_person_id === sp.id &&
+                        td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
+                        ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                      ).length;
+                      const isSelected = bulkSource === sp.id;
+                      return (
+                        <button
+                          key={sp.id}
+                          type="button"
+                          onClick={() => setBulkSource(sp.id)}
+                          className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors text-left ${
+                            isSelected
+                              ? 'border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-900/20'
+                              : 'border-border hover:bg-muted/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">✈️</span>
+                            <div>
+                              <p className="font-medium text-foreground">{sp.full_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {sp.leave_start_date && sp.leave_end_date
+                                  ? sp.leave_start_date === sp.leave_end_date
+                                    ? `Leave: ${sp.leave_start_date}`
+                                    : `${sp.leave_start_date} → ${sp.leave_end_date}`
+                                  : 'On leave'}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className={driveCount > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : ''}>
+                            {driveCount} drive{driveCount !== 1 ? 's' : ''} today
+                          </Badge>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {bulkSource && (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Reassign to (available staff)</Label>
+                    {salesPersons.length === 0 ? (
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                        No available staff to reassign to. All sales staff are either on leave or inactive.
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {salesPersons.map((sp) => {
+                          const driveCount = testDrives.filter(
+                            td => td.assigned_sales_person_id === sp.id &&
+                            td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
+                            ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                          ).length;
+                          const isSelected = bulkTarget === sp.id;
+                          return (
+                            <button
+                              key={sp.id}
+                              type="button"
+                              onClick={() => setBulkTarget(sp.id)}
+                              className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors text-left ${
+                                isSelected
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-border hover:bg-muted/50'
+                              }`}
+                            >
+                              <span className="font-medium text-foreground">{sp.full_name}</span>
+                              <Badge variant="secondary" className={driveCount === 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : ''}>
+                                {driveCount} active
+                              </Badge>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkReassignDialog(false)} disabled={bulkReassigning}>Cancel</Button>
+            <Button
+              onClick={handleBulkReassign}
+              disabled={!bulkSource || !bulkTarget || bulkReassigning}
+              className="bg-amber-500 text-white hover:bg-amber-600"
+            >
+              {bulkReassigning ? 'Reassigning...' : 'Confirm Reassignment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Staff Availability Panel (shown below calendars when staff exist) ── */}
+      {(salesPersons.length > 0 || onLeaveStaff.length > 0) && (
+        <Card className="shadow-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-heading text-sm flex items-center gap-2">
+              Staff Availability — Today
+              {onLeaveStaff.length > 0 && (
+                <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 text-xs">
+                  {onLeaveStaff.length} on leave
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {salesPersons.map((sp) => {
+                const activeDrives = testDrives.filter(
+                  td => td.assigned_sales_person_id === sp.id &&
+                  td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
+                  ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                );
+                return (
+                  <div key={sp.id} className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{sp.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{activeDrives.length > 0 ? `${activeDrives.length} active test drive${activeDrives.length > 1 ? 's' : ''}` : 'Free'}</p>
+                    </div>
+                    <Badge variant="secondary" className={activeDrives.length === 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : activeDrives.length >= 3 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}>
+                      {activeDrives.length === 0 ? 'Free' : activeDrives.length >= 3 ? 'Busy' : 'Active'}
+                    </Badge>
+                  </div>
+                );
+              })}
+              {onLeaveStaff.map((sp) => (
+                <div key={sp.id} className="flex items-center justify-between px-4 py-3 opacity-60">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">✈️ {sp.full_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {sp.leave_start_date && sp.leave_end_date
+                        ? `Leave until ${sp.leave_end_date}`
+                        : 'On leave'}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">On Leave</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <WalkinDialog
         open={walkinDialog.open}

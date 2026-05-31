@@ -31,6 +31,7 @@ import CarBookingsPage from "./pages/CarBookingsPage.tsx";
 
 import ReportMonitoringPage from "./pages/ReportMonitoringPage.tsx";
 import ActivityLogsPage from "./pages/ActivityLogsPage.tsx";
+import MyProfilePage from "./pages/MyProfilePage.tsx";
 import { ROUTE_ALLOWED_ROLES } from "@/constants/roles";
 
 const queryClient = new QueryClient();
@@ -67,6 +68,7 @@ const App = () => (
             <Route path="/waiting-board" element={<WaitingBoardPage />} />
             <Route path="/reports/monitoring" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.REPORTS_MONITORING]}><ReportMonitoringPage /></ProtectedRoute>} />
             <Route path="/activity-logs" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.ACTIVITY_LOGS]}><ActivityLogsPage /></ProtectedRoute>} />
+            <Route path="/my-profile" element={<ProtectedRoute><MyProfilePage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </DealerContextProvider>

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import {
+  bulkReassignTestDrives,
   countTestDrives,
   createTestDrive,
   deleteTestDrive,
@@ -79,6 +80,20 @@ export async function deleteTestDriveController(req: Request, res: Response) {
   try {
     await deleteTestDrive(req.params.id);
     res.status(200).json({ data: { id: req.params.id }, error: null });
+  } catch (error) {
+    res.status(500).json({ data: null, error: { message: (error as Error).message } });
+  }
+}
+
+export async function bulkReassignController(req: Request, res: Response) {
+  try {
+    const { from_profile_id, to_profile_id, date } = req.body;
+    if (!from_profile_id || !to_profile_id) {
+      res.status(400).json({ data: null, error: { message: 'from_profile_id and to_profile_id are required' } });
+      return;
+    }
+    const result = await bulkReassignTestDrives(from_profile_id, to_profile_id, date);
+    res.status(200).json({ data: result, error: null });
   } catch (error) {
     res.status(500).json({ data: null, error: { message: (error as Error).message } });
   }

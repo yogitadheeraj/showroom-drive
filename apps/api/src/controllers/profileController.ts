@@ -31,3 +31,12 @@ export async function updateProfileController(req: Request, res: Response) {
   if (!data) return res.status(404).json({ error: 'Profile not found' });
   res.json({ data });
 }
+
+export async function clearExpiredLeavesController(req: Request, res: Response) {
+  try {
+    const count = await profileService.clearExpiredLeaves();
+    res.json({ data: { cleared: count } });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+}

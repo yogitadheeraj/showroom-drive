@@ -9,6 +9,9 @@ export interface IProfile extends Document {
   avatar_url: string | null;
   location_id: string | null;
   is_active: boolean;
+  on_leave: boolean;
+  leave_start_date: string | null;
+  leave_end_date: string | null;
   last_login_at: string | null;
   created_at: string;
   updated_at: string;
@@ -24,6 +27,9 @@ const ProfileSchema = new Schema<IProfile>(
     avatar_url: { type: String, default: null },
     location_id: { type: String, default: null, index: true },
     is_active: { type: Boolean, default: true },
+    on_leave: { type: Boolean, default: false },
+    leave_start_date: { type: String, default: null },
+    leave_end_date: { type: String, default: null },
     last_login_at: { type: String, default: null },
     created_at: { type: String, default: () => new Date().toISOString() },
     updated_at: { type: String, default: () => new Date().toISOString() },

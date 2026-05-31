@@ -156,10 +156,79 @@ export async function getTestDriveById(id: string) {
   const o = { ...doc } as any; delete o._id; return o;
 }
 
+// ─── Check vehicle slot availability before booking ──────────────────────────
+async function checkVehicleSlotAvailability(
+  vehicleId: string,
+  scheduledDate: string,
+  scheduledTime: string,
+  slotDurationMinutes: number,
+): Promise<{ available: boolean; availableUnits: number; bookedCount: number }> {
+  const vehicle = await Vehicle.findOne({ id: vehicleId }, { available_units: 1 }).lean() as any;
+  const availableUnits = typeof vehicle?.available_units === 'number' && vehicle.available_units > 0
+    ? vehicle.available_units
+    : 1;
+
+  const [reqHour, reqMin] = scheduledTime.substring(0, 5).split(':').map(Number);
+  const reqStart = reqHour * 60 + reqMin;
+  const reqEnd = reqStart + slotDurationMinutes;
+
+  const existingBookings = await TestDrive.find(
+    {
+      vehicle_id: vehicleId,
+      scheduled_date: scheduledDate,
+      status: { $in: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+    },
+    { scheduled_time: 1, slot_duration_minutes: 1 },
+  ).lean() as any[];
+
+  let bookedCount = 0;
+  for (const booking of existingBookings) {
+    if (!booking.scheduled_time) continue;
+    const [bHour, bMin] = booking.scheduled_time.substring(0, 5).split(':').map(Number);
+    const bStart = bHour * 60 + bMin;
+    const bEnd = bStart + (booking.slot_duration_minutes || 30);
+    if (!(reqEnd <= bStart || reqStart >= bEnd)) {
+      bookedCount++;
+    }
+  }
+
+  return { available: bookedCount < availableUnits, availableUnits, bookedCount };
+}
+
 export async function createTestDrive(data: Record<string, unknown>) {
   const now = new Date().toISOString();
   const assignedGroId = (data.assigned_gro_id as string | null | undefined) ?? (data.gro_id as string | null | undefined) ?? null;
   const cancelledReason = (data.cancelled_reason as string | null | undefined) ?? (data.cancellation_reason as string | null | undefined) ?? null;
+
+  // ── Check vehicle slot availability to prevent double-booking ────────────
+  if (data.vehicle_id && data.scheduled_date && data.scheduled_time) {
+    const slotDuration =
+      typeof data.slot_duration_minutes === 'number' && data.slot_duration_minutes > 0
+        ? data.slot_duration_minutes
+        : 30;
+    const { available, availableUnits, bookedCount } = await checkVehicleSlotAvailability(
+      String(data.vehicle_id),
+      String(data.scheduled_date),
+      String(data.scheduled_time),
+      slotDuration,
+    );
+    if (!available) {
+      throw new Error(
+        `This vehicle is fully booked for the selected time slot (${bookedCount}/${availableUnits} units taken). Please choose a different slot or vehicle.`,
+      );
+    }
+  }
+
+  // ── Auto-assign sales person if not explicitly set ────────────────────────
+  let resolvedSalesPersonId = (data.assigned_sales_person_id as string | null | undefined) ?? null;
+  let autoAssignedProfile: { id: string; email: string; full_name: string } | null = null;
+
+  if (!resolvedSalesPersonId && data.location_id) {
+    autoAssignedProfile = await autoAssignSalesPerson(String(data.location_id));
+    if (autoAssignedProfile) {
+      resolvedSalesPersonId = autoAssignedProfile.id;
+    }
+  }
 
   const doc = new TestDrive({
     ...data,
@@ -167,6 +236,7 @@ export async function createTestDrive(data: Record<string, unknown>) {
     source: typeof data.source === 'string' && data.source ? data.source : 'online',
     assigned_gro_id: assignedGroId,
     gro_id: assignedGroId,
+    assigned_sales_person_id: resolvedSalesPersonId,
     cancelled_reason: cancelledReason,
     cancellation_reason: cancelledReason,
     slot_duration_minutes:
@@ -179,19 +249,27 @@ export async function createTestDrive(data: Record<string, unknown>) {
     updated_at: now,
   });
   await doc.save();
+  const plain = toPlain(doc);
+
   // Non-blocking: send emails + in-app notifications
-  void sendTestDriveBookedNotifications(toPlain(doc)).catch(() => null);
+  void sendTestDriveBookedNotifications(plain).catch(() => null);
+
+  // Non-blocking: send assignment email if auto-assigned
+  if (autoAssignedProfile) {
+    void sendSalesAssignmentEmail(plain, autoAssignedProfile).catch(() => null);
+  }
+
   // Non-blocking: write real-time creation event to RTDB
   void writeTestDriveEvent({
-    test_drive_id:  toPlain(doc).id,
-    status:         toPlain(doc).status || 'scheduled',
-    customer_id:    toPlain(doc).customer_id || null,
-    vehicle_id:     toPlain(doc).vehicle_id || null,
-    scheduled_date: toPlain(doc).scheduled_date || null,
-    scheduled_time: toPlain(doc).scheduled_time || null,
-    location_id:    toPlain(doc).location_id,
+    test_drive_id:  plain.id,
+    status:         plain.status || 'scheduled',
+    customer_id:    plain.customer_id || null,
+    vehicle_id:     plain.vehicle_id || null,
+    scheduled_date: plain.scheduled_date || null,
+    scheduled_time: plain.scheduled_time || null,
+    location_id:    plain.location_id,
   }).catch(() => null);
-  return toPlain(doc);
+  return plain;
 }
 
 export async function updateTestDrive(id: string, data: Record<string, unknown>) {
@@ -227,6 +305,28 @@ export async function updateTestDrive(id: string, data: Record<string, unknown>)
 
 export async function deleteTestDrive(id: string) {
   await TestDrive.deleteOne({ id });
+}
+
+// ─── Bulk-reassign all active test drives from one staff to another ────────────
+export async function bulkReassignTestDrives(
+  fromProfileId: string,
+  toProfileId: string,
+  date?: string, // yyyy-MM-dd; if omitted, reassigns ALL future + today drives
+): Promise<{ reassigned: number }> {
+  const activeStatuses = ['show', 'scheduled', 'confirmed', 'in_progress', 'key_handover_to_sales', 'new'];
+  const query: Record<string, unknown> = {
+    assigned_sales_person_id: fromProfileId,
+    status: { $in: activeStatuses },
+  };
+  if (date) {
+    query.scheduled_date = date;
+  } else {
+    // Reassign today and future
+    const today = new Date().toISOString().split('T')[0];
+    query.scheduled_date = { $gte: today };
+  }
+  const result = await TestDrive.updateMany(query, { $set: { assigned_sales_person_id: toProfileId } });
+  return { reassigned: result.modifiedCount };
 }
 
 export async function countTestDrives(filters: Record<string, unknown> = {}) {
@@ -352,25 +452,7 @@ async function sendTestDriveBookedNotifications(td: any) {
   const adminRoles = new Set(['dealer_admin', 'sales_admin', 'branch_admin', 'superadmin', 'super_admin']);
   const notifyRoles = new Set(['gro', 'security']);
 
-  // ── 3. Email: assigned sales person ──────────────────────────────────────
-  if (td.assigned_sales_person_id) {
-    const salesProfile = locationProfiles.find((p: any) => p.id === td.assigned_sales_person_id);
-    if (salesProfile?.email) {
-      await sendMail({
-        to: salesProfile.email,
-        subject: `New Test Drive Assigned — ${vehicleName}`,
-        html: testDriveStaffEmailHtml({
-          recipientName: salesProfile.full_name || 'Sales Person',
-          role: 'Sales Person',
-          customerName,
-          vehicleName,
-          locationName,
-          dateLabel,
-          testDriveId: td.id,
-        }),
-      }).catch(() => null);
-    }
-  }
+  
 
   // ── 4. Email: admin staff (dealer_admin, sales_admin, branch_admin) ───────
   for (const [uid, role] of roleMap) {
@@ -431,6 +513,100 @@ async function sendTestDriveBookedNotifications(td: any) {
   }
 }
 
+// ─── Auto-assign: pick the least-busy available sales person at a location ────
+
+export async function autoAssignSalesPerson(locationId: string): Promise<{ id: string; email: string; full_name: string } | null> {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Find all active staff at this location who are NOT currently on leave.
+  // A staff member is considered on leave when:
+  //   a) on_leave === true AND no date range set (indefinite toggle), OR
+  //   b) today falls within [leave_start_date, leave_end_date]
+  const locationProfiles: any[] = await Profile.find(
+    {
+      location_id: locationId,
+      is_active: true,
+      $nor: [
+        // Indefinite on_leave with no end date
+        { on_leave: true, leave_end_date: null },
+        // Date-ranged leave covering today
+        { leave_start_date: { $lte: today }, leave_end_date: { $gte: today } },
+      ],
+    },
+    { id: 1, user_id: 1, full_name: 1, email: 1 },
+  ).lean();
+
+  if (!locationProfiles.length) return null;
+
+  // Keep only those with 'sales' role
+  const userIds = locationProfiles.map((p: any) => p.user_id).filter(Boolean);
+  const salesRoles: any[] = await UserRole.find(
+    { user_id: { $in: userIds }, role: 'sales' },
+    { user_id: 1 },
+  ).lean();
+
+  const salesUserIds = new Set(salesRoles.map((r: any) => r.user_id));
+  const salesProfiles = locationProfiles.filter((p: any) => salesUserIds.has(p.user_id));
+  if (!salesProfiles.length) return null;
+
+  // Count active test drives today per sales person
+  const activeStatuses = ['show', 'scheduled', 'confirmed', 'in_progress', 'key_handover_to_sales'];
+  const salesProfileIds = salesProfiles.map((p: any) => p.id);
+
+  const activeCounts: Array<{ _id: string; count: number }> = await TestDrive.aggregate([
+    { $match: { assigned_sales_person_id: { $in: salesProfileIds }, scheduled_date: today, status: { $in: activeStatuses } } },
+    { $group: { _id: '$assigned_sales_person_id', count: { $sum: 1 } } },
+  ]);
+
+  const loadMap = new Map(activeCounts.map((d) => [d._id, d.count]));
+
+  // Sort by current load ascending (round-robin by least busy)
+  const sorted = [...salesProfiles].sort((a: any, b: any) => (loadMap.get(a.id) ?? 0) - (loadMap.get(b.id) ?? 0));
+  const picked = sorted[0] as any;
+  return { id: picked.id, email: picked.email, full_name: picked.full_name };
+}
+
+// ─── Send assignment notification email to the newly assigned sales person ────
+
+async function sendSalesAssignmentEmail(
+  td: any,
+  salesProfile: { id: string; email: string; full_name: string },
+) {
+  if (!salesProfile.email) return;
+
+  const [customer, vehicle, location] = await Promise.all([
+    td.customer_id ? Customer.findOne({ id: td.customer_id }, { full_name: 1, phone: 1 }).lean() : null,
+    td.vehicle_id  ? Vehicle.findOne({ id: td.vehicle_id }, { brand: 1, model: 1, variant: 1 }).lean() : null,
+    td.location_id ? Location.findOne({ id: td.location_id }, { name: 1 }).lean() : null,
+  ]);
+
+  const c = customer as any;
+  const v = vehicle as any;
+  const l = location as any;
+
+  const customerName = c?.full_name || 'Customer';
+  const customerPhone = c?.phone || '';
+  const vehicleName = v ? `${v.brand} ${v.model}${v.variant ? ' ' + v.variant : ''}`.trim() : 'Vehicle';
+  const locationName = l?.name || '';
+  const dateLabel = td.scheduled_time
+    ? `${td.scheduled_date} at ${td.scheduled_time}`
+    : td.scheduled_date || '';
+
+  await sendMail({
+    to: salesProfile.email,
+    subject: `Walk-in Lead Auto-Assigned to You — ${vehicleName}`,
+    html: salesAssignmentEmailHtml({
+      salesName: salesProfile.full_name,
+      customerName,
+      customerPhone,
+      vehicleName,
+      locationName,
+      dateLabel,
+      testDriveId: td.id,
+    }),
+  }).catch(() => null);
+}
+
 // ─── Email templates ─────────────────────────────────────────────────────────
 
 function testDriveCustomerEmailHtml(p: { customerName: string; vehicleName: string; locationName: string; dateLabel: string }) {
@@ -464,5 +640,37 @@ function testDriveStaffEmailHtml(p: { recipientName: string; role: string; custo
   </table>
   <p style="color:#666;font-size:12px;margin-top:24px">Test Drive ID: ${p.testDriveId}</p>
   <p style="color:#666;font-size:12px">This is an automated notification. Please do not reply directly to this email.</p>
+</div>`;
+}
+
+function salesAssignmentEmailHtml(p: {
+  salesName: string;
+  customerName: string;
+  customerPhone: string;
+  vehicleName: string;
+  locationName: string;
+  dateLabel: string;
+  testDriveId: string;
+}) {
+  return `
+<div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#1a1a1a">
+  <div style="background:#2563eb;padding:20px 24px;border-radius:8px 8px 0 0">
+    <h2 style="color:#fff;margin:0">🚗 Walk-in Lead Auto-Assigned to You</h2>
+  </div>
+  <div style="border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+    <p>Hi <strong>${p.salesName}</strong>,</p>
+    <p>A walk-in lead has been automatically assigned to you. Please greet the customer and begin the test drive process.</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0">
+      <tr><td style="padding:10px 12px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;width:40%;font-size:13px">Customer</td><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600">${p.customerName}</td></tr>
+      ${p.customerPhone ? `<tr><td style="padding:10px 12px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;font-size:13px">Phone</td><td style="padding:10px 12px;border:1px solid #e5e7eb"><a href="tel:${p.customerPhone}" style="color:#2563eb">${p.customerPhone}</a></td></tr>` : ''}
+      <tr><td style="padding:10px 12px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;font-size:13px">Vehicle</td><td style="padding:10px 12px;border:1px solid #e5e7eb">${p.vehicleName}</td></tr>
+      <tr><td style="padding:10px 12px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;font-size:13px">Showroom</td><td style="padding:10px 12px;border:1px solid #e5e7eb">${p.locationName}</td></tr>
+      <tr><td style="padding:10px 12px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;font-size:13px">Date &amp; Time</td><td style="padding:10px 12px;border:1px solid #e5e7eb;font-weight:600;color:#2563eb">${p.dateLabel}</td></tr>
+    </table>
+    <div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:12px 16px;margin:16px 0">
+      <p style="margin:0;font-size:13px;color:#713f12">⚡ <strong>Action Required:</strong> Please go to the showroom floor and meet <strong>${p.customerName}</strong> for their test drive of the <strong>${p.vehicleName}</strong>.</p>
+    </div>
+    <p style="color:#6b7280;font-size:11px;margin-top:24px">Test Drive ID: ${p.testDriveId} · This is an automated assignment notification.</p>
+  </div>
 </div>`;
 }

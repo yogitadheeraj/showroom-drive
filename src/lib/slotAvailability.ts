@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
 
 /**
  * Generate available time slots for a given date and location
@@ -11,14 +11,19 @@ export async function getAvailableTimeSlots(
   try {
     // Get location operating hours for this day
     const dayOfWeek = new Date(selectedDate).getDay();
-    const { data: operatingHours, error: hoursError } = await supabase
-      .from('location_operating_hours')
-      .select('open_time, close_time, is_closed')
-      .eq('location_id', locationId)
-      .eq('day_of_week', dayOfWeek)
-      .single();
+    const hoursRows = await apiDbQuery<any[]>({
+      table: 'location_operating_hours',
+      action: 'select',
+      select: 'open_time, close_time, is_closed',
+      filters: [
+        { field: 'location_id', op: 'eq', value: locationId },
+        { field: 'day_of_week', op: 'eq', value: dayOfWeek },
+      ],
+      limit: 1,
+    });
+    const operatingHours = Array.isArray(hoursRows) ? hoursRows[0] : hoursRows;
 
-    if (hoursError || !operatingHours) {
+    if (!operatingHours) {
       return { slots: [], error: 'Operating hours not found for this day' };
     }
 
@@ -27,12 +32,16 @@ export async function getAvailableTimeSlots(
     }
 
     // Check for special periods (closures/breaks)
-    const { data: specialPeriods } = await supabase
-      .from('location_special_periods')
-      .select('is_full_closure, modified_open_time, modified_close_time')
-      .eq('location_id', locationId)
-      .lte('start_date', selectedDate)
-      .gte('end_date', selectedDate);
+    const specialPeriods = await apiDbQuery<any[]>({
+      table: 'location_special_periods',
+      action: 'select',
+      select: 'is_full_closure, modified_open_time, modified_close_time',
+      filters: [
+        { field: 'location_id', op: 'eq', value: locationId },
+        { field: 'start_date', op: 'lte', value: selectedDate },
+        { field: 'end_date', op: 'gte', value: selectedDate },
+      ],
+    });
 
     let openTime = operatingHours.open_time;
     let closeTime = operatingHours.close_time;
@@ -80,23 +89,27 @@ export async function getAvailableTimeSlots(
     }
 
     // Get existing bookings and blocked slots for this date in parallel
-    const [{ data: existingBookings }, { data: blockedSlots }] = await Promise.all([
-      supabase
-        .from('test_drives')
-        .select('scheduled_time, slot_duration_minutes')
-        .eq('location_id', locationId)
-        .eq('scheduled_date', selectedDate)
-        .in('status', ['scheduled', 'confirmed', 'show', 'in_progress']),
-      supabase
-        .from('location_blocked_slots')
-        .select('start_time, end_time')
-        .eq('location_id', locationId)
-        .eq('blocked_date', selectedDate),
+    const [existingBookings, blockedSlots] = await Promise.all([
+      apiDbQuery<any[]>({
+        table: 'test_drives',
+        action: 'select',
+        select: 'scheduled_time, slot_duration_minutes',
+        filters: [
+          { field: 'location_id', op: 'eq', value: locationId },
+          { field: 'scheduled_date', op: 'eq', value: selectedDate },
+          { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+        ],
+      }),
+      apiDbQuery<any[]>({
+        table: 'location_blocked_slots',
+        action: 'select',
+        select: 'start_time, end_time',
+        filters: [
+          { field: 'location_id', op: 'eq', value: locationId },
+          { field: 'blocked_date', op: 'eq', value: selectedDate },
+        ],
+      }),
     ]);
-
-    // Check for no-show bookings that have passed (should be released)
-    const now = new Date();
-    const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
     // Filter out slots that conflict with existing bookings or blocked windows
     const availableSlots = allSlots.filter(slot => {
@@ -139,14 +152,17 @@ export async function getAvailableVehicles(
   slotDurationMinutes: number = 30
 ) {
   try {
-    // Get all vehicles at this location
-    const { data: vehicles, error: vehiclesError } = await supabase
-      .from('vehicles')
-      .select('id, brand, model, variant, year, available_units')
-      .eq('location_id', locationId)
-      .eq('is_active', true);
+    const vehicles = await apiDbQuery<any[]>({
+      table: 'vehicles',
+      action: 'select',
+      select: 'id, brand, model, variant, year, available_units',
+      filters: [
+        { field: 'location_id', op: 'eq', value: locationId },
+        { field: 'is_active', op: 'eq', value: true },
+      ],
+    });
 
-    if (vehiclesError || !vehicles) {
+    if (!vehicles) {
       return { vehicles: [], error: 'Failed to fetch vehicles' };
     }
 
@@ -156,12 +172,16 @@ export async function getAvailableVehicles(
     const slotEndMinutes = slotStartMinutes + slotDurationMinutes;
 
     // Get existing bookings for this time slot
-    const { data: bookings } = await supabase
-      .from('test_drives')
-      .select('vehicle_id, scheduled_time, slot_duration_minutes')
-      .eq('location_id', locationId)
-      .eq('scheduled_date', selectedDate)
-      .in('status', ['scheduled', 'confirmed', 'show', 'in_progress']);
+    const bookings = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: 'vehicle_id, scheduled_time, slot_duration_minutes',
+      filters: [
+        { field: 'location_id', op: 'eq', value: locationId },
+        { field: 'scheduled_date', op: 'eq', value: selectedDate },
+        { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+      ],
+    });
 
     // Count bookings per vehicle that conflict with this slot
     const vehicleBookingCounts: Record<string, number> = {};
@@ -209,17 +229,20 @@ export async function checkAndReleaseNoShowBookings(
     const dateToCheck = selectedDate || now.toISOString().split('T')[0];
     const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
-    let query = supabase
-      .from('test_drives')
-      .select('id, scheduled_time, slot_duration_minutes, status')
-      .eq('scheduled_date', dateToCheck)
-      .in('status', ['scheduled', 'confirmed', 'show']);
-
+    const filters: Array<{ field: string; op: any; value: unknown }> = [
+      { field: 'scheduled_date', op: 'eq', value: dateToCheck },
+      { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show'] },
+    ];
     if (locationId) {
-      query = query.eq('location_id', locationId);
+      filters.push({ field: 'location_id', op: 'eq', value: locationId });
     }
 
-    const { data: bookings } = await query;
+    const bookings = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: 'id, scheduled_time, slot_duration_minutes, status',
+      filters,
+    });
 
     // Find bookings that have passed their slot time
     const noShowBookings = bookings?.filter(booking => {
@@ -235,17 +258,16 @@ export async function checkAndReleaseNoShowBookings(
 
     // Update no-show bookings
     if (noShowBookings.length > 0) {
-      const { error } = await supabase
-        .from('test_drives')
-        .update({ status: 'no_show' as any })
-        .in(
-          'id',
-          noShowBookings.map(b => b.id)
-        );
-
-      if (error) {
-        console.error('Failed to mark no-show bookings:', error);
-        return { released: 0, error: error.message };
+      try {
+        await apiDbQuery({
+          table: 'test_drives',
+          action: 'update',
+          payload: { status: 'no_show' },
+          filters: [{ field: 'id', op: 'in', value: noShowBookings.map((b: any) => b.id) }],
+        });
+      } catch (updateError: any) {
+        console.error('Failed to mark no-show bookings:', updateError);
+        return { released: 0, error: updateError.message };
       }
 
       return { released: noShowBookings.length, error: null };
@@ -275,14 +297,19 @@ export async function isLocationCurrentlyOpen(locationId: string) {
     const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
     // Get operating hours for today
-    const { data: operatingHours, error: hoursError } = await supabase
-      .from('location_operating_hours')
-      .select('open_time, close_time, is_closed')
-      .eq('location_id', locationId)
-      .eq('day_of_week', dayOfWeek)
-      .single();
+    const hoursRows = await apiDbQuery<any[]>({
+      table: 'location_operating_hours',
+      action: 'select',
+      select: 'open_time, close_time, is_closed',
+      filters: [
+        { field: 'location_id', op: 'eq', value: locationId },
+        { field: 'day_of_week', op: 'eq', value: dayOfWeek },
+      ],
+      limit: 1,
+    });
+    const operatingHours = Array.isArray(hoursRows) ? hoursRows[0] : hoursRows;
 
-    if (hoursError || !operatingHours) {
+    if (!operatingHours) {
       return { isOpen: false, openTime: null, closeTime: null, error: 'Operating hours not found' };
     }
 
@@ -292,12 +319,16 @@ export async function isLocationCurrentlyOpen(locationId: string) {
 
     // Check for special periods (closures/breaks)
     const today = now.toISOString().split('T')[0];
-    const { data: specialPeriods } = await supabase
-      .from('location_special_periods')
-      .select('is_full_closure, modified_open_time, modified_close_time')
-      .eq('location_id', locationId)
-      .lte('start_date', today)
-      .gte('end_date', today);
+    const specialPeriods = await apiDbQuery<any[]>({
+      table: 'location_special_periods',
+      action: 'select',
+      select: 'is_full_closure, modified_open_time, modified_close_time',
+      filters: [
+        { field: 'location_id', op: 'eq', value: locationId },
+        { field: 'start_date', op: 'lte', value: today },
+        { field: 'end_date', op: 'gte', value: today },
+      ],
+    });
 
     let openTime = operatingHours.open_time;
     let closeTime = operatingHours.close_time;
@@ -330,5 +361,64 @@ export async function isLocationCurrentlyOpen(locationId: string) {
     };
   } catch (error: any) {
     return { isOpen: false, openTime: null, closeTime: null, error: error.message };
+  }
+}
+
+/**
+ * Re-check if a specific vehicle is still available for a given slot just before booking.
+ * Returns { available: true } when the vehicle has remaining units, { available: false, reason } when fully booked.
+ */
+export async function checkVehicleSlotAvailable(
+  vehicleId: string,
+  scheduledDate: string,
+  scheduledTime: string,
+  slotDurationMinutes: number = 30,
+): Promise<{ available: boolean; reason?: string }> {
+  try {
+    const [vehicleRows, bookings] = await Promise.all([
+      apiDbQuery<any[]>({
+        table: 'vehicles',
+        action: 'select',
+        select: 'available_units',
+        filters: [{ field: 'id', op: 'eq', value: vehicleId }],
+        limit: 1,
+      }),
+      apiDbQuery<any[]>({
+        table: 'test_drives',
+        action: 'select',
+        select: 'scheduled_time, slot_duration_minutes',
+        filters: [
+          { field: 'vehicle_id', op: 'eq', value: vehicleId },
+          { field: 'scheduled_date', op: 'eq', value: scheduledDate },
+          { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+        ],
+      }),
+    ]);
+
+    const vehicle = Array.isArray(vehicleRows) ? vehicleRows[0] : vehicleRows;
+    const availableUnits = vehicle?.available_units ?? 1;
+
+    const [reqHour, reqMin] = scheduledTime.substring(0, 5).split(':').map(Number);
+    const reqStart = reqHour * 60 + reqMin;
+    const reqEnd = reqStart + slotDurationMinutes;
+
+    let bookedCount = 0;
+    (bookings ?? []).forEach((booking: any) => {
+      if (!booking.scheduled_time) return;
+      const [bHour, bMin] = booking.scheduled_time.substring(0, 5).split(':').map(Number);
+      const bStart = bHour * 60 + bMin;
+      const bEnd = bStart + (booking.slot_duration_minutes || 30);
+      if (!(reqEnd <= bStart || reqStart >= bEnd)) bookedCount++;
+    });
+
+    if (bookedCount >= availableUnits) {
+      return {
+        available: false,
+        reason: 'This vehicle is no longer available for the selected time slot. Please choose a different slot or vehicle.',
+      };
+    }
+    return { available: true };
+  } catch (error: any) {
+    return { available: false, reason: error.message };
   }
 }

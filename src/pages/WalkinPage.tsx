@@ -1070,10 +1070,12 @@ const WalkinPage = () => {
                   <div className="p-4">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Assigned Sales</p>
                     <p className="font-medium text-foreground">
-                      {role === APP_ROLE.SALES ? (profile?.full_name || 'You') : 'Will be assigned by team'}
+                      {role === APP_ROLE.SALES ? (profile?.full_name || 'You') : 'Auto-assigned on submit'}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {role === APP_ROLE.SALES ? 'This walk-in will be assigned to you on submit.' : 'No self-assignment for current role.'}
+                      {role === APP_ROLE.SALES
+                        ? 'This walk-in will be assigned to you.'
+                        : 'The least-busy available sales person at this location will be assigned automatically. They will receive an email notification.'}
                     </p>
                   </div>
                   <div className="p-4">

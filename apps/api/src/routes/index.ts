@@ -42,6 +42,7 @@ import {
   updateLocationOperatingHourController,
 } from '../controllers/locationOperatingHourController.js';
 import {
+  bulkReassignController,
   createTestDriveController,
   deleteTestDriveController,
   getTestDriveController,
@@ -61,6 +62,7 @@ import {
   listProfilesController,
   updateProfileController,
   upsertProfileController,
+  clearExpiredLeavesController,
 } from '../controllers/profileController.js';
 import {
   deleteRoleController,
@@ -181,6 +183,7 @@ apiRouter.delete('/location-operating-hours/:id', requireAuth, deleteLocationOpe
 apiRouter.post('/location-operating-hours/bulk-upsert', requireAuth, bulkUpsertLocationOperatingHoursController);
 
 // Test Drives
+apiRouter.post('/test-drives/bulk-reassign', requireAuth, bulkReassignController);
 apiRouter.get('/test-drives', requireAuth, getTestDrivesController);
 apiRouter.get('/test-drives/:id', requireAuth, getTestDriveController);
 apiRouter.post('/test-drives', requireAuth, createTestDriveController);
@@ -202,6 +205,7 @@ apiRouter.delete('/dealers/:id', requireAuth, deleteDealerController);
 
 // Profiles
 apiRouter.get('/profiles/me', requireAuth, getMyProfileController);
+apiRouter.post('/profiles/clear-expired-leaves', requireAuth, clearExpiredLeavesController);
 apiRouter.get('/profiles', requireAuth, listProfilesController);
 apiRouter.get('/profiles/:id', requireAuth, getProfileController);
 apiRouter.post('/profiles', requireAuth, upsertProfileController);

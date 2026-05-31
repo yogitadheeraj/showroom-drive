@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2, MoreHorizontal } from 'lucide-react';
+import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2, MoreHorizontal, PlaneTakeoff, PlaneLanding } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, DEALER_ASSIGNABLE_ROLES, type AppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
@@ -46,6 +46,9 @@ const UsersPage = () => {
   const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
   const [editForm, setEditForm] = useState({ role: '', locationId: '' });
   const [saving, setSaving] = useState(false);
+  const [leaveDialog, setLeaveDialog] = useState<{ user: any } | null>(null);
+  const todayIso = new Date().toISOString().split('T')[0];
+  const [leaveForm, setLeaveForm] = useState({ startDate: todayIso, endDate: todayIso });
   const [confirmAction, setConfirmAction] = useState<null | {
     type: 'delete' | 'toggle-block';
     user: any;
@@ -79,6 +82,8 @@ const UsersPage = () => {
       if (isSuperAdmin) {
         apiGet<any[]>('/api/dealers?is_active=true').then((data) => setDealers(data || []));
       }
+      // Auto-clear expired leaves before loading users
+      apiPost('/api/profiles/clear-expired-leaves', {}).catch(() => null);
       fetchUsers();
       const locationParams = new URLSearchParams();
       if (isSuperAdmin && selectedDealerFilter !== 'all') {
@@ -338,6 +343,61 @@ const UsersPage = () => {
     }
   };
 
+  const handleToggleOnLeave = async (u: any) => {
+    if (!canManageStaff || u.user_id === user?.id) return;
+    // If currently on leave → end leave immediately
+    if (u.on_leave || u.leave_end_date) {
+      setSaving(true);
+      try {
+        await apiPatch(`/api/profiles/${encodeURIComponent(u.id)}`, {
+          on_leave: false,
+          leave_start_date: null,
+          leave_end_date: null,
+        });
+        toast({ title: 'Leave ended', description: `${u.full_name} is back and available for auto-assignment.` });
+        fetchUsers();
+      } catch (err: any) {
+        toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      // Open leave date dialog
+      setLeaveForm({ startDate: todayIso, endDate: todayIso });
+      setLeaveDialog({ user: u });
+    }
+  };
+
+  const handleSaveLeave = async () => {
+    if (!leaveDialog) return;
+    const u = leaveDialog.user;
+    if (leaveForm.endDate < leaveForm.startDate) {
+      toast({ title: 'Invalid dates', description: 'End date cannot be before start date.', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPatch(`/api/profiles/${encodeURIComponent(u.id)}`, {
+        on_leave: true,
+        leave_start_date: leaveForm.startDate,
+        leave_end_date: leaveForm.endDate,
+      });
+      const isSingleDay = leaveForm.startDate === leaveForm.endDate;
+      toast({
+        title: 'Leave scheduled',
+        description: isSingleDay
+          ? `${u.full_name} is on leave on ${leaveForm.startDate}.`
+          : `${u.full_name} is on leave from ${leaveForm.startDate} to ${leaveForm.endDate}. They will be auto-restored on ${leaveForm.endDate} end of day.`,
+      });
+      setLeaveDialog(null);
+      fetchUsers();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const openConfirmAction = (type: 'delete' | 'toggle-block', u: any) => {
     if (!canBlockDeleteStaff || u.user_id === user?.id || saving) return;
     setConfirmAction({ type, user: u });
@@ -450,9 +510,21 @@ const UsersPage = () => {
                       </div>
                     </td>
                     <td className="p-3">
-                      <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
-                        {isUserActive(u) ? 'Active' : 'Inactive'}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
+                          {isUserActive(u) ? 'Active' : 'Inactive'}
+                        </Badge>
+                        {u.on_leave && (
+                          <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 text-[10px] max-w-[160px] truncate">
+                            <PlaneTakeoff className="h-2.5 w-2.5 mr-1 shrink-0" />
+                            {u.leave_start_date && u.leave_end_date
+                              ? u.leave_start_date === u.leave_end_date
+                                ? `Leave: ${u.leave_start_date}`
+                                : `${u.leave_start_date} → ${u.leave_end_date}`
+                              : 'On Leave'}
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3">
                       <DropdownMenu>
@@ -461,7 +533,7 @@ const UsersPage = () => {
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuContent align="end" className="w-52">
                           <DropdownMenuItem onClick={() => openEditDialog(u)} disabled={!canEditTargetUser(u) || saving}>
                             <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
                           </DropdownMenuItem>
@@ -472,6 +544,18 @@ const UsersPage = () => {
                             <Mail className="h-3.5 w-3.5 mr-2" />
                             {resendingVerificationByUserId[u.user_id] ? 'Sending Verification...' : 'Send Verification'}
                           </DropdownMenuItem>
+                          {canManageStaff && (
+                            <DropdownMenuItem
+                              onClick={() => handleToggleOnLeave(u)}
+                              disabled={u.user_id === user?.id || saving}
+                            >
+                              {u.on_leave ? (
+                                <><PlaneLanding className="h-3.5 w-3.5 mr-2 text-success" /> End Leave</>
+                              ) : (
+                                <><PlaneTakeoff className="h-3.5 w-3.5 mr-2 text-amber-500" /> Mark On Leave</>
+                              )}
+                            </DropdownMenuItem>
+                          )}
                           {canBlockDeleteStaff && (
                             <DropdownMenuItem
                               onClick={() => openConfirmAction('toggle-block', u)}
@@ -526,9 +610,21 @@ const UsersPage = () => {
                       <span className="truncate max-w-[200px]">{u.email}</span>
                     </div>
                   </div>
-                  <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
-                    {isUserActive(u) ? 'Active' : 'Inactive'}
-                  </Badge>
+                  <div className="flex flex-col gap-1 items-end">
+                    <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
+                      {isUserActive(u) ? 'Active' : 'Inactive'}
+                    </Badge>
+                    {u.on_leave && (
+                      <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 text-[10px] max-w-[160px] truncate">
+                        <PlaneTakeoff className="h-2.5 w-2.5 mr-1 shrink-0" />
+                        {u.leave_start_date && u.leave_end_date
+                          ? u.leave_start_date === u.leave_end_date
+                            ? `Leave: ${u.leave_start_date}`
+                            : `${u.leave_start_date} → ${u.leave_end_date}`
+                          : 'On Leave'}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -595,6 +691,18 @@ const UsersPage = () => {
                         <Mail className="h-3.5 w-3.5 mr-2" />
                         {resendingVerificationByUserId[u.user_id] ? 'Sending Verification...' : 'Send Verification'}
                       </DropdownMenuItem>
+                      {canManageStaff && (
+                        <DropdownMenuItem
+                          onClick={() => handleToggleOnLeave(u)}
+                          disabled={u.user_id === user?.id || saving}
+                        >
+                          {u.on_leave ? (
+                            <><PlaneLanding className="h-3.5 w-3.5 mr-2 text-success" /> End Leave</>
+                          ) : (
+                            <><PlaneTakeoff className="h-3.5 w-3.5 mr-2 text-amber-500" /> Mark On Leave</>
+                          )}
+                        </DropdownMenuItem>
+                      )}
                       {canBlockDeleteStaff && (
                         <DropdownMenuItem
                           onClick={() => openConfirmAction('toggle-block', u)}
@@ -763,6 +871,97 @@ const UsersPage = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* ── Leave Date-Range Dialog ── */}
+        <Dialog open={!!leaveDialog} onOpenChange={(open) => { if (!open) setLeaveDialog(null); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading flex items-center gap-2">
+                <PlaneTakeoff className="h-5 w-5 text-amber-500" />
+                Schedule Leave — {leaveDialog?.user?.full_name}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-5 py-2">
+              <p className="text-sm text-muted-foreground">
+                Select the leave period. This staff member will be excluded from auto-assignment during this time and automatically marked available when the leave ends.
+              </p>
+
+              {/* Quick-select buttons */}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: 'Today only', days: 0 },
+                  { label: '2 days', days: 1 },
+                  { label: '3 days', days: 2 },
+                  { label: '1 week', days: 6 },
+                ].map(({ label, days }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => {
+                      const end = new Date();
+                      end.setDate(end.getDate() + days);
+                      setLeaveForm({ startDate: todayIso, endDate: end.toISOString().split('T')[0] });
+                    }}
+                    className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium hover:bg-muted transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="leave-start">From date</Label>
+                  <Input
+                    id="leave-start"
+                    type="date"
+                    value={leaveForm.startDate}
+                    min={todayIso}
+                    onChange={(e) => setLeaveForm((p) => ({ ...p, startDate: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="leave-end">To date</Label>
+                  <Input
+                    id="leave-end"
+                    type="date"
+                    value={leaveForm.endDate}
+                    min={leaveForm.startDate || todayIso}
+                    onChange={(e) => setLeaveForm((p) => ({ ...p, endDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {leaveForm.startDate && leaveForm.endDate && leaveForm.endDate >= leaveForm.startDate && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800/40 dark:bg-amber-900/10 px-4 py-3 text-sm">
+                  <p className="font-medium text-amber-800 dark:text-amber-300">
+                    {leaveForm.startDate === leaveForm.endDate
+                      ? `1 day leave on ${leaveForm.startDate}`
+                      : (() => {
+                          const start = new Date(leaveForm.startDate);
+                          const end = new Date(leaveForm.endDate);
+                          const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+                          return `${days} days: ${leaveForm.startDate} → ${leaveForm.endDate}`;
+                        })()}
+                  </p>
+                  <p className="text-amber-700 dark:text-amber-400 mt-0.5 text-xs">
+                    Staff will be auto-restored to available after {leaveForm.endDate}.
+                  </p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setLeaveDialog(null)} disabled={saving}>Cancel</Button>
+              <Button
+                onClick={handleSaveLeave}
+                disabled={saving || !leaveForm.startDate || !leaveForm.endDate || leaveForm.endDate < leaveForm.startDate}
+                className="bg-amber-500 text-white hover:bg-amber-600"
+              >
+                {saving ? 'Saving...' : 'Confirm Leave'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

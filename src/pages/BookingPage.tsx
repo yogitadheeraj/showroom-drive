@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiDbQuery, apiPost } from '@/lib/apiClient';
 import { createCustomer, findCustomerByPhone, updateCustomer } from '@/lib/customerService';
 import { sendTransactionalEmail, sendWhatsapp } from '@/lib/functionService';
 import { Button } from '@/components/ui/button';
@@ -650,21 +650,16 @@ const BookingPage = () => {
         customerId = row.id;
       }
 
-      const createdTestDrive = await apiDbQuery<any>({
-        table: 'test_drives',
-        action: 'insert',
-        select: 'id, assigned_sales_person_id',
-        values: {
-          customer_id: customerId,
-          vehicle_id: formData.vehicleId,
-          location_id: formData.locationId,
-          scheduled_date: formData.scheduledDate,
-          scheduled_time: formData.scheduledTime,
-          slot_duration_minutes: slotDurationMinutes,
-          source: 'online',
-        },
+      const createdTestDrive = await apiPost<any>('/api/test-drives', {
+        customer_id: customerId,
+        vehicle_id: formData.vehicleId,
+        location_id: formData.locationId,
+        scheduled_date: formData.scheduledDate,
+        scheduled_time: formData.scheduledTime,
+        slot_duration_minutes: slotDurationMinutes,
+        source: 'online',
       });
-      const tdData = Array.isArray(createdTestDrive) ? createdTestDrive[0] : createdTestDrive;
+      const tdData = createdTestDrive;
       if (!tdData?.id) throw new Error('Failed to create test drive');
 
       const displayVehicle = vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle;

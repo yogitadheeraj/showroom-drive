@@ -262,10 +262,8 @@ export function demoRequestConfirmationTemplate(data: Record<string, unknown>) {
 type TemplateRenderer = (data: Record<string, unknown>) => { subject: string; html: string; text: string };
 
 export const EMAIL_TEMPLATES: Record<string, TemplateRenderer> = {
-  'booking-confirmation': bookingConfirmationTemplate,
   'sales-follow-up': salesFollowUpTemplate,
   'test-drive-journey': testDriveJourneyTemplate,
-  'sales-assignment': salesAssignmentTemplate,
   'test-drive-completed': testDriveCompletedTemplate,
   'test-drive-rescheduled': testDriveRescheduledTemplate,
   'test-drive-cancelled': testDriveCancelledTemplate,
