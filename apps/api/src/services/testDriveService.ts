@@ -156,6 +156,80 @@ export async function getTestDriveById(id: string) {
   const o = { ...doc } as any; delete o._id; return o;
 }
 
+// ─── Public booking rate limit check ────────────────────────────────────────
+async function checkPublicBookingRateLimit(customerId: string, locationId: string): Promise<void> {
+  const location = await Location.findOne(
+    { id: locationId },
+    { public_booking_rate_limit_minutes: 1 },
+  ).lean() as any;
+  const rateLimitMinutes: number =
+    typeof location?.public_booking_rate_limit_minutes === 'number' &&
+    location.public_booking_rate_limit_minutes > 0
+      ? location.public_booking_rate_limit_minutes
+      : 10;
+
+  const cutoff = new Date(Date.now() - rateLimitMinutes * 60 * 1000).toISOString();
+  const recentCount = await TestDrive.countDocuments({
+    customer_id: customerId,
+    source: 'online',
+    created_at: { $gte: cutoff },
+  });
+
+  if (recentCount > 0) {
+    throw new Error(
+      `You can only submit one booking request every ${rateLimitMinutes} minute${rateLimitMinutes === 1 ? '' : 's'}. Please try again later.`,
+    );
+  }
+}
+
+// ─── Public (unauthenticated) test-drive booking ─────────────────────────────
+export async function createPublicTestDrive(data: {
+  full_name: string;
+  phone: string;
+  email?: string | null;
+  preferred_contact?: string;
+  vehicle_id: string;
+  location_id: string;
+  scheduled_date: string;
+  scheduled_time: string;
+  slot_duration_minutes?: number;
+}) {
+  const { findCustomerByPhone, createCustomer, updateCustomer } = await import('./customerService.js');
+
+  // 1. Find or create customer
+  let customer = await findCustomerByPhone(data.phone);
+  if (customer) {
+    customer = (await updateCustomer(customer.id, {
+      full_name: data.full_name,
+      email: data.email ?? null,
+      preferred_contact: data.preferred_contact ?? 'phone',
+    })) ?? customer;
+  } else {
+    customer = await createCustomer({
+      full_name: data.full_name,
+      phone: data.phone,
+      email: data.email ?? null,
+      preferred_contact: data.preferred_contact ?? 'phone',
+    });
+  }
+  if (!customer?.id) throw new Error('Failed to create customer record');
+
+  // 2. Rate limit check (per customer, per location)
+  await checkPublicBookingRateLimit(customer.id, data.location_id);
+
+  // 3. Delegate to existing createTestDrive (which does vehicle slot check + notifications)
+  return createTestDrive({
+    customer_id: customer.id,
+    vehicle_id: data.vehicle_id,
+    location_id: data.location_id,
+    scheduled_date: data.scheduled_date,
+    scheduled_time: data.scheduled_time,
+    slot_duration_minutes: data.slot_duration_minutes ?? 30,
+    source: 'online',
+    status: 'scheduled',
+  });
+}
+
 // ─── Check vehicle slot availability before booking ──────────────────────────
 async function checkVehicleSlotAvailability(
   vehicleId: string,

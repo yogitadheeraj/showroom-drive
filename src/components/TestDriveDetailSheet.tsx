@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Car, Clock, Phone, Mail, MapPin, User, Shield, Key, CheckCircle2,
   FileCheck, AlertTriangle, Fuel, Route, CheckSquare, CalendarCheck,
+  CalendarArrowUp,
 } from 'lucide-react';
 
 interface Props {
@@ -72,7 +73,7 @@ export function TestDriveDetailSheet({ testDrive: td, open, onClose, securityEve
 
   const feedback = td.metadata?.handover_feedback;
   const hasFeedback = feedback && (feedback.questions?.length > 0 || feedback.notes?.trim());
-
+console.log('Security Events for this drive:', td, securityEvents)
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent
@@ -83,12 +84,20 @@ export function TestDriveDetailSheet({ testDrive: td, open, onClose, securityEve
         <SheetHeader className="sticky top-0 z-10 bg-background border-b border-border px-5 py-4">
           <SheetTitle className="flex items-center gap-2 font-heading text-base">
             <Car className="h-4 w-4 text-primary" />
-            Test Drive Details
+            Test Drive Details {td.id && `#${td.id.substring(0, 8)}`}   
           </SheetTitle>
+           <Badge
+            variant="outline"
+            className={`w-fit text-xs mt-1 flex items-center gap-2 text-primary`}
+          >
+             <CalendarArrowUp className="h-4 w-4" />
+             Created: {fmt(td.created_at)}
+          </Badge>
           <Badge
             variant="outline"
             className={`w-fit text-xs mt-1 ${STATUS_COLOR[td.status] || ''}`}
           >
+            
             {statusLabel}
           </Badge>
         </SheetHeader>
@@ -134,8 +143,8 @@ export function TestDriveDetailSheet({ testDrive: td, open, onClose, securityEve
 
           {/* ── Assigned Staff ── */}
           <Section title="Assigned Staff" icon={User}>
-            <Row label="Sales Person" value={td.profiles?.full_name || td.salesPerson?.full_name} />
-            <Row label="GRO"          value={td.gro_profile?.full_name || td.groProfile?.full_name} />
+            <Row label="Sales Person" value={td.assigned_sales_person?.full_name || td.salesPerson?.full_name} />
+            <Row label="Phone"          value={td.assigned_sales_person?.phone || td.salesPerson?.phone} />
           </Section>
 
           {/* ── Journey Timeline ── */}

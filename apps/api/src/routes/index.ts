@@ -49,6 +49,7 @@ import {
   getTestDrivesController,
   updateTestDriveController,
 } from '../controllers/testDriveController.js';
+import { publicBookTestDriveController } from '../controllers/publicBookingController.js';
 import {
   createDealerController,
   deleteDealerController,
@@ -181,6 +182,9 @@ apiRouter.post('/location-operating-hours', requireAuth, createLocationOperating
 apiRouter.patch('/location-operating-hours/:id', requireAuth, updateLocationOperatingHourController);
 apiRouter.delete('/location-operating-hours/:id', requireAuth, deleteLocationOperatingHourController);
 apiRouter.post('/location-operating-hours/bulk-upsert', requireAuth, bulkUpsertLocationOperatingHoursController);
+
+// Public booking (no auth required — rate-limited by phone + location)
+apiRouter.post('/public/book', publicBookTestDriveController);
 
 // Test Drives
 apiRouter.post('/test-drives/bulk-reassign', requireAuth, bulkReassignController);
