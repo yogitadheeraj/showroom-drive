@@ -196,7 +196,7 @@ const AuthPage = () => {
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           required
-                          className="h-12 rounded-xl bg-white"
+                          className="h-12 rounded-xl"
                         />
                       </div>
 
@@ -209,7 +209,7 @@ const AuthPage = () => {
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           required
-                          className="h-12 rounded-xl bg-white"
+                          className="h-12 rounded-xl"
                         />
                       </div>
 

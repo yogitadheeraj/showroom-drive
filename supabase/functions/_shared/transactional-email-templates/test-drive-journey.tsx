@@ -254,7 +254,7 @@ export const template = {
     vehicleName: 'Kia Seltos HTX',
     locationName: 'Bangalore HSR Layout',
     locationAddress: '123 HSR Layout, Bangalore 560102',
-    locationPhone: '+91 98765 43210',
+    locationPhone: '+91 8*********',
     scheduledDate: '2026-04-05',
     scheduledTime: '11:00',
     salesPersonName: 'Rahul Sharma',

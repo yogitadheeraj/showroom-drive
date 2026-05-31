@@ -67,23 +67,23 @@
   }
 
   .dark {
-    --background: 220 50% 7%;
-    --foreground: 210 16% 93%;
+    --background: 220 30% 13%;
+    --foreground: 210 16% 95%;
 
-    --card: 220 45% 11%;
-    --card-foreground: 210 16% 93%;
+    --card: 220 28% 18%;
+    --card-foreground: 210 16% 95%;
 
-    --popover: 220 45% 11%;
-    --popover-foreground: 210 16% 93%;
+    --popover: 220 28% 18%;
+    --popover-foreground: 210 16% 95%;
 
-    --primary: 213 80% 55%;
+    --primary: 213 80% 58%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 40% 16%;
-    --secondary-foreground: 210 16% 90%;
+    --secondary: 220 25% 24%;
+    --secondary-foreground: 210 16% 92%;
 
-    --muted: 220 40% 14%;
-    --muted-foreground: 215 16% 65%;
+    --muted: 220 25% 21%;
+    --muted-foreground: 215 16% 72%;
 
     --accent: 200 90% 48%;
     --accent-foreground: 0 0% 100%;
@@ -94,19 +94,19 @@
     --warning: 38 92% 50%;
     --warning-foreground: 220 40% 13%;
 
-    --border: 220 40% 18%;
-    --input: 220 40% 18%;
-    --ring: 213 80% 55%;
+    --border: 220 25% 26%;
+    --input: 220 25% 26%;
+    --ring: 213 80% 58%;
 
     /* Dark sidebar */
-    --sidebar-background: 220 50% 10%;
+    --sidebar-background: 220 28% 16%;
     --sidebar-foreground: 210 20% 96%;
-    --sidebar-primary: 213 80% 55%;
+    --sidebar-primary: 213 80% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 45% 16%;
-    --sidebar-accent-foreground: 210 16% 85%;
-    --sidebar-border: 220 40% 18%;
-    --sidebar-ring: 213 80% 55%;
+    --sidebar-accent: 220 25% 22%;
+    --sidebar-accent-foreground: 210 16% 88%;
+    --sidebar-border: 220 25% 26%;
+    --sidebar-ring: 213 80% 58%;
   }
 }
 
@@ -143,4 +143,114 @@
   .gradient-dark { background: var(--gradient-dark); }
   .shadow-card { box-shadow: var(--shadow-card); }
   .shadow-elevated { box-shadow: var(--shadow-elevated); }
+}
+
+@keyframes scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ─── Landing Page: Adaptive Light/Dark Theme Overrides ─── */
+/*
+  In dark mode  → <main class="landing-main dark"> — CSS vars switch to dark, hardcoded dark colors work as-is.
+  In light mode → <main class="landing-main">      — CSS vars are light, the rules below remap all the
+                                                     hardcoded dark-only utility classes to theme-aware values.
+*/
+
+/* Text: convert dark-only white/slate text to foreground */
+html:not(.dark) .landing-main [class~="text-white"] {
+  color: hsl(var(--foreground));
+}
+
+/* Restore white text on elements that have an explicit bright gradient background (buttons, badges, avatars) */
+html:not(.dark) .landing-main [class~="text-white"][class*="from-sky-4"],
+html:not(.dark) .landing-main [class~="text-white"][class*="from-sky-5"],
+html:not(.dark) .landing-main [class~="text-white"][class*="from-emerald-4"],
+html:not(.dark) .landing-main [class~="text-white"][class*="from-violet-4"],
+html:not(.dark) .landing-main [class~="text-white"][class*="bg-gradient-to-r"],
+html:not(.dark) .landing-main [class~="text-white"][class*="bg-gradient-to-br"] {
+  color: white;
+}
+
+html:not(.dark) .landing-main [class~="text-slate-100"],
+html:not(.dark) .landing-main [class~="text-slate-300"] {
+  color: hsl(var(--foreground));
+}
+
+html:not(.dark) .landing-main [class~="text-slate-400"] {
+  color: hsl(var(--muted-foreground));
+}
+
+html:not(.dark) .landing-main [class~="text-slate-500"] {
+  color: hsl(var(--muted-foreground));
+}
+
+/* Borders: convert white/alpha borders to theme border */
+html:not(.dark) .landing-main [class*="border-white/"] {
+  border-color: hsl(var(--border));
+}
+
+/* Card / panel backgrounds: convert all hardcoded dark backgrounds */
+html:not(.dark) .landing-main [class*="bg-white/"] {
+  background: hsl(var(--card));
+}
+
+html:not(.dark) .landing-main [class*="bg-slate-9"] {
+  background: hsl(var(--card));
+}
+
+html:not(.dark) .landing-main [class*="bg-slate-8"] {
+  background: hsl(var(--muted));
+}
+
+html:not(.dark) .landing-main [class*="bg-slate-7"] {
+  background: hsl(var(--secondary));
+}
+
+/* Section gradient backgrounds: remove deep dark gradients, use subtle muted tint */
+html:not(.dark) .landing-main [class*="from-sky-950"],
+html:not(.dark) .landing-main [class*="from-blue-950"],
+html:not(.dark) .landing-main [class*="from-emerald-950"],
+html:not(.dark) .landing-main [class*="from-teal-950"] {
+  background: hsl(var(--muted)) !important;
+}
+
+/* Form inputs: make readable in light mode */
+html:not(.dark) .landing-main input,
+html:not(.dark) .landing-main textarea {
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+/* ── Accent label / badge colors: darken pastels for light bg readability ── */
+
+/* sky-300 / sky-400 → sky-700 in light mode */
+html:not(.dark) .landing-main [class~="text-sky-300"],
+html:not(.dark) .landing-main [class~="text-sky-400"] {
+  color: #0369a1; /* sky-700 */
+}
+
+/* emerald-300 / emerald-400 → emerald-700 in light mode */
+html:not(.dark) .landing-main [class~="text-emerald-300"],
+html:not(.dark) .landing-main [class~="text-emerald-400"] {
+  color: #047857; /* emerald-700 */
+}
+
+/* rose-400 → rose-600 in light mode */
+html:not(.dark) .landing-main [class~="text-rose-400"] {
+  color: #e11d48; /* rose-600 */
+}
+
+/* sky-300 gradient text on headings (bg-clip-text spans) */
+html:not(.dark) .landing-main [class*="from-sky-3"] {
+  --tw-gradient-from: #0284c7;
+}
+html:not(.dark) .landing-main [class*="to-blue-5"] {
+  --tw-gradient-to: #2563eb;
+}
+
+html:not(.dark) .landing-main input::placeholder,
+html:not(.dark) .landing-main textarea::placeholder {
+  color: hsl(var(--muted-foreground));
 }

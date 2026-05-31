@@ -297,7 +297,7 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
               </div>
               <div className="space-y-2">
                 <Label>Phone <span className="text-destructive">*</span></Label>
-                <Input placeholder="+91 98765 43210" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
+                <Input placeholder="+91 8*********" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

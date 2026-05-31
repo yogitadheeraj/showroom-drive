@@ -233,7 +233,7 @@ const DealerOnboardingPage = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Contact Phone</Label>
-                    <Input value={dealerData.contactPhone} onChange={e => setDealerData(p => ({ ...p, contactPhone: e.target.value }))} placeholder="+91 98765 43210" />
+                    <Input value={dealerData.contactPhone} onChange={e => setDealerData(p => ({ ...p, contactPhone: e.target.value }))} placeholder="+91 8*********" />
                   </div>
                 </div>
               </div>

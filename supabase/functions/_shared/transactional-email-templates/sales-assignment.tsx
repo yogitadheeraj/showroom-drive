@@ -113,7 +113,7 @@ export const template = {
     scheduledDate: '2026-04-05',
     scheduledTime: '11:00',
     salesPersonName: 'Rahul Sharma',
-    salesPersonPhone: '+91 98765 43210',
+    salesPersonPhone: '+91 8*********',
   },
 } satisfies TemplateEntry
 
