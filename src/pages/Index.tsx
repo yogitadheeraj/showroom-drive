@@ -299,9 +299,7 @@ export default function AutoAdvantLandingPage() {
                                 <a href="#contact" className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
                                     Request Dealer Access
                                 </a>
-                                <a href="#contact" className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10">
-                                    Talk to Automotive Expert
-                                </a>
+                             
                             </div>
 
                             <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
