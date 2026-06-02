@@ -25,4 +25,13 @@ export const env = {
   smtpUser: process.env.SMTP_USER || '',
   smtpPass: process.env.SMTP_PASS || '',
   mailFrom: process.env.MAIL_FROM || '',
+  // OAuth — Google Calendar
+  googleOAuthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID || '',
+  googleOAuthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || '',
+  // OAuth — Microsoft (Outlook)
+  outlookOAuthClientId: process.env.OUTLOOK_OAUTH_CLIENT_ID || '',
+  outlookOAuthClientSecret: process.env.OUTLOOK_OAUTH_CLIENT_SECRET || '',
+  outlookOAuthTenantId: process.env.OUTLOOK_OAUTH_TENANT_ID || 'common',
+  // OAuth state signing secret
+  oauthStateSecret: process.env.OAUTH_STATE_SECRET || 'change-me-in-production',
 };
