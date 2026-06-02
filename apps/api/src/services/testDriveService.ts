@@ -10,6 +10,7 @@ import { sendMail } from './mailService.js';
 import { notifyTestDriveStatusChange } from './firebaseService.js';
 import { getApps } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
+import { dispatchNotification, IntegrationEvent } from './notificationDispatcherService.js';
 
 function toPlain(doc: any) {
   const obj = doc.toObject ? doc.toObject() : { ...doc };
@@ -423,7 +424,7 @@ async function afterStatusChange(td: any, status: string) {
   const [customer, vehicle, salesProfile, groProfile] = await Promise.all([
     td.customer_id           ? Customer.findOne({ id: td.customer_id }, { full_name: 1 }).lean() : null,
     td.vehicle_id            ? Vehicle.findOne({ id: td.vehicle_id }, { brand: 1, model: 1 }).lean() : null,
-    td.assigned_sales_person_id ? Profile.findOne({ id: td.assigned_sales_person_id }, { user_id: 1 }).lean() : null,
+    td.assigned_sales_person_id ? Profile.findOne({ id: td.assigned_sales_person_id }, { user_id: 1, full_name: 1 }).lean() : null,
     td.assigned_gro_id       ? Profile.findOne({ id: td.assigned_gro_id }, { user_id: 1 }).lean() : null,
   ]);
 
@@ -454,6 +455,33 @@ async function afterStatusChange(td: any, status: string) {
     scheduled_time: td.scheduled_time || null,
     location_id:    td.location_id,
   });
+
+  // 3. External integration dispatcher (non-blocking)
+  const statusEventMap: Record<string, IntegrationEvent> = {
+    confirmed:               'test_drive_confirmed',
+    cancelled:               'test_drive_cancelled',
+    completed:               'test_drive_completed',
+    no_show:                 'test_drive_no_show',
+    in_progress:             'test_drive_in_progress',
+    key_handover_to_sales:   'test_drive_in_progress',
+    rescheduled:             'test_drive_rescheduled',
+  };
+  const integrationEvent = statusEventMap[status];
+  if (integrationEvent) {
+    void dispatchNotification({
+      event: integrationEvent,
+      testDriveId: td.id,
+      locationId: td.location_id,
+      locationName: '',
+      customerId: td.customer_id ?? undefined,
+      customerName,
+      vehicleName,
+      scheduledDate: td.scheduled_date ?? '',
+      scheduledTime: td.scheduled_time ?? '',
+      status,
+      salesPersonName: (salesProfile as any)?.full_name,
+    }).catch(() => null);
+  }
 }
 
 // ─── Write a real-time event to Firebase Realtime Database ───────────────────
@@ -585,6 +613,22 @@ async function sendTestDriveBookedNotifications(td: any) {
   if (notifyPayloads.length) {
     await Notification.insertMany(notifyPayloads, { ordered: false }).catch(() => null);
   }
+
+  // ── 6. External integration dispatcher (non-blocking) ─────────────────────
+  void dispatchNotification({
+    event: 'test_drive_booked',
+    testDriveId: td.id,
+    locationId: td.location_id,
+    locationName,
+    customerId: td.customer_id ?? undefined,
+    customerName,
+    customerPhone: c?.phone ?? undefined,
+    customerEmail: c?.email ?? undefined,
+    vehicleName,
+    scheduledDate,
+    scheduledTime,
+    status: td.status,
+  }).catch(() => null);
 }
 
 // ─── Auto-assign: pick the least-busy available sales person at a location ────

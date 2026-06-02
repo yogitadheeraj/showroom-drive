@@ -49,14 +49,14 @@ export async function updateCustomerController(req: Request, res: Response) {
   if (nextPhone) {
     const existingByPhone = await customerService.findCustomerByPhone(nextPhone);
     if (existingByPhone && existingByPhone.id !== req.params.id) {
-      return res.status(409).json({ error: 'Another customer already uses this phone number', data: existingByPhone });
+      return res.status(200).json({ data: existingByPhone });
     }
   }
 
   if (nextEmail) {
     const existingByEmail = await customerService.findCustomerByEmail(nextEmail);
     if (existingByEmail && existingByEmail.id !== req.params.id) {
-      return res.status(409).json({ error: 'Another customer already uses this email address', data: existingByEmail });
+      return res.status(200).json({ data: existingByEmail });
     }
   }
 

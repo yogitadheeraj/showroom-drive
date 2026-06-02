@@ -418,58 +418,6 @@ const WalkinPage = () => {
         });
       }
 
-      // Send email confirmation and log communication.
-      if (formData.email) {
-        let emailError: unknown = null;
-        try {
-          await apiInvokeFunction('send-transactional-email', {
-            templateName: 'booking-confirmation',
-            recipientEmail: formData.email,
-            idempotencyKey: `walkin-confirm-${testDrive.id}`,
-            templateData: {
-              customerName: fullName,
-              vehicleName,
-              locationName,
-              scheduledDate: scheduledDateStr,
-              scheduledTime: scheduledTimeStr,
-            },
-          });
-        } catch (error) {
-          emailError = error;
-        }
-
-        const emailBody = `Your walk-in test drive for ${vehicleName} is registered at ${locationName} on ${walkinTime}. Please contact your sales team for help.`;
-
-        await apiPost('/api/communications', {
-          customer_id: customerId,
-          test_drive_id: testDrive.id,
-          type: 'email',
-          purpose: 'booking_confirmed',
-          sent_to: formData.email,
-          subject: 'Walk-in Test Drive Confirmation',
-          body: emailBody,
-          status: emailError ? 'failed' : 'sent',
-          sent_at: emailError ? null : new Date().toISOString(),
-        });
-      }
-
-      // Send sales person assignment email if email and sales person assigned
-      if (formData.email && assignedSalesName) {
-        apiInvokeFunction('send-transactional-email', {
-          templateName: 'sales-assignment',
-          recipientEmail: formData.email,
-          idempotencyKey: `sales-assign-${testDrive.id}`,
-          templateData: {
-            customerName: fullName,
-            vehicleName,
-            locationName,
-            scheduledDate: scheduledDateStr,
-            scheduledTime: scheduledTimeStr,
-            salesPersonName: assignedSalesName,
-            salesPersonPhone: assignedSalesPhone,
-          },
-        }).catch(err => console.error('Sales assignment email failed:', err));
-      }
 
       toast({ title: walkinToday ? 'Walk-in registered' : 'Booking created', description: `${fullName} has been ${walkinToday ? 'checked in' : 'booked for ' + scheduledDateStr + ' at ' + scheduledTimeStr}${assignedSalesName ? `. Sales executive: ${assignedSalesName}` : ''}.` });
       setFormData(prev => ({ firstName: '', lastName: '', countryCode: prev.countryCode, phone: '', email: '', preferredContact: ['phone'], locationId: isDealerLevel ? prev.locationId : (profile?.location_id || ''), vehicleId: '', scheduledDate: todayStr, scheduledTime: '' }));

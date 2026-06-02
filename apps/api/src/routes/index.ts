@@ -51,6 +51,18 @@ import {
 } from '../controllers/testDriveController.js';
 import { publicBookTestDriveController } from '../controllers/publicBookingController.js';
 import {
+  listIntegrationsController,
+  upsertIntegrationController,
+  deleteIntegrationController,
+  testIntegrationController,
+} from '../controllers/integrationController.js';
+import {
+  startGoogleOAuth,
+  googleOAuthCallback,
+  startOutlookOAuth,
+  outlookOAuthCallback,
+} from '../controllers/oauthController.js';
+import {
   createDealerController,
   deleteDealerController,
   getDealerController,
@@ -193,6 +205,18 @@ apiRouter.get('/test-drives/:id', requireAuth, getTestDriveController);
 apiRouter.post('/test-drives', requireAuth, createTestDriveController);
 apiRouter.patch('/test-drives/:id', requireAuth, updateTestDriveController);
 apiRouter.delete('/test-drives/:id', requireAuth, deleteTestDriveController);
+
+// Integrations
+apiRouter.get('/integrations', requireAuth, listIntegrationsController);
+apiRouter.put('/integrations/:type', requireAuth, upsertIntegrationController);
+apiRouter.delete('/integrations/:type', requireAuth, deleteIntegrationController);
+apiRouter.post('/integrations/:type/test', requireAuth, testIntegrationController);
+
+// OAuth — calendar integrations (start requires auth; callback is open — state is HMAC-verified)
+apiRouter.get('/integrations/oauth/google/start', startGoogleOAuth);
+apiRouter.get('/integrations/oauth/google/callback', googleOAuthCallback);
+apiRouter.get('/integrations/oauth/outlook/start', requireAuth, startOutlookOAuth);
+apiRouter.get('/integrations/oauth/outlook/callback', outlookOAuthCallback);
 
 // Car Bookings
 apiRouter.get('/car-bookings', requireAuth, listCarBookingsController);
