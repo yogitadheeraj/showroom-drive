@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DealerIntegration, maskConfig, SENSITIVE_CONFIG_KEYS, IntegrationType } from '../models/DealerIntegration.js';
+import { Dealer } from '../models/Dealer.js';
 
 function lean(doc: any) {
   const o = doc.toObject ? doc.toObject() : { ...doc };
@@ -76,4 +77,34 @@ export async function getIntegrationConfig(dealerId: string, type: IntegrationTy
   const doc = await DealerIntegration.findOne({ dealer_id: dealerId, type }).lean() as any;
   if (!doc) return null;
   return doc.config as Record<string, unknown>;
+}
+
+/** Superadmin: list all integrations across all dealers, grouped with dealer info */
+export async function listAllIntegrations() {
+  const [docs, dealers] = await Promise.all([
+    DealerIntegration.find({}).lean() as Promise<any[]>,
+    Dealer.find({}, { id: 1, name: 1, contact_email: 1, is_active: 1 }).lean() as Promise<any[]>,
+  ]);
+
+  const dealerMap = new Map<string, { id: string; name: string; contact_email: string; is_active: boolean }>();
+  for (const d of dealers) {
+    dealerMap.set(d.id, { id: d.id, name: d.name, contact_email: d.contact_email, is_active: d.is_active });
+  }
+
+  // Group integrations by dealer_id
+  const grouped = new Map<string, { dealer: any; integrations: any[] }>();
+  for (const doc of docs) {
+    const o = { ...doc } as any;
+    delete o._id;
+    const masked = withMaskedConfig(o);
+    if (!grouped.has(doc.dealer_id)) {
+      grouped.set(doc.dealer_id, {
+        dealer: dealerMap.get(doc.dealer_id) ?? { id: doc.dealer_id, name: 'Unknown Dealer', contact_email: '', is_active: true },
+        integrations: [],
+      });
+    }
+    grouped.get(doc.dealer_id)!.integrations.push(masked);
+  }
+
+  return Array.from(grouped.values());
 }

@@ -11,14 +11,22 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Users, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle } from 'lucide-react';
+import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Users, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle, MoreHorizontal, PlusCircle, CalendarClock } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveJourneyDialog } from '@/components/TestDriveJourneyDialog';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import WalkinDialog from '@/components/WalkinDialog';
 
 type DurationBadge = 'Lightning Fast' | 'Smooth Experience' | 'Detailed Guidance' | 'Premium Attention';
 
@@ -71,6 +79,7 @@ const TestDrivesPage = () => {
   const [assigningKey, setAssigningKey] = useState<string | null>(null);
   const [securityActionId, setSecurityActionId] = useState<string | null>(null);
   const [groupBySales, setGroupBySales] = useState(false);
+  const [rebookDrive, setRebookDrive] = useState<any | null>(null);
 
   useEffect(() => {
     if (!dealerLoading) fetchTestDrives();
@@ -367,7 +376,10 @@ const TestDrivesPage = () => {
       <div className="space-y-4 sm:space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Test Drives</h1>
+            <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground flex items-center gap-2">
+            <CalendarClock className="h-6 w-6 text-primary" />
+            Test Drives
+          </h1>
             <p className="text-sm text-muted-foreground">Manage all test drive appointments and journey completion quality</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -465,63 +477,90 @@ const TestDrivesPage = () => {
                       )}
                     </div>
 
+                    {/* ── Route info (if set) ── */}
+                    {td.metadata?.route_destination && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/40 rounded-md px-2 py-1.5 border border-border">
+                        <Route className="h-3 w-3 shrink-0 text-primary" />
+                        <span className="truncate flex-1">{String(td.metadata.route_destination)}</span>
+                        {td.metadata.route_distance_km != null && (
+                          <span className="shrink-0 text-primary font-medium">{String(td.metadata.route_distance_km)} km</span>
+                        )}
+                        {td.metadata.route_duration_minutes != null && (
+                          <span className="shrink-0">~{Math.floor(Number(td.metadata.route_duration_minutes) / 60) > 0
+                            ? `${Math.floor(Number(td.metadata.route_duration_minutes) / 60)}h ${Math.round(Number(td.metadata.route_duration_minutes) % 60)}m`
+                            : `${Math.round(Number(td.metadata.route_duration_minutes))}m`
+                          }</span>
+                        )}
+                      </div>
+                    )}
+
                     {/* ── Actions ── */}
-                    <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-border" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1.5 pt-2 border-t border-border" onClick={e => e.stopPropagation()}>
+                      {/* Always-visible: Journey */}
                       <Button size="sm" variant="outline" className="text-xs border-primary/40 text-primary hover:bg-primary/10" onClick={() => setJourneyDrive(td)}>
                         <Route className="h-3 w-3 mr-1" /> Journey
                       </Button>
-                      {['scheduled', 'confirmed', 'show', 'no_show', 'rescheduled'].includes(td.status) && (
-                        <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" onClick={() => setRescheduleId(td.id)}>
-                          <RefreshCw className="h-3 w-3 mr-1" /> Reschedule
+
+                      {/* Primary contextual action */}
+                      {td.status === 'cancelled' && (
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => setRebookDrive(td)}>
+                          <PlusCircle className="h-3 w-3 mr-1" /> New Test Drive
                         </Button>
                       )}
-                      {['scheduled', 'confirmed', 'show', 'rescheduled'].includes(td.status) && (
-                        <Button size="sm" variant="outline" className="text-xs border-warning/50 text-warning hover:bg-warning/10" onClick={() => setNoShowId(td.id)}>
-                          <CalendarX className="h-3 w-3 mr-1" /> No Show
+                      {td.status === 'key_handover_to_sales' && ([APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
+                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleKeyHandoverComplete(td)}>
+                          <FileCheck className="h-3 w-3 mr-1" /> Key Handover
                         </Button>
                       )}
-                      {['scheduled', 'confirmed', 'rescheduled'].includes(td.status) && (
-                        <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs" onClick={() => setCancelId(td.id)}>
-                          <Ban className="h-3 w-3 mr-1" /> Cancel
+                      {(td.status === 'show' || td.status === 'scheduled' || td.status === 'rescheduled') && !td.key_handed_at && td.customers?.driving_license_verified && ([APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && td.status !== 'key_handover_to_sales' && (
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleAssignKey(td.id)} disabled={assigningKey === td.id}>
+                          <Key className="h-3 w-3 mr-1" /> Assign Key
                         </Button>
                       )}
-                      {canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && td.scheduled_date && new Date(td.scheduled_date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) && (
-                        <Button size="sm" variant="outline" className="text-xs border-warning/40 text-warning hover:bg-warning/10" onClick={() => { setLeadDialogDrive(td); setLeadTemperature('cold'); setFollowUpTaskTitle(''); setFollowUpTaskDueAt(''); }}>
-                          <TrendingUp className="h-3 w-3 mr-1" /> Lead
+                      {td.status === 'scheduled' && ([APP_ROLE.GRO, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && !td.key_handed_at && (
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => updateStatus(td.id, 'confirmed')}>
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm
                         </Button>
                       )}
-                      {/* GRO / Admin: status transitions */}
-                      {([APP_ROLE.GRO, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
-                        <>
-                          {td.status === 'scheduled' && (
-                            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => updateStatus(td.id, 'confirmed')}>
-                              <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm
-                            </Button>
+
+                      {/* Overflow menu */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline" className="text-xs px-2 ml-auto">
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          {(['scheduled', 'confirmed', 'show', 'no_show', 'rescheduled'] as string[]).includes(td.status) && (
+                            <DropdownMenuItem onClick={() => setRescheduleId(td.id)}>
+                              <RefreshCw className="h-3.5 w-3.5 mr-2 text-info" /> Reschedule
+                            </DropdownMenuItem>
+                          )}
+                          {(['scheduled', 'confirmed', 'show', 'rescheduled'] as string[]).includes(td.status) && ([APP_ROLE.GRO, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
+                            <DropdownMenuItem onClick={() => updateStatus(td.id, 'show')}>
+                              <CheckCircle className="h-3.5 w-3.5 mr-2 text-success" /> Mark Show
+                            </DropdownMenuItem>
+                          )}
+                          {(['scheduled', 'confirmed', 'show', 'rescheduled'] as string[]).includes(td.status) && (
+                            <DropdownMenuItem onClick={() => setNoShowId(td.id)}>
+                              <CalendarX className="h-3.5 w-3.5 mr-2 text-warning" /> No Show
+                            </DropdownMenuItem>
+                          )}
+                          {canCreateOpportunity && (['completed', 'key_handover_to_sales'] as string[]).includes(td.status) && td.scheduled_date && new Date(td.scheduled_date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) && (
+                            <DropdownMenuItem onClick={() => { setLeadDialogDrive(td); setLeadTemperature('cold'); setFollowUpTaskTitle(''); setFollowUpTaskDueAt(''); }}>
+                              <TrendingUp className="h-3.5 w-3.5 mr-2 text-warning" /> Create Lead
+                            </DropdownMenuItem>
                           )}
                           {(['scheduled', 'confirmed', 'rescheduled'] as string[]).includes(td.status) && (
-                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>
-                              <CheckCircle className="h-3 w-3 mr-1" /> Show
-                            </Button>
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setCancelId(td.id)}>
+                                <Ban className="h-3.5 w-3.5 mr-2" /> Cancel
+                              </DropdownMenuItem>
+                            </>
                           )}
-      
-                        </>
-                      )}
-                      {/* Sales / Admin: Assign Key + Key Handover */}
-                      {([APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
-                        <>
-                          {(td.status === 'show' || td.status === 'scheduled'|| td.status === 'rescheduled') && !td.key_handed_at && td.customers?.driving_license_verified && (
-                            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleAssignKey(td.id)} disabled={assigningKey === td.id}>
-                              <Key className="h-3 w-3 mr-1" /> Assign Key
-                            </Button>
-                          )}
-                          {td.status === 'key_handover_to_sales' && (
-                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleKeyHandoverComplete(td)}>
-                              <FileCheck className="h-3 w-3 mr-1" /> Key Handover
-                            </Button>
-                          )}
-                        </>
-                      )}
-                     
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </CardContent>
                 </Card>
@@ -655,6 +694,15 @@ const TestDrivesPage = () => {
           testDrive={journeyDrive}
           open={!!journeyDrive}
           onClose={() => setJourneyDrive(null)}
+        />
+
+        <WalkinDialog
+          open={!!rebookDrive}
+          onClose={(submitted) => { setRebookDrive(null); if (submitted) fetchTestDrives(); }}
+          defaultLocationId={rebookDrive?.location_id}
+          defaultVehicleId={rebookDrive?.vehicle_id}
+          defaultCustomerName={rebookDrive?.customers?.full_name}
+          defaultCustomerPhone={rebookDrive?.customers?.phone}
         />
       </div>
     </DashboardLayout>

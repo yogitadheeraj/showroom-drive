@@ -36,6 +36,22 @@ export interface IVehicle extends Omit<Document, 'model'> {
   is_demo: boolean | null;
   demo_for_vehicle_id: string | null;
   vehicle_time_days: number | null;
+  // ── Shared fleet fields ───────────────────────────────────────────────────
+  is_shared: boolean;
+  /**
+   * Which locations can book this shared vehicle.
+   * Empty array (default) = available at ALL locations.
+   * Non-empty = only those specific location IDs.
+   */
+  shared_location_ids: string[];
+  /** Where the vehicle physically is right now (may differ from home location_id) */
+  current_location_id: string | null;
+  /** 'at_location' | 'in_transit' */
+  transit_status: string;
+  /** ISO timestamp: when vehicle is expected to arrive at transit_to_location_id */
+  transit_eta: string | null;
+  /** Destination location during transit */
+  transit_to_location_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -77,6 +93,13 @@ const VehicleSchema = new Schema<IVehicle>(
     is_demo: { type: Boolean, default: null },
     demo_for_vehicle_id: { type: String, default: null },
     vehicle_time_days: { type: Number, default: null },
+    // ── Shared fleet fields ───────────────────────────────────────────────────
+    is_shared: { type: Boolean, default: false, index: true },
+    shared_location_ids: { type: [String], default: [] },
+    current_location_id: { type: String, default: null, index: true },
+    transit_status: { type: String, default: 'at_location' },
+    transit_eta: { type: String, default: null },
+    transit_to_location_id: { type: String, default: null },
     created_at: { type: String, default: () => new Date().toISOString() },
     updated_at: { type: String, default: () => new Date().toISOString() },
   },

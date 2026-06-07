@@ -28,7 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2, MoreHorizontal, PlaneTakeoff, PlaneLanding } from 'lucide-react';
+import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2, MoreHorizontal, PlaneTakeoff, PlaneLanding, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, DEALER_ASSIGNABLE_ROLES, type AppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
@@ -44,6 +44,7 @@ const UsersPage = () => {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [locations, setLocations] = useState<any[]>([]);
   const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
+  const [showCreatePw, setShowCreatePw] = useState(false);
   const [editForm, setEditForm] = useState({ role: '', locationId: '' });
   const [saving, setSaving] = useState(false);
   const [leaveDialog, setLeaveDialog] = useState<{ user: any } | null>(null);
@@ -763,7 +764,15 @@ const UsersPage = () => {
               </div>
               <div className="space-y-2"><Label>Full Name *</Label><Input value={createForm.fullName} onChange={e => setCreateForm(p => ({ ...p, fullName: e.target.value }))} /></div>
               <div className="space-y-2"><Label>Email *</Label><Input type="email" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Password *</Label><Input type="password" value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} minLength={6} /></div>
+              <div className="space-y-2">
+                <Label>Password *</Label>
+                <div className="relative">
+                  <Input type={showCreatePw ? 'text' : 'password'} value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} minLength={6} className="pr-10" />
+                  <button type="button" tabIndex={-1} onClick={() => setShowCreatePw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    {showCreatePw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label>Role *</Label>
 <Select value={createForm.role} onValueChange={(v: string) => setCreateForm(p => ({ ...p, role: v as AppRole }))}>

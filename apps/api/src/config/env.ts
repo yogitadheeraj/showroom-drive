@@ -34,4 +34,6 @@ export const env = {
   outlookOAuthTenantId: process.env.OUTLOOK_OAUTH_TENANT_ID || 'common',
   // OAuth state signing secret
   oauthStateSecret: process.env.OAUTH_STATE_SECRET || 'change-me-in-production',
+  // Public frontend URL (used for customer-facing links in emails)
+  publicFrontendUrl: process.env.PUBLIC_FRONTEND_URL || 'http://localhost:8080',
 };

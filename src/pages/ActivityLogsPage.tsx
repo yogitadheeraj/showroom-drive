@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import {
   Activity, Shield, Car, TrendingUp, Clock, Users, Search,
   CalendarCheck, CheckCircle2, AlertTriangle, RefreshCw, LogIn, LogOut, UserCircle2,
+  ScrollText,
 } from 'lucide-react';
 import { APP_ROLE, APP_ROLE_LABELS } from '@/constants/roles';
 
@@ -281,7 +282,10 @@ const ActivityLogsPage = () => {
         {/* ── Header ── */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Activity Logs</h1>
+              <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground flex items-center gap-2">
+            <ScrollText className="h-6 w-6 text-primary" />
+          Activity Logs
+          </h1>
             <p className="text-sm text-muted-foreground">Full audit trail across staff, test drives, and follow-ups</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

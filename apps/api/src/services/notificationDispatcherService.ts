@@ -240,92 +240,115 @@ async function refreshOutlookToken(cfg: Record<string, string>): Promise<string>
 }
 
 async function dispatchGoogleCalendar(cfg: Record<string, unknown>, p: IntegrationPayload): Promise<void> {
-  let { calendar_id = 'primary', access_token } = cfg as Record<string, string>;
-  // Auto-refresh using refresh_token if stored
-  if (!access_token && (cfg as any).refresh_token) {
-    access_token = await refreshGoogleToken(cfg as Record<string, string>);
-  }
-  if (!access_token) throw new Error('Google Calendar: access_token required');
+  const c = cfg as Record<string, string>;
   if (p.event === 'test_drive_cancelled') return; // deletion needs stored event IDs
 
+  if (!c.refresh_token && !c.access_token) throw new Error('Google Calendar: access_token or refresh_token required');
+
+  // Always prefer a fresh token when refresh_token is available
+  let access_token = c.refresh_token
+    ? await refreshGoogleToken(c)
+    : c.access_token;
+
+  const calendar_id = c.calendar_id || 'primary';
   const start = `${p.scheduledDate}T${p.scheduledTime.substring(0, 5)}:00Z`;
   const endD = new Date(`${p.scheduledDate}T${p.scheduledTime.substring(0, 5)}:00Z`);
   endD.setMinutes(endD.getMinutes() + 30);
   const end = endD.toISOString().substring(0, 19) + 'Z';
 
-  const res = await fetch(
+  const body = JSON.stringify({
+    summary: `Test Drive — ${p.vehicleName} at ${p.locationName}`,
+    description: [
+      `Customer: ${p.customerName}`,
+      `Phone: ${p.customerPhone ?? 'N/A'}`,
+      `Vehicle: ${p.vehicleName}`,
+      `Location: ${p.locationName}`,
+      p.salesPersonName ? `Sales Executive: ${p.salesPersonName}` : '',
+    ].filter(Boolean).join('\n'),
+    start: { dateTime: start, timeZone: 'UTC' },
+    end: { dateTime: end, timeZone: 'UTC' },
+    ...{
+      attendees: [{ email: 'omnitracely@gmail.com', displayName: 'dheeraj varshney' }],
+      guestsCanSeeOtherGuests: false,
+      sendUpdates: 'all',
+    }})
+
+  let res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar_id)}/events`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        summary: `Test Drive — ${p.vehicleName} at ${p.locationName}`,
-        description: [
-          `Customer: ${p.customerName}`,
-          `Phone: ${p.customerPhone ?? 'N/A'}`,
-          `Vehicle: ${p.vehicleName}`,
-          `Location: ${p.locationName}`,
-          p.salesPersonName ? `Sales Executive: ${p.salesPersonName}` : '',
-        ].filter(Boolean).join('\n'),
-        start: { dateTime: start, timeZone: 'UTC' },
-        end: { dateTime: end, timeZone: 'UTC' },
-        // Add customer as attendee so Google sends them a calendar invite email
-        ...(p.customerEmail ? {
-          attendees: [{ email: 'omnitracely@gmail.com', displayName: p.customerName }],
-          guestsCanSeeOtherGuests: false,
-          sendUpdates: 'all',   // Google emails the invite to attendees
-        } : {}),
-      }),
-    },
+    { method: 'POST', headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' }, body },
   );
+
+  // Token expired mid-session — refresh and retry once
+  if (res.status === 401 && c.refresh_token) {
+    access_token = await refreshGoogleToken(c);
+    res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar_id)}/events`,
+      { method: 'POST', headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' }, body },
+    );
+  }
+
   if (!res.ok) throw new Error(`Google Calendar error ${res.status}: ${await res.text()}`);
 }
 
 async function dispatchOutlook(cfg: Record<string, unknown>, p: IntegrationPayload): Promise<void> {
-  let { access_token, calendar_id } = cfg as Record<string, string>;
-  // Auto-refresh using refresh_token if stored
-  if (!access_token && (cfg as any).refresh_token) {
-    access_token = await refreshOutlookToken(cfg as Record<string, string>);
-  }
-  if (!access_token) throw new Error('Outlook: access_token required');
+  const c = cfg as Record<string, string>;
   if (p.event === 'test_drive_cancelled') return;
 
+  if (!c.refresh_token && !c.access_token) throw new Error('Outlook: access_token or refresh_token required');
+
+  // Always prefer a fresh token when refresh_token is available
+  let access_token = c.refresh_token
+    ? await refreshOutlookToken(c)
+    : c.access_token;
+
+  const calendar_id = c.calendar_id;
   const start = `${p.scheduledDate}T${p.scheduledTime.substring(0, 5)}:00Z`;
   const endD = new Date(`${p.scheduledDate}T${p.scheduledTime.substring(0, 5)}:00Z`);
   endD.setMinutes(endD.getMinutes() + 30);
   const end = endD.toISOString().substring(0, 19) + 'Z';
-
   const url = calendar_id
     ? `https://graph.microsoft.com/v1.0/me/calendars/${calendar_id}/events`
     : 'https://graph.microsoft.com/v1.0/me/events';
 
-  const res = await fetch(url, {
+  const body = JSON.stringify({
+    subject: `Test Drive — ${p.vehicleName} at ${p.locationName}`,
+    body: {
+      contentType: 'HTML',
+      content: [
+        `<b>Customer:</b> ${p.customerName}`,
+        `<b>Phone:</b> ${p.customerPhone ?? 'N/A'}`,
+        `<b>Vehicle:</b> ${p.vehicleName}`,
+        `<b>Location:</b> ${p.locationName}`,
+        p.salesPersonName ? `<b>Sales Executive:</b> ${p.salesPersonName}` : '',
+      ].filter(Boolean).join('<br>'),
+    },
+    start: { dateTime: start, timeZone: 'UTC' },
+    end: { dateTime: end, timeZone: 'UTC' },
+    ...(p.customerEmail ? {
+      attendees: [{
+        emailAddress: { address: p.customerEmail, name: p.customerName },
+        type: 'required',
+      }],
+      isOnlineMeeting: false,
+    } : {}),
+  });
+
+  let res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      subject: `Test Drive — ${p.vehicleName} at ${p.locationName}`,
-      body: {
-        contentType: 'HTML',
-        content: [
-          `<b>Customer:</b> ${p.customerName}`,
-          `<b>Phone:</b> ${p.customerPhone ?? 'N/A'}`,
-          `<b>Vehicle:</b> ${p.vehicleName}`,
-          `<b>Location:</b> ${p.locationName}`,
-          p.salesPersonName ? `<b>Sales Executive:</b> ${p.salesPersonName}` : '',
-        ].filter(Boolean).join('<br>'),
-      },
-      start: { dateTime: start, timeZone: 'UTC' },
-      end: { dateTime: end, timeZone: 'UTC' },
-      // Add customer as attendee so Outlook sends them a calendar invite email
-      ...(p.customerEmail ? {
-        attendees: [{
-          emailAddress: { address: p.customerEmail, name: p.customerName },
-          type: 'required',
-        }],
-        isOnlineMeeting: false,
-      } : {}),
-    }),
+    body,
   });
+
+  // Token expired mid-session — refresh and retry once
+  if (res.status === 401 && c.refresh_token) {
+    access_token = await refreshOutlookToken(c);
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+      body,
+    });
+  }
+
   if (!res.ok) throw new Error(`Outlook error ${res.status}: ${await res.text()}`);
 }
 

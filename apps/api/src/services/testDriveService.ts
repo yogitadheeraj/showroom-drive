@@ -11,6 +11,9 @@ import { notifyTestDriveStatusChange } from './firebaseService.js';
 import { getApps } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { dispatchNotification, IntegrationEvent } from './notificationDispatcherService.js';
+import { generateBookingToken } from '../controllers/customerBookingController.js';
+import { env } from '../config/env.js';
+import { autoTransitAfterDrive } from './vehicleFleetService.js';
 
 function toPlain(doc: any) {
   const obj = doc.toObject ? doc.toObject() : { ...doc };
@@ -374,6 +377,20 @@ export async function updateTestDrive(id: string, data: Record<string, unknown>)
   // Fire FCM push + Firestore real-time event whenever status is being set
   if (typeof data.status === 'string') {
     void afterStatusChange(plain, data.status as string).catch(() => null);
+
+    // Auto-transit: when a test drive completes, check if shared vehicle needs to move
+    const completionStatuses = ['completed', 'key_handover_to_sales'];
+    if (completionStatuses.includes(data.status as string)) {
+      const vehicle = await Vehicle.findOne({ id: plain.vehicle_id }, { is_shared: 1, current_location_id: 1, location_id: 1 }).lean();
+      if (vehicle?.is_shared) {
+        void autoTransitAfterDrive(
+          plain.vehicle_id,
+          plain.location_id,
+          plain.id,
+          new Date(),
+        ).catch(() => null);
+      }
+    }
   }
   return plain;
 }
@@ -529,10 +546,12 @@ async function sendTestDriveBookedNotifications(td: any) {
 
   // ── 1. Email: customer ────────────────────────────────────────────────────
   if (c?.email) {
+    const bookingToken = generateBookingToken(td.id);
+    const manageBookingUrl = `${env.publicFrontendUrl}/customer/booking/${td.id}?token=${bookingToken}`;
     await sendMail({
       to: c.email,
       subject: `Test Drive Confirmed — ${vehicleName}`,
-      html: testDriveCustomerEmailHtml({ customerName, vehicleName, locationName, dateLabel }),
+      html: testDriveCustomerEmailHtml({ customerName, vehicleName, locationName, dateLabel, manageBookingUrl }),
     }).catch(() => null);
   }
 
@@ -727,7 +746,18 @@ async function sendSalesAssignmentEmail(
 
 // ─── Email templates ─────────────────────────────────────────────────────────
 
-function testDriveCustomerEmailHtml(p: { customerName: string; vehicleName: string; locationName: string; dateLabel: string }) {
+function testDriveCustomerEmailHtml(p: { customerName: string; vehicleName: string; locationName: string; dateLabel: string; manageBookingUrl?: string }) {
+  const manageSection = p.manageBookingUrl
+    ? `
+  <div style="margin:24px 0;padding:16px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;text-align:center">
+    <p style="margin:0 0 12px;font-size:14px;color:#1e40af;font-weight:600">Manage Your Booking</p>
+    <p style="margin:0 0 12px;font-size:13px;color:#374151">Need to reschedule or cancel? You can also upload your driving licence from the link below.</p>
+    <a href="${p.manageBookingUrl}" style="display:inline-block;padding:10px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px">
+      View &amp; Manage Booking
+    </a>
+  </div>`
+    : '';
+
   return `
 <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#1a1a1a">
   <h2 style="color:#2563eb">Test Drive Confirmed!</h2>
@@ -739,6 +769,7 @@ function testDriveCustomerEmailHtml(p: { customerName: string; vehicleName: stri
     <tr><td style="padding:8px;border:1px solid #eee;color:#666">Date &amp; Time</td><td style="padding:8px;border:1px solid #eee;font-weight:600;color:#2563eb">${p.dateLabel}</td></tr>
   </table>
   <p>Please arrive a few minutes early. Bring a valid driving licence.</p>
+  ${manageSection}
   <p>We look forward to seeing you!</p>
   <p style="color:#666;font-size:12px;margin-top:24px">This is an automated notification. Please do not reply directly to this email.</p>
 </div>`;

@@ -11,7 +11,7 @@ import {
   uploadController,
 } from '../controllers/storageController.js';
 import { meController, resendVerificationController } from '../controllers/authController.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireSuperAdmin } from '../middleware/auth.js';
 import {
   createLocationController,
   deleteLocationController,
@@ -52,6 +52,7 @@ import {
 import { publicBookTestDriveController } from '../controllers/publicBookingController.js';
 import {
   listIntegrationsController,
+  listAllIntegrationsController,
   upsertIntegrationController,
   deleteIntegrationController,
   testIntegrationController,
@@ -95,6 +96,7 @@ import {
   getVehicleController,
   listVehiclesController,
   updateVehicleController,
+  availableVehiclesController,
 } from '../controllers/vehicleController.js';
 import {
   endSessionController,
@@ -145,6 +147,31 @@ import {
   listCarBookingsController,
   updateCarBookingController,
 } from '../controllers/carBookingController.js';
+import {
+  cancelCustomerBookingController,
+  getCustomerBookingController,
+  rebookCustomerController,
+  rescheduleCustomerBookingController,
+  uploadCustomerDocumentController,
+} from '../controllers/customerBookingController.js';
+import {
+  fleetOverviewController,
+  vehicleAvailabilityController,
+  listTransitsController,
+  createTransitController,
+  dispatchTransitController,
+  arriveTransitController,
+  cancelTransitController,
+  locationSecurityController,
+  assignReceiverController,
+  receiveVehicleController,
+  incomingTransitsController,
+  createTransitRequestController,
+  listTransitRequestsController,
+  approveTransitRequestController,
+  rejectTransitRequestController,
+  cancelTransitRequestController,
+} from '../controllers/vehicleFleetController.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -154,6 +181,26 @@ export const apiRouter = express.Router();
 apiRouter.post('/db/query', dbQueryController);
 apiRouter.post('/functions/:name', invokeFunctionController);
 apiRouter.post('/rpc/:name', rpcController);
+
+// ── Shared Vehicle Fleet ──────────────────────────────────────────────────────
+apiRouter.get('/fleet/overview', requireAuth, fleetOverviewController);
+apiRouter.get('/fleet/vehicles/:vehicleId/availability', requireAuth, vehicleAvailabilityController);
+apiRouter.get('/fleet/transits', requireAuth, listTransitsController);
+apiRouter.post('/fleet/transits', requireAuth, createTransitController);
+apiRouter.patch('/fleet/transits/:id/dispatch', requireAuth, dispatchTransitController);
+apiRouter.patch('/fleet/transits/:id/arrive', requireAuth, arriveTransitController);
+apiRouter.patch('/fleet/transits/:id/cancel', requireAuth, cancelTransitController);
+apiRouter.patch('/fleet/transits/:id/assign-receiver', requireAuth, assignReceiverController);
+apiRouter.patch('/fleet/transits/:id/receive', requireAuth, receiveVehicleController);
+apiRouter.get('/fleet/locations/:locationId/security', requireAuth, locationSecurityController);
+apiRouter.get('/fleet/locations/:locationId/incoming', requireAuth, incomingTransitsController);
+
+// ── Transit Requests ─────────────────────────────────────────────────────────
+apiRouter.get('/fleet/transit-requests', requireAuth, listTransitRequestsController);
+apiRouter.post('/fleet/transit-requests', requireAuth, createTransitRequestController);
+apiRouter.patch('/fleet/transit-requests/:id/approve', requireAuth, approveTransitRequestController);
+apiRouter.patch('/fleet/transit-requests/:id/reject', requireAuth, rejectTransitRequestController);
+apiRouter.patch('/fleet/transit-requests/:id/cancel', requireAuth, cancelTransitRequestController);
 
 // Storage
 apiRouter.post('/storage/:bucket/upload', upload.single('file'), uploadController);
@@ -198,6 +245,13 @@ apiRouter.post('/location-operating-hours/bulk-upsert', requireAuth, bulkUpsertL
 // Public booking (no auth required — rate-limited by phone + location)
 apiRouter.post('/public/book', publicBookTestDriveController);
 
+// Customer self-service booking (token-verified, no auth required)
+apiRouter.get('/customer/booking/:testDriveId', getCustomerBookingController);
+apiRouter.post('/customer/booking/:testDriveId/cancel', cancelCustomerBookingController);
+apiRouter.post('/customer/booking/:testDriveId/reschedule', rescheduleCustomerBookingController);
+apiRouter.post('/customer/booking/:testDriveId/documents', upload.single('file'), uploadCustomerDocumentController);
+apiRouter.post('/customer/booking/:testDriveId/rebook', rebookCustomerController);
+
 // Test Drives
 apiRouter.post('/test-drives/bulk-reassign', requireAuth, bulkReassignController);
 apiRouter.get('/test-drives', requireAuth, getTestDrivesController);
@@ -207,6 +261,7 @@ apiRouter.patch('/test-drives/:id', requireAuth, updateTestDriveController);
 apiRouter.delete('/test-drives/:id', requireAuth, deleteTestDriveController);
 
 // Integrations
+apiRouter.get('/admin/integrations', requireAuth, requireSuperAdmin, listAllIntegrationsController);
 apiRouter.get('/integrations', requireAuth, listIntegrationsController);
 apiRouter.put('/integrations/:type', requireAuth, upsertIntegrationController);
 apiRouter.delete('/integrations/:type', requireAuth, deleteIntegrationController);
@@ -252,6 +307,7 @@ apiRouter.post('/customers', requireAuth, createCustomerController);
 apiRouter.patch('/customers/:id', requireAuth, updateCustomerController);
 
 // Vehicles
+apiRouter.get('/vehicles/available', requireAuth, availableVehiclesController);
 apiRouter.get('/vehicles', requireAuth, listVehiclesController);
 apiRouter.get('/vehicles/:id', requireAuth, getVehicleController);
 apiRouter.post('/vehicles', requireAuth, createVehicleController);

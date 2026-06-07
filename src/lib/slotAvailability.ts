@@ -1,4 +1,4 @@
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiDbQuery, apiGet } from '@/lib/apiClient';
 
 /**
  * Generate available time slots for a given date and location
@@ -11,16 +11,10 @@ export async function getAvailableTimeSlots(
   try {
     // Get location operating hours for this day
     const dayOfWeek = new Date(selectedDate).getDay();
-    const hoursRows = await apiDbQuery<any[]>({
-      table: 'location_operating_hours',
-      action: 'select',
-      select: 'open_time, close_time, is_closed',
-      filters: [
-        { field: 'location_id', op: 'eq', value: locationId },
-        { field: 'day_of_week', op: 'eq', value: dayOfWeek },
-      ],
-      limit: 1,
-    });
+    // Use the proper API endpoint (not apiDbQuery) to avoid auth-scope filter overriding location_id
+    const hoursRows = await apiGet<any[]>(
+      `/api/location-operating-hours?location_id=${encodeURIComponent(locationId)}&day_of_week=${dayOfWeek}`
+    );
     const operatingHours = Array.isArray(hoursRows) ? hoursRows[0] : hoursRows;
 
     if (!operatingHours) {
@@ -32,16 +26,10 @@ export async function getAvailableTimeSlots(
     }
 
     // Check for special periods (closures/breaks)
-    const specialPeriods = await apiDbQuery<any[]>({
-      table: 'location_special_periods',
-      action: 'select',
-      select: 'is_full_closure, modified_open_time, modified_close_time',
-      filters: [
-        { field: 'location_id', op: 'eq', value: locationId },
-        { field: 'start_date', op: 'lte', value: selectedDate },
-        { field: 'end_date', op: 'gte', value: selectedDate },
-      ],
-    });
+    // Use the proper API endpoint (not apiDbQuery) to avoid auth-scope filter overriding location_id
+    const specialPeriods = await apiGet<any[]>(
+      `/api/location-special-periods?location_id=${encodeURIComponent(locationId)}&start_date=${selectedDate}&end_date=${selectedDate}`
+    );
 
     let openTime = operatingHours.open_time;
     let closeTime = operatingHours.close_time;
@@ -296,17 +284,11 @@ export async function isLocationCurrentlyOpen(locationId: string) {
     const dayOfWeek = now.getDay();
     const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
 
-    // Get operating hours for today
-    const hoursRows = await apiDbQuery<any[]>({
-      table: 'location_operating_hours',
-      action: 'select',
-      select: 'open_time, close_time, is_closed',
-      filters: [
-        { field: 'location_id', op: 'eq', value: locationId },
-        { field: 'day_of_week', op: 'eq', value: dayOfWeek },
-      ],
-      limit: 1,
-    });
+    // Get operating hours for today using the proper API endpoint to avoid
+    // auth-scope middleware replacing location_id with IN [all dealer locations]
+    const hoursRows = await apiGet<any[]>(
+      `/api/location-operating-hours?location_id=${encodeURIComponent(locationId)}&day_of_week=${dayOfWeek}`
+    );
     const operatingHours = Array.isArray(hoursRows) ? hoursRows[0] : hoursRows;
 
     if (!operatingHours) {
@@ -319,16 +301,10 @@ export async function isLocationCurrentlyOpen(locationId: string) {
 
     // Check for special periods (closures/breaks)
     const today = now.toISOString().split('T')[0];
-    const specialPeriods = await apiDbQuery<any[]>({
-      table: 'location_special_periods',
-      action: 'select',
-      select: 'is_full_closure, modified_open_time, modified_close_time',
-      filters: [
-        { field: 'location_id', op: 'eq', value: locationId },
-        { field: 'start_date', op: 'lte', value: today },
-        { field: 'end_date', op: 'gte', value: today },
-      ],
-    });
+    // Use the proper API endpoint to avoid auth-scope overrides
+    const specialPeriods = await apiGet<any[]>(
+      `/api/location-special-periods?location_id=${encodeURIComponent(locationId)}&start_date=${today}&end_date=${today}`
+    );
 
     let openTime = operatingHours.open_time;
     let closeTime = operatingHours.close_time;

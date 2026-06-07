@@ -27,8 +27,10 @@ import ComparePage from "./pages/ComparePage.tsx";
 import DealerOnboardingPage from "./pages/DealerOnboardingPage.tsx";
 import DealerSettingsPage from "./pages/DealerSettingsPage.tsx";
 import FollowUpsPage from "./pages/FollowUpsPage.tsx";
-import CarBookingsPage from "./pages/CarBookingsPage.tsx";
-
+import CarBookingsPage from "./pages/CarBookingsPage.tsx";import CustomerBookingPage from './pages/CustomerBookingPage.tsx';
+import RouteCalculatorDemo from './pages/RouteCalculatorDemo.tsx';
+import SharedVehicleFleetPage from './pages/SharedVehicleFleetPage.tsx';
+import IncomingVehiclesPage from './pages/IncomingVehiclesPage.tsx';
 import ReportMonitoringPage from "./pages/ReportMonitoringPage.tsx";
 import ActivityLogsPage from "./pages/ActivityLogsPage.tsx";
 import MyProfilePage from "./pages/MyProfilePage.tsx";
@@ -65,6 +67,10 @@ const App = () => (
             <Route path="/settings" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.SETTINGS]}><DealerSettingsPage /></ProtectedRoute>} />
             <Route path="/dealer-onboarding" element={<DealerOnboardingPage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
+            <Route path="/customer/booking/:testDriveId" element={<CustomerBookingPage />} />
+            <Route path="/demo/route" element={<RouteCalculatorDemo />} />
+            <Route path="/fleet" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.FLEET]}><SharedVehicleFleetPage /></ProtectedRoute>} />
+            <Route path="/incoming-vehicles" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.INCOMING_VEHICLES]}><IncomingVehiclesPage /></ProtectedRoute>} />
             <Route path="/waiting-board" element={<WaitingBoardPage />} />
             <Route path="/reports/monitoring" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.REPORTS_MONITORING]}><ReportMonitoringPage /></ProtectedRoute>} />
             <Route path="/activity-logs" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.ACTIVITY_LOGS]}><ActivityLogsPage /></ProtectedRoute>} />

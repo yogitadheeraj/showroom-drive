@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Car, Building2, MapPin, User, CheckCircle, ArrowRight, ArrowLeft, Plus, X } from 'lucide-react';
+import { Car, Building2, MapPin, User, CheckCircle, ArrowRight, ArrowLeft, Plus, X, Eye, EyeOff } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
 
 const STEPS = [
@@ -27,6 +27,8 @@ interface LocationForm {
 }
 
 const DealerOnboardingPage = () => {
+  const [showPw, setShowPw] = useState({ password: false, confirmPassword: false });
+
   const navigate = useNavigate();
   const { toast } = useToast();
   const [step, setStep] = useState(0);
@@ -206,11 +208,21 @@ const DealerOnboardingPage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Password *</Label>
-                    <Input type="password" value={accountData.password} onChange={e => setAccountData(p => ({ ...p, password: e.target.value }))} placeholder="Min 6 characters" />
+                    <div className="relative">
+                      <Input type={showPw.password ? 'text' : 'password'} value={accountData.password} onChange={e => setAccountData(p => ({ ...p, password: e.target.value }))} placeholder="Min 6 characters" className="pr-10" />
+                      <button type="button" tabIndex={-1} onClick={() => setShowPw(p => ({ ...p, password: !p.password }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showPw.password ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Confirm Password *</Label>
-                    <Input type="password" value={accountData.confirmPassword} onChange={e => setAccountData(p => ({ ...p, confirmPassword: e.target.value }))} />
+                    <div className="relative">
+                      <Input type={showPw.confirmPassword ? 'text' : 'password'} value={accountData.confirmPassword} onChange={e => setAccountData(p => ({ ...p, confirmPassword: e.target.value }))} className="pr-10" />
+                      <button type="button" tabIndex={-1} onClick={() => setShowPw(p => ({ ...p, confirmPassword: !p.confirmPassword }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showPw.confirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 {accountData.password && accountData.confirmPassword && accountData.password !== accountData.confirmPassword && (

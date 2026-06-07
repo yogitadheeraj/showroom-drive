@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Loader2, Save, Trash2, FlaskConical,
-  MessageSquare, Smartphone, Mail, CalendarDays, Calendar, Building2, Car
+  MessageSquare, Smartphone, Mail, CalendarDays, Calendar, Building2, Car, ShieldCheck
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -324,13 +325,13 @@ function IntegrationCard({
   const handleSave = async () => {
     setSaving(true);
     try {
-      const result = await apiPut<{ data: Integration; error: null }>('/api/integrations/' + type, {
+      const result = await apiPut<Integration>('/api/integrations/' + type, {
         type,
         is_enabled: enabled,
         events,
         config,
       });
-      onSaved(result.data);
+      onSaved(result);
       toast({ title: 'Saved', description: `${meta.label} integration updated.` });
     } catch (err: any) {
       toast({ title: 'Save failed', description: err.message, variant: 'destructive' });
@@ -472,23 +473,126 @@ function IntegrationCard({
   );
 }
 
+// ─── Superadmin types ─────────────────────────────────────────────────────────
+
+interface DealerIntegrationGroup {
+  dealer: { id: string; name: string; contact_email: string; is_active: boolean };
+  integrations: Integration[];
+}
+
+// ─── Superadmin monitoring view ───────────────────────────────────────────────
+
+function SuperAdminIntegrationMonitor() {
+  const { toast } = useToast();
+  const [groups, setGroups] = useState<DealerIntegrationGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiGet<DealerIntegrationGroup[]>('/api/admin/integrations');
+      setGroups(res ?? []);
+    } catch (err: any) {
+      toast({ title: 'Failed to load integrations', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading all dealer integrations…
+      </div>
+    );
+  }
+
+  if (groups.length === 0) {
+    return (
+      <div className="py-12 text-center text-muted-foreground">
+        No integrations configured across any dealer yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <ShieldCheck className="h-5 w-5 text-destructive" />
+        <div>
+          <h3 className="text-lg font-medium">Integration Monitor</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Read-only overview of all dealer integrations across the platform.
+          </p>
+        </div>
+      </div>
+
+      {groups.map(({ dealer, integrations }) => (
+        <Card key={dealer.id}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">{dealer.name}</CardTitle>
+                <CardDescription className="mt-0.5">{dealer.contact_email}</CardDescription>
+              </div>
+              <Badge variant={dealer.is_active ? 'default' : 'secondary'}>
+                {dealer.is_active ? 'Active' : 'Inactive'}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {integrations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No integrations configured.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {integrations.map(intg => {
+                  const meta = INTEGRATION_META[intg.type];
+                  return (
+                    <div
+                      key={intg.type}
+                      className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${
+                        intg.is_enabled ? 'bg-primary/5 border-primary/20' : 'bg-muted border-muted-foreground/20 opacity-60'
+                      }`}
+                    >
+                      {meta?.icon}
+                      <span>{meta?.label ?? intg.type}</span>
+                      {intg.is_enabled && (
+                        <span className="ml-1 h-1.5 w-1.5 rounded-full bg-green-500" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const IntegrationSettings = () => {
+  const { role } = useAuth();
   const { toast } = useToast();
   const [integrations, setIntegrations] = useState<Record<IntegrationType, Integration | null>>({
     whatsapp: null, sms: null, email: null, google_calendar: null, outlook: null, crm: null, dms: null,
   });
   const [loading, setLoading] = useState(true);
 
+  const isSuperAdmin = role === 'superadmin';
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet<{ data: Integration[] }>('/api/integrations');
+      const res = await apiGet<Integration[]>('/api/integrations');
       const map: Record<string, Integration | null> = {
         whatsapp: null, sms: null, email: null, google_calendar: null, outlook: null, crm: null, dms: null,
       };
-      for (const item of res.data ?? []) {
+      for (const item of res ?? []) {
         map[item.type] = item;
       }
       setIntegrations(map as any);
@@ -499,10 +603,15 @@ const IntegrationSettings = () => {
     }
   }, [toast]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!isSuperAdmin) void load();
+  }, [load, isSuperAdmin]);
+
+  // Superadmin sees a cross-dealer monitoring view instead
+  if (isSuperAdmin) return <SuperAdminIntegrationMonitor />;
 
   const handleSaved = (type: IntegrationType) => (updated: Integration) => {
-    setIntegrations(prev => ({ ...prev, [type]: updated.id ? updated : null }));
+    setIntegrations(prev => ({ ...prev, [type]: updated?.id ? updated : null }));
   };
 
   if (loading) {

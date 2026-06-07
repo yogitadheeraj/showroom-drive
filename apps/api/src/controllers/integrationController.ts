@@ -17,6 +17,15 @@ function requireDealerId(req: Request): string | null {
   return (req.authUser as any)?.dealer_id ?? null;
 }
 
+export async function listAllIntegrationsController(req: Request, res: Response) {
+  try {
+    const data = await integrationService.listAllIntegrations();
+    res.status(200).json({ data, error: null });
+  } catch (err) {
+    res.status(500).json({ data: null, error: { message: (err as Error).message } });
+  }
+}
+
 export async function listIntegrationsController(req: Request, res: Response) {
   const dealerId = requireDealerId(req);
   if (!dealerId) return res.status(403).json({ data: null, error: { message: 'Dealer context required' } });

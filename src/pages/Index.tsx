@@ -277,7 +277,7 @@ export default function AutoAdvantLandingPage() {
             <main className={`landing-main bg-background text-foreground${resolvedTheme === 'dark' ? ' dark' : ''}`}>
                 <section className="relative overflow-hidden">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_28%),radial-gradient(circle_at_left,rgba(59,130,246,0.16),transparent_22%)]" />
-                    <div className="mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-2 lg:px-8 lg:py-24">
+                    <div className="mx-auto grid max-w-7xl gap-12 px-4 py-8 sm:px-6 sm:py-20 lg:grid-cols-2 lg:px-8 lg:py-10">
                         <div className="relative z-10 flex flex-col justify-center">
                             <div className="mb-5 inline-flex w-fit items-center rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1 text-xs font-medium uppercase tracking-[0.2em] text-sky-300">
                                 Automotive SaaS + Marketplace Ready
@@ -368,7 +368,7 @@ export default function AutoAdvantLandingPage() {
                 </section>
 
                 {/* ── Dealer Pain Points ── */}
-                <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+                <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 lg:py-20">
                     <div className="text-center mb-12">
                         <p className="text-sm font-medium uppercase tracking-[0.2em] text-rose-400">Dealer Pain Points</p>
                         <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Sound familiar?</h2>

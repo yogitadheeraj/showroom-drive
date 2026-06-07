@@ -193,3 +193,15 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     applyLocationScope(req, filters); // Pre-apply location scope for any downstream handlers that rely on req.authUser context
     next();
 }
+
+export function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
+    if (!req.authUser?.uid) {
+        res.status(401).json({ error: { message: 'Unauthorized' } });
+        return;
+    }
+    if (req.authUser.role !== 'superadmin' && req.authUser.role !== 'super_admin') {
+        res.status(403).json({ error: { message: 'Superadmin access required' } });
+        return;
+    }
+    next();
+}

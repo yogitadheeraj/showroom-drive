@@ -305,7 +305,7 @@ export default function CarBookingsPage() {
                           )}
                         </div>
                         <Badge variant="secondary" className={`text-[10px] mt-0.5 ${PAYMENT_STATUS_COLORS[b.payment_status]}`}>
-                          {b.payment_status.replace('_', ' ')}
+                          {b?.payment_status?.replace('_', ' ')}
                         </Badge>
                       </td>
 

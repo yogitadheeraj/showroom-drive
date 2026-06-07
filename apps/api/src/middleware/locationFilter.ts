@@ -42,8 +42,8 @@ export function applyLocationScope(
       delete filters.location_ids;
     }
   }
-
-  if (role === 'dealer_admin') {
+  const { location_id} = req.query as Record<string, string>;
+  if (role === 'dealer_admin' && req.authUser?.dealer_id && !location_id) {
     const dealerLocationIds = req.authUser?.dealer_location_ids;
     const dealerId = req.authUser?.dealer_id;
 
