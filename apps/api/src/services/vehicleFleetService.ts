@@ -483,10 +483,24 @@ export async function getFleetOverview(dealerId?: string, locationId?: string) {
   const locMap: Record<string, any> = {};
   locationDocs.forEach((l: any) => { locMap[l.id] = l; });
 
+  // Resolve receiver names for active transits
+  const receiverIds = [...new Set(
+    activeTransits.map((t: any) => t.receiver_profile_id).filter(Boolean) as string[]
+  )];
+  const receiverProfiles = receiverIds.length > 0
+    ? await Profile.find({ id: { $in: receiverIds } }, { id: 1, full_name: 1 }).lean()
+    : [];
+  const receiverNameMap: Record<string, string> = {};
+  receiverProfiles.forEach((p: any) => { receiverNameMap[String(p.id)] = p.full_name; });
+
   const transitMap: Record<string, any[]> = {};
   activeTransits.forEach((t: any) => {
     if (!transitMap[String(t.vehicle_id)]) transitMap[String(t.vehicle_id)] = [];
-    transitMap[String(t.vehicle_id)].push({ ...t, _id: undefined });
+    transitMap[String(t.vehicle_id)].push({
+      ...t,
+      _id: undefined,
+      receiver_name: t.receiver_profile_id ? (receiverNameMap[String(t.receiver_profile_id)] ?? null) : null,
+    });
   });
 
   const driveMap: Record<string, any[]> = {};

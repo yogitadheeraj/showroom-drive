@@ -52,6 +52,7 @@ interface ActiveTransit {
   notes?: string | null;
   scheduled_by_profile_id?: string | null;
   receiver_profile_id?: string | null;
+  receiver_name?: string | null;
   receiver_assigned_at?: string | null;
   received_notes?: string | null;
 }
@@ -112,6 +113,11 @@ export default function SharedVehicleFleetPage() {
   const [isAssigning, setIsAssigning] = useState(false);
   // Receiver name map (profileId → name) for quick lookup
   const [receiverNames, setReceiverNames] = useState<Record<string, string>>({});
+
+  // Mark-received dialog state
+  const [receiveTransit, setReceiveTransit] = useState<ActiveTransit | null>(null);
+  const [receiveNotes, setReceiveNotes] = useState('');
+  const [isReceiving, setIsReceiving] = useState(false);
 
   // Admins: full fleet control (dispatch, arrive, cancel, assign receiver, schedule transit)
   const canManage = [APP_ROLE.DEALER_ADMIN, APP_ROLE.SALES_ADMIN, APP_ROLE.SUPERADMIN].includes(role as any);
@@ -206,6 +212,24 @@ export default function SharedVehicleFleetPage() {
       toast({ title: 'Failed', description: err.message, variant: 'destructive' });
     } finally {
       setIsAssigning(false);
+    }
+  };
+
+  const handleMarkReceived = async () => {
+    if (!receiveTransit || !profile?.id) return;
+    setIsReceiving(true);
+    try {
+      await apiPatch(`/api/fleet/transits/${encodeURIComponent(receiveTransit.id)}/receive`, {
+        profile_id: profile.id,
+        notes: receiveNotes || null,
+      });
+      toast({ title: 'Vehicle received', description: 'Transit marked as received.' });
+      setReceiveTransit(null);
+      loadFleet();
+    } catch (err: any) {
+      toast({ title: 'Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsReceiving(false);
     }
   };
 
@@ -369,7 +393,7 @@ export default function SharedVehicleFleetPage() {
                           <span className="flex items-center gap-1.5">
                             <UserCheck className={`h-3 w-3 shrink-0 ${activeTransit.receiver_profile_id ? 'text-success' : 'text-warning'}`} />
                             {activeTransit.receiver_profile_id
-                              ? <span className="text-success font-medium">Receiver: {receiverNames[activeTransit.receiver_profile_id] ?? activeTransit.receiver_profile_id.slice(-6)}</span>
+                              ? <span className="text-success font-medium">Receiver: {activeTransit.receiver_name ?? receiverNames[activeTransit.receiver_profile_id] ?? activeTransit.receiver_profile_id.slice(-6)}</span>
                               : <span className="text-warning font-medium">No receiver assigned</span>}
                           </span>
                           {(canManage || isSecurityRole) && (profile?.location_id === activeTransit.from_location_id) && (
@@ -397,11 +421,19 @@ export default function SharedVehicleFleetPage() {
                             )}
                           </div>
                         )}
-                        {/* Mark Arrived: receiver only (+ admin override) */}
-                        {activeTransit.status === 'in_transit' && canManage && (profile?.id !== activeTransit.receiver_profile_id) && (profile?.location_id === activeTransit.to_location_id) && (
+                        {/* Mark Received: assigned receiver */}
+                        {activeTransit.status === 'in_transit' && profile?.id === activeTransit.receiver_profile_id && (
                           <div className="pt-1">
-                            <Button size="sm" className="text-xs h-7 bg-success text-success-foreground hover:bg-success/90" onClick={() => handleTransitAction(activeTransit.id, 'arrive')}>
-                              <CheckCircle className="h-3 w-3 mr-1" /> Mark Received
+                            <Button size="sm" className="w-full text-xs h-7 bg-success text-success-foreground hover:bg-success/90 gap-1.5" onClick={() => { setReceiveTransit(activeTransit); setReceiveNotes(''); }}>
+                              <CheckCircle className="h-3 w-3" /> Mark Vehicle Received
+                            </Button>
+                          </div>
+                        )}
+                        {/* Admin override: mark received if at destination and not the receiver */}
+                        {activeTransit.status === 'in_transit' && canManage && profile?.id !== activeTransit.receiver_profile_id && profile?.location_id === activeTransit.to_location_id && (
+                          <div className="pt-1">
+                            <Button size="sm" className="text-xs h-7 bg-success text-success-foreground hover:bg-success/90 gap-1.5" onClick={() => handleTransitAction(activeTransit.id, 'arrive')}>
+                              <CheckCircle className="h-3 w-3" /> Mark Arrived
                             </Button>
                           </div>
                         )}
@@ -589,6 +621,41 @@ export default function SharedVehicleFleetPage() {
               >
                 {isAssigning ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserCheck className="h-4 w-4 mr-2" />}
                 Assign Receiver
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* ── Mark Received Dialog ─────────────────────────────────────────────── */}
+      <Dialog open={!!receiveTransit} onOpenChange={(o) => !o && setReceiveTransit(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-success" /> Mark Vehicle Received
+            </DialogTitle>
+            <DialogDescription>
+              Confirm you have received the vehicle at your location. Add any notes if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Notes <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Textarea
+                value={receiveNotes}
+                onChange={e => setReceiveNotes(e.target.value)}
+                placeholder="e.g. All clear, 4 keys, full fuel"
+                rows={2}
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setReceiveTransit(null)}>Cancel</Button>
+              <Button
+                onClick={handleMarkReceived}
+                disabled={isReceiving}
+                className="bg-success text-success-foreground hover:bg-success/90"
+              >
+                {isReceiving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                Confirm Received
               </Button>
             </div>
           </div>
