@@ -21,6 +21,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiGet, apiPost, apiPatch } from '@/lib/apiClient';
+import { logStaffActivity } from '@/lib/activityLogger';
+import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -84,6 +86,7 @@ function vehicleLabel(v?: { brand: string; model: string; variant?: string; regi
 
 export default function TransitRequestsPanel({ locationId, profileId, canManage, dealerId, onRequestSent }: Props) {
   const { toast } = useToast();
+  const { profile, role } = useAuth();
   const [tab, setTab] = useState<'inbound' | 'outbound'>(canManage ? 'inbound' : 'outbound');
 
   // ── Data ──
@@ -194,6 +197,15 @@ export default function TransitRequestsPanel({ locationId, profileId, canManage,
           ? 'Transit has been scheduled. All parties notified.'
           : 'Requester has been notified with your reason.',
       });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: actionType === 'approve' ? 'transit_request_approved' : 'transit_request_rejected',
+          label: `${actionType === 'approve' ? 'Approved' : 'Rejected'} transit request for ${vehicleLabel(actioning.vehicle)}`,
+          route: '/shared-fleet',
+          metadata: { requestId: actioning.id, vehicleName: vehicleLabel(actioning.vehicle), fromLocation: locLabel(actioning.from_location), toLocation: locLabel(actioning.to_location), notes: actionNotes || null },
+        });
+      }
       setActioning(null);
       setActionType(null);
       setActionNotes('');
@@ -209,6 +221,15 @@ export default function TransitRequestsPanel({ locationId, profileId, canManage,
     try {
       await apiPatch(`/api/fleet/transit-requests/${req.id}/cancel`, { requester_profile_id: profileId });
       toast({ title: 'Request cancelled' });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'transit_request_cancelled',
+          label: `Cancelled transit request for ${vehicleLabel(req.vehicle)}`,
+          route: '/shared-fleet',
+          metadata: { requestId: req.id, vehicleName: vehicleLabel(req.vehicle), fromLocation: locLabel(req.from_location), toLocation: locLabel(req.to_location) },
+        });
+      }
       await loadOutbound();
     } catch (err: any) {
       toast({ title: 'Cancel failed', description: err.message, variant: 'destructive' });
@@ -235,6 +256,16 @@ export default function TransitRequestsPanel({ locationId, profileId, canManage,
         title: 'Request submitted!',
         description: 'The source branch manager has been notified and will respond shortly.',
       });
+      if (profile?.user_id) {
+        const selectedV = sharedVehicles.find(v => v.id === newReqVehicle);
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'transit_request_created',
+          label: `Requested transit for ${selectedV ? `${selectedV.brand} ${selectedV.model}` : newReqVehicle}`,
+          route: '/shared-fleet',
+          metadata: { vehicleId: newReqVehicle, vehicleName: selectedV ? `${selectedV.brand} ${selectedV.model}` : null, fromLocationId: newReqFromLoc, toLocationId: locationId, neededForDate: newReqDate || null, notes: newReqNotes || null },
+        });
+      }
       setNewRequestOpen(false);
       setNewReqVehicle('');
       setNewReqFromLoc('');

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { demoAutofillData } from '@/lib/demoAutofillData';
 import { apiGet, apiPost, apiPatch, apiInvokeFunction } from '@/lib/apiClient';
+import { logStaffActivity } from '@/lib/activityLogger';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,10 @@ const UsersPage = () => {
   const [staffDriveMetrics, setStaffDriveMetrics] = useState<Record<string, { assigned: number; active: number; completed: number }>>({});
   const [dealers, setDealers] = useState<any[]>([]);
   const [selectedDealerFilter, setSelectedDealerFilter] = useState<string>('all');
+  // Search + filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [locationFilter, setLocationFilter] = useState('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [locations, setLocations] = useState<any[]>([]);
@@ -99,8 +104,16 @@ const UsersPage = () => {
   }, [dealerId, dealerLoading, isSuperAdmin, isSalesAdmin, profile?.location_id, selectedDealerFilter]);
 
   const fetchUsers = async () => {
+    // Scope profiles fetch to dealer's locations so dealer admin only sees their staff
+    const profileParams = new URLSearchParams();
+    if (!isSuperAdmin && dealerLocationIds && dealerLocationIds.length > 0) {
+      profileParams.set('location_ids', dealerLocationIds.join(','));
+    } else if (isSalesAdmin && profile?.location_id) {
+      profileParams.set('location_id', profile.location_id);
+    }
+
     const [profiles, roles, allLocations] = await Promise.all([
-      apiGet<any[]>('/api/profiles'),
+      apiGet<any[]>(`/api/profiles${profileParams.toString() ? `?${profileParams}` : ''}`),
       apiGet<any[]>('/api/user-roles'),
       apiGet<any[]>('/api/locations'),
     ]);
@@ -228,6 +241,15 @@ const UsersPage = () => {
         ? ' Verification email sent.'
         : ' User created. Verification email could not be sent (SMTP not configured).';
       toast({ title: 'User created', description: `${createForm.fullName} added as ${createForm.role}.${verificationNote}` });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'user_created',
+          label: `Created user: ${createForm.fullName} (${createForm.role})`,
+          route: '/users',
+          metadata: { newUserEmail: createForm.email, newUserRole: createForm.role, newUserFullName: createForm.fullName, locationId: createForm.locationId || null },
+        });
+      }
       setShowCreateDialog(false);
       setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
       fetchUsers();
@@ -268,6 +290,15 @@ const UsersPage = () => {
       await apiPatch(`/api/profiles/${encodeURIComponent(editingUser.id)}`, { location_id: editForm.locationId || null });
 
       toast({ title: 'Updated', description: `${editingUser.full_name} is now ${editForm.role}` });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'user_role_updated',
+          label: `Updated role for ${editingUser.full_name} to ${editForm.role}`,
+          route: '/users',
+          metadata: { targetProfileId: editingUser.id, targetName: editingUser.full_name, newRole: editForm.role, locationId: editForm.locationId || null },
+        });
+      }
       setEditingUser(null);
       fetchUsers();
     } catch (err: any) {
@@ -315,6 +346,15 @@ const UsersPage = () => {
       if (data?.error) throw new Error(data.error as string);
 
       toast({ title: 'User deleted' });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'user_deleted',
+          label: `Deleted user: ${u.full_name}`,
+          route: '/users',
+          metadata: { targetProfileId: u.id, targetName: u.full_name, targetRole: u.user_roles?.[0]?.role ?? null },
+        });
+      }
       fetchUsers();
     } catch (err: any) {
       const message = typeof err?.message === 'string' ? err.message : '';
@@ -356,6 +396,15 @@ const UsersPage = () => {
           leave_end_date: null,
         });
         toast({ title: 'Leave ended', description: `${u.full_name} is back and available for auto-assignment.` });
+        if (profile?.user_id) {
+          void logStaffActivity({
+            userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+            eventType: 'user_leave_cleared',
+            label: `Cleared leave for ${u.full_name}`,
+            route: '/users',
+            metadata: { targetProfileId: u.id, targetName: u.full_name },
+          });
+        }
         fetchUsers();
       } catch (err: any) {
         toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -390,6 +439,15 @@ const UsersPage = () => {
           ? `${u.full_name} is on leave on ${leaveForm.startDate}.`
           : `${u.full_name} is on leave from ${leaveForm.startDate} to ${leaveForm.endDate}. They will be auto-restored on ${leaveForm.endDate} end of day.`,
       });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'user_leave_set',
+          label: `Scheduled leave for ${u.full_name}: ${leaveForm.startDate} – ${leaveForm.endDate}`,
+          route: '/users',
+          metadata: { targetProfileId: u.id, targetName: u.full_name, startDate: leaveForm.startDate, endDate: leaveForm.endDate },
+        });
+      }
       setLeaveDialog(null);
       fetchUsers();
     } catch (err: any) {
@@ -415,6 +473,24 @@ const UsersPage = () => {
 
     setConfirmAction(null);
   };
+
+  // Derived filtered list from search + role + location filters
+  const displayUsers = users.filter(u => {
+    const q = searchQuery.toLowerCase();
+    if (q) {
+      const nameMatch = (u.full_name || '').toLowerCase().includes(q);
+      const emailMatch = (u.email || '').toLowerCase().includes(q);
+      if (!nameMatch && !emailMatch) return false;
+    }
+    if (roleFilter !== 'all') {
+      const hasRole = (u.user_roles || []).some((r: any) => r.role === roleFilter);
+      if (!hasRole) return false;
+    }
+    if (locationFilter !== 'all') {
+      if (u.location_id !== locationFilter) return false;
+    }
+    return true;
+  });
 
   if (dealerLoading) {
     return (
@@ -449,6 +525,46 @@ const UsersPage = () => {
           </div>
         </div>
 
+        {/* ── Search + Filter bar ── */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <Input
+            className="w-full sm:w-64 h-9 text-sm"
+            placeholder="Search by name or email..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="w-40 h-9 text-sm">
+              <SelectValue placeholder="All Roles" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              {STAFF_ROLE_OPTIONS.map(r => (
+                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {locations.length > 1 && (
+            <Select value={locationFilter} onValueChange={setLocationFilter}>
+              <SelectTrigger className="w-44 h-9 text-sm">
+                <SelectValue placeholder="All Locations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Locations</SelectItem>
+                {locations.map(l => (
+                  <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {(searchQuery || roleFilter !== 'all' || locationFilter !== 'all') && (
+            <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(''); setRoleFilter('all'); setLocationFilter('all'); }}>
+              Clear filters
+            </Button>
+          )}
+          <span className="text-xs text-muted-foreground ml-auto">{displayUsers.length} of {users.length} staff</span>
+        </div>
+
         {/* Desktop Table */}
         <Card className="shadow-card hidden lg:block">
           <CardContent className="p-0">
@@ -467,7 +583,7 @@ const UsersPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
+                {displayUsers.map(u => (
                   <tr key={u.id} className="border-b border-border/50 hover:bg-muted/20">
                     {(() => {
                       const driveStats = getStaffDriveMetrics(u.id);
@@ -596,7 +712,7 @@ const UsersPage = () => {
 
         {/* Mobile Cards */}
         <div className="lg:hidden space-y-3">
-          {users.map(u => (
+          {displayUsers.map(u => (
             <Card key={u.id} className="shadow-card hover:shadow-elevated transition-shadow">
               <CardContent className="p-4 space-y-3">
                 {(() => {

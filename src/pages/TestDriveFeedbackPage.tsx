@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiDbQuery, apiPost } from '@/lib/apiClient';
 import { Car, Clock3, Star, CheckCircle2 } from 'lucide-react';
 
 type FeedbackBadge = 'Lightning Fast' | 'Smooth Experience' | 'Detailed Guidance' | 'Premium Attention';
@@ -149,22 +149,18 @@ const TestDriveFeedbackPage = () => {
 
     setSubmitting(true);
     try {
-      await apiDbQuery({
-        table: 'test_drive_feedback',
-        action: 'insert',
-        values: {
-          test_drive_id: tdId,
-          customer_id: testDrive.customer_id,
-          enquiry_id: enquiryId,
-          customer_name: customerName.trim(),
-          customer_email: customerEmail.trim() || null,
-          customer_phone: customerPhone.trim() || null,
-          rating,
-          experience_badge: systemBadge,
-          total_duration_minutes: durationMinutes,
-          feedback_text: feedbackText.trim() || null,
-          would_recommend: wouldRecommend,
-        },
+      await apiPost('/api/public/feedback', {
+        test_drive_id: tdId,
+        customer_id: testDrive.customer_id,
+        enquiry_id: enquiryId,
+        customer_name: customerName.trim(),
+        customer_email: customerEmail.trim() || null,
+        customer_phone: customerPhone.trim() || null,
+        rating,
+        experience_badge: systemBadge,
+        total_duration_minutes: durationMinutes,
+        feedback_text: feedbackText.trim() || null,
+        would_recommend: wouldRecommend,
       });
 
       setSubmitted(true);

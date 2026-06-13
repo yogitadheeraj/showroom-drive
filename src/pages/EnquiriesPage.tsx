@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
 import { apiDbQuery, apiGet, apiPatch, apiPost } from '@/lib/apiClient';
+import { logStaffActivity } from '@/lib/activityLogger';
 import { sendTransactionalEmail } from '@/lib/functionService';
 import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 
@@ -191,7 +192,15 @@ const EnquiriesPage = () => {
     setSavingEdit(true);
     try {
       await apiPatch(`/api/communications/${encodeURIComponent(editingMessageId)}`, { body: editText.trim() });
-
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'enquiry_message_edited',
+          label: 'Edited enquiry message',
+          route: '/enquiries',
+          metadata: { communicationId: editingMessageId, customerId: selected?.customer_id ?? null },
+        });
+      }
       toast.success('Enquiry message updated');
       cancelEditMessage();
       fetchEnquiries();
@@ -267,6 +276,15 @@ const EnquiriesPage = () => {
       }
 
       toast.success('Reply added to thread');
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'enquiry_replied',
+          label: `Replied to enquiry from ${selected.customers?.full_name ?? selected.sent_to}`,
+          route: '/enquiries',
+          metadata: { communicationId: inserted.id, customerId: selected.customer_id, customerName: selected.customers?.full_name ?? null, sentTo: selected.customers?.email ?? selected.sent_to },
+        });
+      }
       setReplyText('');
       setLinkToShare('');
       setImageUrlToShare('');

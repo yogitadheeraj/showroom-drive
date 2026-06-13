@@ -7,6 +7,7 @@ import { Profile } from '../models/Profile.js';
 import { UserRole } from '../models/UserRole.js';
 import { Notification } from '../models/Notification.js';
 import { sendMail } from './mailService.js';
+import { testDriveCancelledTemplate, testDriveRescheduledTemplate } from '../templates/emailTemplates.js';
 import { notifyTestDriveStatusChange } from './firebaseService.js';
 import { getApps } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
@@ -76,7 +77,7 @@ export async function listTestDrives(filters: Record<string, unknown> = {}) {
   const assignedProfileIds = Array.from(
     new Set(
       rows
-        .flatMap((row: any) => [row.assigned_sales_person_id, row.assigned_gro_id])
+        .flatMap((row: any) => [row.assigned_sales_person_id, row.assigned_gro_id, row.assigned_security_person_id])
         .filter(Boolean)
     )
   );
@@ -107,6 +108,7 @@ export async function listTestDrives(filters: Record<string, unknown> = {}) {
     const location = locationMap.get(row.location_id);
     const assignedSales = row.assigned_sales_person_id ? profileMap.get(row.assigned_sales_person_id) : null;
     const assignedGro = row.assigned_gro_id ? profileMap.get(row.assigned_gro_id) : null;
+    const assignedSecurity = row.assigned_security_person_id ? profileMap.get(row.assigned_security_person_id) : null;
 
     return {
       ...row,
@@ -148,6 +150,13 @@ export async function listTestDrives(filters: Record<string, unknown> = {}) {
             id: assignedGro.id,
             full_name: assignedGro.full_name,
             phone: assignedGro.phone,
+          }
+        : null,
+      assigned_security_person: assignedSecurity
+        ? {
+            id: assignedSecurity.id,
+            full_name: assignedSecurity.full_name,
+            phone: assignedSecurity.phone,
           }
         : null,
     };
@@ -203,11 +212,15 @@ export async function createPublicTestDrive(data: {
   // 1. Find or create customer
   let customer = await findCustomerByPhone(data.phone);
   if (customer) {
-    customer = (await updateCustomer(customer.id, {
-      full_name: data.full_name,
-      email: data.email ?? null,
-      preferred_contact: data.preferred_contact ?? 'phone',
-    })) ?? customer;
+    // Only update fields that changed to avoid overwriting names on historical drives
+    const patch: Record<string, unknown> = {};
+    if (data.full_name && data.full_name !== customer.full_name) patch.full_name = data.full_name;
+    if (data.email !== undefined && data.email !== (customer.email ?? null)) patch.email = data.email ?? null;
+    const preferredContact = data.preferred_contact ?? 'phone';
+    if (preferredContact !== customer.preferred_contact) patch.preferred_contact = preferredContact;
+    if (Object.keys(patch).length > 0) {
+      customer = (await updateCustomer(customer.id, patch)) ?? customer;
+    }
   } else {
     customer = await createCustomer({
       full_name: data.full_name,
@@ -310,7 +323,7 @@ export async function createTestDrive(data: Record<string, unknown>) {
 
   const doc = new TestDrive({
     ...data,
-    id: typeof data.id === 'string' && data.id ? data.id : randomUUID(),
+    id: randomUUID(),
     source: typeof data.source === 'string' && data.source ? data.source : 'online',
     assigned_gro_id: assignedGroId,
     gro_id: assignedGroId,
@@ -376,7 +389,9 @@ export async function updateTestDrive(id: string, data: Record<string, unknown>)
   const plain = toPlain(doc);
   // Fire FCM push + Firestore real-time event whenever status is being set
   if (typeof data.status === 'string') {
-    void afterStatusChange(plain, data.status as string).catch(() => null);
+    void afterStatusChange(plain, data.status as string).catch((err) => {
+      console.error('[testDrive] afterStatusChange error', err);
+    });
 
     // Auto-transit: when a test drive completes, check if shared vehicle needs to move
     const completionStatuses = ['completed', 'key_handover_to_sales'];
@@ -437,17 +452,185 @@ export async function countTestDrives(filters: Record<string, unknown> = {}) {
 
 // ─── Post-update: FCM push + Firestore real-time event ───────────────────────
 
+/**
+ * Send a status-change notification email to the assigned sales person
+ * and all admin/dealer_admin/sales_admin at the same location.
+ */
+async function notifyStaffStatusChange(opts: {
+  td: any;
+  status: string;
+  customerName: string;
+  vehicleName: string;
+  locationName: string;
+  dateLabel: string;
+  salesPersonEmail: string | undefined;
+  salesPersonName: string;
+  headline: string;
+  detail: string;
+  badge: string;
+}) {
+  const { td, customerName, vehicleName, locationName, dateLabel,
+          salesPersonEmail, salesPersonName, headline, detail, badge } = opts;
+
+  const staffHtml = (recipientName: string, role: string) => `
+<div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#1a1a1a">
+  <div style="background:#18181b;padding:20px 24px;border-radius:8px 8px 0 0">
+    <h2 style="color:#fff;margin:0">${badge} ${headline}</h2>
+  </div>
+  <div style="border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 8px 8px">
+    <p>Hi <strong>${recipientName}</strong>,</p>
+    <p>${detail}</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0">
+      <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;width:40%;font-size:13px">Customer</td><td style="padding:8px 12px;border:1px solid #e5e7eb;font-weight:600">${customerName}</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;font-size:13px">Vehicle</td><td style="padding:8px 12px;border:1px solid #e5e7eb">${vehicleName}</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;font-size:13px">Location</td><td style="padding:8px 12px;border:1px solid #e5e7eb">${locationName}</td></tr>
+      <tr><td style="padding:8px 12px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;font-size:13px">Date &amp; Time</td><td style="padding:8px 12px;border:1px solid #e5e7eb;color:#2563eb;font-weight:600">${dateLabel}</td></tr>
+      ${role ? `<tr><td style="padding:8px 12px;border:1px solid #e5e7eb;background:#f9fafb;color:#6b7280;font-size:13px">Your Role</td><td style="padding:8px 12px;border:1px solid #e5e7eb;text-transform:capitalize">${role}</td></tr>` : ''}
+    </table>
+    <p style="color:#6b7280;font-size:11px;margin-top:16px">Test Drive ID: ${td.id} · AutoAdvant automated notification</p>
+  </div>
+</div>`;
+
+  const emailsToNotify: Array<{ to: string; name: string; role: string }> = [];
+
+  // 1. Assigned sales person (if has email and not already an admin we'll fetch below)
+  if (salesPersonEmail) {
+    emailsToNotify.push({ to: salesPersonEmail, name: salesPersonName || 'Sales', role: 'sales' });
+  }
+
+  // 2. Admin staff at the location (dealer_admin, sales_admin, branch_admin, superadmin)
+  if (td.location_id) {
+    const adminRoles = new Set(['dealer_admin', 'sales_admin', 'branch_admin', 'superadmin', 'super_admin']);
+    const locationProfiles: any[] = await Profile.find(
+      { location_id: td.location_id },
+      { id: 1, user_id: 1, full_name: 1, email: 1 },
+    ).lean();
+
+    if (locationProfiles.length) {
+      const userIds = locationProfiles.map((p: any) => p.user_id).filter(Boolean);
+      const roleRows: any[] = await UserRole.find(
+        { user_id: { $in: userIds }, role: { $in: [...adminRoles] } },
+        { user_id: 1, role: 1 },
+      ).lean();
+
+      const roleMap = new Map(roleRows.map((r: any) => [r.user_id, r.role]));
+      for (const p of locationProfiles) {
+        const role = roleMap.get(p.user_id);
+        if (!role || !p.email) continue;
+        // Skip if already in the list (e.g. sales person is also admin)
+        if (emailsToNotify.some((e) => e.to === p.email)) continue;
+        emailsToNotify.push({ to: p.email, name: p.full_name || role, role });
+      }
+    }
+  }
+
+  for (const staff of emailsToNotify) {
+    void sendMail({
+      to: staff.to,
+      subject: `${headline} — ${customerName} / ${vehicleName}`,
+      html: staffHtml(staff.name, staff.role.replace(/_/g, ' ')),
+    }).catch((err) => {
+      console.error(`[testDrive] staff notify failed → ${staff.to}`, err);
+    });
+  }
+}
+
 async function afterStatusChange(td: any, status: string) {
-  const [customer, vehicle, salesProfile, groProfile] = await Promise.all([
-    td.customer_id           ? Customer.findOne({ id: td.customer_id }, { full_name: 1 }).lean() : null,
-    td.vehicle_id            ? Vehicle.findOne({ id: td.vehicle_id }, { brand: 1, model: 1 }).lean() : null,
-    td.assigned_sales_person_id ? Profile.findOne({ id: td.assigned_sales_person_id }, { user_id: 1, full_name: 1 }).lean() : null,
+  const [customer, vehicle, salesProfile, groProfile, location] = await Promise.all([
+    td.customer_id           ? Customer.findOne({ id: td.customer_id }, { full_name: 1, email: 1 }).lean() : null,
+    td.vehicle_id            ? Vehicle.findOne({ id: td.vehicle_id }, { brand: 1, model: 1, variant: 1 }).lean() : null,
+    td.assigned_sales_person_id ? Profile.findOne({ id: td.assigned_sales_person_id }, { user_id: 1, full_name: 1, email: 1 }).lean() : null,
     td.assigned_gro_id       ? Profile.findOne({ id: td.assigned_gro_id }, { user_id: 1 }).lean() : null,
+    td.location_id           ? Location.findOne({ id: td.location_id }, { name: 1 }).lean() : null,
   ]);
 
   const customerName = (customer as any)?.full_name || 'Customer';
+  const customerEmail = (customer as any)?.email as string | undefined;
   const v = vehicle as any;
-  const vehicleName = v ? `${v.brand} ${v.model}`.trim() : 'Vehicle';
+  const vehicleName = v ? [v.brand, v.model, v.variant].filter(Boolean).join(' ') : 'Vehicle';
+  const locationName = (location as any)?.name || '';
+  const salesPersonName = (salesProfile as any)?.full_name || '';
+  const salesPersonEmail = (salesProfile as any)?.email as string | undefined;
+
+  // ── Email: cancelled ──────────────────────────────────────────────────────
+  if (status === 'cancelled') {
+    const cancelBookingToken = generateBookingToken(td.id);
+    const cancelManageUrl = `${env.publicFrontendUrl}/customer/booking/${td.id}?token=${cancelBookingToken}`;
+    const cancelBookingUrl = `${env.publicFrontendUrl}/book`;
+    const dateLabel = td.scheduled_time
+      ? `${td.scheduled_date} at ${(td.scheduled_time || '').substring(0, 5)}`
+      : td.scheduled_date || '';
+    const cancelReason = td.cancelled_reason || td.cancellation_reason || '';
+
+    // Customer email
+    if (customerEmail) {
+      console.log(`[testDrive] sending cancel email → ${customerEmail}`);
+      void sendMail({
+        to: customerEmail,
+        subject: `Test drive cancellation confirmed`,
+        html: testDriveCancelledTemplate({
+          customerName,
+          vehicleName,
+          reason: cancelReason,
+          bookingUrl: cancelBookingUrl,
+          manageUrl: cancelManageUrl,
+        }).html,
+      }).then(() => {
+        console.log(`[testDrive] cancel email sent → ${customerEmail}`);
+      }).catch((err) => {
+        console.error(`[testDrive] cancel email failed → ${customerEmail}`, err);
+      });
+    } else {
+      console.warn(`[testDrive] cancel email skipped — no customer email (td:${td.id})`);
+    }
+
+    // Staff emails (sales person + admins at location)
+    void notifyStaffStatusChange({
+      td, status: 'cancelled', customerName, vehicleName, locationName, dateLabel,
+      salesPersonEmail, salesPersonName,
+      headline: 'Test Drive Cancelled',
+      detail: cancelReason ? `Reason: ${cancelReason}` : 'The customer has cancelled their test drive.',
+      badge: '🚫',
+    }).catch(() => null);
+  }
+
+  // ── Email: rescheduled ────────────────────────────────────────────────────
+  if (status === 'rescheduled') {
+    const newDate = td.scheduled_date || '';
+    const newTime = (td.scheduled_time || '').substring(0, 5);
+    const dateLabel = newTime ? `${newDate} at ${newTime}` : newDate;
+
+    // Customer email
+    if (customerEmail) {
+      console.log(`[testDrive] sending reschedule email → ${customerEmail}`);
+      void sendMail({
+        to: customerEmail,
+        subject: `Test drive rescheduled — ${newDate || 'new date confirmed'}`,
+        html: testDriveRescheduledTemplate({
+          customerName,
+          vehicleName,
+          locationName,
+          newDate,
+          newTime,
+        }).html,
+      }).then(() => {
+        console.log(`[testDrive] reschedule email sent → ${customerEmail}`);
+      }).catch((err) => {
+        console.error(`[testDrive] reschedule email failed → ${customerEmail}`, err);
+      });
+    } else {
+      console.warn(`[testDrive] reschedule email skipped — no customer email (td:${td.id})`);
+    }
+
+    // Staff emails (sales person + admins at location)
+    void notifyStaffStatusChange({
+      td, status: 'rescheduled', customerName, vehicleName, locationName, dateLabel,
+      salesPersonEmail, salesPersonName,
+      headline: 'Test Drive Rescheduled',
+      detail: `New appointment: ${dateLabel}`,
+      badge: '🔄',
+    }).catch(() => null);
+  }
 
   // 1. FCM push notifications + in-app notification persistence
   await notifyTestDriveStatusChange(status, {
@@ -634,6 +817,9 @@ async function sendTestDriveBookedNotifications(td: any) {
   }
 
   // ── 6. External integration dispatcher (non-blocking) ─────────────────────
+  // Note: customerEmail is intentionally omitted here — the customer confirmation
+  // email is already sent above via sendMail(). Passing it would cause a duplicate
+  // if a dealer has an 'email' integration configured for test_drive_booked.
   void dispatchNotification({
     event: 'test_drive_booked',
     testDriveId: td.id,
@@ -642,7 +828,6 @@ async function sendTestDriveBookedNotifications(td: any) {
     customerId: td.customer_id ?? undefined,
     customerName,
     customerPhone: c?.phone ?? undefined,
-    customerEmail: c?.email ?? undefined,
     vehicleName,
     scheduledDate,
     scheduledTime,

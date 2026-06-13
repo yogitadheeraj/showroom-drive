@@ -7,6 +7,7 @@ import { initFirebaseAdmin } from './config/firebaseAdmin.js';
 import { attachAuthUser } from './middleware/auth.js';
 import { apiRouter } from './routes/index.js';
 import { processEmailQueues } from './services/emailProcessorService.js';
+import { runTestDriveReminderJobs } from './services/testDriveReminderService.js';
 
 const app = express();
 
@@ -43,6 +44,14 @@ async function start() {
     }
   }, EMAIL_PROCESSOR_INTERVAL_MS);
 
+  // Test drive reminder scheduler — runs every 15 minutes
+  const REMINDER_INTERVAL_MS = 15 * 60_000;
+  // Run once immediately on startup to catch any missed reminders
+  void runTestDriveReminderJobs();
+  const reminderInterval = setInterval(() => {
+    void runTestDriveReminderJobs();
+  }, REMINDER_INTERVAL_MS);
+
   const server = app.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`);
   });
@@ -50,6 +59,7 @@ async function start() {
   async function shutdown(signal: string) {
     console.log(`[shutdown] ${signal} received — closing gracefully`);
     clearInterval(emailInterval);
+    clearInterval(reminderInterval);
     server.close();
     await mongoose.disconnect();
     const apps = getApps();

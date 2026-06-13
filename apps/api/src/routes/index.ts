@@ -50,6 +50,7 @@ import {
   updateTestDriveController,
 } from '../controllers/testDriveController.js';
 import { publicBookTestDriveController } from '../controllers/publicBookingController.js';
+import { submitTestDriveFeedbackController } from '../controllers/feedbackController.js';
 import {
   listIntegrationsController,
   listAllIntegrationsController,
@@ -244,6 +245,8 @@ apiRouter.post('/location-operating-hours/bulk-upsert', requireAuth, bulkUpsertL
 
 // Public booking (no auth required — rate-limited by phone + location)
 apiRouter.post('/public/book', publicBookTestDriveController);
+// Public feedback submission (no auth required)
+apiRouter.post('/public/feedback', submitTestDriveFeedbackController);
 
 // Customer self-service booking (token-verified, no auth required)
 apiRouter.get('/customer/booking/:testDriveId', getCustomerBookingController);

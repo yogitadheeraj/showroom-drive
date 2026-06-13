@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { apiDbQuery, apiGet, apiInvokeFunction, apiPost } from '@/lib/apiClient';
+import { logStaffActivity } from '@/lib/activityLogger';
 import { createCustomer, findCustomerByPhone, updateCustomer } from '@/lib/customerService';
 import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
@@ -27,9 +28,12 @@ interface WalkinDialogProps {
   defaultVehicleId?: string;
   defaultCustomerName?: string;
   defaultCustomerPhone?: string;
+  /** When set, skips customer creation/lookup and makes customer fields read-only */
+  rebookCustomerId?: string;
+  rebookCustomerEmail?: string;
 }
 
-const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocationId, defaultVehicleId, defaultCustomerName, defaultCustomerPhone }: WalkinDialogProps) => {
+const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocationId, defaultVehicleId, defaultCustomerName, defaultCustomerPhone, rebookCustomerId, rebookCustomerEmail }: WalkinDialogProps) => {
   const { profile, role } = useAuth();
   const { dealerId, loading: dealerLoading } = useDealerContext();
   const [locations, setLocations] = useState<any[]>([]);
@@ -59,7 +63,7 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
     if (open) {
       setStep('customer');
       setFormData({
-        fullName: defaultCustomerName || '', phone: defaultCustomerPhone || '', email: '', preferredContact: 'phone',
+        fullName: defaultCustomerName || '', phone: defaultCustomerPhone || '', email: rebookCustomerEmail || '', preferredContact: 'phone',
         locationId: defaultLocationId || profile?.location_id || '',
         vehicleId: defaultVehicleId || '',
         scheduledDate: defaultDate || todayStr,
@@ -222,15 +226,29 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const existing = await findCustomerByPhone(formData.phone);
       let customerId: string;
-      if (existing) {
-        customerId = existing.id;
-        await updateCustomer(customerId, { full_name: formData.fullName, email: formData.email || null, preferred_contact: formData.preferredContact });
+
+      if (rebookCustomerId) {
+        // Rebooking: use existing customer directly, no lookup or update needed
+        customerId = rebookCustomerId;
       } else {
-        const row = await createCustomer({ full_name: formData.fullName, phone: formData.phone, email: formData.email || null, preferred_contact: formData.preferredContact });
-        if (!row?.id) throw new Error('Failed to create customer');
-        customerId = row.id;
+        const existing = await findCustomerByPhone(formData.phone);
+        if (existing) {
+          customerId = existing.id;
+          // Only update customer fields that have actually changed to avoid
+          // overwriting the name shown on previously cancelled/completed test drives
+          const updates: Record<string, unknown> = {};
+          if (formData.fullName && formData.fullName !== existing.full_name) updates.full_name = formData.fullName;
+          if (formData.email !== undefined && formData.email !== (existing.email ?? '')) updates.email = formData.email || null;
+          if (formData.preferredContact !== existing.preferred_contact) updates.preferred_contact = formData.preferredContact;
+          if (Object.keys(updates).length > 0) {
+            await updateCustomer(customerId, updates);
+          }
+        } else {
+          const row = await createCustomer({ full_name: formData.fullName, phone: formData.phone, email: formData.email || null, preferred_contact: formData.preferredContact });
+          if (!row?.id) throw new Error('Failed to create customer');
+          customerId = row.id;
+        }
       }
 
       if (licenseFile) {
@@ -282,18 +300,25 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
         try {
           await apiInvokeFunction('send-whatsapp', { to: formData.phone, message: waMessage, customerId, testDriveId: testDrive.id, purpose: 'booking_confirmed' });
         } catch (e) { waError = e; }
-        await apiPost('/api/communications', { customer_id: customerId, test_drive_id: testDrive.id, type: 'whatsapp', purpose: 'booking_confirmed', sent_to: formData.phone, subject: null, body: waMessage, status: waError ? 'failed' : 'sent', sent_at: waError ? null : new Date().toISOString() } as Record<string, unknown>);
+       // await apiPost('/api/communications', { customer_id: customerId, test_drive_id: testDrive.id, type: 'whatsapp', purpose: 'booking_confirmed', sent_to: formData.phone, subject: null, body: waMessage, status: waError ? 'failed' : 'sent', sent_at: waError ? null : new Date().toISOString() } as Record<string, unknown>);
       }
 
       if (formData.email) {
-        let emailError: unknown = null;
-        try {
-          await apiInvokeFunction('send-transactional-email', { templateName: 'booking-confirmation', recipientEmail: formData.email, idempotencyKey: `walkin-confirm-${testDrive.id}`, templateData: { customerName: formData.fullName, vehicleName, locationName, scheduledDate: scheduledDateStr, scheduledTime: scheduledTimeStr } });
-        } catch (e) { emailError = e; }
-        await apiPost('/api/communications', { customer_id: customerId, test_drive_id: testDrive.id, type: 'email', purpose: 'booking_confirmed', sent_to: formData.email, subject: 'Walk-in Test Drive Confirmation', body: `Your test drive for ${vehicleName} at ${locationName} on ${scheduledDateStr} ${scheduledTimeStr}.`, status: emailError ? 'failed' : 'sent', sent_at: emailError ? null : new Date().toISOString() } as Record<string, unknown>);
+        // Confirmation email is sent automatically by the backend on test drive creation.
+        // Log the communication record only.
+        //await apiPost('/api/communications', { customer_id: customerId, test_drive_id: testDrive.id, type: 'email', purpose: 'booking_confirmed', sent_to: formData.email, subject: 'Walk-in Test Drive Confirmation', body: `Your test drive for ${vehicleName} at ${locationName} on ${scheduledDateStr} ${scheduledTimeStr}.`, status: 'sent', sent_at: new Date().toISOString() } as Record<string, unknown>);
       }
 
       toast({ title: walkinToday ? 'Walk-in registered' : 'Booking created', description: `${formData.fullName} has been ${walkinToday ? 'checked in' : `booked for ${scheduledDateStr} at ${scheduledTimeStr}`}.` });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'walkin_registered',
+          label: `${walkinToday ? 'Walk-in registered' : 'Booking created'}: ${formData.fullName} — ${vehicleName}`,
+          route: '/test-drives',
+          metadata: { testDriveId: testDrive.id, customerId, customerName: formData.fullName, vehicleName, locationName, scheduledDate: scheduledDateStr, scheduledTime: scheduledTimeStr },
+        });
+      }
       onClose(true);
     } catch (err: any) {
       toast({ title: 'Registration failed', description: err.message, variant: 'destructive' });
@@ -341,28 +366,44 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Full Name <span className="text-destructive">*</span></Label>
-                <Input placeholder="Enter full name" value={formData.fullName} onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))} />
+                {rebookCustomerId ? (
+                  <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">{formData.fullName || '—'}</div>
+                ) : (
+                  <Input placeholder="Enter full name" value={formData.fullName} onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))} />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Phone <span className="text-destructive">*</span></Label>
-                <Input placeholder="+91 8*********" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
+                {rebookCustomerId ? (
+                  <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">{formData.phone || '—'}</div>
+                ) : (
+                  <Input placeholder="+91 8*********" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
+                )}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Email <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                <Input type="email" placeholder="customer@email.com" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
+                {rebookCustomerId ? (
+                  <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">{formData.email || <span className="text-muted-foreground">—</span>}</div>
+                ) : (
+                  <Input type="email" placeholder="customer@email.com" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Preferred Contact</Label>
-                <Select value={formData.preferredContact} onValueChange={v => setFormData(p => ({ ...p, preferredContact: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="phone">Phone</SelectItem>
-                    <SelectItem value="email">Email</SelectItem>
-                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  </SelectContent>
-                </Select>
+                {rebookCustomerId ? (
+                  <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground capitalize">{formData.preferredContact}</div>
+                ) : (
+                  <Select value={formData.preferredContact} onValueChange={v => setFormData(p => ({ ...p, preferredContact: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="phone">Phone</SelectItem>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
 

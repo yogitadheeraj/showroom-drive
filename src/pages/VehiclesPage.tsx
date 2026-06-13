@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { demoAutofillData } from '@/lib/demoAutofillData';
 import { apiGet, apiPost, apiPatch } from '@/lib/apiClient';
+import { logStaffActivity } from '@/lib/activityLogger';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,7 +52,7 @@ const VehiclesPage = () => {
   });
   const { toast } = useToast();
   const { dealerId, loading: dealerLoading } = useDealerContext();
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
   const isAdmin = isSuperAdmin || role === APP_ROLE.DEALER_ADMIN;
   const canDeactivate = isSuperAdmin || role === APP_ROLE.DEALER_ADMIN || role === APP_ROLE.SALES_ADMIN;
@@ -127,6 +128,16 @@ const VehiclesPage = () => {
     try {
       await apiPatch(`/api/vehicles/${encodeURIComponent(vehicleId)}`, { is_active: false });
       toast({ title: 'Vehicle deactivated', description: 'The vehicle has been deactivated and will no longer appear in booking flows.' });
+      if (profile?.user_id) {
+        const v = vehicles.find(x => x.id === vehicleId);
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'vehicle_deactivated',
+          label: `Deactivated vehicle: ${v?.brand ?? ''} ${v?.model ?? ''} ${v?.registration_number ? `(${v.registration_number})` : ''}`.trim(),
+          route: '/vehicles',
+          metadata: { vehicleId, vehicleName: `${v?.brand ?? ''} ${v?.model ?? ''}`.trim() || null },
+        });
+      }
       setDeactivateTarget(null);
       fetchVehicles();
     } catch (err: any) {
@@ -138,6 +149,16 @@ const VehiclesPage = () => {
     try {
       await apiPatch(`/api/vehicles/${encodeURIComponent(vehicleId)}`, { is_active: true });
       toast({ title: 'Vehicle reactivated', description: 'The vehicle is now active and available in booking flows.' });
+      if (profile?.user_id) {
+        const v = vehicles.find(x => x.id === vehicleId);
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'vehicle_reactivated',
+          label: `Reactivated vehicle: ${v?.brand ?? ''} ${v?.model ?? ''} ${v?.registration_number ? `(${v.registration_number})` : ''}`.trim(),
+          route: '/vehicles',
+          metadata: { vehicleId, vehicleName: `${v?.brand ?? ''} ${v?.model ?? ''}`.trim() || null },
+        });
+      }
       fetchVehicles();
     } catch (err: any) {
       toast({ title: 'Failed to reactivate', description: err.message, variant: 'destructive' });
@@ -275,6 +296,15 @@ const VehiclesPage = () => {
       if (editingId) {
         await apiPatch(`/api/vehicles/${encodeURIComponent(editingId)}`, payload);
         toast({ title: 'Vehicle updated' });
+        if (profile?.user_id) {
+          void logStaffActivity({
+            userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+            eventType: 'vehicle_updated',
+            label: `Updated vehicle: ${formData.brand} ${formData.model}`,
+            route: '/vehicles',
+            metadata: { vehicleId: editingId, brand: formData.brand, model: formData.model, condition: formData.vehicle_condition, registrationNumber: formData.registration_number || null },
+          });
+        }
       } else {
         const created = await apiPost<any>('/api/vehicles', payload);
         const createdId: string = Array.isArray(created) ? created[0]?.id : created?.id;
@@ -303,8 +333,26 @@ const VehiclesPage = () => {
           };
           await apiPost('/api/vehicles', demoPayload);
           toast({ title: 'Vehicle + Demo added', description: 'New vehicle and linked demo vehicle created.' });
+          if (profile?.user_id) {
+            void logStaffActivity({
+              userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+              eventType: 'vehicle_created',
+              label: `Created vehicle + demo: ${formData.brand} ${formData.model}`,
+              route: '/vehicles',
+              metadata: { vehicleId: createdId, brand: formData.brand, model: formData.model, condition: 'new', withDemo: true },
+            });
+          }
         } else {
           toast({ title: 'Vehicle added' });
+          if (profile?.user_id) {
+            void logStaffActivity({
+              userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+              eventType: 'vehicle_created',
+              label: `Created vehicle: ${formData.brand} ${formData.model}`,
+              route: '/vehicles',
+              metadata: { vehicleId: createdId, brand: formData.brand, model: formData.model, condition: formData.vehicle_condition },
+            });
+          }
         }
       }
 
@@ -455,17 +503,17 @@ const VehiclesPage = () => {
                             </Badge>
                           )}
                           <div className="flex items-center gap-1">
-                            <Button size="sm" className="bg-primary/10 text-primary hover:bg-primary/20 h-6 w-6 p-0 border border-primary/20" onClick={() => openEdit(v)}>
+                            <Button size="sm" className="h-6 w-6 p-0 border border-primary/20" onClick={() => openEdit(v)}>
                               <Edit2 className="h-3 w-3" />
                             </Button>
                             {canDeactivate && v.is_active && (
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10 border border-destructive/20" title="Deactivate vehicle"
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:bg-destructive border border-destructive/20" title="Deactivate vehicle"
                                 onClick={() => setDeactivateTarget({ id: v.id, name: `${v.brand} ${v.model}${v.variant ? ' ' + v.variant : ''}` })}>
                                 <PowerOff className="h-3 w-3" />
                               </Button>
                             )}
                             {canDeactivate && !v.is_active && (
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-success hover:bg-success/10 border border-success/20" title="Reactivate vehicle"
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-success hover:bg-success  hover:text-white border border-success/20" title="Reactivate vehicle"
                                 onClick={() => handleReactivate(v.id)}>
                                 <PowerOff className="h-3 w-3" />
                               </Button>

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Profile } from '../models/Profile.js';
+import { UserRole } from '../models/UserRole.js';
 
 function lean(doc: any) {
   const o = doc.toObject ? doc.toObject() : { ...doc };
@@ -36,6 +37,14 @@ export async function listProfiles(filters: Record<string, unknown> = {}) {
   if (filters.user_ids) {
     const ids = String(filters.user_ids).split(',').map((s) => s.trim()).filter(Boolean);
     if (ids.length > 0) q.user_id = { $in: ids };
+  }
+  // Filter by role — resolve user_ids from user_roles then scope the profile query
+  if (filters.role) {
+    const roleStr = String(filters.role);
+    const matchingRoles = await UserRole.find({ role: roleStr }, { user_id: 1 }).lean();
+    const userIds = matchingRoles.map((r: any) => r.user_id).filter(Boolean);
+    if (userIds.length === 0) return [];
+    q.user_id = { $in: userIds };
   }
   const docs = await Profile.find(q).sort({ full_name: 1 }).lean();
   return docs.map((d) => { const o = { ...d } as any; delete o._id; return o; });

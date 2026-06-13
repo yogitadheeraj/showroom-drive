@@ -38,7 +38,7 @@ const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot, leftSlot }
           {leftSlot}
           <Link to="/" className="flex items-center shrink-0">
             <img
-              src="/images/autoadvant-logo.png"
+              src={ resolvedTheme === 'dark'  ? '/images/autoadvant-logo.png' : '/images/autoadvant-peaked-horizontal-dark.svg'}
               alt="AutoAdvant"
               className="h-9 w-auto object-contain"
             />

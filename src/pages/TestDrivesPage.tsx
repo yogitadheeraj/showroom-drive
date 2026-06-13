@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiGet, apiPost, apiPatch, apiDbQuery } from '@/lib/apiClient';
-import { sendTransactionalEmail } from '@/lib/functionService';
+import { logStaffActivity } from '@/lib/activityLogger';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Users, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle, MoreHorizontal, PlusCircle, CalendarClock } from 'lucide-react';
+import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Users, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle, MoreHorizontal, PlusCircle, CalendarClock, Shield } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveJourneyDialog } from '@/components/TestDriveJourneyDialog';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
@@ -154,25 +154,17 @@ const TestDrivesPage = () => {
       status: 'rescheduled',
     });
 
-    // Send reschedule email to customer
-    if (original.customers?.email) {
-      await sendTransactionalEmail({
-          templateName: 'test-drive-rescheduled',
-          recipientEmail: original.customers.email,
-          idempotencyKey: `td-rescheduled-${rescheduleId}-${newDate}`,
-          templateData: {
-            customerName: original.customers.full_name || '',
-            vehicleName: `${original.vehicles?.brand || ''} ${original.vehicles?.model || ''}`.trim(),
-            locationName: original.locations?.name || '',
-            newDate,
-            newTime,
-            originalDate: original.scheduled_date,
-            originalTime: original.scheduled_time,
-          },
+    // Email is sent automatically by the backend afterStatusChange handler
+    toast({ title: 'Test drive rescheduled' });
+    if (profile?.user_id) {
+      void logStaffActivity({
+        userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+        eventType: 'test_drive_rescheduled',
+        label: `Rescheduled test drive to ${newDate} ${newTime}`,
+        route: '/test-drives',
+        metadata: { testDriveId: rescheduleId, customerId: original?.customer_id, newDate, newTime, originalDate: original?.scheduled_date, originalTime: original?.scheduled_time, vehicleName: `${original?.vehicles?.brand ?? ''} ${original?.vehicles?.model ?? ''}`.trim() || null },
       });
     }
-
-    toast({ title: 'Test drive rescheduled' });
     setRescheduleId(null);
     setNewDate('');
     setNewTime('');
@@ -188,24 +180,17 @@ const TestDrivesPage = () => {
       cancelled_reason: cancelReason,
     });
 
-    // Send cancel email to customer
-    if (original?.customers?.email) {
-      await sendTransactionalEmail({
-          templateName: 'test-drive-cancelled',
-          recipientEmail: original.customers.email,
-          idempotencyKey: `td-cancelled-${cancelId}`,
-          templateData: {
-            customerName: original.customers.full_name || '',
-            vehicleName: `${original.vehicles?.brand || ''} ${original.vehicles?.model || ''}`.trim(),
-            locationName: original.locations?.name || '',
-            scheduledDate: original.scheduled_date,
-            scheduledTime: original.scheduled_time,
-            cancelReason: cancelReason || undefined,
-          },
+    // Email is sent automatically by the backend afterStatusChange handler
+    toast({ title: 'Test drive cancelled' });
+    if (profile?.user_id) {
+      void logStaffActivity({
+        userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+        eventType: 'test_drive_cancelled',
+        label: `Cancelled test drive${cancelReason ? `: ${cancelReason}` : ''}`,
+        route: '/test-drives',
+        metadata: { testDriveId: cancelId, customerId: original?.customer_id, cancelReason: cancelReason || null, vehicleName: `${original?.vehicles?.brand ?? ''} ${original?.vehicles?.model ?? ''}`.trim() || null },
       });
     }
-
-    toast({ title: 'Test drive cancelled' });
     setCancelId(null);
     setCancelReason('');
     fetchTestDrives();
@@ -305,6 +290,15 @@ const TestDrivesPage = () => {
       if (!insertedTasks?.length) throw new Error('Unable to create follow-up task');
 
       toast({ title: 'Opportunity created', description: 'Lead and follow-up task saved successfully.' });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'test_drive_opportunity_created',
+          label: `Created ${leadTemperature.toUpperCase()} opportunity from test drive`,
+          route: '/test-drives',
+          metadata: { testDriveId: leadDialogDrive.id, customerId: leadDialogDrive.customer_id, opportunityId, temperature: leadTemperature, stage },
+        });
+      }
       setLeadDialogDrive(null);
       setLeadTemperature('cold');
       setFollowUpTaskTitle('');
@@ -317,6 +311,15 @@ const TestDrivesPage = () => {
   const updateStatus = async (id: string, newStatus: string) => {
     await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { status: newStatus });
     toast({ title: 'Status updated' });
+    if (profile?.user_id) {
+      void logStaffActivity({
+        userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+        eventType: 'test_drive_status_changed',
+        label: `Changed test drive status to ${newStatus}`,
+        route: '/test-drives',
+        metadata: { testDriveId: id, newStatus },
+      });
+    }
     fetchTestDrives();
   };
 
@@ -325,17 +328,59 @@ const TestDrivesPage = () => {
     try {
       await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { key_handed_at: new Date().toISOString(), status: 'in_progress' });
       toast({ title: 'Key assigned', description: 'Test drive is now in progress.' });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'test_drive_key_assigned',
+          label: 'Assigned key and started test drive',
+          route: '/test-drives',
+          metadata: { testDriveId: id },
+        });
+      }
     } finally {
       setAssigningKey(null);
       fetchTestDrives();
     }
   };
 
-  const handleSecurityCheckIn = async (id: string) => {
+  const handleSecurityCheckIn = async (id: string, locationId?: string) => {
     setSecurityActionId(id);
     try {
-      await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { security_checked_in_at: new Date().toISOString(), status: 'in_progress' });
+      // Determine which security person to assign
+      let securityPersonId: string | null = null;
+      if (role === APP_ROLE.SECURITY && profile?.id) {
+        // The logged-in security person does it themselves
+        securityPersonId = profile.id;
+      } else if (locationId) {
+        // Non-security role (admin etc.) — auto-pick available security person at location
+        const securityProfiles = await apiGet<any[]>(`/api/profiles?role=security&location_id=${locationId}`);
+        if (securityProfiles && securityProfiles.length > 0) {
+          // Find the security person not currently handling an in-progress drive
+          const inProgressIds = new Set(
+            testDrives
+              .filter(t => t.status === 'in_progress' && t.assigned_security_person_id)
+              .map(t => t.assigned_security_person_id)
+          );
+          const available = securityProfiles.find(p => !inProgressIds.has(p.id));
+          securityPersonId = available?.id ?? securityProfiles[0].id;
+        }
+      }
+
+      await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, {
+        security_checked_in_at: new Date().toISOString(),
+        status: 'in_progress',
+        ...(securityPersonId ? { assigned_security_person_id: securityPersonId } : {}),
+      });
       toast({ title: 'Test drive started' });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'test_drive_check_in',
+          label: 'Security checked in customer for test drive',
+          route: '/test-drives',
+          metadata: { testDriveId: id, assignedSecurityPersonId: securityPersonId },
+        });
+      }
     } finally {
       setSecurityActionId(null);
       fetchTestDrives();
@@ -347,6 +392,15 @@ const TestDrivesPage = () => {
     try {
       await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { security_checked_out_at: new Date().toISOString() });
       toast({ title: 'Vehicle returned' });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'test_drive_check_out',
+          label: 'Security checked out vehicle — returned to sales',
+          route: '/test-drives',
+          metadata: { testDriveId: id },
+        });
+      }
     } finally {
       setSecurityActionId(null);
       fetchTestDrives();
@@ -466,6 +520,11 @@ const TestDrivesPage = () => {
                           <User className="h-3 w-3 shrink-0" />{td.assigned_sales_person.full_name}
                         </span>
                       )}
+                      {td.assigned_security_person?.full_name && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Shield className="h-3 w-3 shrink-0" />{td.assigned_security_person.full_name}
+                        </span>
+                      )}
                       {journeyBadge && (
                         <Badge variant="secondary" className={`text-[10px] ${durationBadgeClass[journeyBadge]}`}>{journeyBadge}</Badge>
                       )}
@@ -473,9 +532,26 @@ const TestDrivesPage = () => {
                         <span className="text-[10px] text-muted-foreground">{durationMinutes}m</span>
                       )}
                       {td.created_at && (
-                        <span className="text-[10px] text-muted-foreground ml-auto">{new Date(td.created_at).toLocaleDateString()}</span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">{new Date(td.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
                       )}
                     </div>
+
+                    {/* ── In-progress context hint ── */}
+                    {td.status === 'in_progress' && (
+                      <div className="flex items-start gap-1.5 text-[11px] bg-accent/10 border border-accent/30 rounded-md px-2 py-1.5 text-accent-foreground">
+                        <PlayCircle className="h-3 w-3 shrink-0 mt-px text-primary" />
+                        <span>
+                          Customer is currently on the test drive.{' '}
+                          {(td.security_checked_in_at || td.key_handed_at) && (
+                            <>Started at {new Date(td.security_checked_in_at || td.key_handed_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}. </>
+                          )}
+                          {td.assigned_security_person?.full_name && (
+                            <>Security: <span className="font-medium">{td.assigned_security_person.full_name}</span>. </>
+                          )}
+                          Next: wait for return → Security checkout → Key handover to sales.
+                        </span>
+                      </div>
+                    )}
 
                     {/* ── Route info (if set) ── */}
                     {td.metadata?.route_destination && (
@@ -523,7 +599,14 @@ const TestDrivesPage = () => {
                         </Button>
                       )}
 
-                      {/* Overflow menu */}
+                      {/* Overflow menu — only shown when at least one item is available */}
+                      {(() => {
+                        const hasReschedule = (['scheduled', 'confirmed', 'show', 'no_show', 'rescheduled'] as string[]).includes(td.status);
+                        const hasNoShow = (['scheduled', 'confirmed', 'show', 'rescheduled'] as string[]).includes(td.status);
+                        const hasLead = canCreateOpportunity && (['completed', 'key_handover_to_sales'] as string[]).includes(td.status) && td.scheduled_date && new Date(td.scheduled_date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+                        const hasCancel = (['scheduled', 'confirmed', 'rescheduled'] as string[]).includes(td.status);
+                        if (!hasReschedule && !hasNoShow && !hasLead && !hasCancel) return null;
+                        return (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button size="sm" variant="outline" className="text-xs px-2 ml-auto">
@@ -561,6 +644,8 @@ const TestDrivesPage = () => {
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                        );
+                      })()}
                     </div>
                   </CardContent>
                 </Card>
@@ -635,6 +720,15 @@ const TestDrivesPage = () => {
                 onClick={async () => {
                   if (!noShowId) return;
                   await apiPatch(`/api/test-drives/${encodeURIComponent(noShowId)}`, { status: 'no_show' });
+                  if (profile?.user_id) {
+                    void logStaffActivity({
+                      userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+                      eventType: 'test_drive_no_show',
+                      label: 'Marked test drive as no-show',
+                      route: '/test-drives',
+                      metadata: { testDriveId: noShowId },
+                    });
+                  }
                   setNoShowId(null);
                   fetchTestDrives();
                 }}
@@ -701,8 +795,10 @@ const TestDrivesPage = () => {
           onClose={(submitted) => { setRebookDrive(null); if (submitted) fetchTestDrives(); }}
           defaultLocationId={rebookDrive?.location_id}
           defaultVehicleId={rebookDrive?.vehicle_id}
+          rebookCustomerId={rebookDrive?.customer_id}
           defaultCustomerName={rebookDrive?.customers?.full_name}
           defaultCustomerPhone={rebookDrive?.customers?.phone}
+          rebookCustomerEmail={rebookDrive?.customers?.email}
         />
       </div>
     </DashboardLayout>

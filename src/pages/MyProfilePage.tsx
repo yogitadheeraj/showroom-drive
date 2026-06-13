@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { apiPatch } from '@/lib/apiClient';
+import { logStaffActivity } from '@/lib/activityLogger';
 import { useToast } from '@/hooks/use-toast';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -65,6 +66,15 @@ const MyProfilePage = () => {
           ? `You are marked on leave for ${leaveForm.startDate}.`
           : `You are on leave from ${leaveForm.startDate} to ${leaveForm.endDate}.`,
       });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'profile_leave_set',
+          label: `Set own leave: ${leaveForm.startDate} – ${leaveForm.endDate}`,
+          route: '/my-profile',
+          metadata: { startDate: leaveForm.startDate, endDate: leaveForm.endDate },
+        });
+      }
     } catch {
       toast({ title: 'Error', description: 'Could not schedule leave. Please try again.', variant: 'destructive' });
     } finally {
@@ -83,6 +93,15 @@ const MyProfilePage = () => {
       });
       await refreshProfile();
       toast({ title: 'You are now available', description: 'New leads and test drives can be assigned to you.' });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'profile_available_set',
+          label: 'Set own status to available',
+          route: '/my-profile',
+          metadata: {},
+        });
+      }
     } catch {
       toast({ title: 'Error', description: 'Could not update status. Please try again.', variant: 'destructive' });
     } finally {
@@ -112,6 +131,15 @@ const MyProfilePage = () => {
       await updatePassword(firebaseUser, pwForm.next);
       setPwForm({ current: '', next: '', confirm: '' });
       toast({ title: 'Password changed', description: 'Your password has been updated successfully.' });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'profile_password_changed',
+          label: 'Changed own password',
+          route: '/my-profile',
+          metadata: {},
+        });
+      }
     } catch (err: any) {
       const msg = err?.code === 'auth/wrong-password' || err?.code === 'auth/invalid-credential'
         ? 'Current password is incorrect.'

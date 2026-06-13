@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import TransitRequestsPanel from '@/components/TransitRequestsPanel';
 import { apiGet, apiPost, apiPatch } from '@/lib/apiClient';
+import { logStaffActivity } from '@/lib/activityLogger';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -171,6 +172,27 @@ export default function SharedVehicleFleetPage() {
         notes: dispatchNotes || null,
         scheduled_by_profile_id: profile?.id ?? null,
       });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id,
+          profileId: profile.id,
+          locationId: profile.location_id,
+          role: role as any,
+          eventType: 'transit_scheduled',
+          label: `Scheduled transit: ${dispatchVehicle.brand} ${dispatchVehicle.model}`,
+          route: '/shared-fleet',
+          metadata: {
+            vehicleId: dispatchVehicle.id,
+            vehicleName: `${dispatchVehicle.brand} ${dispatchVehicle.model}${dispatchVehicle.registration_number ? ` (${dispatchVehicle.registration_number})` : ''}`,
+            fromLocationId: dispatchFrom,
+            fromLocationName: locations.find(l => l.id === dispatchFrom)?.name ?? dispatchFrom,
+            toLocationId: dispatchTo,
+            toLocationName: locations.find(l => l.id === dispatchTo)?.name ?? dispatchTo,
+            departTime: dispatchTime || new Date().toISOString(),
+            notes: dispatchNotes || null,
+          },
+        });
+      }
       toast({ title: 'Transit scheduled', description: `${dispatchVehicle.brand} ${dispatchVehicle.model} will be dispatched.` });
       setDispatchOpen(false);
       loadFleet();
@@ -181,9 +203,29 @@ export default function SharedVehicleFleetPage() {
     }
   };
 
-  const handleTransitAction = async (transitId: string, action: 'dispatch' | 'arrive' | 'cancel') => {
+  const handleTransitAction = async (transitId: string, action: 'dispatch' | 'arrive' | 'cancel', transitMeta?: { vehicleName?: string; fromName?: string; toName?: string }) => {
     try {
       await apiPatch(`/api/fleet/transits/${encodeURIComponent(transitId)}/${action}`, {});
+      const eventTypeMap = { dispatch: 'transit_dispatched', arrive: 'transit_arrived', cancel: 'transit_cancelled' } as const;
+      const labelMap = { dispatch: 'Dispatched vehicle transit', arrive: 'Marked transit as arrived', cancel: 'Cancelled vehicle transit' };
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id,
+          profileId: profile.id,
+          locationId: profile.location_id,
+          role: role as any,
+          eventType: eventTypeMap[action],
+          label: `${labelMap[action]}${transitMeta?.vehicleName ? `: ${transitMeta.vehicleName}` : ''}`,
+          route: '/shared-fleet',
+          metadata: {
+            transitId,
+            action,
+            vehicleName: transitMeta?.vehicleName ?? null,
+            fromLocationName: transitMeta?.fromName ?? null,
+            toLocationName: transitMeta?.toName ?? null,
+          },
+        });
+      }
       toast({ title: action === 'arrive' ? 'Marked as arrived' : action === 'dispatch' ? 'Dispatched' : 'Cancelled' });
       loadFleet();
     } catch (err: any) {
@@ -205,6 +247,24 @@ export default function SharedVehicleFleetPage() {
       await apiPatch(`/api/fleet/transits/${encodeURIComponent(assignReceiverTransit.id)}/assign-receiver`, { profile_id: selectedReceiver });
       const chosen = securityList.find(s => s.id === selectedReceiver);
       if (chosen) setReceiverNames(prev => ({ ...prev, [selectedReceiver]: chosen.full_name }));
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id,
+          profileId: profile.id,
+          locationId: profile.location_id,
+          role: role as any,
+          eventType: 'transit_receiver_assigned',
+          label: `Assigned receiver ${chosen?.full_name ?? selectedReceiver} for transit`,
+          route: '/shared-fleet',
+          metadata: {
+            transitId: assignReceiverTransit.id,
+            receiverProfileId: selectedReceiver,
+            receiverName: chosen?.full_name ?? null,
+            toLocationId: assignReceiverTransit.to_location_id,
+            toLocationName: locations.find(l => l.id === assignReceiverTransit.to_location_id)?.name ?? null,
+          },
+        });
+      }
       toast({ title: 'Receiver assigned', description: `${chosen?.full_name ?? 'Security staff'} will receive the vehicle.` });
       setAssignReceiverTransit(null);
       loadFleet();
@@ -223,6 +283,26 @@ export default function SharedVehicleFleetPage() {
         profile_id: profile.id,
         notes: receiveNotes || null,
       });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id,
+          profileId: profile.id,
+          locationId: profile.location_id,
+          role: role as any,
+          eventType: 'transit_received',
+          label: `Marked vehicle received at ${locations.find(l => l.id === receiveTransit.to_location_id)?.name ?? receiveTransit.to_location_id}`,
+          route: '/shared-fleet',
+          metadata: {
+            transitId: receiveTransit.id,
+            fromLocationId: receiveTransit.from_location_id,
+            fromLocationName: locations.find(l => l.id === receiveTransit.from_location_id)?.name ?? null,
+            toLocationId: receiveTransit.to_location_id,
+            toLocationName: locations.find(l => l.id === receiveTransit.to_location_id)?.name ?? null,
+            receiverProfileId: profile.id,
+            notes: receiveNotes || null,
+          },
+        });
+      }
       toast({ title: 'Vehicle received', description: 'Transit marked as received.' });
       setReceiveTransit(null);
       loadFleet();
@@ -407,7 +487,7 @@ export default function SharedVehicleFleetPage() {
                         {(profile?.location_id === activeTransit.from_location_id) && (canManage || isSecurityRole) && (
                           <div className="flex items-center gap-2 pt-1 flex-wrap">
                             {activeTransit.status === 'scheduled' && activeTransit.receiver_profile_id && (
-                              <Button size="sm" className="text-xs h-7 bg-info text-white hover:bg-info/90" onClick={() => handleTransitAction(activeTransit.id, 'dispatch')}>
+                              <Button size="sm" className="text-xs h-7 bg-info text-white hover:bg-info/90" onClick={() => handleTransitAction(activeTransit.id, 'dispatch', { vehicleName: `${vehicle.brand} ${vehicle.model}${vehicle.registration_number ? ` (${vehicle.registration_number})` : ''}`, fromName: locations.find(l => l.id === activeTransit.from_location_id)?.name, toName: locations.find(l => l.id === activeTransit.to_location_id)?.name })}>
                                 <Truck className="h-3 w-3 mr-1" /> Dispatch Now
                               </Button>
                             )}
@@ -415,7 +495,7 @@ export default function SharedVehicleFleetPage() {
                               <span className="text-[11px] text-warning font-medium">Assign a receiver before dispatching</span>
                             )}
                             {['scheduled', 'in_transit'].includes(activeTransit.status) && (
-                              <Button size="sm" variant="outline" className="text-xs h-7 text-destructive border-destructive/40 hover:bg-destructive/5" onClick={() => handleTransitAction(activeTransit.id, 'cancel')}>
+                              <Button size="sm" variant="outline" className="text-xs h-7 text-destructive border-destructive/40 hover:bg-destructive/5" onClick={() => handleTransitAction(activeTransit.id, 'cancel', { vehicleName: `${vehicle.brand} ${vehicle.model}${vehicle.registration_number ? ` (${vehicle.registration_number})` : ''}`, fromName: locations.find(l => l.id === activeTransit.from_location_id)?.name, toName: locations.find(l => l.id === activeTransit.to_location_id)?.name })}>
                                 <XCircle className="h-3 w-3 mr-1" /> Cancel
                               </Button>
                             )}
@@ -432,7 +512,7 @@ export default function SharedVehicleFleetPage() {
                         {/* Admin override: mark received if at destination and not the receiver */}
                         {activeTransit.status === 'in_transit' && canManage && profile?.id !== activeTransit.receiver_profile_id && profile?.location_id === activeTransit.to_location_id && (
                           <div className="pt-1">
-                            <Button size="sm" className="text-xs h-7 bg-success text-success-foreground hover:bg-success/90 gap-1.5" onClick={() => handleTransitAction(activeTransit.id, 'arrive')}>
+                            <Button size="sm" className="text-xs h-7 bg-success text-success-foreground hover:bg-success/90 gap-1.5" onClick={() => handleTransitAction(activeTransit.id, 'arrive', { vehicleName: `${vehicle.brand} ${vehicle.model}${vehicle.registration_number ? ` (${vehicle.registration_number})` : ''}`, fromName: locations.find(l => l.id === activeTransit.from_location_id)?.name, toName: locations.find(l => l.id === activeTransit.to_location_id)?.name })}>
                               <CheckCircle className="h-3 w-3" /> Mark Arrived
                             </Button>
                           </div>

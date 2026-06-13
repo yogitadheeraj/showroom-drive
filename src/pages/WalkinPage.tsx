@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import { demoAutofillData } from '@/lib/demoAutofillData';
 import { apiGet, apiInvokeFunction, apiPost } from '@/lib/apiClient';
+import { logStaffActivity } from '@/lib/activityLogger';
 import { createCustomer, findCustomerByPhone, updateCustomer } from '@/lib/customerService';
 import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
@@ -326,11 +327,14 @@ const WalkinPage = () => {
       let customerId: string;
       if (existing) {
         customerId = existing.id;
-        await updateCustomer(customerId, {
-          full_name: fullName,
-          email: formData.email || null,
-          preferred_contact: formData.preferredContact.join(','),
-        });
+        const updates: Record<string, unknown> = {};
+        if (fullName && fullName !== existing.full_name) updates.full_name = fullName;
+        if (formData.email !== undefined && formData.email !== (existing.email ?? '')) updates.email = formData.email || null;
+        const preferredContact = formData.preferredContact.join(',');
+        if (preferredContact && preferredContact !== existing.preferred_contact) updates.preferred_contact = preferredContact;
+        if (Object.keys(updates).length > 0) {
+          await updateCustomer(customerId, updates);
+        }
       } else {
         const row = await createCustomer({
           full_name: fullName, phone: fullPhone,
@@ -443,6 +447,15 @@ const WalkinPage = () => {
 
 
       toast({ title: walkinToday ? 'Walk-in registered' : 'Booking created', description: `${fullName} has been ${walkinToday ? 'checked in' : 'booked for ' + scheduledDateStr + ' at ' + scheduledTimeStr}${assignedSalesName ? `. Sales executive: ${assignedSalesName}` : ''}.` });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'walkin_registered',
+          label: `${walkinToday ? 'Walk-in registered' : 'Advance booking created'}: ${fullName} — ${vehicleName}`,
+          route: '/walkin',
+          metadata: { testDriveId: testDrive.id, customerId, customerName: fullName, vehicleName, locationName, scheduledDate: formData.scheduledDate, scheduledTime: formData.scheduledTime, assignedSalesName: assignedSalesName ?? null },
+        });
+      }
       setFormData(prev => ({ firstName: '', lastName: '', countryCode: prev.countryCode, phone: '', email: '', preferredContact: ['phone'], locationId: isDealerLevel ? prev.locationId : (profile?.location_id || ''), vehicleId: '', scheduledDate: todayStr, scheduledTime: '' }));
       setFormErrors({});
       removeLicense();

@@ -21,6 +21,7 @@ export interface ITestDrive extends Document {
   assigned_sales_person_id: string | null;
   assigned_gro_id: string | null;
   gro_id: string | null;
+  assigned_security_person_id: string | null;
   status: TestDriveStatus;
   scheduled_date: string;
   scheduled_time: string;
@@ -46,6 +47,11 @@ export interface ITestDrive extends Document {
   feedback_submitted: boolean;
   inspection_checklist: Record<string, unknown> | null;
   stage: string | null;
+  /** Email reminder tracking */
+  reminder_sent_24h: boolean;
+  reminder_sent_4h: boolean;
+  thank_you_sent: boolean;
+  no_show_reengagement_sent: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +68,7 @@ const TestDriveSchema = new Schema<ITestDrive>(
     assigned_sales_person_id: { type: String, default: null, index: true },
     assigned_gro_id: { type: String, default: null, index: true },
     gro_id: { type: String, default: null },
+    assigned_security_person_id: { type: String, default: null, index: true },
     status: {
       type: String,
       enum: ['scheduled', 'confirmed', 'show', 'in_progress', 'completed', 'no_show', 'cancelled', 'rescheduled'],
@@ -92,6 +99,10 @@ const TestDriveSchema = new Schema<ITestDrive>(
     feedback_submitted: { type: Boolean, default: false },
     inspection_checklist: { type: Schema.Types.Mixed, default: null },
     stage: { type: String, default: null },
+    reminder_sent_24h: { type: Boolean, default: false },
+    reminder_sent_4h: { type: Boolean, default: false },
+    thank_you_sent: { type: Boolean, default: false },
+    no_show_reengagement_sent: { type: Boolean, default: false },
     created_at: { type: String, default: () => new Date().toISOString() },
     updated_at: { type: String, default: () => new Date().toISOString() },
   },

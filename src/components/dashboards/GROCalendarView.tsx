@@ -1135,6 +1135,7 @@ const GROCalendarView = () => {
       <WalkinDialog
         open={walkinDialog.open}
         defaultDate={walkinDialog.date}
+        rebookDrive={true}
         defaultTime={walkinDialog.time}
         defaultLocationId={profile?.location_id}
         onClose={(submitted) => {
