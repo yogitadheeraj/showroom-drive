@@ -435,7 +435,15 @@ export default function CustomerBookingPage() {
                         type="date"
                         value={rescheduleDate}
                         min={new Date().toISOString().split('T')[0]}
-                        onChange={(e) => setRescheduleDate(e.target.value)}
+                        onChange={(e) => {
+                          const newDate = e.target.value;
+                          setRescheduleDate(newDate);
+                          // Clear time when switching to today so user picks a valid future slot
+                          const todayStr = new Date().toISOString().split('T')[0];
+                          if (newDate === todayStr) {
+                            setRescheduleTime('');
+                          }
+                        }}
                         required
                       />
                     </div>
@@ -444,10 +452,21 @@ export default function CustomerBookingPage() {
                       <Input
                         id="rs-time"
                         type="time"
+                        min={rescheduleDate === new Date().toISOString().split('T')[0]
+                          ? (() => {
+                              const now = new Date();
+                              // Round up to next 15-min slot
+                              now.setMinutes(now.getMinutes() + 15);
+                              return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes() - (now.getMinutes() % 15)).padStart(2,'0')}`;
+                            })()
+                          : undefined}
                         value={rescheduleTime}
                         onChange={(e) => setRescheduleTime(e.target.value)}
                         required
                       />
+                      {rescheduleDate === new Date().toISOString().split('T')[0] && (
+                        <p className="text-xs text-muted-foreground">Only future times are available for today.</p>
+                      )}
                     </div>
                     <div className="flex gap-3">
                       <Button type="submit" disabled={isSaving} className="flex-1">
@@ -628,7 +647,12 @@ export default function CustomerBookingPage() {
                           type="date"
                           value={rebookDate}
                           min={new Date().toISOString().split('T')[0]}
-                          onChange={(e) => setRebookDate(e.target.value)}
+                          onChange={(e) => {
+                            const newDate = e.target.value;
+                            setRebookDate(newDate);
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            if (newDate === todayStr) setRebookTime('');
+                          }}
                           required
                         />
                       </div>
@@ -637,10 +661,20 @@ export default function CustomerBookingPage() {
                         <Input
                           id="rb-time"
                           type="time"
+                          min={rebookDate === new Date().toISOString().split('T')[0]
+                            ? (() => {
+                                const now = new Date();
+                                now.setMinutes(now.getMinutes() + 15);
+                                return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes() - (now.getMinutes() % 15)).padStart(2,'0')}`;
+                              })()
+                            : undefined}
                           value={rebookTime}
                           onChange={(e) => setRebookTime(e.target.value)}
                           required
                         />
+                        {rebookDate === new Date().toISOString().split('T')[0] && (
+                          <p className="text-xs text-muted-foreground">Only future times are available for today.</p>
+                        )}
                       </div>
                       <div className="flex gap-3">
                         <Button type="submit" disabled={isRebooking} className="flex-1">

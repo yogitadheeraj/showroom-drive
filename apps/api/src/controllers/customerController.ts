@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import * as customerService from '../services/customerService.js';
+import { TestDrive } from '../models/TestDrive.js';
+import { notifyLicenseUploaded } from './customerBookingController.js';
 
 export async function listCustomersController(req: Request, res: Response) {
   const data = await customerService.listCustomers(req.query as Record<string, unknown>);
@@ -65,6 +67,22 @@ export async function updateCustomerController(req: Request, res: Response) {
     phone: nextPhone || null,
     email: nextEmail || null,
   });
+
+  // If driving_license_url is being newly set, notify customer + sales person
+  const newLicenseUrl = req.body.driving_license_url;
+  const oldLicenseUrl = (current as any).driving_license_url;
+  if (newLicenseUrl && newLicenseUrl !== oldLicenseUrl) {
+    const activeTd = await TestDrive.findOne(
+      { customer_id: req.params.id, status: { $in: ['scheduled', 'confirmed', 'show', 'rescheduled'] } },
+      { id: 1 },
+    ).sort({ scheduled_date: 1 }).lean() as any;
+
+    if (activeTd?.id) {
+      void notifyLicenseUploaded(activeTd.id, req.params.id, newLicenseUrl).catch((err: any) => {
+        console.error('[license] notification error:', err?.message);
+      });
+    }
+  }
 
   res.json({ data });
 }

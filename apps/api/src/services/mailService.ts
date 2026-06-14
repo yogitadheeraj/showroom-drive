@@ -6,6 +6,7 @@ type MailInput = {
   subject: string;
   html: string;
   text?: string;
+  _dealerName?: string; // Optional field for branding the "from" name
 };
 
 function smtpReady() {
@@ -38,15 +39,20 @@ export async function sendMail(input: MailInput) {
     return { sent: false, skipped: true, reason: 'smtp_not_configured' };
   }
 
-  await tx.sendMail({
-    from: env.mailFrom,
-    to: input.to,
-    subject: input.subject,
-    html: input.html,
-    text: input.text,
-  });
-
-  return { sent: true, skipped: false };
+  try {
+    const info = await tx.sendMail({
+      from: `"${input._dealerName || 'Auto Dealer'}" <${env.mailFrom}>`,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    });
+    console.log(`[mail] ✅ Sent → ${input.to} | subject: "${input.subject}" | msgId: ${info.messageId}`);
+    return { sent: true, skipped: false };
+  } catch (err: any) {
+    console.error(`[mail] ❌ FAILED → ${input.to} | subject: "${input.subject}" | error: ${err?.message}`);
+    throw err;
+  }
 }
 
 export function staffVerificationTemplate(params: {

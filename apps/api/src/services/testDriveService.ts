@@ -7,7 +7,8 @@ import { Profile } from '../models/Profile.js';
 import { UserRole } from '../models/UserRole.js';
 import { Notification } from '../models/Notification.js';
 import { sendMail } from './mailService.js';
-import { testDriveCancelledTemplate, testDriveRescheduledTemplate } from '../templates/emailTemplates.js';
+import { Dealer } from '../models/Dealer.js';
+import { testDriveCancelledTemplate, testDriveRescheduledTemplate, bookingConfirmationTemplate } from '../templates/emailTemplates.js';
 import { notifyTestDriveStatusChange } from './firebaseService.js';
 import { getApps } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
@@ -15,6 +16,23 @@ import { dispatchNotification, IntegrationEvent } from './notificationDispatcher
 import { generateBookingToken } from '../controllers/customerBookingController.js';
 import { env } from '../config/env.js';
 import { autoTransitAfterDrive } from './vehicleFleetService.js';
+
+// ─── Resolve dealer branding from a location_id ─────────────────────────────
+async function resolveDealerBranding(locationId: string | undefined): Promise<Record<string, unknown>> {
+  if (!locationId) return {};
+  try {
+    const loc = await Location.findOne({ id: locationId }, { dealer_id: 1 }).lean() as any;
+    if (!loc?.dealer_id) return {};
+    const dealer = await Dealer.findOne({ id: loc.dealer_id }, { name: 1, logo_url: 1 }).lean() as any;
+    if (!dealer) return {};
+    return {
+      _dealerName: dealer.name || undefined,
+      _dealerLogoUrl: dealer.logo_url || undefined,
+    };
+  } catch {
+    return {};
+  }
+}
 
 function toPlain(doc: any) {
   const obj = doc.toObject ? doc.toObject() : { ...doc };
@@ -468,9 +486,10 @@ async function notifyStaffStatusChange(opts: {
   headline: string;
   detail: string;
   badge: string;
+  dealerName?: string;
 }) {
   const { td, customerName, vehicleName, locationName, dateLabel,
-          salesPersonEmail, salesPersonName, headline, detail, badge } = opts;
+          salesPersonEmail, salesPersonName, headline, detail, badge, dealerName } = opts;
 
   const staffHtml = (recipientName: string, role: string) => `
 <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#1a1a1a">
@@ -529,6 +548,7 @@ async function notifyStaffStatusChange(opts: {
       to: staff.to,
       subject: `${headline} — ${customerName} / ${vehicleName}`,
       html: staffHtml(staff.name, staff.role.replace(/_/g, ' ')),
+      _dealerName: dealerName,
     }).catch((err) => {
       console.error(`[testDrive] staff notify failed → ${staff.to}`, err);
     });
@@ -561,20 +581,25 @@ async function afterStatusChange(td: any, status: string) {
       ? `${td.scheduled_date} at ${(td.scheduled_time || '').substring(0, 5)}`
       : td.scheduled_date || '';
     const cancelReason = td.cancelled_reason || td.cancellation_reason || '';
+    const cancelBranding = await resolveDealerBranding(td.location_id);
+    const cancelDealerName = cancelBranding._dealerName as string | undefined;
 
     // Customer email
     if (customerEmail) {
       console.log(`[testDrive] sending cancel email → ${customerEmail}`);
+      const cancelTmpl = testDriveCancelledTemplate({
+        customerName,
+        vehicleName,
+        reason: cancelReason,
+        bookingUrl: cancelBookingUrl,
+        manageUrl: cancelManageUrl,
+        ...cancelBranding,
+      });
       void sendMail({
         to: customerEmail,
-        subject: `Test drive cancellation confirmed`,
-        html: testDriveCancelledTemplate({
-          customerName,
-          vehicleName,
-          reason: cancelReason,
-          bookingUrl: cancelBookingUrl,
-          manageUrl: cancelManageUrl,
-        }).html,
+        subject: cancelTmpl.subject,
+        html: cancelTmpl.html,
+        _dealerName: cancelDealerName,
       }).then(() => {
         console.log(`[testDrive] cancel email sent → ${customerEmail}`);
       }).catch((err) => {
@@ -591,6 +616,7 @@ async function afterStatusChange(td: any, status: string) {
       headline: 'Test Drive Cancelled',
       detail: cancelReason ? `Reason: ${cancelReason}` : 'The customer has cancelled their test drive.',
       badge: '🚫',
+      dealerName: cancelDealerName,
     }).catch(() => null);
   }
 
@@ -599,20 +625,25 @@ async function afterStatusChange(td: any, status: string) {
     const newDate = td.scheduled_date || '';
     const newTime = (td.scheduled_time || '').substring(0, 5);
     const dateLabel = newTime ? `${newDate} at ${newTime}` : newDate;
+    const rescheduleBranding = await resolveDealerBranding(td.location_id);
+    const rescheduleDealerName = rescheduleBranding._dealerName as string | undefined;
 
     // Customer email
     if (customerEmail) {
       console.log(`[testDrive] sending reschedule email → ${customerEmail}`);
+      const rescheduleTmpl = testDriveRescheduledTemplate({
+        customerName,
+        vehicleName,
+        locationName,
+        newDate,
+        newTime,
+        ...rescheduleBranding,
+      });
       void sendMail({
         to: customerEmail,
-        subject: `Test drive rescheduled — ${newDate || 'new date confirmed'}`,
-        html: testDriveRescheduledTemplate({
-          customerName,
-          vehicleName,
-          locationName,
-          newDate,
-          newTime,
-        }).html,
+        subject: rescheduleTmpl.subject,
+        html: rescheduleTmpl.html,
+        _dealerName: rescheduleDealerName,
       }).then(() => {
         console.log(`[testDrive] reschedule email sent → ${customerEmail}`);
       }).catch((err) => {
@@ -629,6 +660,7 @@ async function afterStatusChange(td: any, status: string) {
       headline: 'Test Drive Rescheduled',
       detail: `New appointment: ${dateLabel}`,
       badge: '🔄',
+      dealerName: rescheduleDealerName,
     }).catch(() => null);
   }
 
@@ -731,11 +763,27 @@ async function sendTestDriveBookedNotifications(td: any) {
   if (c?.email) {
     const bookingToken = generateBookingToken(td.id);
     const manageBookingUrl = `${env.publicFrontendUrl}/customer/booking/${td.id}?token=${bookingToken}`;
+    console.log(`[testDrive] sending booking confirmation email → ${c.email}`);
+    const branding = await resolveDealerBranding(td.location_id);
+    const tmpl = bookingConfirmationTemplate({
+      customerName,
+      vehicleName,
+      locationName,
+      scheduledDate,
+      scheduledTime: scheduledTime ? scheduledTime.substring(0, 5) : '',
+      manageBookingUrl,
+      ...branding,
+    });
     await sendMail({
       to: c.email,
-      subject: `Test Drive Confirmed — ${vehicleName}`,
-      html: testDriveCustomerEmailHtml({ customerName, vehicleName, locationName, dateLabel, manageBookingUrl }),
-    }).catch(() => null);
+      subject: tmpl.subject,
+      html: tmpl.html,
+      _dealerName: branding._dealerName as string | undefined,
+    }).catch((err: any) => {
+      console.error(`[testDrive] booking confirmation email failed → ${c.email}:`, err?.message);
+    });
+  } else {
+    console.warn(`[testDrive] booking confirmation email skipped — no customer email (td:${td.id}, customer:${td.customer_id})`);
   }
 
   // ── 2. Look up all profiles at the same location ──────────────────────────
@@ -756,7 +804,8 @@ async function sendTestDriveBookedNotifications(td: any) {
   const adminRoles = new Set(['dealer_admin', 'sales_admin', 'branch_admin', 'superadmin', 'super_admin']);
   const notifyRoles = new Set(['gro', 'security']);
 
-  
+  const staffBranding = await resolveDealerBranding(td.location_id);
+  const staffDealerName = staffBranding._dealerName as string | undefined;
 
   // ── 4. Email: admin staff (dealer_admin, sales_admin, branch_admin) ───────
   for (const [uid, role] of roleMap) {
@@ -778,6 +827,7 @@ async function sendTestDriveBookedNotifications(td: any) {
         dateLabel,
         testDriveId: td.id,
       }),
+      _dealerName: staffDealerName,
     }).catch(() => null);
   }
 
@@ -914,6 +964,7 @@ async function sendSalesAssignmentEmail(
     ? `${td.scheduled_date} at ${td.scheduled_time}`
     : td.scheduled_date || '';
 
+  const assignBranding = await resolveDealerBranding(td.location_id);
   await sendMail({
     to: salesProfile.email,
     subject: `Walk-in Lead Auto-Assigned to You — ${vehicleName}`,
@@ -926,6 +977,7 @@ async function sendSalesAssignmentEmail(
       dateLabel,
       testDriveId: td.id,
     }),
+    _dealerName: assignBranding._dealerName as string | undefined,
   }).catch(() => null);
 }
 

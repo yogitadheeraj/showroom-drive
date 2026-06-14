@@ -1,16 +1,35 @@
 const SITE_NAME = 'Auto Advant';
+const AUTOADVANT_URL = 'https://AutoAdvant.com';
 
-function base(previewText: string, bodyContent: string): string {
+/**
+ * Branding injected at render time so each dealer gets their own identity in emails.
+ * All fields optional — falls back to AutoAdvant defaults.
+ */
+export interface EmailBranding {
+  dealerName?: string;
+  dealerLogoUrl?: string;
+  primaryColor?: string; // hex e.g. "#18181b"
+}
+
+function base(previewText: string, bodyContent: string, branding: EmailBranding = {}): string {
+  const brand = branding.dealerName || SITE_NAME;
+  const primaryColor = branding.primaryColor || '#18181b';
+  const logoUrl = branding.dealerLogoUrl;
+console.log('Generating email with branding:', { brand, primaryColor, logoUrl });
+  const headerContent = logoUrl
+    ? `<img src="${logoUrl}" alt="${brand}" style="height:44px;max-width:200px;object-fit:contain;display:block;" />`
+    : `<h1 style="margin:0;font-size:20px;font-weight:700;">🚗 ${brand}</h1>`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${SITE_NAME}</title>
+  <title>${brand}</title>
   <style>
     body { margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #18181b; }
     .container { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
-    .header { background: #18181b; color: #fff; padding: 28px 32px; }
+    .header { background: ${primaryColor}; color: #fff; padding: 24px 32px; }
     .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
     .header p { margin: 4px 0 0; font-size: 13px; color: #a1a1aa; }
     .body { padding: 28px 32px; }
@@ -20,7 +39,7 @@ function base(previewText: string, bodyContent: string): string {
     .details .row { display: flex; justify-content: space-between; gap: 24px; padding: 8px 0; border-bottom: 1px solid #e4e4e7; font-size: 13px; }
     .details .row:last-child { border-bottom: none; }
     .details .row .label { color: #71717a; white-space: nowrap; }
-    .cta { display: inline-block; background: #18181b; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 14px; font-weight: 600; margin: 16px 0; }
+    .cta { display: inline-block; background: ${primaryColor}; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 14px; font-weight: 600; margin: 16px 0; }
     .footer { padding: 20px 32px; font-size: 12px; color: #a1a1aa; border-top: 1px solid #f4f4f5; }
     .preview { display: none; font-size: 1px; color: transparent; }
   </style>
@@ -29,11 +48,12 @@ function base(previewText: string, bodyContent: string): string {
   <span class="preview">${previewText}</span>
   <div class="container">
     <div class="header">
-      <h1>🚗 ${SITE_NAME}</h1>
+      ${headerContent}
     </div>
     ${bodyContent}
     <div class="footer">
-      <p>© ${new Date().getFullYear()} ${SITE_NAME}. All rights reserved.</p>
+      <p>© ${new Date().getFullYear()} ${brand}. All rights reserved.</p>
+      <p style="margin-top:4px;">Powered by <a href="${AUTOADVANT_URL}" style="color:#a1a1aa;text-decoration:underline;">AutoAdvant.com</a></p>
     </div>
   </div>
 </body>
@@ -46,10 +66,19 @@ function detailRow(label: string, value: string | undefined | null): string {
   return `<div class="details row"><span class="label">${displayLabel}</span><span>${value}</span></div>`;
 }
 
+function extractBranding(data: Record<string, unknown>): EmailBranding {
+  return {
+    dealerName: data._dealerName as string | undefined,
+    dealerLogoUrl: data._dealerLogoUrl as string | undefined,
+    primaryColor: data._primaryColor as string | undefined,
+  };
+}
+
 // ── Templates ────────────────────────────────────────────────────────────────
 
 export function testDriveCompletedTemplate(data: Record<string, unknown>) {
   const { customerName, vehicleName, locationName, scheduledDate, salesPersonName, durationMinutes } = data as Record<string, string | number | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `Your test drive is complete — thank you, ${customerName || 'there'}!`,
     html: base(
@@ -67,6 +96,7 @@ export function testDriveCompletedTemplate(data: Record<string, unknown>) {
         </div>
         <p>Interested in the next step? Our team is ready to help with pricing, financing, or scheduling another test drive.</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, your test drive${vehicleName ? ` of ${vehicleName}` : ''} is complete. Thank you for visiting us!`,
   };
@@ -74,6 +104,7 @@ export function testDriveCompletedTemplate(data: Record<string, unknown>) {
 
 export function testDriveRescheduledTemplate(data: Record<string, unknown>) {
   const { customerName, vehicleName, locationName, newDate, newTime } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `Test drive rescheduled — ${newDate || 'new date confirmed'}`,
     html: base(
@@ -90,6 +121,7 @@ export function testDriveRescheduledTemplate(data: Record<string, unknown>) {
         </div>
         <p>If you have questions or need to make further changes, please contact us.</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, your test drive has been rescheduled to ${newDate} at ${newTime}.`,
   };
@@ -97,6 +129,7 @@ export function testDriveRescheduledTemplate(data: Record<string, unknown>) {
 
 export function testDriveCancelledTemplate(data: Record<string, unknown>) {
   const { customerName, vehicleName, reason, bookingUrl, manageUrl } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `Test drive cancellation confirmed`,
     html: base(
@@ -113,13 +146,15 @@ export function testDriveCancelledTemplate(data: Record<string, unknown>) {
         </div>
         <p style="color:#71717a;font-size:13px;">If you have any questions, simply reply to this email — we're happy to help.</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, your test drive${vehicleName ? ` of ${vehicleName}` : ''} has been cancelled.${bookingUrl ? ` Book again: ${bookingUrl}` : ''}${manageUrl ? ` Manage booking: ${manageUrl}` : ''}`,
   };
 }
 
 export function bookingConfirmationTemplate(data: Record<string, unknown>) {
-  const { customerName, vehicleName, locationName, scheduledDate, scheduledTime, salesPersonName } = data as Record<string, string | undefined>;
+  const { customerName, vehicleName, locationName, scheduledDate, scheduledTime, salesPersonName, manageBookingUrl } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `Test drive confirmed — ${scheduledDate || 'upcoming'}`,
     html: base(
@@ -136,25 +171,30 @@ export function bookingConfirmationTemplate(data: Record<string, unknown>) {
           ${detailRow('Sales Person', salesPersonName)}
         </div>
         <p>Please bring a valid driving licence. Arrive 10 minutes before your slot.</p>
+        ${manageBookingUrl ? `<p style="margin-top:20px;"><a class="cta" href="${manageBookingUrl}">View &amp; Manage Booking</a></p><p style="font-size:13px;color:#71717a;">You can also upload your driving licence from the booking page.</p>` : ''}
       </div>`,
+      branding,
     ),
-    text: `Hi ${customerName || 'there'}, your test drive is confirmed for ${scheduledDate} at ${scheduledTime}.`,
+    text: `Hi ${customerName || 'there'}, your test drive is confirmed for ${scheduledDate} at ${scheduledTime}.${manageBookingUrl ? ` Manage booking: ${manageBookingUrl}` : ''}`,
   };
 }
 
 export function salesFollowUpTemplate(data: Record<string, unknown>) {
   const { customerName, salesPersonName, vehicleName, followUpNote } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
+  const brandName = branding.dealerName || SITE_NAME;
   return {
-    subject: `Follow-up from ${SITE_NAME}`,
+    subject: `Follow-up from ${brandName}`,
     html: base(
-      `Your ${SITE_NAME} sales consultant is following up`,
+      `Your ${brandName} sales consultant is following up`,
       `<div class="body">
         <h2>We're following up!</h2>
         <p>Hi ${customerName || 'there'},</p>
-        <p>Your ${SITE_NAME} consultant${salesPersonName ? ` <strong>${salesPersonName}</strong>` : ''} is following up${vehicleName ? ` regarding the <strong>${vehicleName}</strong>` : ''}.</p>
+        <p>Your ${brandName} consultant${salesPersonName ? ` <strong>${salesPersonName}</strong>` : ''} is following up${vehicleName ? ` regarding the <strong>${vehicleName}</strong>` : ''}.</p>
         ${followUpNote ? `<p>${followUpNote}</p>` : ''}
         <p>Reply to this email or contact us directly — we'd love to help you take the next step.</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, ${salesPersonName || 'your sales consultant'} is following up${vehicleName ? ` about the ${vehicleName}` : ''}.`,
   };
@@ -162,6 +202,7 @@ export function salesFollowUpTemplate(data: Record<string, unknown>) {
 
 export function salesAssignmentTemplate(data: Record<string, unknown>) {
   const { salesPersonName, customerName, vehicleName, scheduledDate, scheduledTime } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `New test drive assigned — ${customerName}`,
     html: base(
@@ -178,6 +219,7 @@ export function salesAssignmentTemplate(data: Record<string, unknown>) {
         </div>
         <p>Please ensure you are available and prepared for this appointment.</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${salesPersonName || 'there'}, a test drive with ${customerName} for ${vehicleName} has been assigned to you on ${scheduledDate} at ${scheduledTime}.`,
   };
@@ -193,6 +235,7 @@ export function testDriveJourneyTemplate(data: Record<string, unknown>) {
     durationMinutes: legacyDuration, startKm, endKm, notes,
   } = data as Record<string, string | number | undefined>;
 
+  const branding = extractBranding(data);
   const duration = totalDurationMinutes ?? legacyDuration;
   const statusLabel = currentStatus ? String(currentStatus).replace(/_/g, ' ') : undefined;
 
@@ -251,6 +294,7 @@ export function testDriveJourneyTemplate(data: Record<string, unknown>) {
 
         ${locationPhone ? `<p style="margin-top:16px;font-size:13px;color:#71717a;">Questions? Contact us at ${locationPhone}</p>` : ''}
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, here is your test drive journey summary for ${vehicleName || 'the vehicle'} at ${locationName || 'our showroom'} on ${scheduledDate || ''}.${feedbackLink ? ` Share your feedback: ${feedbackLink}` : ''}`,
   };
@@ -258,17 +302,20 @@ export function testDriveJourneyTemplate(data: Record<string, unknown>) {
 
 export function staffWelcomeTemplate(data: Record<string, unknown>) {
   const { fullName, roleLabel, verificationLink, loginUrl } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
+  const brandName = branding.dealerName || SITE_NAME;
   return {
     subject: `Verify your account to sign in`,
     html: base(
-      `Welcome to ${SITE_NAME} — verify your account`,
+      `Welcome to ${brandName} — verify your account`,
       `<div class="body">
-        <h2>Welcome to ${SITE_NAME}! 👋</h2>
+        <h2>Welcome to ${brandName}! 👋</h2>
         <p>Hi ${fullName || 'there'},</p>
         <p>Your <strong>${roleLabel || 'staff'}</strong> account has been created. Verify your email to get started:</p>
         ${verificationLink ? `<a class="cta" href="${verificationLink}">Verify My Account</a>` : ''}
         ${loginUrl ? `<p>After verification, sign in at: <a href="${loginUrl}">${loginUrl}</a></p>` : ''}
       </div>`,
+      branding,
     ),
     text: `Hi ${fullName || 'there'}, your ${roleLabel || 'staff'} account has been created. Verify your email: ${verificationLink}`,
   };
@@ -276,6 +323,7 @@ export function staffWelcomeTemplate(data: Record<string, unknown>) {
 
 export function vehicleChangeNotificationTemplate(data: Record<string, unknown>) {
   const { customerName, oldVehicle, newVehicle, scheduledDate } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `Vehicle updated for your test drive`,
     html: base(
@@ -291,6 +339,7 @@ export function vehicleChangeNotificationTemplate(data: Record<string, unknown>)
         </div>
         <p>If you have any questions, please contact us.</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, your test drive vehicle has been updated from ${oldVehicle} to ${newVehicle}.`,
   };
@@ -298,6 +347,7 @@ export function vehicleChangeNotificationTemplate(data: Record<string, unknown>)
 
 export function demoRequestConfirmationTemplate(data: Record<string, unknown>) {
   const { contactName, dealerName } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `Demo request received — ${SITE_NAME}`,
     html: base(
@@ -307,6 +357,7 @@ export function demoRequestConfirmationTemplate(data: Record<string, unknown>) {
         <p>Hi ${contactName || 'there'},</p>
         <p>Thank you for your interest in ${SITE_NAME}${dealerName ? ` for <strong>${dealerName}</strong>` : ''}! We've received your demo request and our team will be in touch within 24 hours.</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${contactName || 'there'}, we received your demo request and will be in touch within 24 hours.`,
   };
@@ -316,6 +367,7 @@ export function demoRequestConfirmationTemplate(data: Record<string, unknown>) {
 
 export function testDriveReminder24hTemplate(data: Record<string, unknown>) {
   const { customerName, vehicleName, locationName, scheduledDate, scheduledTime, salesPersonName } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `⏰ Your test drive is tomorrow — ${vehicleName || 'get ready!'}`,
     html: base(
@@ -335,6 +387,7 @@ export function testDriveReminder24hTemplate(data: Record<string, unknown>) {
         <p>If you need to reschedule or have any questions, reply to this email or call us before your appointment.</p>
         <p style="color:#71717a;font-size:13px;">See you tomorrow!</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, reminder: your test drive of ${vehicleName || 'the vehicle'} is tomorrow at ${scheduledTime} at ${locationName}. Bring your driving licence.`,
   };
@@ -342,6 +395,7 @@ export function testDriveReminder24hTemplate(data: Record<string, unknown>) {
 
 export function testDriveReminder4hTemplate(data: Record<string, unknown>) {
   const { customerName, vehicleName, locationName, scheduledDate, scheduledTime, salesPersonName } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `🚀 See you in ~4 hours — ${vehicleName || 'test drive'} today!`,
     html: base(
@@ -359,6 +413,7 @@ export function testDriveReminder4hTemplate(data: Record<string, unknown>) {
         <p>📍 <strong>Pro tip:</strong> Arrive 5 minutes early so we can get started right on time.</p>
         <p>If something has come up, please let us know as soon as possible so we can assist other customers.</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, your test drive of ${vehicleName || 'the vehicle'} at ${locationName} is in about 4 hours (${scheduledTime}). See you soon!`,
   };
@@ -366,6 +421,7 @@ export function testDriveReminder4hTemplate(data: Record<string, unknown>) {
 
 export function testDriveNoShowReengagementTemplate(data: Record<string, unknown>) {
   const { customerName, vehicleName, locationName, bookingUrl, manageUrl } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `We missed you today, ${customerName || 'there'} — rebook your test drive 🚗`,
     html: base(
@@ -388,6 +444,7 @@ export function testDriveNoShowReengagementTemplate(data: Record<string, unknown
         <p>Or simply reply to this email and we'll arrange a time that works perfectly for you.</p>
         <p style="color:#71717a;font-size:13px;">We look forward to meeting you — at your convenience!</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, we missed you today! Please rebook your test drive of ${vehicleName || 'the vehicle'} at your convenience.${bookingUrl ? ` Book here: ${bookingUrl}` : ''}${manageUrl ? ` Manage your booking: ${manageUrl}` : ''}`,
   };
@@ -395,6 +452,7 @@ export function testDriveNoShowReengagementTemplate(data: Record<string, unknown
 
 export function testDriveThankYouTemplate(data: Record<string, unknown>) {
   const { customerName, vehicleName, locationName, salesPersonName, salesPersonPhone, bookingUrl } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
   return {
     subject: `Thank you for your test drive, ${customerName || 'there'}! 🎉`,
     html: base(
@@ -422,6 +480,7 @@ export function testDriveThankYouTemplate(data: Record<string, unknown>) {
         ${bookingUrl ? `<a class="cta" href="${bookingUrl}">Book Another Test Drive</a>` : ''}
         <p style="color:#71717a;font-size:13px;">We'd love to help you find your perfect vehicle. See you again soon! 🚗</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, thank you for your test drive of ${vehicleName || 'the vehicle'}! Your host${salesPersonName ? ` ${salesPersonName}` : ''} is available for follow-up.${bookingUrl ? ` Book again: ${bookingUrl}` : ''}`,
   };
@@ -431,6 +490,7 @@ export function testDriveThankYouTemplate(data: Record<string, unknown>) {
 
 export function testDriveFeedbackReceivedTemplate(data: Record<string, unknown>) {
   const { customerName, vehicleName, locationName, rating, experienceBadge, feedbackText, wouldRecommend, submittedAt } = data as Record<string, string | number | boolean | undefined>;
+  const branding = extractBranding(data);
   const stars = '⭐'.repeat(Number(rating) || 0);
   const recommend = wouldRecommend === true || wouldRecommend === 'true' ? '✅ Yes' : '❌ No';
   return {
@@ -448,6 +508,7 @@ export function testDriveFeedbackReceivedTemplate(data: Record<string, unknown>)
           ${submittedAt ? detailRow('Submitted At', String(submittedAt)) : ''}
         </div>
       </div>`,
+      branding,
     ),
     text: `${customerName || 'A customer'} submitted feedback: ${rating}/5 stars.${feedbackText ? ` "${feedbackText}"` : ''} Would recommend: ${recommend}.`,
   };
@@ -455,6 +516,7 @@ export function testDriveFeedbackReceivedTemplate(data: Record<string, unknown>)
 
 export function testDriveFeedbackThankYouTemplate(data: Record<string, unknown>) {
   const { customerName, vehicleName, locationName, rating, salesPersonName, salesPersonPhone } = data as Record<string, string | number | undefined>;
+  const branding = extractBranding(data);
   const stars = '⭐'.repeat(Number(rating) || 0);
   return {
     subject: `Thank you for your feedback, ${customerName || 'there'}! ${stars}`,
@@ -468,6 +530,7 @@ export function testDriveFeedbackThankYouTemplate(data: Record<string, unknown>)
         ${salesPersonName ? `<p>Your host <strong>${salesPersonName}</strong>${salesPersonPhone ? ` (${salesPersonPhone})` : ''} will be in touch if you have any further questions about the vehicle or purchase options.</p>` : ''}
         <p style="color:#71717a;font-size:13px;">Thank you for choosing us — we hope to see you again soon! 🚗</p>
       </div>`,
+      branding,
     ),
     text: `Hi ${customerName || 'there'}, thank you for your ${rating}/5 star feedback! We appreciate your time and look forward to serving you again.`,
   };

@@ -51,6 +51,7 @@ import {
 } from '../controllers/testDriveController.js';
 import { publicBookTestDriveController } from '../controllers/publicBookingController.js';
 import { submitTestDriveFeedbackController } from '../controllers/feedbackController.js';
+import { previewEmailTemplateController } from '../controllers/emailTemplateController.js';
 import {
   listIntegrationsController,
   listAllIntegrationsController,
@@ -247,6 +248,8 @@ apiRouter.post('/location-operating-hours/bulk-upsert', requireAuth, bulkUpsertL
 apiRouter.post('/public/book', publicBookTestDriveController);
 // Public feedback submission (no auth required)
 apiRouter.post('/public/feedback', submitTestDriveFeedbackController);
+// Email template preview (auth required — dealer_admin / superadmin)
+apiRouter.get('/email-templates/preview', requireAuth, previewEmailTemplateController);
 
 // Customer self-service booking (token-verified, no auth required)
 apiRouter.get('/customer/booking/:testDriveId', getCustomerBookingController);

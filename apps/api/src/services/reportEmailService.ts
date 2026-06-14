@@ -366,6 +366,8 @@ export async function sendTransactionalEmail(args: {
   messageId?: string;
   idempotencyKey?: string;
   sendDirectly?: boolean;
+  /** Dealer branding — if omitted, auto-resolved from templateData.location_id or templateData._dealerId */
+  branding?: { dealerName?: string; dealerLogoUrl?: string; primaryColor?: string };
 }): Promise<{ queued?: boolean; sent?: boolean; messageId: string }> {
   const { renderEmailTemplate } = await import('../templates/emailTemplates.js');
 
@@ -375,10 +377,69 @@ export async function sendTransactionalEmail(args: {
 
   if (args.templateName && !html) {
     try {
-      const rendered = renderEmailTemplate(args.templateName, args.templateData || {});
+      // Resolve dealer branding to inject into templates
+      let brandingFields: Record<string, unknown> = {};
+      const srcBranding = args.branding;
+      if (srcBranding?.dealerName || srcBranding?.dealerLogoUrl) {
+        brandingFields = {
+          _dealerName: srcBranding.dealerName,
+          _dealerLogoUrl: srcBranding.dealerLogoUrl,
+          _primaryColor: srcBranding.primaryColor,
+        };
+      } else {
+        // Auto-resolve branding from location_id or dealer_id in templateData
+        try {
+          const { Location } = await import('../models/Location.js');
+          const { Dealer } = await import('../models/Dealer.js');
+          const locationId = (args.templateData?.location_id || args.templateData?.locationId) as string | undefined;
+          const dealerId = args.templateData?._dealerId as string | undefined;
+          let dealerDoc: any = null;
+          if (locationId) {
+            const loc = await Location.findOne({ id: locationId }, { dealer_id: 1 }).lean();
+            if ((loc as any)?.dealer_id) {
+              dealerDoc = await Dealer.findOne({ id: (loc as any).dealer_id }, { name: 1, logo_url: 1 }).lean();
+            }
+          } else if (dealerId) {
+            dealerDoc = await Dealer.findOne({ id: dealerId }, { name: 1, logo_url: 1 }).lean();
+          }
+          if (dealerDoc) {
+            brandingFields = {
+              _dealerName: (dealerDoc as any).name || undefined,
+              _dealerLogoUrl: (dealerDoc as any).logo_url || undefined,
+            };
+          }
+        } catch { /* branding resolution is best-effort */ }
+      }
+
+      const rendered = renderEmailTemplate(args.templateName, { ...(args.templateData || {}), ...brandingFields });
       subject = subject || rendered.subject;
       html = rendered.html;
       text = text || rendered.text;
+
+      // Apply dealer-specific template customizations (subject/body overrides)
+      try {
+        const resolvedDealerId = brandingFields._dealerId as string | undefined
+          || (brandingFields._dealerName ? undefined : undefined); // dealerId resolved separately below
+        const { Location } = await import('../models/Location.js');
+        const { Dealer } = await import('../models/Dealer.js');
+        const { EmailTemplateCustomization } = await import('../models/EmailTemplateCustomization.js');
+        const locationId = (args.templateData?.location_id || args.templateData?.locationId) as string | undefined;
+        let dealerIdForCustom: string | null = null;
+        if (locationId) {
+          const loc = await Location.findOne({ id: locationId }, { dealer_id: 1 }).lean();
+          dealerIdForCustom = (loc as any)?.dealer_id || null;
+        }
+        if (dealerIdForCustom) {
+          const custom = await EmailTemplateCustomization.findOne(
+            { dealer_id: dealerIdForCustom, template_key: args.templateName },
+            { subject_override: 1, body_override: 1 },
+          ).lean();
+          if (custom) {
+            if ((custom as any).subject_override) subject = (custom as any).subject_override;
+            if ((custom as any).body_override) html = (custom as any).body_override;
+          }
+        }
+      } catch { /* customization lookup is best-effort */ }
     } catch {
       if (!html) throw new Error(`Template '${args.templateName}' not found and no html provided`);
     }
