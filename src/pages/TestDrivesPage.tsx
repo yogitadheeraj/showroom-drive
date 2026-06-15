@@ -22,7 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Users, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle, MoreHorizontal, PlusCircle, CalendarClock, Shield } from 'lucide-react';
+import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Users, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle, MoreHorizontal, PlusCircle, CalendarClock, Shield, LayoutGrid, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveJourneyDialog } from '@/components/TestDriveJourneyDialog';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
@@ -80,6 +80,11 @@ const TestDrivesPage = () => {
   const [securityActionId, setSecurityActionId] = useState<string | null>(null);
   const [groupBySales, setGroupBySales] = useState(false);
   const [rebookDrive, setRebookDrive] = useState<any | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'calendar'>('grid');
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
+  const [calendarSelectedDrive, setCalendarSelectedDrive] = useState<any | null>(null);
+  const [calendarViewType, setCalendarViewType] = useState<'week' | 'month' | 'year'>('week');
+  const [calendarInsight, setCalendarInsight] = useState<{ type: 'day' | 'week' | 'month' | 'year'; date: Date } | null>(null);
 
   useEffect(() => {
     if (!dealerLoading) fetchTestDrives();
@@ -425,6 +430,135 @@ const TestDrivesPage = () => {
     rescheduled: 'bg-muted text-muted-foreground border-border',
   };
 
+  // ── Calendar helpers ──────────────────────────────────────────────────────
+  const calendarWeekStart = useMemo(() => {
+    const d = new Date(calendarDate);
+    d.setDate(d.getDate() - d.getDay());
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [calendarDate]);
+
+  const calendarDays = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(calendarWeekStart);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }, [calendarWeekStart]);
+
+  // Month grid: 6 weeks starting from first Sunday on or before the 1st of the month
+  const calendarMonthGrid = useMemo(() => {
+    const y = calendarDate.getFullYear();
+    const m = calendarDate.getMonth();
+    const first = new Date(y, m, 1);
+    const start = new Date(first);
+    start.setDate(start.getDate() - start.getDay());
+    return Array.from({ length: 42 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }, [calendarDate]);
+
+  const calendarHours = Array.from({ length: 13 }, (_, i) => i + 8); // 8am–8pm
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  const statusCalColor: Record<string, string> = {
+    scheduled: 'bg-blue-500 text-white',
+    confirmed: 'bg-indigo-500 text-white',
+    show: 'bg-emerald-500 text-white',
+    no_show: 'bg-amber-500 text-white',
+    in_progress: 'bg-orange-500 text-white',
+    completed: 'bg-green-600 text-white',
+    cancelled: 'bg-red-500 text-white',
+    rescheduled: 'bg-slate-400 text-white',
+  };
+
+  const statusDotColor: Record<string, string> = {
+    scheduled: 'bg-blue-500',
+    confirmed: 'bg-indigo-500',
+    show: 'bg-emerald-500',
+    no_show: 'bg-amber-500',
+    in_progress: 'bg-orange-500',
+    completed: 'bg-green-600',
+    cancelled: 'bg-red-500',
+    rescheduled: 'bg-slate-400',
+  };
+
+  const fmtDate = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  const drivesOnDay = (day: Date) => {
+    const dayStr = fmtDate(day);
+    return testDrives.filter((td) => td.scheduled_date === dayStr);
+  };
+
+  const driveAtHour = (day: Date, hour: number) =>
+    drivesOnDay(day).filter((td) => parseInt((td.scheduled_time || '00:00').split(':')[0], 10) === hour);
+
+  const drivesInMonth = (year: number, month: number) =>
+    testDrives.filter((td) => {
+      if (!td.scheduled_date) return false;
+      const [y, m] = td.scheduled_date.split('-').map(Number);
+      return y === year && m - 1 === month;
+    });
+
+  const drivesInYear = (year: number) =>
+    testDrives.filter((td) => td.scheduled_date?.startsWith(String(year)));
+
+  // Insight computation
+  const insightDrives = useMemo(() => {
+    if (!calendarInsight) return testDrives;
+    const { type, date } = calendarInsight;
+    if (type === 'day') return drivesOnDay(date);
+    if (type === 'week') {
+      const start = new Date(date);
+      start.setDate(start.getDate() - start.getDay());
+      const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d; });
+      return days.flatMap(drivesOnDay);
+    }
+    if (type === 'month') return drivesInMonth(date.getFullYear(), date.getMonth());
+    if (type === 'year') return drivesInYear(date.getFullYear());
+    return testDrives;
+  }, [calendarInsight, testDrives]);
+
+  const insightLabel = useMemo(() => {
+    if (!calendarInsight) return 'All Drives';
+    const { type, date } = calendarInsight;
+    if (type === 'day') return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    if (type === 'week') {
+      const start = new Date(date);
+      start.setDate(start.getDate() - start.getDay());
+      const end = new Date(start); end.setDate(end.getDate() + 6);
+      return `Week: ${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    }
+    if (type === 'month') return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    if (type === 'year') return `Year ${date.getFullYear()}`;
+    return '';
+  }, [calendarInsight]);
+
+  const insightStats = useMemo(() => {
+    const total = insightDrives.length;
+    const byStatus = insightDrives.reduce((acc: Record<string, number>, td) => {
+      acc[td.status] = (acc[td.status] || 0) + 1;
+      return acc;
+    }, {});
+    const completionRate = total > 0 ? Math.round(((byStatus.completed || 0) / total) * 100) : 0;
+    const showRate = total > 0 ? Math.round((((byStatus.show || 0) + (byStatus.completed || 0) + (byStatus.in_progress || 0)) / total) * 100) : 0;
+    return { total, byStatus, completionRate, showRate };
+  }, [insightDrives]);
+
+  const navigateCalendar = (dir: 1 | -1) => {
+    const d = new Date(calendarDate);
+    if (calendarViewType === 'week') d.setDate(d.getDate() + dir * 7);
+    else if (calendarViewType === 'month') d.setMonth(d.getMonth() + dir);
+    else d.setFullYear(d.getFullYear() + dir);
+    setCalendarDate(d);
+    setCalendarInsight(null);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6">
@@ -437,6 +571,25 @@ const TestDrivesPage = () => {
             <p className="text-sm text-muted-foreground">Manage all test drive appointments and journey completion quality</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {/* View toggle */}
+            <div className="flex items-center border border-border rounded-lg overflow-hidden">
+              <button
+                className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                  viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+                }`}
+                onClick={() => setViewMode('grid')}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" /> Grid
+              </button>
+              <button
+                className={`px-3 py-1.5 text-xs flex items-center gap-1.5 transition-colors ${
+                  viewMode === 'calendar' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+                }`}
+                onClick={() => setViewMode('calendar')}
+              >
+                <Calendar className="h-3.5 w-3.5" /> Calendar
+              </button>
+            </div>
             {role === APP_ROLE.SALES_ADMIN && (
               <Button
                 size="sm"
@@ -467,11 +620,336 @@ const TestDrivesPage = () => {
           </div>
         </div>
 
-        {testDrives.length === 0 ? (
+        {/* ── Calendar View ─────────────────────────────────────────────── */}
+        {viewMode === 'calendar' && (
+          <div className="flex gap-4 min-h-[600px]">
+            {/* ── Left: Calendar ── */}
+            <div className="flex-1 min-w-0 rounded-xl border border-border bg-card shadow-card overflow-hidden flex flex-col">
+
+              {/* Toolbar */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30 gap-3 flex-wrap">
+                {/* View type toggle */}
+                <div className="flex items-center border border-border rounded-lg overflow-hidden text-xs">
+                  {(['week', 'month', 'year'] as const).map((vt) => (
+                    <button
+                      key={vt}
+                      onClick={() => { setCalendarViewType(vt); setCalendarInsight(null); setCalendarSelectedDrive(null); }}
+                      className={`px-3 py-1.5 capitalize transition-colors ${
+                        calendarViewType === vt ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {vt}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Period label + nav */}
+                <div className="flex items-center gap-2">
+                  <button onClick={() => navigateCalendar(-1)} className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-colors">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="text-sm font-semibold text-foreground min-w-[160px] text-center">
+                    {calendarViewType === 'week' && `${calendarDays[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${calendarDays[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                    {calendarViewType === 'month' && calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                    {calendarViewType === 'year' && String(calendarDate.getFullYear())}
+                  </span>
+                  <button onClick={() => navigateCalendar(1)} className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-colors">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => { setCalendarDate(new Date()); setCalendarInsight(null); }}
+                  className="text-xs px-2 py-1 rounded border border-border hover:bg-muted transition-colors"
+                >
+                  Today
+                </button>
+              </div>
+
+              {/* ── WEEK VIEW ── */}
+              {calendarViewType === 'week' && (
+                <>
+                  <div className="grid grid-cols-[56px_repeat(7,1fr)] border-b border-border">
+                    <div className="border-r border-border" />
+                    {calendarDays.map((day) => {
+                      const isToday = day.toDateString() === new Date().toDateString();
+                      const count = drivesOnDay(day).length;
+                      const isSelected = calendarInsight?.type === 'day' && calendarInsight.date.toDateString() === day.toDateString();
+                      return (
+                        <button
+                          key={day.toISOString()}
+                          onClick={() => setCalendarInsight({ type: 'day', date: day })}
+                          className={`py-2 px-1 text-center border-r border-border last:border-r-0 transition-colors hover:bg-primary/5 ${
+                            isToday ? 'bg-primary/5' : ''} ${isSelected ? 'bg-primary/10 ring-1 ring-inset ring-primary/40' : ''}`}
+                        >
+                          <div className={`text-[10px] uppercase tracking-wide font-medium ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
+                            {day.toLocaleDateString(undefined, { weekday: 'short' })}
+                          </div>
+                          <div className={`text-sm font-bold mt-0.5 ${isToday ? 'text-primary' : 'text-foreground'}`}>{day.getDate()}</div>
+                          {count > 0 && <div className="text-[9px] text-primary font-medium mt-0.5">{count}</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="overflow-y-auto flex-1">
+                    {calendarHours.map((hour) => (
+                      <div key={hour} className="grid grid-cols-[56px_repeat(7,1fr)] border-b border-border last:border-b-0 min-h-[60px]">
+                        <div className="border-r border-border px-1 py-1 flex items-start justify-end">
+                          <span className="text-[10px] text-muted-foreground">{hour > 12 ? `${hour - 12}pm` : hour === 12 ? '12pm' : `${hour}am`}</span>
+                        </div>
+                        {calendarDays.map((day) => {
+                          const drives = driveAtHour(day, hour);
+                          const isToday = day.toDateString() === new Date().toDateString();
+                          return (
+                            <div key={day.toISOString()} className={`border-r border-border last:border-r-0 p-1 space-y-0.5 ${isToday ? 'bg-primary/[0.02]' : ''}`}>
+                              {drives.map((td) => (
+                                <button
+                                  key={td.id}
+                                  onClick={(e) => { e.stopPropagation(); setCalendarSelectedDrive(td); setCalendarInsight({ type: 'day', date: day }); }}
+                                  className={`w-full text-left rounded px-1.5 py-1 text-[10px] font-medium leading-tight truncate transition-opacity hover:opacity-80 ${statusCalColor[td.status] ?? 'bg-slate-400 text-white'} ${calendarSelectedDrive?.id === td.id ? 'ring-2 ring-white ring-offset-1' : ''}`}
+                                >
+                                  <div className="font-semibold truncate">{td.customers?.full_name || 'Customer'}</div>
+                                  <div className="opacity-80 truncate">{td.vehicles?.brand} {td.vehicles?.model}</div>
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* ── MONTH VIEW ── */}
+              {calendarViewType === 'month' && (
+                <div className="flex flex-col flex-1">
+                  {/* Day of week headers */}
+                  <div className="grid grid-cols-7 border-b border-border">
+                    {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
+                      <div key={d} className="py-2 text-center text-[10px] uppercase tracking-wide font-medium text-muted-foreground border-r border-border last:border-r-0">{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 flex-1">
+                    {calendarMonthGrid.map((day, idx) => {
+                      const isCurrentMonth = day.getMonth() === calendarDate.getMonth();
+                      const isToday = day.toDateString() === new Date().toDateString();
+                      const drives = drivesOnDay(day);
+                      const isSelected = calendarInsight?.type === 'day' && calendarInsight.date.toDateString() === day.toDateString();
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => setCalendarInsight({ type: 'day', date: day })}
+                          className={`border-r border-b border-border last-of-type:border-r-0 p-1.5 text-left min-h-[80px] transition-colors hover:bg-primary/5 ${
+                            !isCurrentMonth ? 'bg-muted/20' : ''} ${isSelected ? 'bg-primary/10 ring-1 ring-inset ring-primary/30' : ''}`}
+                        >
+                          <span className={`text-xs font-semibold inline-flex h-5 w-5 items-center justify-center rounded-full ${
+                            isToday ? 'bg-primary text-primary-foreground' : isCurrentMonth ? 'text-foreground' : 'text-muted-foreground/50'
+                          }`}>{day.getDate()}</span>
+                          <div className="mt-1 space-y-0.5">
+                            {drives.slice(0, 3).map((td) => (
+                              <div key={td.id} className={`text-[9px] rounded px-1 py-0.5 truncate font-medium ${statusCalColor[td.status] ?? 'bg-slate-400 text-white'}`}>
+                                {(td.scheduled_time || '').substring(0, 5)} {td.customers?.full_name}
+                              </div>
+                            ))}
+                            {drives.length > 3 && (
+                              <div className="text-[9px] text-muted-foreground font-medium">+{drives.length - 3} more</div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── YEAR VIEW ── */}
+              {calendarViewType === 'year' && (
+                <div className="flex-1 p-4 grid grid-cols-3 sm:grid-cols-4 gap-3 overflow-y-auto">
+                  {MONTHS.map((mon, idx) => {
+                    const drives = drivesInMonth(calendarDate.getFullYear(), idx);
+                    const total = drives.length;
+                    const completed = drives.filter((d) => d.status === 'completed').length;
+                    const inProgress = drives.filter((d) => d.status === 'in_progress').length;
+                    const isCurrentMonth = idx === new Date().getMonth() && calendarDate.getFullYear() === new Date().getFullYear();
+                    const isSelected = calendarInsight?.type === 'month' && calendarInsight.date.getMonth() === idx && calendarInsight.date.getFullYear() === calendarDate.getFullYear();
+                    return (
+                      <button
+                        key={mon}
+                        onClick={() => { const d = new Date(calendarDate.getFullYear(), idx, 1); setCalendarInsight({ type: 'month', date: d }); }}
+                        className={`rounded-xl border p-3 text-left transition-all hover:shadow-md hover:border-primary/40 ${
+                          isSelected ? 'border-primary bg-primary/5 shadow-md' : isCurrentMonth ? 'border-primary/30 bg-primary/[0.03]' : 'border-border bg-card'
+                        }`}
+                      >
+                        <div className={`text-sm font-bold ${isCurrentMonth ? 'text-primary' : 'text-foreground'}`}>{MONTH_FULL[idx]}</div>
+                        <div className="mt-2 text-2xl font-black text-foreground">{total}</div>
+                        <div className="text-[10px] text-muted-foreground mb-2">test drives</div>
+                        {total > 0 && (
+                          <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className="h-full bg-green-500 rounded-full"
+                              style={{ width: `${Math.round((completed / total) * 100)}%` }}
+                            />
+                          </div>
+                        )}
+                        <div className="mt-1.5 flex gap-1.5 flex-wrap">
+                          {completed > 0 && <span className="text-[9px] bg-green-100 text-green-700 rounded px-1 py-0.5">{completed} done</span>}
+                          {inProgress > 0 && <span className="text-[9px] bg-orange-100 text-orange-700 rounded px-1 py-0.5">{inProgress} active</span>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {/* Year total card */}
+                  <button
+                    onClick={() => setCalendarInsight({ type: 'year', date: new Date(calendarDate.getFullYear(), 0, 1) })}
+                    className={`rounded-xl border p-3 text-left transition-all hover:shadow-md hover:border-primary/40 col-span-1 ${
+                      calendarInsight?.type === 'year' ? 'border-primary bg-primary/5 shadow-md' : 'border-dashed border-border'
+                    }`}
+                  >
+                    <div className="text-sm font-bold text-foreground">Full Year</div>
+                    <div className="mt-2 text-2xl font-black text-primary">{drivesInYear(calendarDate.getFullYear()).length}</div>
+                    <div className="text-[10px] text-muted-foreground">total drives {calendarDate.getFullYear()}</div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Right: Insight Panel ── */}
+            <div className="w-80 shrink-0 rounded-xl border border-border bg-card shadow-card flex flex-col">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-sm text-foreground flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-primary" /> Insights
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[200px]">{insightLabel}</div>
+                </div>
+                {calendarInsight && (
+                  <button onClick={() => { setCalendarInsight(null); setCalendarSelectedDrive(null); }} className="text-muted-foreground hover:text-foreground">
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              {!calendarInsight ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
+                  <CalendarClock className="h-10 w-10 opacity-20" />
+                  <p className="text-sm font-medium">Select a period</p>
+                  <p className="text-xs">Click any day, week header, month card, or year total to see insights</p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto flex flex-col">
+                  {/* Stats grid */}
+                  <div className="p-4 grid grid-cols-2 gap-3 border-b border-border">
+                    <div className="bg-muted/40 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-black text-foreground">{insightStats.total}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">Total Drives</div>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-black text-green-600">{insightStats.byStatus.completed || 0}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">Completed</div>
+                    </div>
+                    <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-black text-blue-600">{insightStats.completionRate}%</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">Completion Rate</div>
+                    </div>
+                    <div className="bg-orange-50 dark:bg-orange-950/20 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-black text-orange-500">{insightStats.showRate}%</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">Show Rate</div>
+                    </div>
+                  </div>
+
+                  {/* Status breakdown */}
+                  <div className="px-4 py-3 border-b border-border space-y-2">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Status Breakdown</p>
+                    {Object.entries(insightStats.byStatus).map(([status, count]) => (
+                      <div key={status} className="flex items-center gap-2">
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${statusDotColor[status] ?? 'bg-slate-400'}`} />
+                        <span className="text-xs text-foreground capitalize flex-1">{status.replace(/_/g, ' ')}</span>
+                        <span className="text-xs font-semibold text-foreground">{count as number}</span>
+                        <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${statusDotColor[status] ?? 'bg-slate-400'}`}
+                            style={{ width: `${Math.round(((count as number) / insightStats.total) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Drive list */}
+                  <div className="px-4 py-3 flex-1">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-2">
+                      Drives ({insightDrives.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {insightDrives.slice(0, 20).map((td) => (
+                        <button
+                          key={td.id}
+                          onClick={() => setCalendarSelectedDrive(td)}
+                          className={`w-full text-left flex items-center gap-2 rounded-lg px-2 py-2 transition-colors ${
+                            calendarSelectedDrive?.id === td.id ? 'bg-primary/10' : 'hover:bg-muted/60'
+                          }`}
+                        >
+                          <div className={`h-2 w-2 rounded-full shrink-0 ${statusDotColor[td.status] ?? 'bg-slate-400'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-foreground truncate">{td.customers?.full_name}</p>
+                            <p className="text-[10px] text-muted-foreground">{td.scheduled_date} · {(td.scheduled_time || '').substring(0, 5)} · {td.vehicles?.brand} {td.vehicles?.model}</p>
+                          </div>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium capitalize shrink-0 ${statusCalColor[td.status] ?? 'bg-slate-400 text-white'}`}>
+                            {td.status.replace(/_/g, ' ')}
+                          </span>
+                        </button>
+                      ))}
+                      {insightDrives.length > 20 && (
+                        <p className="text-[10px] text-muted-foreground text-center py-1">+{insightDrives.length - 20} more drives</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Selected drive detail */}
+                  {calendarSelectedDrive && (
+                    <div className="border-t border-border p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <User className="h-4 w-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-xs text-foreground">{calendarSelectedDrive.customers?.full_name}</p>
+                            <p className="text-[10px] text-muted-foreground">{calendarSelectedDrive.customers?.phone}</p>
+                          </div>
+                        </div>
+                        <button onClick={() => setCalendarSelectedDrive(null)} className="text-muted-foreground hover:text-foreground">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="space-y-1 text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5"><Car className="h-3 w-3 text-primary" />{calendarSelectedDrive.vehicles?.brand} {calendarSelectedDrive.vehicles?.model}</div>
+                        <div className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-primary" />{calendarSelectedDrive.scheduled_date} at {(calendarSelectedDrive.scheduled_time || '').substring(0, 5)}</div>
+                        <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3 text-primary" />{calendarSelectedDrive.locations?.name}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" className="flex-1 text-[11px] h-7" onClick={() => { setDetailSheetDrive(calendarSelectedDrive); setCalendarSelectedDrive(null); }}>
+                          Full Details
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-[11px] h-7 px-2" onClick={() => setJourneyDrive(calendarSelectedDrive)}>
+                          <Route className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Grid View ─────────────────────────────────────────────────── */}
+        {viewMode === 'grid' && testDrives.length === 0 ? (
           <Card className="shadow-card">
             <CardContent className="p-8 text-center text-muted-foreground">No test drives found for the selected filter</CardContent>
           </Card>
-        ) : (
+        ) : viewMode === 'grid' ? (
           <div className="space-y-6">
             {displayGroups.map(({ label, drives }) => (
               <div key={label || '__all__'}>
@@ -655,7 +1133,7 @@ const TestDrivesPage = () => {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
 
         <TestDriveDetailSheet
           testDrive={detailSheetDrive}

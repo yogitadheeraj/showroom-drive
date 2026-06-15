@@ -467,7 +467,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
       <aside className={`fixed inset-y-0 left-0 z-50 bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl transform transition-all duration-200 lg:translate-x-0 lg:static flex-shrink-0 ${
         sidebarCollapsed ? 'w-[60px]' : 'w-64'
       } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full overflow-hidden">
           {/* Header */}
           <div className={`bg-[hsl(220,50%,10%)] flex items-center dark:bg-[hsl(220,50%,10%)] px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
             {!sidebarCollapsed && (

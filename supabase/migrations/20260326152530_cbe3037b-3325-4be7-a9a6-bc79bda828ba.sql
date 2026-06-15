@@ -1,1 +1,0 @@
-ALTER TABLE public.dealers ADD CONSTRAINT dealers_slug_unique UNIQUE (slug);

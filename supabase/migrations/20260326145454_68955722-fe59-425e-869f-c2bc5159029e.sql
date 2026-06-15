@@ -1,1 +1,0 @@
-UPDATE public.profiles SET email = 'melax26934@jsncos.com' WHERE user_id = '7cd1dd2e-8e6d-4928-a328-e17ff0fef551';
