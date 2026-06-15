@@ -35,6 +35,7 @@ import ReportMonitoringPage from "./pages/ReportMonitoringPage.tsx";
 import ActivityLogsPage from "./pages/ActivityLogsPage.tsx";
 import MyProfilePage from "./pages/MyProfilePage.tsx";
 import { ROUTE_ALLOWED_ROLES } from "@/constants/roles";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <PWAInstallPrompt />
       <BrowserRouter>
         <AuthProvider>
           <DealerContextProvider>

@@ -93,7 +93,11 @@ export default function TestDriveCalendarMini({ testDrives }: Props) {
   }, [insightDrives]);
 
   // ── Navigation ────────────────────────────────────────────────────────────
+  const currentYear = new Date().getFullYear();
+  const isAtCurrentYear = viewType === 'year' && baseDate.getFullYear() >= currentYear;
+
   const navigate = (dir: 1 | -1) => {
+    if (dir === 1 && isAtCurrentYear) return; // no forward past current year
     const d = new Date(baseDate);
     if (viewType === 'week')  d.setDate(d.getDate() + dir * 7);
     else if (viewType === 'month') d.setMonth(d.getMonth() + dir);
@@ -127,7 +131,7 @@ export default function TestDriveCalendarMini({ testDrives }: Props) {
           {/* Nav */}
           <button onClick={() => navigate(-1)} className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted"><ChevronLeft className="h-3.5 w-3.5" /></button>
           <span className="text-xs font-semibold text-foreground flex-1 text-center min-w-[140px]">{periodLabel}</span>
-          <button onClick={() => navigate(1)} className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted"><ChevronRight className="h-3.5 w-3.5" /></button>
+          <button onClick={() => navigate(1)} disabled={isAtCurrentYear} className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${isAtCurrentYear ? 'opacity-30 cursor-not-allowed' : 'hover:bg-muted'}`}><ChevronRight className="h-3.5 w-3.5" /></button>
           <button onClick={() => { setBaseDate(new Date()); setInsight(null); }} className="text-[11px] px-2 py-0.5 rounded border border-border hover:bg-muted">Today</button>
         </div>
 

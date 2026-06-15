@@ -551,6 +551,8 @@ const TestDrivesPage = () => {
   }, [insightDrives]);
 
   const navigateCalendar = (dir: 1 | -1) => {
+    const isAtCurrentYear = calendarViewType === 'year' && calendarDate.getFullYear() >= new Date().getFullYear();
+    if (dir === 1 && isAtCurrentYear) return;
     const d = new Date(calendarDate);
     if (calendarViewType === 'week') d.setDate(d.getDate() + dir * 7);
     else if (calendarViewType === 'month') d.setMonth(d.getMonth() + dir);
@@ -653,7 +655,15 @@ const TestDrivesPage = () => {
                     {calendarViewType === 'month' && calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
                     {calendarViewType === 'year' && String(calendarDate.getFullYear())}
                   </span>
-                  <button onClick={() => navigateCalendar(1)} className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-colors">
+                  <button
+                    onClick={() => navigateCalendar(1)}
+                    disabled={calendarViewType === 'year' && calendarDate.getFullYear() >= new Date().getFullYear()}
+                    className={`h-7 w-7 flex items-center justify-center rounded transition-colors ${
+                      calendarViewType === 'year' && calendarDate.getFullYear() >= new Date().getFullYear()
+                        ? 'opacity-30 cursor-not-allowed'
+                        : 'hover:bg-muted'
+                    }`}
+                  >
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
