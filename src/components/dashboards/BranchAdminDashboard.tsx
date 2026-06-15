@@ -21,6 +21,7 @@ import {
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import { TestDriveInsightGrid } from './TestDriveInsightGrid';
 import { StaffActivityGrid } from './StaffActivityGrid';
+import TestDriveCalendarMini from './TestDriveCalendarMini';
 
 const STATUS_COLOR: Record<string, string> = {
   scheduled: 'bg-info/10 text-info border-info/20',
@@ -48,7 +49,7 @@ const BranchAdminDashboard = () => {
   const [allDrives, setAllDrives] = useState<any[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [driveView, setDriveView] = useState<'list' | 'grid'>('list');
+  const [driveView, setDriveView] = useState<'list' | 'grid' | 'calendar'>('list');
   const [selectedPerson, setSelectedPerson] = useState<string>('all');
   const [insightRoleFilter, setInsightRoleFilter] = useState<'all' | 'sales' | 'gro'>('all');
   const [insightWindow, setInsightWindow] = useState<'all' | 'today' | 'week' | 'month'>('month');
@@ -602,9 +603,14 @@ const BranchAdminDashboard = () => {
               <Button size="sm" variant={driveView === 'grid' ? 'secondary' : 'ghost'} className="h-7 px-2.5 text-xs" onClick={() => setDriveView('grid')}>
                 <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Grid
               </Button>
+              <Button size="sm" variant={driveView === 'calendar' ? 'secondary' : 'ghost'} className="h-7 px-2.5 text-xs" onClick={() => setDriveView('calendar')}>
+                <CalendarCheck className="h-3.5 w-3.5 mr-1" /> Calendar
+              </Button>
             </div>
           </div>
-          {driveView === 'grid' ? (
+          {driveView === 'calendar' ? (
+            <TestDriveCalendarMini testDrives={allDrives} />
+          ) : driveView === 'grid' ? (
             <TestDriveInsightGrid testDrives={allDrives} title="Test Drive Grid" />
           ) : (
           <Card className="shadow-card">

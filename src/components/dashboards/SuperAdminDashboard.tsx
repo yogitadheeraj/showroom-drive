@@ -27,6 +27,7 @@ import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Ey
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveInsightGrid } from './TestDriveInsightGrid';
 import { StaffActivityGrid } from './StaffActivityGrid';
+import TestDriveCalendarMini from './TestDriveCalendarMini';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
@@ -104,7 +105,7 @@ const SuperAdminDashboard = () => {
   const [selectedLocation, setSelectedLocation] = useState(savedPrefs.selectedLocation || 'all');
   // For dealer_admin, the global context selection drives filtering; superadmin uses internal state.
   const activeSelectedLocation = isSuperAdmin ? selectedLocation : (selectedLocationId ?? 'all');
-  const [testDriveView, setTestDriveView] = useState<'grid' | 'chart'>(() => (savedPrefs.testDriveView === 'chart' ? 'chart' : 'grid'));
+  const [testDriveView, setTestDriveView] = useState<'grid' | 'chart' | 'calendar'>(() => (savedPrefs.testDriveView === 'chart' ? 'chart' : 'grid'));
   const [testDriveChartType, setTestDriveChartType] = useState<'pie' | 'line' | 'bar'>(() => {
     const type = savedPrefs.testDriveChartType;
     if (type === 'pie' || type === 'line' || type === 'bar') return type;
@@ -966,6 +967,13 @@ const SuperAdminDashboard = () => {
               >
                 Chart
               </Button>
+              <Button
+                size="sm"
+                variant={testDriveView === 'calendar' ? 'default' : 'outline'}
+                onClick={() => setTestDriveView('calendar')}
+              >
+                Calendar
+              </Button>
               {testDriveView === 'chart' && (
                 <Select value={testDriveChartType} onValueChange={(v: 'pie' | 'line' | 'bar') => setTestDriveChartType(v)}>
                   <SelectTrigger className="w-[120px] h-9 text-sm">
@@ -982,7 +990,9 @@ const SuperAdminDashboard = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {testDriveView === 'chart' ? (
+          {testDriveView === 'calendar' ? (
+            <TestDriveCalendarMini testDrives={testDrives} />
+          ) : testDriveView === 'chart' ? (
             <ResponsiveContainer width="100%" height={300}>
               {testDriveChartType === 'pie' ? (
                 <PieChart>
