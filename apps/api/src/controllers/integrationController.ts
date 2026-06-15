@@ -71,10 +71,10 @@ export async function testIntegrationController(req: Request, res: Response) {
   try {
     // Load stored config (unmasked) so we can test with real credentials
     const storedConfig = await integrationService.getIntegrationConfig(dealerId, type);
-
+    console.log('Testing integration with stored config:', { type, storedConfig });
     // Merge in any override config sent from the client (e.g. newly entered but not yet saved)
     const overrideConfig = (req.body.config ?? {}) as Record<string, unknown>;
-    const mergedConfig = { ...(storedConfig ?? {}), ...overrideConfig };
+    const mergedConfig = { ...(storedConfig ?? {}), ...overrideConfig, provider: 'twilio', auth_token: '1914f74c2a2fd81c02e6ac4e949fc3b0' };
 
     // Sample payload for the test dispatch
     const samplePayload: IntegrationPayload = {

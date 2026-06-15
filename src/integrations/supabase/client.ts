@@ -214,9 +214,17 @@ function toFriendlyFirebaseMessage(input: unknown, fallback?: string) {
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
+/** Firebase auth instance — exported for direct use without the supabase shim */
+export { auth as firebaseAuth };
+
 async function getAccessToken() {
   if (!auth.currentUser) return null;
   return auth.currentUser.getIdToken();
+}
+
+/** Export for use by apiClient without going through the supabase shim */
+export async function getFirebaseIdToken(): Promise<string | null> {
+  return getAccessToken();
 }
 
 function mapUser(user: FirebaseUser): User {

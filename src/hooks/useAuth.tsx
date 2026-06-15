@@ -1,5 +1,14 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase, type Session, type User } from '@/integrations/supabase/client';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signOut as firebaseSignOut,
+  updateProfile,
+  onIdTokenChanged,
+} from 'firebase/auth';
+import { firebaseAuth, type Session, type User } from '@/integrations/supabase/client';
+import { apiGet, apiPatch, apiPost } from '@/lib/apiClient';
 import { AppRole } from '@/constants/roles';
 import { isAppRole } from '@/lib/roles';
 import { ensureActivitySession, endActivitySession } from '@/lib/activityLogger';
@@ -33,36 +42,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const ensureUserProfile = async (authUser: User) => {
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', authUser.id)
-      .maybeSingle();
-
-    if (existingProfile) return existingProfile;
-
-    await supabase.from('profiles').insert({
-      user_id: authUser.id,
-      full_name: (authUser.user_metadata?.full_name as string | undefined) || authUser.email || 'New User',
-      email: authUser.email || '',
-    } as never);
-
-    const { data: createdProfile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', authUser.id)
-      .maybeSingle();
-
-    return createdProfile;
+    // Profile is managed by the backend — just fetch via API
+    const me = await apiGet<{ user: User; profile: any; role: string | null }>('/api/auth/me').catch(() => null);
+    return me?.profile ?? null;
   };
 
   const fetchUserData = async (authUser: User) => {
-    const [{ data: roleData }, profileData] = await Promise.all([
-      supabase.from('user_roles').select('role').eq('user_id', authUser.id).maybeSingle(),
-      ensureUserProfile(authUser),
-    ]);
-    const resolvedRole = isAppRole(roleData?.role) ? roleData.role : null;
+    const me = await apiGet<{ user: User; profile: any; role: string | null }>('/api/auth/me').catch(() => null);
+    const resolvedRole = isAppRole(me?.role) ? me!.role as AppRole : null;
     setRole(resolvedRole);
+    const profileData = me?.profile ?? null;
     setProfile(profileData);
 
     if (profileData) {
@@ -76,83 +65,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+    const unsubscribe = onIdTokenChanged(firebaseAuth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const mappedUser: User = { id: firebaseUser.uid, email: firebaseUser.email, user_metadata: { full_name: firebaseUser.displayName } };
+        const token = await firebaseUser.getIdToken();
+        const session: Session = { user: mappedUser, access_token: token };
         setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          setTimeout(() => fetchUserData(session.user), 0);
-        } else {
-          setRole(null);
-          setProfile(null);
-        }
-        setLoading(false);
+        setUser(mappedUser);
+        setTimeout(() => fetchUserData(mappedUser), 0);
+      } else {
+        setSession(null);
+        setUser(null);
+        setRole(null);
+        setProfile(null);
       }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) fetchUserData(session.user);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      if (/email\s+not\s+confirmed/i.test(error.message)) {
-        throw new Error('Email not verified yet. Please verify from your inbox or resend verification email.');
-      }
-      throw error;
+    const credentials = await signInWithEmailAndPassword(firebaseAuth, email, password);
+    if (!credentials.user.emailVerified) {
+      await firebaseSignOut(firebaseAuth);
+      throw new Error('Email not verified yet. Please verify from your inbox or resend verification email.');
     }
-
-    if (data.user) {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('id, is_active')
-        .eq('user_id', data.user.id)
-        .maybeSingle();
-
-      if (!profileData) {
-        await ensureUserProfile(data.user);
-      }
-
-      if (profileData?.is_active === false) {
-        await supabase.auth.signOut();
-        throw new Error('Your account is blocked. Contact superadmin.');
-      }
-
-      await supabase
-        .from('profiles')
-        .update({ last_login_at: new Date().toISOString() } as never)
-        .eq('user_id', data.user.id);
+    // Check profile active status
+    const me = await apiGet<{ profile: any }>('/api/auth/me').catch(() => null);
+    if (me?.profile?.is_active === false) {
+      await firebaseSignOut(firebaseAuth);
+      throw new Error('Your account is blocked. Contact superadmin.');
+    }
+    // Update last login (best-effort)
+    if (me?.profile?.id) {
+      apiPatch(`/api/profiles/${me.profile.id}`, { last_login_at: new Date().toISOString() }).catch(() => null);
     }
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
-      email, password,
-      options: {
-        data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/auth`,
-      },
-    });
-    if (error) throw error;
+    const credentials = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+    if (fullName && credentials.user) {
+      await updateProfile(credentials.user, { displayName: fullName });
+    }
+    if (credentials.user) {
+      const continueUrl = `${window.location.origin}/auth?verified=true`;
+      await sendEmailVerification(credentials.user, { url: continueUrl });
+      await firebaseSignOut(firebaseAuth);
+    }
   };
 
   const resendVerificationEmail = async (email: string) => {
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth`,
-      },
-    });
-
-    if (error) throw error;
+    await apiPost('/api/auth/resend-verification', { email });
   };
 
   const signOut = async () => {
@@ -165,7 +129,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
     }
 
-    await supabase.auth.signOut();
+    await firebaseSignOut(firebaseAuth);
     setUser(null);
     setSession(null);
     setRole(null);
@@ -174,8 +138,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshProfile = async () => {
     if (!user) return;
-    const { data } = await supabase.from('profiles').select('*').eq('user_id', user.id).maybeSingle();
-    if (data) setProfile(data);
+    const me = await apiGet<{ profile: any }>('/api/auth/me').catch(() => null);
+    if (me?.profile) setProfile(me.profile);
   };
 
   return (

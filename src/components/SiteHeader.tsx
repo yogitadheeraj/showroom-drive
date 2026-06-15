@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { Moon, Sun } from 'lucide-react';
 
@@ -9,39 +8,59 @@ interface SiteHeaderProps {
   showNav?: boolean;
   rightSlot?: React.ReactNode;
   leftSlot?: React.ReactNode;
+  dealerName?: string | null;
+  dealerLogoUrl?: string | null;
 }
 
-const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot, leftSlot }: SiteHeaderProps) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot, leftSlot, dealerName, dealerLogoUrl }: SiteHeaderProps) => {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
   const { resolvedTheme, toggleTheme } = useTheme();
-
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (active) setIsLoggedIn(!!session);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
-      setIsLoggedIn(!!session);
-    });
-    return () => {
-      active = false;
-      listener.subscription.unsubscribe();
-    };
-  }, []);
 
   const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/85 text-foreground backdrop-blur dark:border-white/10 dark:bg-[hsl(220,50%,10%)]/95 dark:text-slate-100">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           {leftSlot}
           <Link to="/" className="flex items-center shrink-0">
-            <img
-              src={ resolvedTheme === 'dark'  ? '/images/autoadvant-logo.png' : '/images/autoadvant-peaked-horizontal-dark.svg'}
-              alt="AutoAdvant"
-              className="h-9 w-auto object-contain"
-            />
+            {variant === 'app' && (dealerLogoUrl || dealerName) ? (
+              <div className="flex flex-col leading-none">
+                <div className="flex items-center gap-2">
+                  {dealerLogoUrl && (
+                    <img
+                      src={dealerLogoUrl}
+                      alt={dealerName || 'Dealer'}
+                      className="h-8 w-auto max-w-[120px] object-contain"
+                    />
+                  )}
+                  {dealerName && (
+                    <span className="text-base font-bold text-foreground dark:text-slate-100 truncate max-w-[180px]">
+                      {dealerName}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] text-muted-foreground dark:text-slate-500 mt-0.5">
+                  Powered by{' '}
+                  <a
+                    href="https://autoadvant.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline text-muted-foreground dark:text-slate-500"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    AutoAdvant.com
+                  </a>
+                </span>
+              </div>
+            ) : (
+              <img
+                src={ resolvedTheme === 'dark'  ? '/images/autoadvant-logo.png' : '/images/autoadvant-peaked-horizontal-dark.png'}
+                alt="AutoAdvant"
+                className="h-9 w-auto object-contain"
+              />
+            )}
           </Link>
         </div>
 

@@ -1,17 +1,16 @@
-import { supabase } from '@/integrations/supabase/client';
+import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { apiPost } from '@/lib/apiClient';
 
 export async function authSignUp(email: string, password: string, fullName: string) {
-  return supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { full_name: fullName } },
-  });
+  const auth = getAuth();
+  const result = await createUserWithEmailAndPassword(auth, email, password);
+  if (fullName) {
+    await updateProfile(result.user, { displayName: fullName });
+  }
+  return { data: { user: result.user }, error: null };
 }
 
 export async function authResendSignupVerification(email: string) {
-  return supabase.auth.resend({
-    type: 'signup',
-    email: email.trim().toLowerCase(),
-    options: { emailRedirectTo: `${window.location.origin}/auth` },
-  });
+  await apiPost('/api/auth/resend-verification', { email: email.trim().toLowerCase() });
+  return { data: {}, error: null };
 }

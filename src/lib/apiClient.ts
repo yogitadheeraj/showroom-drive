@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { getFirebaseIdToken } from '@/integrations/supabase/client';
 import { SELECTED_LOCATION_KEY } from '@/hooks/useDealerContext';
 
 type DbFilterOp = 'eq' | 'neq' | 'in' | 'not_in' | 'gt' | 'gte' | 'lt' | 'lte' | 'like' | 'ilike' | 'is';
@@ -23,8 +23,7 @@ async function buildHeaders(init?: HeadersInit, includeJson = true) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
+  const token = await getFirebaseIdToken();
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }

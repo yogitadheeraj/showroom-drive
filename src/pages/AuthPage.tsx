@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { apiGet } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowRight, BadgeCheck, Bell, Building2, CheckCircle2, Eye, EyeOff, KeyRound, MailCheck, ShieldCheck, Sparkles } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import SiteHeader from '@/components/SiteHeader';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 
@@ -24,7 +24,7 @@ const AuthPage = () => {
   const [forgotEmail, setForgotEmail] = useState('');
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
-  const { signIn, resendVerificationEmail } = useAuth();
+  const { signIn, resendVerificationEmail, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -41,45 +41,8 @@ const AuthPage = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    void supabase.auth.getSession().then(({ data }) => {
-      if (!isMounted) return;
-      setCanOpenLeadPage(Boolean(data.session));
-    });
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCanOpenLeadPage(Boolean(session));
-    });
-
-    return () => {
-      isMounted = false;
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!canOpenLeadPage) return;
-
-    const channel = supabase
-      .channel('auth-page-lead-notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'test_drives',
-        },
-        () => {
-          setNewLeadCount((count) => Math.min(count + 1, 99));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [canOpenLeadPage]);
+    setCanOpenLeadPage(!!user);
+  }, [user]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,13 +87,11 @@ const AuthPage = () => {
     setIsResending(true);
     try {
       // Check if user/profile exists before attempting resend
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', normalizedEmail)
-        .maybeSingle();
+      const profile = await apiGet<any>('/api/profiles?email=' + encodeURIComponent(normalizedEmail) + '&limit=1')
+        .then((res: any) => (Array.isArray(res) ? res[0] : null))
+        .catch(() => null);
 
-      if (!existingProfile) {
+      if (!profile) {
         toast({
           title: 'User not found',
           description: 'No account exists with this email. Please sign up first.',

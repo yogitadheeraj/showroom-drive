@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiGet, apiPost, apiPatch } from '@/lib/apiClient';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -41,26 +41,21 @@ const OperatingHoursSettings = () => {
     if (!dealerId || dealerLoading) return;
     const fetch = async () => {
       // Fetch locations
-      const { data: locs } = await supabase
-        .from('locations')
-        .select('id, name')
-        .eq('dealer_id', dealerId)
-        .order('name');
+      const locs = await apiGet<any[]>(`/api/locations?dealer_id=${dealerId}`).catch(() => null);
 
-      if (locs) {
+      if (locs && locs.length > 0) {
         setLocations(locs);
         if (locs.length > 0) setExpandedLocation(locs[0].id);
 
-        // Fetch operating hours
-        const { data: hours } = await supabase
-          .from('location_operating_hours')
-          .select('*')
-          .in(
-            'location_id',
-            locs.map(l => l.id)
-          );
+        // Fetch operating hours for all locations
+        const locationIds = locs.map((l: any) => l.id);
+        const hoursPromises = locationIds.map((id: string) =>
+          apiGet<any[]>(`/api/location-operating-hours?location_id=${id}`).catch(() => [])
+        );
+        const hoursArrays = await Promise.all(hoursPromises);
+        const hours = hoursArrays.flat();
 
-        if (hours) {
+        if (hours.length > 0) {
           // Ensure all location+day combinations exist
           const hoursMap = new Map<string, HoursForm>();
           hours.forEach(h => {
@@ -130,31 +125,24 @@ const OperatingHoursSettings = () => {
       };
 
       if (hours.id) {
-        await supabase
-          .from('location_operating_hours')
-          .update({
-            open_time: formatTime(hours.open_time),
-            close_time: formatTime(hours.close_time),
-            is_closed: hours.is_closed,
-          })
-          .eq('id', hours.id);
+        await apiPatch(`/api/location-operating-hours/${hours.id}`, {
+          open_time: formatTime(hours.open_time),
+          close_time: formatTime(hours.close_time),
+          is_closed: hours.is_closed,
+        });
       } else {
-        const { data: inserted, error } = await supabase
-          .from('location_operating_hours')
-          .insert({
-            location_id: hours.location_id,
-            day_of_week: hours.day_of_week,
-            open_time: formatTime(hours.open_time),
-            close_time: formatTime(hours.close_time),
-            is_closed: hours.is_closed,
-          })
-          .select('id');
+        const inserted = await apiPost<any>('/api/location-operating-hours', {
+          location_id: hours.location_id,
+          day_of_week: hours.day_of_week,
+          open_time: formatTime(hours.open_time),
+          close_time: formatTime(hours.close_time),
+          is_closed: hours.is_closed,
+        });
 
-        if (error) throw error;
-        if (inserted && inserted[0]) {
+        if (inserted?.id) {
           const updatedData = hoursData.map(h =>
             h.location_id === hours.location_id && h.day_of_week === hours.day_of_week
-              ? { ...h, id: inserted[0].id }
+              ? { ...h, id: inserted.id }
               : h
           );
           setHoursData(updatedData);

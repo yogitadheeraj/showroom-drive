@@ -557,7 +557,7 @@ async function notifyStaffStatusChange(opts: {
 
 async function afterStatusChange(td: any, status: string) {
   const [customer, vehicle, salesProfile, groProfile, location] = await Promise.all([
-    td.customer_id           ? Customer.findOne({ id: td.customer_id }, { full_name: 1, email: 1 }).lean() : null,
+    td.customer_id           ? Customer.findOne({ id: td.customer_id }, { full_name: 1, email: 1, phone: 1 }).lean() : null,
     td.vehicle_id            ? Vehicle.findOne({ id: td.vehicle_id }, { brand: 1, model: 1, variant: 1 }).lean() : null,
     td.assigned_sales_person_id ? Profile.findOne({ id: td.assigned_sales_person_id }, { user_id: 1, full_name: 1, email: 1 }).lean() : null,
     td.assigned_gro_id       ? Profile.findOne({ id: td.assigned_gro_id }, { user_id: 1 }).lean() : null,
@@ -566,6 +566,7 @@ async function afterStatusChange(td: any, status: string) {
 
   const customerName = (customer as any)?.full_name || 'Customer';
   const customerEmail = (customer as any)?.email as string | undefined;
+  const customerPhone = (customer as any)?.phone as string | undefined;
   const v = vehicle as any;
   const vehicleName = v ? [v.brand, v.model, v.variant].filter(Boolean).join(' ') : 'Vehicle';
   const locationName = (location as any)?.name || '';
@@ -704,9 +705,11 @@ async function afterStatusChange(td: any, status: string) {
       event: integrationEvent,
       testDriveId: td.id,
       locationId: td.location_id,
-      locationName: '',
+      locationName,
       customerId: td.customer_id ?? undefined,
       customerName,
+      customerPhone,
+      customerEmail,
       vehicleName,
       scheduledDate: td.scheduled_date ?? '',
       scheduledTime: td.scheduled_time ?? '',

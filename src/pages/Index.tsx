@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { apiPost, apiGet } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,32 +39,24 @@ export default function AutoAdvantLandingPage() {
         setDemoLoading(true);
         try {
             // Save as customer enquiry
-            let { data: customer } = await supabase
-                .from('customers')
-                .select('id')
-                .eq('phone', demoForm.phone.trim() || 'demo-request')
-                .maybeSingle();
+            let customer = await apiGet<any>(`/api/customers?phone=${encodeURIComponent(demoForm.phone.trim() || 'demo-request')}&limit=1`)
+              .then((res: any) => (Array.isArray(res) ? res[0] : null))
+              .catch(() => null);
 
             if (!customer) {
-                const { data: newCustomer, error } = await supabase
-                    .from('customers')
-                    .insert({
-                        full_name: demoForm.name.trim() || 'Demo Request',
-                        phone: demoForm.phone.trim() || `demo-${Date.now()}`,
-                        email: demoForm.email.trim(),
-                    })
-                    .select('id')
-                    .single();
-                if (error) throw error;
-                customer = newCustomer;
+                customer = await apiPost<any>('/api/customers', {
+                    full_name: demoForm.name.trim() || 'Demo Request',
+                    phone: demoForm.phone.trim() || `demo-${Date.now()}`,
+                    email: demoForm.email.trim(),
+                });
             }
 
             const commId = crypto.randomUUID();
-            await supabase.from('communications').insert({
+            await apiPost('/api/communications', {
                 id: commId,
-                customer_id: customer!.id,
-                type: 'email' as const,
-                purpose: 'custom' as const,
+                customer_id: customer.id,
+                type: 'email',
+                purpose: 'custom',
                 sent_to: demoForm.email.trim(),
                 subject: 'Book a Demo Request',
                 body: `Demo request from ${demoForm.name || 'Website visitor'}. Company: ${demoForm.company || 'N/A'}. Message: ${demoForm.message || 'N/A'}`,
@@ -71,18 +64,16 @@ export default function AutoAdvantLandingPage() {
             });
 
             // Send confirmation email
-            await supabase.functions.invoke('send-transactional-email', {
-                body: {
-                    templateName: 'demo-request-confirmation',
-                    recipientEmail: demoForm.email.trim(),
-                    idempotencyKey: `demo-confirm-${commId}`,
-                    templateData: {
-                        name: demoForm.name.trim(),
-                        email: demoForm.email.trim(),
-                        company: demoForm.company.trim(),
-                        phone: demoForm.phone.trim(),
-                        message: demoForm.message.trim(),
-                    },
+            await apiPost('/api/functions/send-transactional-email', {
+                templateName: 'demo-request-confirmation',
+                recipientEmail: demoForm.email.trim(),
+                idempotencyKey: `demo-confirm-${commId}`,
+                templateData: {
+                    name: demoForm.name.trim(),
+                    email: demoForm.email.trim(),
+                    company: demoForm.company.trim(),
+                    phone: demoForm.phone.trim(),
+                    message: demoForm.message.trim(),
                 },
             });
 
@@ -117,25 +108,12 @@ export default function AutoAdvantLandingPage() {
     const goToSlide = (index: number) => setActiveHeroSlide(index);
 
     useEffect(() => {
-        let active = true;
-
-        const loadSession = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (active) {
-                setIsLoggedIn(!!session);
-            }
-        };
-
-        void loadSession();
-
-        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-            setIsLoggedIn(!!session);
+        const auth = getAuth();
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setIsLoggedIn(!!user);
         });
 
-        return () => {
-            active = false;
-            authListener.subscription.unsubscribe();
-        };
+        return () => unsubscribe();
     }, []);
 
     const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
@@ -229,8 +207,8 @@ export default function AutoAdvantLandingPage() {
         { name: 'Zapier', icon: '⚡', category: 'Automation' },
         { name: 'Stripe', icon: '💳', category: 'Payments' },
         { name: 'Power BI', icon: '📊', category: 'Analytics' },
-        { name: 'Supabase', icon: '🔋', category: 'Database' },
-        { name: 'AWS / Vercel', icon: '☁️', category: 'Infrastructure' },
+        { name: 'No SQL Database', icon: '🔋', category: 'Database' },
+        { name: 'AWS / Azure', icon: '☁️', category: 'Infrastructure' },
         { name: 'Open API', icon: '🔌', category: 'Custom Integration' },
     ];
 
@@ -842,8 +820,8 @@ export default function AutoAdvantLandingPage() {
                         </div>
                         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                             {[
-                                { icon: '🔐', title: 'Row-Level Security', desc: 'Supabase RLS ensures each role only accesses their permitted data — enforced at the database level, not the application layer.' },
-                                { icon: '🛡️', title: 'SOC 2 Infrastructure', desc: 'Hosted on AWS/Supabase infrastructure with SOC 2 Type II compliance and a 99.9% uptime SLA guarantee.' },
+                                { icon: '🔐', title: 'Row-Level Security', desc: 'No SQL RLS ensures each role only accesses their permitted data — enforced at the database level, not the application layer.' },
+                                { icon: '🛡️', title: 'SOC 2 Infrastructure', desc: 'Hosted on AWS/Azure infrastructure with SOC 2 Type II compliance and a 99.9% uptime SLA guarantee.' },
                                 { icon: '🔑', title: 'Role-Based Access Control', desc: '8 distinct user roles with granular permission scopes — from Superadmin to Reception, each access boundary is precisely defined.' },
                                 { icon: '📋', title: 'Full Audit Trail', desc: 'Every action — key handovers, assignments, status changes — is permanently logged with a timestamp and user ID.' },
                                 { icon: '📈', title: 'Horizontal Scalability', desc: 'Auto-scaling infrastructure handles peak showroom hours, multi-branch loads, and high-traffic campaign surges seamlessly.' },

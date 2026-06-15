@@ -11,12 +11,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 import {
   type LucideIcon,
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
-  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText, PlaneLanding, Truck
+  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText, PlaneLanding, Truck, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
@@ -119,11 +124,14 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { user, role, profile, signOut, refreshProfile } = useAuth();
-  const { dealerLocations, selectedLocationId, setSelectedLocationId } = useDealerContext();
+  const { dealerLocations, selectedLocationId, setSelectedLocationId, dealerName, dealerLogoUrl } = useDealerContext();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
+  });
   const [newLeadCount, setNewLeadCount] = useState(0);
   const [endingLeave, setEndingLeave] = useState(false);
   const leadPollRef = useRef({
@@ -184,6 +192,14 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     } catch {
       // No-op for unsupported or blocked autoplay contexts.
     }
+  };
+
+  const toggleCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try { localStorage.setItem('sidebar_collapsed', String(next)); } catch { /* ok */ }
+      return next;
+    });
   };
 
   const navItems = NAV_ITEMS[role ?? DEFAULT_APP_ROLE];
@@ -448,57 +464,120 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl transform transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl transform transition-all duration-200 lg:translate-x-0 lg:static flex-shrink-0 ${
+        sidebarCollapsed ? 'w-[60px]' : 'w-64'
+      } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
-          <div>
-            <div className="bg-[hsl(220,50%,10%)] flex items-center justify-center px-4 py-3 dark:bg-[hsl(220,50%,10%)]">
+          {/* Header */}
+          <div className={`bg-[hsl(220,50%,10%)] flex items-center dark:bg-[hsl(220,50%,10%)] px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
+            {!sidebarCollapsed && (
               <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 w-auto" />
+            )}
+            {sidebarCollapsed && (
+              <img src="/images/auth_logo.png" alt="AutoAdvant" className="h-8 w-8 object-contain rounded" />
+            )}
+            <div className="flex items-center gap-1">
+              {/* Desktop collapse toggle */}
+              <button
+                onClick={toggleCollapsed}
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                className="hidden lg:flex h-7 w-7 items-center justify-center rounded text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              </button>
+              {/* Mobile close */}
+              <button onClick={() => setSidebarOpen(false)} className="flex lg:hidden h-7 w-7 items-center justify-center rounded text-white/70 hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
             </div>
-           
-            <button onClick={() => setSidebarOpen(false)} className="ml-auto lg:hidden text-sidebar-foreground">
-              <X className="h-5 w-5" />
-            </button>
           </div>
 
-          <nav className="flex-1 p-4 space-y-1">
-            {navItems.map(item => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                    isActive
-                      ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-white font-medium shadow-md shadow-blue-500/20'
-                      : 'text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <TooltipProvider delayDuration={0}>
+            <nav className="flex-1 p-2 space-y-0.5 overflow-y-hidden">
+              {navItems.map(item => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+                const linkEl = (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                      sidebarCollapsed ? 'justify-center px-0' : ''
+                    } ${
+                      isActive
+                        ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-white font-medium shadow-md shadow-blue-500/20'
+                        : 'text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {!sidebarCollapsed && item.label}
+                  </Link>
+                );
 
-          <div className="p-4 border-t border-sidebar-border space-y-3">
-            <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 flex items-center justify-center text-sm font-semibold text-white ring-2 ring-sidebar-border/50">
-                  {displayName?.[0]?.toUpperCase() || 'U'}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-sidebar-foreground truncate">{displayName}</p>
-                  <p className="text-xs text-sidebar-foreground/70 truncate">{displayRole}</p>
-                  <p className="text-[11px] text-sidebar-foreground/60 truncate">{profile?.email || user?.email}</p>
+                if (sidebarCollapsed) {
+                  return (
+                    <Tooltip key={item.path}>
+                      <TooltipTrigger asChild>{linkEl}</TooltipTrigger>
+                      <TooltipContent side="right" className="text-xs">{item.label}</TooltipContent>
+                    </Tooltip>
+                  );
+                }
+                return linkEl;
+              })}
+            </nav>
+          </TooltipProvider>
+
+          <div className={`p-3 border-t border-sidebar-border space-y-2 ${sidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
+            {!sidebarCollapsed && (
+              <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 flex items-center justify-center text-sm font-semibold text-white ring-2 ring-sidebar-border/50 shrink-0">
+                    {displayName?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-sidebar-foreground truncate">{displayName}</p>
+                    <p className="text-xs text-sidebar-foreground/70 truncate">{displayRole}</p>
+                    <p className="text-[11px] text-sidebar-foreground/60 truncate">{profile?.email || user?.email}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <Button variant="outline" size="sm" className="w-full justify-center border-sidebar-border text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out Securely
-            </Button>
+            )}
+            {sidebarCollapsed && (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link to="/my-profile" className="h-9 w-9 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 flex items-center justify-center text-sm font-semibold text-white ring-2 ring-sidebar-border/50">
+                      {displayName?.[0]?.toUpperCase() || 'U'}
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">
+                    <p className="font-semibold">{displayName}</p>
+                    <p className="text-muted-foreground">{displayRole}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {sidebarCollapsed ? (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleSignOut}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-sidebar-border text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">Sign Out</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <Button variant="outline" size="sm" className="w-full justify-center border-sidebar-border text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out Securely
+              </Button>
+            )}
           </div>
         </div>
       </aside>
@@ -510,6 +589,8 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
         <SiteHeader
           variant="app"
           showNav={false}
+          dealerName={dealerName}
+          dealerLogoUrl={dealerLogoUrl}
           leftSlot={
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground dark:text-slate-100">
               <Menu className="h-5 w-5" />
