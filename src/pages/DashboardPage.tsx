@@ -5,6 +5,7 @@ import GRODashboard from '@/components/dashboards/GRODashboard';
 import SalesDashboard from '@/components/dashboards/SalesDashboard';
 import SecurityDashboard from '@/components/dashboards/SecurityDashboard';
 import BranchAdminDashboard from '@/components/dashboards/BranchAdminDashboard';
+import FollowUpOverview from '@/components/dashboards/FollowUpOverview';
 import { APP_ROLE } from '@/constants/roles';
 
 const DashboardPage = () => {
@@ -24,7 +25,11 @@ const DashboardPage = () => {
 
   return (
     <DashboardLayout>
+     
       {renderDashboard()}
+       <div className="mt-4 sm:mb-6">
+        <FollowUpOverview />
+      </div>
     </DashboardLayout>
   );
 };

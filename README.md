@@ -1,4 +1,4 @@
-# Showroom Drive
+# Auto Advant
 
 ## Monorepo Setup
 
@@ -8,25 +8,50 @@ This repository is now structured as a monorepo foundation:
 - New Node.js API lives in `apps/api` (Express + Mongoose)
 - Shared package lives in `packages/shared`
 
+## Localhost Ports
+
+- Frontend: `http://localhost:8080`
+- Backend API: `http://localhost:4000`
+
 ## Install
 
 Run install from repository root with your preferred package manager.
+
+```bash
+npm install
+```
+
 ## Run Apps
-## Run Apps
 
-- Frontend: `npm run dev:web`
-- API: `npm run dev:api`
+Run each app in separate terminals:
 
-## API Environment
+```bash
+npm run dev:api
+npm run dev:web
+```
 
-1. Copy `apps/api/.env.example` to `apps/api/.env`
-2. Set `MONGODB_URI`
+## Environment Setup
 
-## Migration Direction (Supabase -> Node + MongoDB)
+1. Copy `.env.example` to `.env`
+2. Fill Firebase web config values for frontend login
+3. Copy `apps/api/.env.example` to `apps/api/.env`
+4. Set `MONGODB_URI`
+5. Add Firebase Admin credentials (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`) in `apps/api/.env`
 
-Suggested incremental migration path:
+## Conversion Status
 
-1. Add API endpoints in `apps/api` for auth/user management/test drives
-2. Switch frontend pages from direct Supabase calls to API calls one feature at a time
-3. Migrate data from Postgres to MongoDB collections in phases
-4. Remove Supabase dependencies after all traffic flows through API
+Supabase client usage has been replaced with a compatibility adapter that routes to:
+
+- Firebase Authentication for login/session
+- Node.js API (`apps/api`) for database reads/writes
+- Local file storage endpoints for uploads/public URLs/signed URLs
+- RPC/function invocation endpoints on API
+
+## API Structure
+
+The backend is organized into controllers, services, models, routes, and middleware:
+
+- Controllers: request/response handlers
+- Services: database, storage, RPC/function business logic
+- Models: dynamic Mongo collection model resolver
+- Middleware: Firebase token attachment and auth guards

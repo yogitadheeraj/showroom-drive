@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react';
 import { demoAutofillData } from '@/lib/demoAutofillData';
-import { supabase } from '@/integrations/supabase/client';
+import { apiGet, apiPost, apiPatch, apiInvokeFunction } from '@/lib/apiClient';
+import { logStaffActivity } from '@/lib/activityLogger';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,22 +29,32 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2 } from 'lucide-react';
+import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2, MoreHorizontal, PlaneTakeoff, PlaneLanding, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, DEALER_ASSIGNABLE_ROLES, type AppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
 
 const UsersPage = () => {
   const [users, setUsers] = useState<any[]>([]);
+  const [verificationByUserId, setVerificationByUserId] = useState<Record<string, boolean>>({});
+  const [resendingVerificationByUserId, setResendingVerificationByUserId] = useState<Record<string, boolean>>({});
   const [staffDriveMetrics, setStaffDriveMetrics] = useState<Record<string, { assigned: number; active: number; completed: number }>>({});
   const [dealers, setDealers] = useState<any[]>([]);
   const [selectedDealerFilter, setSelectedDealerFilter] = useState<string>('all');
+  // Search + filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [locationFilter, setLocationFilter] = useState('all');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [locations, setLocations] = useState<any[]>([]);
   const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
+  const [showCreatePw, setShowCreatePw] = useState(false);
   const [editForm, setEditForm] = useState({ role: '', locationId: '' });
   const [saving, setSaving] = useState(false);
+  const [leaveDialog, setLeaveDialog] = useState<{ user: any } | null>(null);
+  const todayIso = new Date().toISOString().split('T')[0];
+  const [leaveForm, setLeaveForm] = useState({ startDate: todayIso, endDate: todayIso });
   const [confirmAction, setConfirmAction] = useState<null | {
     type: 'delete' | 'toggle-block';
     user: any;
@@ -68,27 +86,36 @@ const UsersPage = () => {
   useEffect(() => {
     if (!dealerLoading) {
       if (isSuperAdmin) {
-        supabase.from('dealers').select('id, name').eq('is_active', true).order('name')
-          .then(({ data }) => setDealers(data || []));
+        apiGet<any[]>('/api/dealers?is_active=true').then((data) => setDealers(data || []));
       }
+      // Auto-clear expired leaves before loading users
+      apiPost('/api/profiles/clear-expired-leaves', {}).catch(() => null);
       fetchUsers();
-      let query = supabase.from('locations').select('*');
+      const locationParams = new URLSearchParams();
       if (isSuperAdmin && selectedDealerFilter !== 'all') {
-        query = query.eq('dealer_id', selectedDealerFilter);
+        locationParams.set('dealer_id', selectedDealerFilter);
       } else if (isSalesAdmin && profile?.location_id) {
-        query = query.eq('id', profile.location_id);
+        locationParams.set('ids', profile.location_id);
       } else if (!isSuperAdmin && dealerId) {
-        query = query.eq('dealer_id', dealerId);
+        locationParams.set('dealer_id', dealerId);
       }
-      query.then(({ data }) => setLocations(data || []));
+      apiGet<any[]>(`/api/locations?${locationParams}`).then((data) => setLocations(data || []));
     }
   }, [dealerId, dealerLoading, isSuperAdmin, isSalesAdmin, profile?.location_id, selectedDealerFilter]);
 
   const fetchUsers = async () => {
-    const [{ data: profiles }, { data: roles }, { data: allLocations }] = await Promise.all([
-      supabase.from('profiles').select('*').order('full_name'),
-      supabase.from('user_roles').select('*'),
-      supabase.from('locations').select('id, dealer_id'),
+    // Scope profiles fetch to dealer's locations so dealer admin only sees their staff
+    const profileParams = new URLSearchParams();
+    if (!isSuperAdmin && dealerLocationIds && dealerLocationIds.length > 0) {
+      profileParams.set('location_ids', dealerLocationIds.join(','));
+    } else if (isSalesAdmin && profile?.location_id) {
+      profileParams.set('location_id', profile.location_id);
+    }
+
+    const [profiles, roles, allLocations] = await Promise.all([
+      apiGet<any[]>(`/api/profiles${profileParams.toString() ? `?${profileParams}` : ''}`),
+      apiGet<any[]>('/api/user-roles'),
+      apiGet<any[]>('/api/locations'),
     ]);
 
     const locationDealerMap = (allLocations || []).reduce((acc: Record<string, string>, loc: any) => {
@@ -121,17 +148,21 @@ const UsersPage = () => {
       }));
     setUsers(merged);
 
+    const userIds = merged.map((u) => u.user_id).filter(Boolean);
+    if (userIds.length > 0) {
+      const verificationData = await apiInvokeFunction<any>('staff-verification-status', { userIds });
+      setVerificationByUserId((verificationData as any)?.statusByUserId || {});
+    } else {
+      setVerificationByUserId({});
+    }
+
     const visibleLocationIds = Array.from(new Set(merged.map((p) => p.location_id).filter(Boolean)));
     if (visibleLocationIds.length === 0) {
       setStaffDriveMetrics({});
       return;
     }
 
-    const { data: drives } = await supabase
-      .from('test_drives')
-      .select('assigned_sales_person_id, assigned_gro_id, status, location_id')
-      .in('location_id', visibleLocationIds as string[])
-      .limit(5000);
+    const drives = await apiGet<any[]>(`/api/test-drives?location_ids=${encodeURIComponent(visibleLocationIds.join(','))}&include_related=false&limit=5000`);
 
     const metrics: Record<string, { assigned: number; active: number; completed: number }> = {};
     const ensure = (profileId: string) => {
@@ -153,6 +184,33 @@ const UsersPage = () => {
     setStaffDriveMetrics(metrics);
   };
 
+  const handleResendVerificationForUser = async (u: any) => {
+    if (!u?.user_id) return;
+    setResendingVerificationByUserId((prev) => ({ ...prev, [u.user_id]: true }));
+    try {
+      const data = await apiInvokeFunction<any>('resend-staff-verification', { userId: u.user_id });
+      if ((data as any)?.error) throw new Error((data as any).error as string);
+
+      if ((data as any)?.alreadyVerified) {
+        toast({ title: 'Already verified', description: `${u.full_name} has already verified email.` });
+      } else if ((data as any)?.sent) {
+        toast({ title: 'Verification sent', description: `Verification email sent to ${u.email}.` });
+      } else {
+        toast({
+          title: 'Email skipped',
+          description: 'SMTP not configured. Share the verification link from API response/logs.',
+          variant: 'destructive',
+        });
+      }
+
+      await fetchUsers();
+    } catch (err: any) {
+      toast({ title: 'Resend failed', description: err?.message || 'Unable to resend verification', variant: 'destructive' });
+    } finally {
+      setResendingVerificationByUserId((prev) => ({ ...prev, [u.user_id]: false }));
+    }
+  };
+
   const getStaffDriveMetrics = (profileId: string) =>
     staffDriveMetrics[profileId] || { assigned: 0, active: 0, completed: 0 };
 
@@ -169,36 +227,29 @@ const UsersPage = () => {
 
     setSaving(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-staff-user', {
-        body: {
-          email: createForm.email,
-          password: createForm.password,
-          fullName: createForm.fullName,
-          role: createForm.role,
-          locationId: createForm.locationId || null,
-          can_use_demo_data: !!createForm.can_use_demo_data,
-        },
+      const data = await apiInvokeFunction<any>('create-staff-user', {
+        email: createForm.email,
+        password: createForm.password,
+        fullName: createForm.fullName,
+        role: createForm.role,
+        locationId: createForm.locationId || null,
+        can_use_demo_data: !!createForm.can_use_demo_data,
       });
-      if (error) throw error;
       if (data?.error) throw new Error(data.error as string);
 
-      // Send welcome email to new staff member
-      const locationName = locations.find((l: any) => l.id === createForm.locationId)?.name;
-      await supabase.functions.invoke('send-transactional-email', {
-        body: {
-          templateName: 'staff-welcome',
-          recipientEmail: createForm.email,
-          idempotencyKey: `staff-welcome-${data.userId || createForm.email}`,
-          templateData: {
-            staffName: createForm.fullName,
-            role: getAppRoleLabel(createForm.role),
-            locationName: locationName || '',
-            loginEmail: createForm.email,
-          },
-        },
-      });
-
-      toast({ title: 'User created', description: `${createForm.fullName} added as ${createForm.role}` });
+      const verificationNote = data?.verificationEmailSent
+        ? ' Verification email sent.'
+        : ' User created. Verification email could not be sent (SMTP not configured).';
+      toast({ title: 'User created', description: `${createForm.fullName} added as ${createForm.role}.${verificationNote}` });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'user_created',
+          label: `Created user: ${createForm.fullName} (${createForm.role})`,
+          route: '/users',
+          metadata: { newUserEmail: createForm.email, newUserRole: createForm.role, newUserFullName: createForm.fullName, locationId: createForm.locationId || null },
+        });
+      }
       setShowCreateDialog(false);
       setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
       fetchUsers();
@@ -231,21 +282,23 @@ const UsersPage = () => {
       const currentRole = editingUser.user_roles?.[0];
 
       if (currentRole) {
-        await supabase.from('user_roles')
-          .update({ role: editForm.role as any })
-          .eq('user_id', editingUser.user_id);
+        await apiPost('/api/user-roles', { user_id: editingUser.user_id, role: editForm.role });
       } else {
-        await supabase.from('user_roles').insert({
-          user_id: editingUser.user_id,
-          role: editForm.role as any,
-        });
+        await apiPost('/api/user-roles', { user_id: editingUser.user_id, role: editForm.role });
       }
 
-      await supabase.from('profiles')
-        .update({ location_id: editForm.locationId || null })
-        .eq('user_id', editingUser.user_id);
+      await apiPatch(`/api/profiles/${encodeURIComponent(editingUser.id)}`, { location_id: editForm.locationId || null });
 
       toast({ title: 'Updated', description: `${editingUser.full_name} is now ${editForm.role}` });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'user_role_updated',
+          label: `Updated role for ${editingUser.full_name} to ${editForm.role}`,
+          route: '/users',
+          metadata: { targetProfileId: editingUser.id, targetName: editingUser.full_name, newRole: editForm.role, locationId: editForm.locationId || null },
+        });
+      }
       setEditingUser(null);
       fetchUsers();
     } catch (err: any) {
@@ -273,12 +326,7 @@ const UsersPage = () => {
     const nextActive = !isUserActive(u);
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_active: nextActive })
-        .eq('user_id', u.user_id);
-
-      if (error) throw error;
+      await apiPatch(`/api/profiles/${encodeURIComponent(u.id)}`, { is_active: nextActive });
 
       toast({ title: nextActive ? 'User unblocked' : 'User blocked' });
       fetchUsers();
@@ -294,14 +342,19 @@ const UsersPage = () => {
 
     setSaving(true);
     try {
-      const { data, error } = await supabase.functions.invoke('delete-staff-user', {
-        body: { userId: u.user_id },
-      });
-
-      if (error) throw error;
+      const data = await apiInvokeFunction<any>('delete-staff-user', { userId: u.user_id });
       if (data?.error) throw new Error(data.error as string);
 
       toast({ title: 'User deleted' });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'user_deleted',
+          label: `Deleted user: ${u.full_name}`,
+          route: '/users',
+          metadata: { targetProfileId: u.id, targetName: u.full_name, targetRole: u.user_roles?.[0]?.role ?? null },
+        });
+      }
       fetchUsers();
     } catch (err: any) {
       const message = typeof err?.message === 'string' ? err.message : '';
@@ -331,6 +384,79 @@ const UsersPage = () => {
     }
   };
 
+  const handleToggleOnLeave = async (u: any) => {
+    if (!canManageStaff || u.user_id === user?.id) return;
+    // If currently on leave → end leave immediately
+    if (u.on_leave || u.leave_end_date) {
+      setSaving(true);
+      try {
+        await apiPatch(`/api/profiles/${encodeURIComponent(u.id)}`, {
+          on_leave: false,
+          leave_start_date: null,
+          leave_end_date: null,
+        });
+        toast({ title: 'Leave ended', description: `${u.full_name} is back and available for auto-assignment.` });
+        if (profile?.user_id) {
+          void logStaffActivity({
+            userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+            eventType: 'user_leave_cleared',
+            label: `Cleared leave for ${u.full_name}`,
+            route: '/users',
+            metadata: { targetProfileId: u.id, targetName: u.full_name },
+          });
+        }
+        fetchUsers();
+      } catch (err: any) {
+        toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      // Open leave date dialog
+      setLeaveForm({ startDate: todayIso, endDate: todayIso });
+      setLeaveDialog({ user: u });
+    }
+  };
+
+  const handleSaveLeave = async () => {
+    if (!leaveDialog) return;
+    const u = leaveDialog.user;
+    if (leaveForm.endDate < leaveForm.startDate) {
+      toast({ title: 'Invalid dates', description: 'End date cannot be before start date.', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiPatch(`/api/profiles/${encodeURIComponent(u.id)}`, {
+        on_leave: true,
+        leave_start_date: leaveForm.startDate,
+        leave_end_date: leaveForm.endDate,
+      });
+      const isSingleDay = leaveForm.startDate === leaveForm.endDate;
+      toast({
+        title: 'Leave scheduled',
+        description: isSingleDay
+          ? `${u.full_name} is on leave on ${leaveForm.startDate}.`
+          : `${u.full_name} is on leave from ${leaveForm.startDate} to ${leaveForm.endDate}. They will be auto-restored on ${leaveForm.endDate} end of day.`,
+      });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'user_leave_set',
+          label: `Scheduled leave for ${u.full_name}: ${leaveForm.startDate} – ${leaveForm.endDate}`,
+          route: '/users',
+          metadata: { targetProfileId: u.id, targetName: u.full_name, startDate: leaveForm.startDate, endDate: leaveForm.endDate },
+        });
+      }
+      setLeaveDialog(null);
+      fetchUsers();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const openConfirmAction = (type: 'delete' | 'toggle-block', u: any) => {
     if (!canBlockDeleteStaff || u.user_id === user?.id || saving) return;
     setConfirmAction({ type, user: u });
@@ -347,6 +473,24 @@ const UsersPage = () => {
 
     setConfirmAction(null);
   };
+
+  // Derived filtered list from search + role + location filters
+  const displayUsers = users.filter(u => {
+    const q = searchQuery.toLowerCase();
+    if (q) {
+      const nameMatch = (u.full_name || '').toLowerCase().includes(q);
+      const emailMatch = (u.email || '').toLowerCase().includes(q);
+      if (!nameMatch && !emailMatch) return false;
+    }
+    if (roleFilter !== 'all') {
+      const hasRole = (u.user_roles || []).some((r: any) => r.role === roleFilter);
+      if (!hasRole) return false;
+    }
+    if (locationFilter !== 'all') {
+      if (u.location_id !== locationFilter) return false;
+    }
+    return true;
+  });
 
   if (dealerLoading) {
     return (
@@ -381,6 +525,46 @@ const UsersPage = () => {
           </div>
         </div>
 
+        {/* ── Search + Filter bar ── */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <Input
+            className="w-full sm:w-64 h-9 text-sm"
+            placeholder="Search by name or email..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="w-40 h-9 text-sm">
+              <SelectValue placeholder="All Roles" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              {STAFF_ROLE_OPTIONS.map(r => (
+                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {locations.length > 1 && (
+            <Select value={locationFilter} onValueChange={setLocationFilter}>
+              <SelectTrigger className="w-44 h-9 text-sm">
+                <SelectValue placeholder="All Locations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Locations</SelectItem>
+                {locations.map(l => (
+                  <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {(searchQuery || roleFilter !== 'all' || locationFilter !== 'all') && (
+            <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => { setSearchQuery(''); setRoleFilter('all'); setLocationFilter('all'); }}>
+              Clear filters
+            </Button>
+          )}
+          <span className="text-xs text-muted-foreground ml-auto">{displayUsers.length} of {users.length} staff</span>
+        </div>
+
         {/* Desktop Table */}
         <Card className="shadow-card hidden lg:block">
           <CardContent className="p-0">
@@ -389,6 +573,7 @@ const UsersPage = () => {
                 <tr className="border-b border-border bg-muted/30">
                   <th className="text-left p-3 text-muted-foreground font-medium">Name</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Email</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Verified</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Role</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Location</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Dealer</th>
@@ -398,7 +583,7 @@ const UsersPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
+                {displayUsers.map(u => (
                   <tr key={u.id} className="border-b border-border/50 hover:bg-muted/20">
                     {(() => {
                       const driveStats = getStaffDriveMetrics(u.id);
@@ -406,6 +591,13 @@ const UsersPage = () => {
                         <>
                     <td className="p-3 font-medium text-foreground">{u.full_name}</td>
                     <td className="p-3 text-muted-foreground">{u.email}</td>
+                    <td className="p-3">
+                      {verificationByUserId[u.user_id] ? (
+                        <Badge variant="secondary" className="bg-success/10 text-success">Yes</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-destructive/10 text-destructive">No</Badge>
+                      )}
+                    </td>
                     <td className="p-3">
                       {u.user_roles?.map((r: any) => (
                         <Badge key={r.role} variant="secondary" className={getAppRoleBadgeClass(r.role)}>
@@ -435,40 +627,78 @@ const UsersPage = () => {
                       </div>
                     </td>
                     <td className="p-3">
-                      <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
-                        {isUserActive(u) ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex gap-1">
-                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openEditDialog(u)} disabled={!canEditTargetUser(u) || saving}>
-                          <Pencil className="h-3 w-3 mr-1" /> Edit
-                        </Button>
-                        {canBlockDeleteStaff && (
-                          <Button
-                            size="sm"
-                            variant={isUserActive(u) ? 'destructive' : 'outline'}
-                            onClick={() => openConfirmAction('toggle-block', u)}
-                            disabled={u.user_id === user?.id || saving}
-                          >
-                            {isUserActive(u) ? (
-                              <><Lock className="h-3 w-3 mr-1" /> Block</>
-                            ) : (
-                              <><Unlock className="h-3 w-3 mr-1" /> Unblock</>
-                            )}
-                          </Button>
-                        )}
-                        {canBlockDeleteStaff && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openConfirmAction('delete', u)}
-                            disabled={u.user_id === user?.id || saving}
-                          >
-                            <Trash2 className="h-3 w-3 mr-1" /> Delete
-                          </Button>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
+                          {isUserActive(u) ? 'Active' : 'Inactive'}
+                        </Badge>
+                        {u.on_leave && (
+                          <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 text-[10px] max-w-[160px] truncate">
+                            <PlaneTakeoff className="h-2.5 w-2.5 mr-1 shrink-0" />
+                            {u.leave_start_date && u.leave_end_date
+                              ? u.leave_start_date === u.leave_end_date
+                                ? `Leave: ${u.leave_start_date}`
+                                : `${u.leave_start_date} → ${u.leave_end_date}`
+                              : 'On Leave'}
+                          </Badge>
                         )}
                       </div>
+                    </td>
+                    <td className="p-3">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled={saving}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          <DropdownMenuItem onClick={() => openEditDialog(u)} disabled={!canEditTargetUser(u) || saving}>
+                            <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleResendVerificationForUser(u)}
+                            disabled={verificationByUserId[u.user_id] || !!resendingVerificationByUserId[u.user_id] || saving}
+                          >
+                            <Mail className="h-3.5 w-3.5 mr-2" />
+                            {resendingVerificationByUserId[u.user_id] ? 'Sending Verification...' : 'Send Verification'}
+                          </DropdownMenuItem>
+                          {canManageStaff && (
+                            <DropdownMenuItem
+                              onClick={() => handleToggleOnLeave(u)}
+                              disabled={u.user_id === user?.id || saving}
+                            >
+                              {u.on_leave ? (
+                                <><PlaneLanding className="h-3.5 w-3.5 mr-2 text-success" /> End Leave</>
+                              ) : (
+                                <><PlaneTakeoff className="h-3.5 w-3.5 mr-2 text-amber-500" /> Mark On Leave</>
+                              )}
+                            </DropdownMenuItem>
+                          )}
+                          {canBlockDeleteStaff && (
+                            <DropdownMenuItem
+                              onClick={() => openConfirmAction('toggle-block', u)}
+                              disabled={u.user_id === user?.id || saving}
+                            >
+                              {isUserActive(u) ? (
+                                <><Lock className="h-3.5 w-3.5 mr-2" /> Block</>
+                              ) : (
+                                <><Unlock className="h-3.5 w-3.5 mr-2" /> Unblock</>
+                              )}
+                            </DropdownMenuItem>
+                          )}
+                          {canBlockDeleteStaff && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => openConfirmAction('delete', u)}
+                                disabled={u.user_id === user?.id || saving}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                         </>
                       );
@@ -482,7 +712,7 @@ const UsersPage = () => {
 
         {/* Mobile Cards */}
         <div className="lg:hidden space-y-3">
-          {users.map(u => (
+          {displayUsers.map(u => (
             <Card key={u.id} className="shadow-card hover:shadow-elevated transition-shadow">
               <CardContent className="p-4 space-y-3">
                 {(() => {
@@ -497,9 +727,30 @@ const UsersPage = () => {
                       <span className="truncate max-w-[200px]">{u.email}</span>
                     </div>
                   </div>
-                  <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
-                    {isUserActive(u) ? 'Active' : 'Inactive'}
-                  </Badge>
+                  <div className="flex flex-col gap-1 items-end">
+                    <Badge variant="secondary" className={isUserActive(u) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
+                      {isUserActive(u) ? 'Active' : 'Inactive'}
+                    </Badge>
+                    {u.on_leave && (
+                      <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 text-[10px] max-w-[160px] truncate">
+                        <PlaneTakeoff className="h-2.5 w-2.5 mr-1 shrink-0" />
+                        {u.leave_start_date && u.leave_end_date
+                          ? u.leave_start_date === u.leave_end_date
+                            ? `Leave: ${u.leave_start_date}`
+                            : `${u.leave_start_date} → ${u.leave_end_date}`
+                          : 'On Leave'}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Verified:</span>
+                  {verificationByUserId[u.user_id] ? (
+                    <Badge variant="secondary" className="bg-success/10 text-success">Yes</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="bg-destructive/10 text-destructive">No</Badge>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
@@ -539,35 +790,63 @@ const UsersPage = () => {
                   </div>
                 </div>
 
-                <Button size="sm" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => openEditDialog(u)} disabled={!canEditTargetUser(u)}>
-                  <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit Role & Location
-                </Button>
-                {canBlockDeleteStaff && (
-                  <Button
-                    size="sm"
-                    variant={isUserActive(u) ? 'destructive' : 'outline'}
-                    className="w-full"
-                    onClick={() => openConfirmAction('toggle-block', u)}
-                    disabled={u.user_id === user?.id || saving}
-                  >
-                    {isUserActive(u) ? (
-                      <><Lock className="h-3.5 w-3.5 mr-1.5" /> Block User</>
-                    ) : (
-                      <><Unlock className="h-3.5 w-3.5 mr-1.5" /> Unblock User</>
-                    )}
-                  </Button>
-                )}
-                {canBlockDeleteStaff && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => openConfirmAction('delete', u)}
-                    disabled={u.user_id === user?.id || saving}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete User
-                  </Button>
-                )}
+                <div className="flex justify-end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled={saving}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem onClick={() => openEditDialog(u)} disabled={!canEditTargetUser(u) || saving}>
+                        <Pencil className="h-3.5 w-3.5 mr-2" /> Edit Role & Location
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleResendVerificationForUser(u)}
+                        disabled={verificationByUserId[u.user_id] || !!resendingVerificationByUserId[u.user_id] || saving}
+                      >
+                        <Mail className="h-3.5 w-3.5 mr-2" />
+                        {resendingVerificationByUserId[u.user_id] ? 'Sending Verification...' : 'Send Verification'}
+                      </DropdownMenuItem>
+                      {canManageStaff && (
+                        <DropdownMenuItem
+                          onClick={() => handleToggleOnLeave(u)}
+                          disabled={u.user_id === user?.id || saving}
+                        >
+                          {u.on_leave ? (
+                            <><PlaneLanding className="h-3.5 w-3.5 mr-2 text-success" /> End Leave</>
+                          ) : (
+                            <><PlaneTakeoff className="h-3.5 w-3.5 mr-2 text-amber-500" /> Mark On Leave</>
+                          )}
+                        </DropdownMenuItem>
+                      )}
+                      {canBlockDeleteStaff && (
+                        <DropdownMenuItem
+                          onClick={() => openConfirmAction('toggle-block', u)}
+                          disabled={u.user_id === user?.id || saving}
+                        >
+                          {isUserActive(u) ? (
+                            <><Lock className="h-3.5 w-3.5 mr-2" /> Block User</>
+                          ) : (
+                            <><Unlock className="h-3.5 w-3.5 mr-2" /> Unblock User</>
+                          )}
+                        </DropdownMenuItem>
+                      )}
+                      {canBlockDeleteStaff && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => openConfirmAction('delete', u)}
+                            disabled={u.user_id === user?.id || saving}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete User
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
                     </>
                   );
                 })()}
@@ -601,7 +880,15 @@ const UsersPage = () => {
               </div>
               <div className="space-y-2"><Label>Full Name *</Label><Input value={createForm.fullName} onChange={e => setCreateForm(p => ({ ...p, fullName: e.target.value }))} /></div>
               <div className="space-y-2"><Label>Email *</Label><Input type="email" value={createForm.email} onChange={e => setCreateForm(p => ({ ...p, email: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Password *</Label><Input type="password" value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} minLength={6} /></div>
+              <div className="space-y-2">
+                <Label>Password *</Label>
+                <div className="relative">
+                  <Input type={showCreatePw ? 'text' : 'password'} value={createForm.password} onChange={e => setCreateForm(p => ({ ...p, password: e.target.value }))} minLength={6} className="pr-10" />
+                  <button type="button" tabIndex={-1} onClick={() => setShowCreatePw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    {showCreatePw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label>Role *</Label>
 <Select value={createForm.role} onValueChange={(v: string) => setCreateForm(p => ({ ...p, role: v as AppRole }))}>
@@ -709,6 +996,97 @@ const UsersPage = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* ── Leave Date-Range Dialog ── */}
+        <Dialog open={!!leaveDialog} onOpenChange={(open) => { if (!open) setLeaveDialog(null); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-heading flex items-center gap-2">
+                <PlaneTakeoff className="h-5 w-5 text-amber-500" />
+                Schedule Leave — {leaveDialog?.user?.full_name}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-5 py-2">
+              <p className="text-sm text-muted-foreground">
+                Select the leave period. This staff member will be excluded from auto-assignment during this time and automatically marked available when the leave ends.
+              </p>
+
+              {/* Quick-select buttons */}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: 'Today only', days: 0 },
+                  { label: '2 days', days: 1 },
+                  { label: '3 days', days: 2 },
+                  { label: '1 week', days: 6 },
+                ].map(({ label, days }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => {
+                      const end = new Date();
+                      end.setDate(end.getDate() + days);
+                      setLeaveForm({ startDate: todayIso, endDate: end.toISOString().split('T')[0] });
+                    }}
+                    className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-medium hover:bg-muted transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="leave-start">From date</Label>
+                  <Input
+                    id="leave-start"
+                    type="date"
+                    value={leaveForm.startDate}
+                    min={todayIso}
+                    onChange={(e) => setLeaveForm((p) => ({ ...p, startDate: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="leave-end">To date</Label>
+                  <Input
+                    id="leave-end"
+                    type="date"
+                    value={leaveForm.endDate}
+                    min={leaveForm.startDate || todayIso}
+                    onChange={(e) => setLeaveForm((p) => ({ ...p, endDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {leaveForm.startDate && leaveForm.endDate && leaveForm.endDate >= leaveForm.startDate && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800/40 dark:bg-amber-900/10 px-4 py-3 text-sm">
+                  <p className="font-medium text-amber-800 dark:text-amber-300">
+                    {leaveForm.startDate === leaveForm.endDate
+                      ? `1 day leave on ${leaveForm.startDate}`
+                      : (() => {
+                          const start = new Date(leaveForm.startDate);
+                          const end = new Date(leaveForm.endDate);
+                          const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+                          return `${days} days: ${leaveForm.startDate} → ${leaveForm.endDate}`;
+                        })()}
+                  </p>
+                  <p className="text-amber-700 dark:text-amber-400 mt-0.5 text-xs">
+                    Staff will be auto-restored to available after {leaveForm.endDate}.
+                  </p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setLeaveDialog(null)} disabled={saving}>Cancel</Button>
+              <Button
+                onClick={handleSaveLeave}
+                disabled={saving || !leaveForm.startDate || !leaveForm.endDate || leaveForm.endDate < leaveForm.startDate}
+                className="bg-amber-500 text-white hover:bg-amber-600"
+              >
+                {saving ? 'Saving...' : 'Confirm Leave'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

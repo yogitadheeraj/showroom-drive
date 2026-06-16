@@ -1,5 +1,5 @@
-import { supabase } from '@/integrations/supabase/client';
 import type { AppRole } from '@/constants/roles';
+import { apiPost, apiPatch } from '@/lib/apiClient';
 
 const ACTIVITY_SESSION_KEY = 'staff_activity_session_id_v1';
 
@@ -23,7 +23,60 @@ export type StaffActivityEventType =
   | 'license_rejected'
   | 'location_hours_updated'
   | 'location_device_added'
-  | 'location_device_deleted';
+  | 'location_device_deleted'
+  | 'communication_logged'
+  | 'customer_created'
+  | 'customer_updated'
+  | 'customer_deleted'
+  | 'booking_created'
+  | 'booking_updated'
+  | 'booking_cancelled'
+  | 'booking_refunded'
+  | 'user_created'
+  | 'user_updated'
+  | 'user_deleted'
+  | 'report_generated'
+  | 'report_viewed'
+  | 'car_booking_cancelled'
+  | 'car_booking_refunded'
+  | 'opportunity_created'
+  | 'opportunity_updated'
+  | 'opportunity_won'
+  | 'opportunity_lost'
+  | 'note_added'
+  | 'note_deleted'
+  | 'transit_scheduled'
+  | 'transit_dispatched'
+  | 'transit_cancelled'
+  | 'transit_receiver_assigned'
+  | 'transit_received'
+  | 'transit_arrived'
+  | 'transit_request_created'
+  | 'transit_request_approved'
+  | 'transit_request_rejected'
+  | 'transit_request_cancelled'
+  | 'test_drive_cancelled'
+  | 'test_drive_no_show'
+  | 'test_drive_key_assigned'
+  | 'test_drive_status_changed'
+  | 'test_drive_opportunity_created'
+  | 'vehicle_created'
+  | 'vehicle_updated'
+  | 'vehicle_deactivated'
+  | 'vehicle_reactivated'
+  | 'walkin_registered'
+  | 'enquiry_replied'
+  | 'enquiry_message_edited'
+  | 'user_role_updated'
+  | 'user_blocked'
+  | 'user_unblocked'
+  | 'user_leave_set'
+  | 'user_leave_cleared'
+  | 'profile_password_changed'
+  | 'profile_leave_set'
+  | 'profile_available_set'
+  | 'other'
+  ;
 
 type ActivityIdentity = {
   userId: string;
@@ -60,9 +113,8 @@ export const ensureActivitySession = async ({ userId, profileId, locationId, rol
   const existingSessionId = getStoredActivitySessionId();
   if (existingSessionId) return existingSessionId;
 
-  const { data, error } = await supabase
-    .from('staff_activity_sessions')
-    .insert({
+  try {
+    const data = await apiPost<{ id: string }>('/api/activity/sessions', {
       user_id: userId,
       profile_id: profileId ?? null,
       location_id: locationId ?? null,
@@ -71,29 +123,27 @@ export const ensureActivitySession = async ({ userId, profileId, locationId, rol
       last_seen_at: new Date().toISOString(),
       is_online: true,
       session_source: 'web',
-    } as never)
-    .select('id')
-    .single();
+    });
 
-  if (error || !data?.id) {
-    console.error('Failed to create activity session', error);
+    if (!data?.id) return null;
+    setStoredActivitySessionId(data.id);
+
+    await apiPost('/api/activity/events', {
+      session_id: data.id,
+      user_id: userId,
+      profile_id: profileId ?? null,
+      location_id: locationId ?? null,
+      role: role ?? null,
+      event_type: 'login',
+      event_label: 'Logged in',
+      happened_at: new Date().toISOString(),
+    }).catch(() => null);
+
+    return data.id;
+  } catch (err) {
+    console.error('Failed to create activity session', err);
     return null;
   }
-
-  setStoredActivitySessionId(data.id);
-
-  await supabase.from('staff_activity_events').insert({
-    session_id: data.id,
-    user_id: userId,
-    profile_id: profileId ?? null,
-    location_id: locationId ?? null,
-    role: role ?? null,
-    event_type: 'login',
-    event_label: 'Logged in',
-    happened_at: new Date().toISOString(),
-  } as never);
-
-  return data.id;
 };
 
 export const logStaffActivity = async ({
@@ -112,27 +162,36 @@ export const logStaffActivity = async ({
 
   const now = new Date().toISOString();
 
-  const [{ error: eventError }, { error: sessionError }] = await Promise.all([
-    supabase.from('staff_activity_events').insert({
-      session_id: resolvedSessionId,
-      user_id: userId,
-      profile_id: profileId ?? null,
-      location_id: locationId ?? null,
-      role: role ?? null,
-      event_type: eventType,
-      event_label: label,
-      route: route ?? null,
-      metadata: metadata ?? null,
-      happened_at: now,
-    } as never),
-    supabase.from('staff_activity_sessions').update({
+  const eventPayload = {
+    session_id: resolvedSessionId,
+    user_id: userId,
+    profile_id: profileId ?? null,
+    location_id: locationId ?? null,
+    role: role ?? null,
+    event_type: eventType,
+    event_label: label,
+    route: route ?? null,
+    metadata: metadata ?? null,
+    happened_at: now,
+  };
+
+  const [eventResult, sessionResult] = await Promise.allSettled([
+    apiPost('/api/activity/events', eventPayload),
+    apiPatch(`/api/activity/sessions/${resolvedSessionId}/touch`, {
+      active_seconds: 0,
+      idle_seconds: 0,
       last_seen_at: now,
       is_online: true,
-    } as never).eq('id', resolvedSessionId),
+    }),
   ]);
 
-  if (eventError) console.error('Failed to log staff activity', eventError);
-  if (sessionError) console.error('Failed to update activity session', sessionError);
+  if (eventResult.status === 'rejected') console.error('Failed to log staff activity', eventResult.reason);
+  if (sessionResult.status === 'rejected') console.error('Failed to update activity session', sessionResult.reason);
+
+  // Mirror to MongoDB (backend API) so apiDbQuery-based readers (e.g. ActivityInsightsMini) see the event.
+  apiPost('/api/activity/events', eventPayload).catch((err) =>
+    console.error('Failed to mirror activity event to API', err)
+  );
 };
 
 export const updateActivitySession = async (
@@ -146,22 +205,12 @@ export const updateActivitySession = async (
   const sessionId = getStoredActivitySessionId();
   if (!sessionId) return;
 
-  const { data: existing, error: fetchError } = await supabase
-    .from('staff_activity_sessions')
-    .select('active_seconds, idle_seconds')
-    .eq('id', sessionId)
-    .maybeSingle();
-
-  if (fetchError || !existing) return;
-
-  const { error } = await supabase.from('staff_activity_sessions').update({
-    active_seconds: (existing.active_seconds || 0) + (updates.activeSeconds || 0),
-    idle_seconds: (existing.idle_seconds || 0) + (updates.idleSeconds || 0),
+  await apiPatch(`/api/activity/sessions/${sessionId}/touch`, {
+    active_seconds: updates.activeSeconds ?? 0,
+    idle_seconds: updates.idleSeconds ?? 0,
     last_seen_at: updates.lastSeenAt ?? new Date().toISOString(),
     is_online: updates.isOnline ?? true,
-  } as never).eq('id', sessionId);
-
-  if (error) console.error('Failed to update activity session durations', error);
+  }).catch((err) => console.error('Failed to update activity session', err));
 };
 
 export const endActivitySession = async ({
@@ -176,8 +225,8 @@ export const endActivitySession = async ({
 
   const now = new Date().toISOString();
 
-  const [{ error: eventError }, { error: sessionError }] = await Promise.all([
-    supabase.from('staff_activity_events').insert({
+  await Promise.allSettled([
+    apiPost('/api/activity/events', {
       session_id: sessionId,
       user_id: userId,
       profile_id: profileId ?? null,
@@ -186,16 +235,9 @@ export const endActivitySession = async ({
       event_type: 'logout',
       event_label: label,
       happened_at: now,
-    } as never),
-    supabase.from('staff_activity_sessions').update({
-      logout_at: now,
-      last_seen_at: now,
-      is_online: false,
-    } as never).eq('id', sessionId),
+    }),
+    apiPatch(`/api/activity/sessions/${sessionId}/end`, {}),
   ]);
-
-  if (eventError) console.error('Failed to log logout', eventError);
-  if (sessionError) console.error('Failed to close activity session', sessionError);
 
   setStoredActivitySessionId(null);
 };

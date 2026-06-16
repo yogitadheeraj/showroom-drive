@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,12 +46,22 @@ const PricingRulesConfig = () => {
   useEffect(() => { fetchRules(); fetchDiscounts(); }, [dealerId]);
 
   const fetchRules = async () => {
-    const { data } = await supabase.from('pricing_rules').select('*').order('priority', { ascending: false });
+    const data = await apiDbQuery<any[]>({
+      table: 'pricing_rules',
+      action: 'select',
+      select: '*',
+      order: [{ field: 'priority', ascending: false }],
+    });
     setRules(data || []);
   };
 
   const fetchDiscounts = async () => {
-    const { data } = await supabase.from('pricing_discounts').select('*').order('created_at', { ascending: false });
+    const data = await apiDbQuery<any[]>({
+      table: 'pricing_discounts',
+      action: 'select',
+      select: '*',
+      order: [{ field: 'created_at', ascending: false }],
+    });
     setDiscounts(data || []);
   };
 
@@ -76,10 +86,19 @@ const PricingRulesConfig = () => {
     };
 
     if (editingRuleId) {
-      await supabase.from('pricing_rules').update(payload).eq('id', editingRuleId);
+      await apiDbQuery({
+        table: 'pricing_rules',
+        action: 'update',
+        payload,
+        filters: [{ field: 'id', op: 'eq', value: editingRuleId }],
+      });
       toast({ title: 'Pricing rule updated' });
     } else {
-      await supabase.from('pricing_rules').insert(payload);
+      await apiDbQuery({
+        table: 'pricing_rules',
+        action: 'insert',
+        values: payload,
+      });
       toast({ title: 'Pricing rule created' });
     }
     setShowRuleDialog(false);
@@ -108,10 +127,19 @@ const PricingRulesConfig = () => {
     };
 
     if (editingDiscountId) {
-      await supabase.from('pricing_discounts').update(payload).eq('id', editingDiscountId);
+      await apiDbQuery({
+        table: 'pricing_discounts',
+        action: 'update',
+        payload,
+        filters: [{ field: 'id', op: 'eq', value: editingDiscountId }],
+      });
       toast({ title: 'Discount updated' });
     } else {
-      await supabase.from('pricing_discounts').insert(payload);
+      await apiDbQuery({
+        table: 'pricing_discounts',
+        action: 'insert',
+        values: payload,
+      });
       toast({ title: 'Discount created' });
     }
     setShowDiscountDialog(false);
@@ -148,23 +176,41 @@ const PricingRulesConfig = () => {
   };
 
   const toggleRuleActive = async (id: string, current: boolean) => {
-    await supabase.from('pricing_rules').update({ is_active: !current }).eq('id', id);
+    await apiDbQuery({
+      table: 'pricing_rules',
+      action: 'update',
+      payload: { is_active: !current },
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
     fetchRules();
   };
 
   const toggleDiscountActive = async (id: string, current: boolean) => {
-    await supabase.from('pricing_discounts').update({ is_active: !current }).eq('id', id);
+    await apiDbQuery({
+      table: 'pricing_discounts',
+      action: 'update',
+      payload: { is_active: !current },
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
     fetchDiscounts();
   };
 
   const deleteRule = async (id: string) => {
-    await supabase.from('pricing_rules').delete().eq('id', id);
+    await apiDbQuery({
+      table: 'pricing_rules',
+      action: 'delete',
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
     toast({ title: 'Pricing rule deleted' });
     fetchRules();
   };
 
   const deleteDiscount = async (id: string) => {
-    await supabase.from('pricing_discounts').delete().eq('id', id);
+    await apiDbQuery({
+      table: 'pricing_discounts',
+      action: 'delete',
+      filters: [{ field: 'id', op: 'eq', value: id }],
+    });
     toast({ title: 'Discount deleted' });
     fetchDiscounts();
   };

@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
+import { createLocation, updateLocation } from '@/lib/locationBrandService';
+import { bulkUpsertLocationOperatingHours, listLocationOperatingHours } from '@/lib/locationOperatingHoursService';
+import {
+  createLocationSpecialPeriod,
+  deleteLocationSpecialPeriod,
+  listLocationSpecialPeriods,
+  updateLocationSpecialPeriod,
+} from '@/lib/locationSpecialPeriodsService';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,8 +21,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
-import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, ChevronRight, Users, Calendar, AlertCircle, Lock, CalendarX } from 'lucide-react';
+import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, ChevronRight, Users, Calendar, AlertCircle, Lock, CalendarX, CalendarDays } from 'lucide-react';
 import { logStaffActivity } from '@/lib/activityLogger';
+import { cn } from '@/lib/utils';
+import { COUNTRIES, validatePhoneForCountry, validateEmail } from '@/lib/countries';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -44,13 +54,17 @@ const LocationsPage = () => {
 
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
+  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
+  const [locErrors, setLocErrors] = useState<Record<string, string>>({});
   const [hoursDialog, setHoursDialog] = useState<string | null>(null);
   const [hours, setHours] = useState<any[]>([]);
   const [savingHours, setSavingHours] = useState(false);
   const [slotDurationDialog, setSlotDurationDialog] = useState<string | null>(null);
   const [slotDuration, setSlotDuration] = useState<number>(30);
   const [slotDurations, setSlotDurations] = useState<Record<string, number>>({});
+  const [advBookingDaysDialog, setAdvBookingDaysDialog] = useState<string | null>(null);
+  const [advBookingDays, setAdvBookingDays] = useState<number>(30);
+  const [advBookingDaysMap, setAdvBookingDaysMap] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const { dealerId, loading: dealerLoading } = useDealerContext();
   const { role, profile } = useAuth();
@@ -96,17 +110,25 @@ const LocationsPage = () => {
   }, [dealerId, dealerLoading]);
 
   const fetchLocations = async () => {
-    let query = supabase.from('locations').select('*').order('name');
-    if (dealerId) query = query.eq('dealer_id', dealerId);
-    const { data } = await query;
+    const filters = dealerId ? [{ field: 'dealer_id', op: 'eq' as const, value: dealerId }] : undefined;
+    const data = await apiDbQuery<any[]>({
+      table: 'locations',
+      action: 'select',
+      select: '*',
+      filters,
+      order: [{ field: 'name', ascending: true }],
+    });
     setLocations(data || []);
 
     if (data) {
       const durations: Record<string, number> = {};
+      const advDays: Record<string, number> = {};
       data.forEach(loc => {
         durations[loc.id] = getLocationSlotDuration(loc);
+        advDays[loc.id] = loc.advance_booking_days ?? 30;
       });
       setSlotDurations(durations);
+      setAdvBookingDaysMap(advDays);
     }
     const locationIds = (data || []).map((loc) => loc.id);
     const dealerIds = Array.from(new Set((data || []).map((loc) => loc.dealer_id).filter(Boolean)));
@@ -115,19 +137,38 @@ const LocationsPage = () => {
     const todayStr = today.toISOString().split('T')[0];
 
     if (dealerIds.length > 0 || locationIds.length > 0) {
-      const [{ data: dealersData }, { data: brandsData }, { data: todayHoursData }, { data: activePeriods }] = await Promise.all([
+      const [dealersData, brandsData, todayHoursData, activePeriods] = await Promise.all([
         dealerIds.length > 0
-          ? supabase.from('dealers').select('id, name').in('id', dealerIds)
-          : Promise.resolve({ data: [] as any[] }),
+          ? apiDbQuery<any[]>({
+              table: 'dealers',
+              action: 'select',
+              select: 'id, name',
+              filters: [{ field: 'id', op: 'in', value: dealerIds }],
+            })
+          : Promise.resolve([] as any[]),
         dealerIds.length > 0
-          ? supabase.from('brands').select('dealer_id, name').in('dealer_id', dealerIds).order('name')
-          : Promise.resolve({ data: [] as any[] }),
+          ? apiDbQuery<any[]>({
+              table: 'brands',
+              action: 'select',
+              select: 'dealer_id, name',
+              filters: [{ field: 'dealer_id', op: 'in', value: dealerIds }],
+              order: [{ field: 'name', ascending: true }],
+            })
+          : Promise.resolve([] as any[]),
         locationIds.length > 0
-          ? supabase.from('location_operating_hours').select('location_id, open_time, close_time, is_closed').in('location_id', locationIds).eq('day_of_week', dayOfWeek)
-          : Promise.resolve({ data: [] as any[] }),
+          ? listLocationOperatingHours({ locationIds, dayOfWeek })
+          : Promise.resolve([] as any[]),
         locationIds.length > 0
-          ? supabase.from('location_special_periods').select('*').in('location_id', locationIds).lte('start_date', todayStr).gte('end_date', todayStr)
-          : Promise.resolve({ data: [] as any[] }),
+          ? Promise.all(
+              locationIds.map((locationId) =>
+                listLocationSpecialPeriods({
+                  location_id: locationId,
+                  start_date: todayStr,
+                  end_date: todayStr,
+                })
+              )
+            ).then((parts) => parts.flat())
+          : Promise.resolve([] as any[]),
       ]);
 
       const dealerNameMap = (dealersData || []).reduce((acc: Record<string, string>, dealer: any) => {
@@ -183,14 +224,26 @@ const LocationsPage = () => {
   };
 
   const fetchDevices = async (locationId: string) => {
-    const { data } = await supabase.from('location_devices').select('*').eq('location_id', locationId).order('created_at', { ascending: false });
+    const data = await apiDbQuery<any[]>({
+      table: 'location_devices',
+      action: 'select',
+      select: '*',
+      filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+      order: [{ field: 'created_at', ascending: false }],
+    });
     setDevices(prev => ({ ...prev, [locationId]: data || [] }));
   };
 
   const fetchStaffCount = async (locationId: string) => {
     try {
-      const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('location_id', locationId);
-      setStaffCounts(prev => ({ ...prev, [locationId]: count || 0 }));
+      const rows = await apiDbQuery<any[]>({
+        table: 'profiles',
+        action: 'select',
+        select: 'id',
+        filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+        limit: 5000,
+      });
+      setStaffCounts(prev => ({ ...prev, [locationId]: rows?.length || 0 }));
     } catch (err) {
       console.error('Error fetching staff count:', err);
       setStaffCounts(prev => ({ ...prev, [locationId]: 0 }));
@@ -205,15 +258,45 @@ const LocationsPage = () => {
       next7.setDate(next7.getDate() + 7);
       const next7Str = next7.toISOString().split('T')[0];
 
-      const [{ count }, { count: todayCount }, { count: next7Count }] = await Promise.all([
-        supabase.from('test_drives').select('id', { count: 'exact', head: true }).eq('location_id', locationId).in('status', ['confirmed', 'show', 'in_progress', 'scheduled']),
-        supabase.from('test_drives').select('id', { count: 'exact', head: true }).eq('location_id', locationId).eq('scheduled_date', todayStr).in('status', ['confirmed', 'show', 'in_progress', 'scheduled']),
-        supabase.from('test_drives').select('id', { count: 'exact', head: true }).eq('location_id', locationId).gte('scheduled_date', todayStr).lte('scheduled_date', next7Str).in('status', ['confirmed', 'show', 'in_progress', 'scheduled']),
+      const [allRows, todayRows, next7Rows] = await Promise.all([
+        apiDbQuery<any[]>({
+          table: 'test_drives',
+          action: 'select',
+          select: 'id',
+          filters: [
+            { field: 'location_id', op: 'eq', value: locationId },
+            { field: 'status', op: 'in', value: ['confirmed', 'show', 'in_progress', 'scheduled'] },
+          ],
+          limit: 5000,
+        }),
+        apiDbQuery<any[]>({
+          table: 'test_drives',
+          action: 'select',
+          select: 'id',
+          filters: [
+            { field: 'location_id', op: 'eq', value: locationId },
+            { field: 'scheduled_date', op: 'eq', value: todayStr },
+            { field: 'status', op: 'in', value: ['confirmed', 'show', 'in_progress', 'scheduled'] },
+          ],
+          limit: 5000,
+        }),
+        apiDbQuery<any[]>({
+          table: 'test_drives',
+          action: 'select',
+          select: 'id',
+          filters: [
+            { field: 'location_id', op: 'eq', value: locationId },
+            { field: 'scheduled_date', op: 'gte', value: todayStr },
+            { field: 'scheduled_date', op: 'lte', value: next7Str },
+            { field: 'status', op: 'in', value: ['confirmed', 'show', 'in_progress', 'scheduled'] },
+          ],
+          limit: 5000,
+        }),
       ]);
 
-      setTestDriveCounts(prev => ({ ...prev, [locationId]: count || 0 }));
-      setTestDriveTodayCounts(prev => ({ ...prev, [locationId]: todayCount || 0 }));
-      setTestDriveNext7DaysCounts(prev => ({ ...prev, [locationId]: next7Count || 0 }));
+      setTestDriveCounts(prev => ({ ...prev, [locationId]: allRows?.length || 0 }));
+      setTestDriveTodayCounts(prev => ({ ...prev, [locationId]: todayRows?.length || 0 }));
+      setTestDriveNext7DaysCounts(prev => ({ ...prev, [locationId]: next7Rows?.length || 0 }));
     } catch (err) {
       console.error('Error fetching test drive count:', err);
       setTestDriveCounts(prev => ({ ...prev, [locationId]: 0 }));
@@ -223,7 +306,19 @@ const LocationsPage = () => {
   };
 
   const fetchSchedules = async (locationId: string) => {
-    const { data } = await supabase.from('test_drives').select('id, scheduled_date, scheduled_time, status').eq('location_id', locationId).gte('scheduled_date', new Date().toISOString().split('T')[0]).order('scheduled_date').order('scheduled_time');
+    const data = await apiDbQuery<any[]>({
+      table: 'test_drives',
+      action: 'select',
+      select: 'id, scheduled_date, scheduled_time, status',
+      filters: [
+        { field: 'location_id', op: 'eq', value: locationId },
+        { field: 'scheduled_date', op: 'gte', value: new Date().toISOString().split('T')[0] },
+      ],
+      order: [
+        { field: 'scheduled_date', ascending: true },
+        { field: 'scheduled_time', ascending: true },
+      ],
+    });
     setSchedules(prev => ({ ...prev, [locationId]: data || [] }));
   };
 
@@ -237,15 +332,40 @@ const LocationsPage = () => {
     setSlotDurationDialog(locationId);
   };
 
+  const openAdvBookingDaysDialog = (locationId: string) => {
+    setAdvBookingDays(advBookingDaysMap[locationId] ?? 30);
+    setAdvBookingDaysDialog(locationId);
+  };
+
+  const saveAdvBookingDays = async () => {
+    if (!advBookingDaysDialog) return;
+    try {
+      await apiDbQuery({
+        table: 'locations',
+        action: 'update',
+        payload: { advance_booking_days: advBookingDays },
+        filters: [{ field: 'id', op: 'eq', value: advBookingDaysDialog }],
+      });
+      setAdvBookingDaysMap(prev => ({ ...prev, [advBookingDaysDialog]: advBookingDays }));
+      toast({ title: 'Booking window saved', description: `Customers can book up to ${advBookingDays} days ahead` });
+      setAdvBookingDaysDialog(null);
+      fetchLocations();
+    } catch (err: any) {
+      toast({ title: 'Failed to save booking window', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const saveSlotDuration = async () => {
     if (!slotDurationDialog) return;
     try {
-      const { error } = await supabase
-        .from('locations')
-        .update({ slot_duration_minutes: slotDuration })
-        .eq('id', slotDurationDialog);
-
-      if (error) {
+      try {
+        await apiDbQuery({
+          table: 'locations',
+          action: 'update',
+          payload: { slot_duration_minutes: slotDuration },
+          filters: [{ field: 'id', op: 'eq', value: slotDurationDialog }],
+        });
+      } catch (error: any) {
         if (!isMissingSlotDurationColumnError(error)) throw error;
 
         const location = locations.find((loc) => loc.id === slotDurationDialog);
@@ -254,14 +374,16 @@ const LocationsPage = () => {
           slot_duration_minutes: slotDuration,
         };
 
-        const { error: metadataError } = await supabase
-          .from('locations')
-          .update({ metadata } as any)
-          .eq('id', slotDurationDialog);
-
-        if (metadataError) {
+        try {
+          await apiDbQuery({
+            table: 'locations',
+            action: 'update',
+            payload: { metadata } as any,
+            filters: [{ field: 'id', op: 'eq', value: slotDurationDialog }],
+          });
+        } catch (metadataError: any) {
           if (isMissingMetadataColumnError(metadataError)) {
-            throw new Error('Database schema is outdated. Run: npm run supabase:repair:columns and execute SQL in Supabase SQL Editor.');
+            throw new Error('Database schema is outdated. Please run the schema repair script and apply the SQL migration in your database console.');
           }
           throw metadataError;
         }
@@ -276,23 +398,61 @@ const LocationsPage = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!formData.name || !formData.address || !formData.city) {
-      toast({ title: 'Missing fields', variant: 'destructive' });
-      return;
-    }
-    const payload = { ...formData, dealer_id: dealerId };
-    if (editingId) {
-      await supabase.from('locations').update(payload).eq('id', editingId);
-      toast({ title: 'Location updated' });
+  const validateLocationStep1 = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!formData.name.trim()) errs.name = 'Location name is required';
+    if (!formData.address.trim()) errs.address = 'Address is required';
+    if (!formData.city.trim()) errs.city = 'City is required';
+    if (!formData.state.trim()) errs.state = 'State/Province is required';
+    if (!formData.country.trim()) errs.country = 'Country is required';
+    setLocErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const validateLocationStep2 = (): boolean => {
+    const step2Errs: Record<string, string> = {};
+    if (!formData.phone.trim()) {
+      step2Errs.phone = 'Phone is required';
     } else {
-      await supabase.from('locations').insert(payload);
-      toast({ title: 'Location added' });
+      const selectedCountry = COUNTRIES.find(c => c.name === formData.country);
+      if (selectedCountry) {
+        // Strip dial code prefix if the user included it, then validate the local part
+        let localPart = formData.phone.replace(/[\s\-()]/g, '');
+        if (localPart.startsWith(selectedCountry.dialCode)) {
+          localPart = localPart.slice(selectedCountry.dialCode.length);
+        }
+        const phoneErr = validatePhoneForCountry(localPart, selectedCountry.dialCode);
+        if (phoneErr) step2Errs.phone = phoneErr;
+      } else if (!/^\+?[\d\s\-(). ]{7,20}$/.test(formData.phone)) {
+        step2Errs.phone = 'Enter a valid phone number';
+      }
     }
-    setShowDialog(false);
-    setEditingId(null);
-    setFormData({ name: '', address: '', city: '', state: '', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
-    fetchLocations();
+    const emailErr = validateEmail(formData.email);
+    if (emailErr) step2Errs.email = emailErr;
+    if (!formData.currency_type) step2Errs.currency_type = 'Currency is required';
+    setLocErrors(prev => ({ ...prev, ...step2Errs }));
+    return Object.keys(step2Errs).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateLocationStep2()) return;
+    const payload = { ...formData, dealer_id: dealerId };
+    try {
+      if (editingId) {
+        await updateLocation(editingId, payload as Record<string, unknown>);
+        toast({ title: 'Location updated' });
+      } else {
+        await createLocation(payload as Record<string, unknown>);
+        toast({ title: 'Location added' });
+      }
+      setShowDialog(false);
+      setEditingId(null);
+      setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
+      setLocErrors({});
+      fetchLocations();
+    } catch (err: any) {
+      toast({ title: 'Failed to save location', description: err.message, variant: 'destructive' });
+    }
   };
 
   const editLocation = (loc: any) => {
@@ -302,6 +462,7 @@ const LocationsPage = () => {
       address: loc.address,
       city: loc.city,
       state: loc.state || '',
+      country: loc.country || 'India',
       phone: loc.phone || '',
       email: loc.email || '',
       latitude: loc.latitude || '',
@@ -310,11 +471,12 @@ const LocationsPage = () => {
       maplink: loc.maplink || '',
       currency_type: loc.currency_type || 'INR'
     });
+    setLocErrors({});
     setShowDialog(true);
   };
 
   const openHoursDialog = async (locationId: string) => {
-    const { data } = await supabase.from('location_operating_hours').select('*').eq('location_id', locationId).order('day_of_week');
+    const data = await listLocationOperatingHours({ locationId });
     const fullHours = DAYS.map((_, i) => {
       const existing = data?.find(d => d.day_of_week === i);
       return existing || { location_id: locationId, day_of_week: i, open_time: '09:00', close_time: '19:00', is_closed: false, id: null };
@@ -331,14 +493,16 @@ const LocationsPage = () => {
     if (!hoursDialog) return;
     setSavingHours(true);
     try {
-      for (const h of hours) {
-        const row = { location_id: hoursDialog, day_of_week: h.day_of_week, open_time: h.open_time, close_time: h.close_time, is_closed: h.is_closed };
-        if (h.id) {
-          await supabase.from('location_operating_hours').update(row).eq('id', h.id);
-        } else {
-          await supabase.from('location_operating_hours').insert(row);
-        }
-      }
+      await bulkUpsertLocationOperatingHours(
+        hoursDialog,
+        hours.map((h) => ({
+          id: h.id || undefined,
+          day_of_week: h.day_of_week,
+          open_time: h.open_time,
+          close_time: h.close_time,
+          is_closed: h.is_closed,
+        })),
+      );
       toast({ title: 'Operating hours saved' });
       if (profile?.user_id) {
         await logStaffActivity({
@@ -369,13 +533,17 @@ const LocationsPage = () => {
     }
 
     try {
-      await supabase.from('location_devices').insert({
+      await apiDbQuery({
+        table: 'location_devices',
+        action: 'insert',
+        values: {
         location_id: deviceDialog,
         name: newDevice.name,
         device_type: newDevice.device_type,
         serial_number: newDevice.serial_number || null,
         notes: newDevice.notes || null,
         is_active: true
+        },
       });
 
       toast({ title: 'Device added successfully' });
@@ -402,7 +570,11 @@ const LocationsPage = () => {
     if (!confirm('Are you sure you want to delete this device?')) return;
 
     try {
-      await supabase.from('location_devices').delete().eq('id', deviceId);
+      await apiDbQuery({
+        table: 'location_devices',
+        action: 'delete',
+        filters: [{ field: 'id', op: 'eq', value: deviceId }],
+      });
       toast({ title: 'Device deleted' });
       if (profile?.user_id) {
         await logStaffActivity({
@@ -423,7 +595,12 @@ const LocationsPage = () => {
 
   const toggleDevice = async (locationId: string, deviceId: string, isActive: boolean) => {
     try {
-      await supabase.from('location_devices').update({ is_active: !isActive }).eq('id', deviceId);
+      await apiDbQuery({
+        table: 'location_devices',
+        action: 'update',
+        payload: { is_active: !isActive },
+        filters: [{ field: 'id', op: 'eq', value: deviceId }],
+      });
       fetchDevices(locationId);
     } catch (err: any) {
       toast({ title: 'Failed to update device', variant: 'destructive' });
@@ -471,17 +648,14 @@ const LocationsPage = () => {
   };
 
   const openSpecialPeriodsDialog = async (locationId: string) => {
-    const { data, error } = await supabase
-      .from('location_special_periods')
-      .select('*')
-      .eq('location_id', locationId)
-      .order('start_date', { ascending: false });
-
-    if (error) {
-      toast({ title: 'Failed to load saved records', description: error.message, variant: 'destructive' });
-      setSpecialPeriods([]);
-    } else {
+    try {
+      const data = await listLocationSpecialPeriods({
+        location_id: locationId,
+      });
       setSpecialPeriods(data || []);
+    } catch (error: any) {
+      toast({ title: 'Failed to load saved records', description: error?.message || 'Unable to load periods', variant: 'destructive' });
+      setSpecialPeriods([]);
     }
 
     resetSpecialPeriodForm();
@@ -526,25 +700,21 @@ const LocationsPage = () => {
         notes: newPeriod.notes || null,
       };
 
-      const { error: saveError } = editingSpecialPeriodId
-        ? await supabase.from('location_special_periods').update(payload).eq('id', editingSpecialPeriodId)
-        : await supabase.from('location_special_periods').insert({
+      if (editingSpecialPeriodId) {
+        await updateLocationSpecialPeriod(editingSpecialPeriodId, payload as any);
+      } else {
+        await createLocationSpecialPeriod({
           location_id: specialPeriodsDialog,
           ...payload,
-        });
-
-      if (saveError) throw saveError;
+        } as any);
+      }
 
       toast({ title: editingSpecialPeriodId ? 'Special period updated' : 'Special period added' });
       resetSpecialPeriodForm();
 
-      const { data: refreshed, error: refreshError } = await supabase
-        .from('location_special_periods')
-        .select('*')
-        .eq('location_id', specialPeriodsDialog)
-        .order('start_date', { ascending: false });
-
-      if (refreshError) throw refreshError;
+      const refreshed = await listLocationSpecialPeriods({
+        location_id: specialPeriodsDialog,
+      });
 
       setSpecialPeriods(refreshed || []);
       fetchLocations();
@@ -556,19 +726,14 @@ const LocationsPage = () => {
   const deleteSpecialPeriod = async (periodId: string) => {
     if (!confirm('Delete this special period?')) return;
     try {
-      const { error: deleteError } = await supabase.from('location_special_periods').delete().eq('id', periodId);
-      if (deleteError) throw deleteError;
+      await deleteLocationSpecialPeriod(periodId);
 
       toast({ title: 'Period removed' });
 
       if (specialPeriodsDialog) {
-        const { data: refreshed, error: refreshError } = await supabase
-          .from('location_special_periods')
-          .select('*')
-          .eq('location_id', specialPeriodsDialog)
-          .order('start_date', { ascending: false });
-
-        if (refreshError) throw refreshError;
+        const refreshed = await listLocationSpecialPeriods({
+          location_id: specialPeriodsDialog,
+        });
 
         setSpecialPeriods(refreshed || []);
         fetchLocations();
@@ -603,7 +768,7 @@ const LocationsPage = () => {
             <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">Locations</h1>
             <p className="text-sm text-muted-foreground mt-1">Manage your dealership locations and devices</p>
           </div>
-          <Button onClick={() => { setEditingId(null); setShowDialog(true); }}
+          <Button onClick={() => { setEditingId(null); setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' }); setLocErrors({}); setStep(1); setShowDialog(true); }}
             className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" /> Add Location
           </Button>
@@ -630,6 +795,16 @@ const LocationsPage = () => {
                       <h3 className="text-base font-heading font-bold text-foreground leading-tight truncate">{loc.name}</h3>
                       <p className="text-xs text-muted-foreground truncate">{loc.address}</p>
                       <p className="text-xs text-muted-foreground truncate">{loc.city}{loc.state ? `, ${loc.state}` : ''}</p>
+                      {loc.country && (() => {
+                        const c = COUNTRIES.find(cnt => cnt.name === loc.country);
+                        return (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <span>{c?.flag ?? '🌍'}</span>
+                            <span>{loc.country}</span>
+                            {c && <span className="font-mono text-[10px] bg-muted/60 px-1 rounded">{c.dialCode}</span>}
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
                   <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 h-7 w-7 p-0" onClick={() => editLocation(loc)} title="Edit Location">
@@ -772,6 +947,9 @@ const LocationsPage = () => {
                         <Button size="sm" className="w-full mt-2 bg-violet-500 text-white hover:bg-violet-600 text-xs h-9 font-medium" onClick={() => openSlotDurationDialog(loc.id)}>
                           <Clock className="h-3.5 w-3.5 mr-1.5" /> Slot Duration: {slotDurations[loc.id] || 30}m
                         </Button>
+                        <Button size="sm" className="w-full mt-2 bg-emerald-600 text-white hover:bg-emerald-700 text-xs h-9 font-medium" onClick={() => openAdvBookingDaysDialog(loc.id)}>
+                          <CalendarDays className="h-3.5 w-3.5 mr-1.5" /> Book Ahead: {advBookingDaysMap[loc.id] ?? 30}d
+                        </Button>
                       </>
                     ) : (
                       <div className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-muted/50 border border-border/50">
@@ -798,48 +976,118 @@ const LocationsPage = () => {
               // Step 1: Basic Info
               // Step 2: Geo/Contact/Map/Currency
               const step1Fields = (
-                <div className="space-y-4">
-                  <div className="space-y-2"><Label>Name *</Label><Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} /></div>
-                  <div className="space-y-2"><Label>Address *</Label><Input value={formData.address} onChange={e => setFormData(p => ({ ...p, address: e.target.value }))} /></div>
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    <div className="space-y-2"><Label>City *</Label><Input value={formData.city} onChange={e => setFormData(p => ({ ...p, city: e.target.value }))} /></div>
-                    <div className="space-y-2"><Label>State</Label><Input value={formData.state} onChange={e => setFormData(p => ({ ...p, state: e.target.value }))} /></div>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>Country <span className="text-destructive">*</span></Label>
+                    <select
+                      className={cn('w-full h-9 px-3 py-2 border rounded-md text-sm bg-background', locErrors.country ? 'border-destructive' : 'border-input')}
+                      value={formData.country}
+                      onChange={e => { setFormData(p => ({ ...p, country: e.target.value })); setLocErrors(p => ({ ...p, country: '' })); }}
+                    >
+                      <option value="">Select country</option>
+                      {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.flag} {c.name}</option>)}
+                    </select>
+                    {locErrors.country && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.country}</p>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Location Name <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={formData.name}
+                      placeholder="e.g. Mumbai Showroom"
+                      className={cn(locErrors.name ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                      onChange={e => { setFormData(p => ({ ...p, name: e.target.value })); setLocErrors(p => ({ ...p, name: '' })); }}
+                    />
+                    {locErrors.name && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.name}</p>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Address <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={formData.address}
+                      placeholder="Street address"
+                      className={cn(locErrors.address ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                      onChange={e => { setFormData(p => ({ ...p, address: e.target.value })); setLocErrors(p => ({ ...p, address: '' })); }}
+                    />
+                    {locErrors.address && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.address}</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>City <span className="text-destructive">*</span></Label>
+                      <Input
+                        value={formData.city}
+                        placeholder="City"
+                        className={cn(locErrors.city ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                        onChange={e => { setFormData(p => ({ ...p, city: e.target.value })); setLocErrors(p => ({ ...p, city: '' })); }}
+                      />
+                      {locErrors.city && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.city}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>State / Province <span className="text-destructive">*</span></Label>
+                      <Input
+                        value={formData.state}
+                        placeholder="State"
+                        className={cn(locErrors.state ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                        onChange={e => { setFormData(p => ({ ...p, state: e.target.value })); setLocErrors(p => ({ ...p, state: '' })); }}
+                      />
+                      {locErrors.state && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.state}</p>}
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
                     <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
-                    <Button onClick={() => setStep(2)} className="bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
+                    <Button onClick={() => { if (validateLocationStep1()) setStep(2); }} className="bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
                   </div>
                 </div>
               );
+              const selectedCountry = COUNTRIES.find(c => c.name === formData.country);
               const step2Fields = (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    <div className="space-y-2"><Label>Phone</Label><Input value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} /></div>
-                    <div className="space-y-2"><Label>Email</Label><Input value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} /></div>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>Phone <span className="text-destructive">*</span></Label>
+                    {selectedCountry && (
+                      <p className="text-[11px] text-muted-foreground">{selectedCountry.flag} {selectedCountry.name} ({selectedCountry.dialCode}) — {selectedCountry.phoneHint}</p>
+                    )}
+                    <Input
+                      value={formData.phone}
+                      placeholder={selectedCountry ? `${selectedCountry.dialCode} ...` : '+XX ...'}
+                      className={cn(locErrors.phone ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                      onChange={e => { setFormData(p => ({ ...p, phone: e.target.value })); setLocErrors(p => ({ ...p, phone: '' })); }}
+                    />
+                    {locErrors.phone && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.phone}</p>}
                   </div>
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                    <div className="space-y-2"><Label>Latitude</Label><Input value={formData.latitude} onChange={e => setFormData(p => ({ ...p, latitude: e.target.value }))} placeholder="e.g. 28.6139" /></div>
-                    <div className="space-y-2"><Label>Longitude</Label><Input value={formData.longitude} onChange={e => setFormData(p => ({ ...p, longitude: e.target.value }))} placeholder="e.g. 77.2090" /></div>
+                  <div className="space-y-1.5">
+                    <Label>Email <span className="text-destructive">*</span></Label>
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      placeholder="location@dealership.com"
+                      className={cn(locErrors.email ? 'border-destructive focus-visible:ring-destructive/30' : '')}
+                      onChange={e => { setFormData(p => ({ ...p, email: e.target.value })); setLocErrors(p => ({ ...p, email: '' })); }}
+                    />
+                    {locErrors.email && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.email}</p>}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Google Place ID</Label>
-                    <Input value={formData.googleplaceid} onChange={e => setFormData(p => ({ ...p, googleplaceid: e.target.value }))} placeholder="Google Place ID (optional)" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Custom Map Link</Label>
-                    <Input value={formData.maplink} onChange={e => setFormData(p => ({ ...p, maplink: e.target.value }))} placeholder="Paste Google Maps link (optional)" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Currency</Label>
+                  <div className="space-y-1.5">
+                    <Label>Currency <span className="text-destructive">*</span></Label>
                     <select
-                      className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
+                      className={cn('w-full h-9 px-3 py-2 border rounded-md text-sm bg-background', locErrors.currency_type ? 'border-destructive' : 'border-input')}
                       value={formData.currency_type}
-                      onChange={e => setFormData(p => ({ ...p, currency_type: e.target.value }))}
+                      onChange={e => { setFormData(p => ({ ...p, currency_type: e.target.value })); setLocErrors(p => ({ ...p, currency_type: '' })); }}
                     >
                       {currencies.map(c => (
                         <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
                       ))}
                     </select>
+                    {locErrors.currency_type && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.currency_type}</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5"><Label>Latitude</Label><Input value={formData.latitude} onChange={e => setFormData(p => ({ ...p, latitude: e.target.value }))} placeholder="e.g. 28.6139" /></div>
+                    <div className="space-y-1.5"><Label>Longitude</Label><Input value={formData.longitude} onChange={e => setFormData(p => ({ ...p, longitude: e.target.value }))} placeholder="e.g. 77.2090" /></div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Google Place ID</Label>
+                    <Input value={formData.googleplaceid} onChange={e => setFormData(p => ({ ...p, googleplaceid: e.target.value }))} placeholder="Google Place ID (optional)" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Custom Map Link</Label>
+                    <Input value={formData.maplink} onChange={e => setFormData(p => ({ ...p, maplink: e.target.value }))} placeholder="Paste Google Maps link (optional)" />
                   </div>
                   <div className="flex justify-between gap-2 pt-2">
                     <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
@@ -1205,6 +1453,65 @@ const LocationsPage = () => {
               <Button onClick={saveSlotDuration} className="bg-violet-500 text-white hover:bg-violet-600">
                 Save Duration
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Advance Booking Days Dialog */}
+        <Dialog open={!!advBookingDaysDialog} onOpenChange={() => setAdvBookingDaysDialog(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-heading flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-emerald-600" />
+                Advance Booking Window
+              </DialogTitle>
+              <DialogDescription>
+                How many days ahead customers can book at {locations.find(l => l.id === advBookingDaysDialog)?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Select Days Ahead</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[7, 14, 21, 30, 45, 60, 90, 120].map(d => (
+                    <button
+                      key={d}
+                      onClick={() => setAdvBookingDays(d)}
+                      className={`p-2.5 rounded-lg border-2 text-sm font-semibold transition-colors ${
+                        advBookingDays === d
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100'
+                          : 'border-border bg-card hover:border-emerald-300'
+                      }`}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm shrink-0">Custom:</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={advBookingDays}
+                    onChange={e => setAdvBookingDays(Math.min(365, Math.max(1, parseInt(e.target.value) || 1)))}
+                    className="h-9 w-24"
+                  />
+                  <span className="text-sm text-muted-foreground">days</span>
+                </div>
+              </div>
+              <div className="bg-muted/50 border border-border rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">Window:</span> {advBookingDays} days from today
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  The walk-in and online booking forms will block dates beyond this limit.
+                </p>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setAdvBookingDaysDialog(null)}>Cancel</Button>
+              <Button onClick={saveAdvBookingDays} className="bg-emerald-600 text-white hover:bg-emerald-700">Save</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

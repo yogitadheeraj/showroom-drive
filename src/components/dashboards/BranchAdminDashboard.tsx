@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiGet } from '@/lib/apiClient';
+import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   CalendarCheck, Users, Car, TrendingUp, Clock, ShieldCheck,
   CheckCircle2, AlertCircle, Eye, Filter, LayoutDashboard, MapPin,
+  LayoutGrid, LayoutList, Activity,
 } from 'lucide-react';
 import { APP_ROLE, APP_ROLE_LABELS, APP_ROLE_BADGE_CLASS } from '@/constants/roles';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +18,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
+import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import { TestDriveInsightGrid } from './TestDriveInsightGrid';
+import { StaffActivityGrid } from './StaffActivityGrid';
+import TestDriveCalendarMini from './TestDriveCalendarMini';
 
 const STATUS_COLOR: Record<string, string> = {
   scheduled: 'bg-info/10 text-info border-info/20',
@@ -41,60 +49,53 @@ const BranchAdminDashboard = () => {
   const [allDrives, setAllDrives] = useState<any[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [driveView, setDriveView] = useState<'list' | 'grid' | 'calendar'>('list');
   const [selectedPerson, setSelectedPerson] = useState<string>('all');
   const [insightRoleFilter, setInsightRoleFilter] = useState<'all' | 'sales' | 'gro'>('all');
   const [insightWindow, setInsightWindow] = useState<'all' | 'today' | 'week' | 'month'>('month');
   const [loading, setLoading] = useState(true);
+  const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
 
   useEffect(() => {
     if (!locationId) return;
     fetchAll();
   }, [locationId]);
 
+  useTestDriveRealtime(locationId, () => {
+    void fetchDrives();
+  });
+
+  const fetchDrives = async () => {
+    const drives = await apiGet<any[]>(`/api/test-drives?location_id=${locationId}&limit=300`);
+    setAllDrives(drives || []);
+  };
+
   const fetchAll = async () => {
     setLoading(true);
     try {
       // Location info
-      const { data: loc } = await supabase
-        .from('locations')
-        .select('id, name, address')
-        .eq('id', locationId)
-        .maybeSingle();
+      const loc = await apiGet<any>(`/api/locations/${locationId}`);
       setLocationInfo(loc);
 
-      // All staff at this location
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, user_id, full_name, phone, is_active')
-        .eq('location_id', locationId)
-        .order('full_name');
+      // All staff + roles for this location
+      const [profileList, allRoles] = await Promise.all([
+        apiGet<any[]>(`/api/profiles?location_id=${locationId}`),
+        apiGet<any[]>('/api/user-roles'),
+      ]);
 
-      const profileList = profiles || [];
-      const userIds = profileList.map(p => p.user_id).filter(Boolean);
+      const rolesMap = ((allRoles || []) as any[]).reduce<Record<string, string>>((acc, r) => {
+        acc[r.user_id] = r.role;
+        return acc;
+      }, {});
 
-      let rolesMap: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const { data: roleRows } = await supabase
-          .from('user_roles')
-          .select('user_id, role')
-          .in('user_id', userIds);
-        (roleRows || []).forEach(r => { rolesMap[r.user_id] = r.role; });
-      }
-
-      const enrichedStaff = profileList.map(p => ({
+      const enrichedStaff = ((profileList || []) as any[]).map((p) => ({
         ...p,
         role: rolesMap[p.user_id] || null,
       }));
       setStaff(enrichedStaff);
 
       // All test drives for this location
-      const { data: drives } = await supabase
-        .from('test_drives')
-        .select('*, customers(*), vehicles(*), profiles!test_drives_assigned_sales_person_id_fkey(id, full_name), gro_profile:profiles!test_drives_assigned_gro_id_fkey(id, full_name)')
-        .eq('location_id', locationId)
-        .order('scheduled_date', { ascending: false })
-        .limit(300);
-      setAllDrives(drives || []);
+      await fetchDrives();
     } finally {
       setLoading(false);
     }
@@ -216,7 +217,7 @@ const BranchAdminDashboard = () => {
 
   // Drives per sales person
   const salesPersonStats = salesStaff.map(s => {
-    const myDrives = allDrives.filter(d => d.profiles?.id === s.id);
+    const myDrives = allDrives.filter(d => d.assigned_sales_person?.id === s.id);
     return {
       ...s,
       total: myDrives.length,
@@ -228,7 +229,7 @@ const BranchAdminDashboard = () => {
 
   // Drives per GRO (gro_id)
   const groStats = groStaff.map(g => {
-    const myDrives = allDrives.filter(d => d.gro_profile?.id === g.id);
+    const myDrives = allDrives.filter(d => d.assigned_gro?.id === g.id);
     return {
       ...g,
       total: myDrives.length,
@@ -261,8 +262,8 @@ const BranchAdminDashboard = () => {
   // Filtered drives for the drives table
   const filteredDrives = allDrives.filter(d => {
     const roleMatch = selectedRole === 'all'
-      || (selectedRole === 'sales' && d.profiles?.id)
-      || (selectedRole === 'gro' && d.gro_profile?.id);
+      || (selectedRole === 'sales' && d.assigned_sales_person?.id)
+      || (selectedRole === 'gro' && d.assigned_gro?.id);
 
     const personMatch = (() => {
       if (selectedPerson === 'all') return true;
@@ -337,13 +338,16 @@ const BranchAdminDashboard = () => {
         })}
       </div>
 
+      {/* ── Activity Insights ── */}
+      <ActivityInsightsMini />
+
       {/* ── USER-WISE INSIGHTS (single rich component) ─────── */}
       <Card className="shadow-card border-primary/20">
         <CardHeader className="pb-2">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <CardTitle className="text-base sm:text-lg font-heading flex items-center gap-2">
               <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-              User-wise Test Drive Insights
+              Staff-wise Test Drive Insights
               <Badge variant="secondary" className="text-xs font-normal ml-1">{userWiseInsights.length} users</Badge>
             </CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
@@ -387,6 +391,7 @@ const BranchAdminDashboard = () => {
             </div>
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Top Performer</p>
+           
               <p className="text-sm font-semibold text-foreground truncate">{topPerformer?.name || 'N/A'}</p>
               <p className="text-xs text-muted-foreground">{topPerformer ? `${topPerformer.completed} completed` : 'No data'}</p>
             </div>
@@ -451,7 +456,8 @@ const BranchAdminDashboard = () => {
           <TabsTrigger value="staff-overview">Staff Overview</TabsTrigger>
           <TabsTrigger value="sales-team">Sales Team</TabsTrigger>
           <TabsTrigger value="gro-team">GRO Team</TabsTrigger>
-          <TabsTrigger value="all-drives">All Drives</TabsTrigger>
+          <TabsTrigger value="test-drives">Test Drives</TabsTrigger>
+          <TabsTrigger value="staff-activity"><Activity className="h-3.5 w-3.5 mr-1" />Staff Activity</TabsTrigger>
           <TabsTrigger value="charts">Charts</TabsTrigger>
         </TabsList>
 
@@ -471,7 +477,7 @@ const BranchAdminDashboard = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {staff.map(s => {
                     const myDrives = allDrives.filter(d =>
-                      d.profiles?.id === s.id || d.gro_profile?.id === s.id
+                      d.assigned_sales_person?.id === s.id || d.assigned_gro?.id === s.id
                     );
                     return (
                       <div key={s.id} className="rounded-lg border border-border p-3 space-y-2 bg-card/50">
@@ -539,7 +545,7 @@ const BranchAdminDashboard = () => {
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {s.drives.map((d: any) => (
-                      <DriveRow key={d.id} drive={d} />
+                      <DriveRow key={d.id} drive={d} onViewDetails={setDetailSheetDrive} />
                     ))}
                   </div>
                 )}
@@ -577,7 +583,7 @@ const BranchAdminDashboard = () => {
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {g.drives.map((d: any) => (
-                      <DriveRow key={d.id} drive={d} />
+                      <DriveRow key={d.id} drive={d} onViewDetails={setDetailSheetDrive} />
                     ))}
                   </div>
                 )}
@@ -586,8 +592,27 @@ const BranchAdminDashboard = () => {
           ))}
         </TabsContent>
 
-        {/* ── ALL DRIVES ── */}
-        <TabsContent value="all-drives" className="mt-4">
+        {/* ── TEST DRIVES (merged List + Grid) ── */}
+        <TabsContent value="test-drives" className="mt-4 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <p className="text-sm font-medium text-foreground">All Test Drives <span className="text-muted-foreground">({filteredDrives.length})</span></p>
+            <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30">
+              <Button size="sm" variant={driveView === 'list' ? 'secondary' : 'ghost'} className="h-7 px-2.5 text-xs" onClick={() => setDriveView('list')}>
+                <LayoutList className="h-3.5 w-3.5 mr-1" /> List
+              </Button>
+              <Button size="sm" variant={driveView === 'grid' ? 'secondary' : 'ghost'} className="h-7 px-2.5 text-xs" onClick={() => setDriveView('grid')}>
+                <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Grid
+              </Button>
+              <Button size="sm" variant={driveView === 'calendar' ? 'secondary' : 'ghost'} className="h-7 px-2.5 text-xs" onClick={() => setDriveView('calendar')}>
+                <CalendarCheck className="h-3.5 w-3.5 mr-1" /> Calendar
+              </Button>
+            </div>
+          </div>
+          {driveView === 'calendar' ? (
+            <TestDriveCalendarMini testDrives={allDrives} />
+          ) : driveView === 'grid' ? (
+            <TestDriveInsightGrid testDrives={allDrives} title="Test Drive Grid" />
+          ) : (
           <Card className="shadow-card">
             <CardHeader className="pb-2">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -640,12 +665,18 @@ const BranchAdminDashboard = () => {
               ) : (
                 <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                   {filteredDrives.map(d => (
-                    <DriveRow key={d.id} drive={d} showAssigned />
+                    <DriveRow key={d.id} drive={d} showAssigned onViewDetails={setDetailSheetDrive} />
                   ))}
                 </div>
               )}
             </CardContent>
           </Card>
+          )}
+        </TabsContent>
+
+        {/* ── STAFF ACTIVITY ── */}
+        <TabsContent value="staff-activity" className="mt-4">
+          <StaffActivityGrid />
         </TabsContent>
 
         {/* ── CHARTS ── */}
@@ -704,6 +735,13 @@ const BranchAdminDashboard = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Test Drive Detail Sheet */}
+      <TestDriveDetailSheet
+        testDrive={detailSheetDrive}
+        open={!!detailSheetDrive}
+        onClose={() => setDetailSheetDrive(null)}
+      />
     </div>
   );
 };
@@ -712,10 +750,14 @@ const BranchAdminDashboard = () => {
 interface DriveRowProps {
   drive: any;
   showAssigned?: boolean;
+  onViewDetails?: (drive: any) => void;
 }
 
-const DriveRow = ({ drive, showAssigned }: DriveRowProps) => (
-  <div className="rounded-lg border border-border p-2.5 bg-card/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+const DriveRow = ({ drive, showAssigned, onViewDetails }: DriveRowProps) => (
+  <div
+    className="rounded-lg border border-border p-2.5 bg-card/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 cursor-pointer hover:bg-muted/30 transition-colors"
+    onClick={() => onViewDetails?.(drive)}
+  >
     <div className="min-w-0 space-y-0.5">
       <p className="font-medium text-sm text-foreground truncate">
         {drive.customers?.full_name || 'Customer'}
@@ -729,14 +771,14 @@ const DriveRow = ({ drive, showAssigned }: DriveRowProps) => (
           <Clock className="h-3 w-3" />
           {drive.scheduled_date} {drive.scheduled_time?.slice(0, 5)}
         </span>
-        {showAssigned && drive.profiles?.full_name && (
+        {showAssigned && drive.assigned_sales_person?.full_name && (
           <span className="flex items-center gap-1 text-info">
-            <TrendingUp className="h-3 w-3" /> {drive.profiles.full_name}
+            <TrendingUp className="h-3 w-3" /> {drive.assigned_sales_person.full_name}
           </span>
         )}
-        {showAssigned && drive.gro_profile?.full_name && (
+        {showAssigned && drive.assigned_gro?.full_name && (
           <span className="flex items-center gap-1 text-success">
-            <CalendarCheck className="h-3 w-3" /> {drive.gro_profile.full_name}
+            <CalendarCheck className="h-3 w-3" /> {drive.assigned_gro.full_name}
           </span>
         )}
       </div>

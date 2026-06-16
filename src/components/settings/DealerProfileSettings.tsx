@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
+import { apiDbQuery } from '@/lib/apiClient';
+import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,10 +34,14 @@ const DealerProfileSettings = () => {
     }
     const fetch = async () => {
       setLoading(true);
-      const { data, error } = await supabase.from('dealers').select('*').eq('id', dealerId).maybeSingle();
-      if (error) {
-        toast({ title: 'Failed to load dealer', description: error.message, variant: 'destructive' });
-      }
+      const dealers = await apiDbQuery<any[]>({
+        table: 'dealers',
+        action: 'select',
+        select: '*',
+        filters: [{ field: 'id', op: 'eq', value: dealerId }],
+        limit: 1,
+      });
+      const data = dealers?.[0] || null;
       if (data) {
         setDealer(data);
         setForm({
@@ -59,35 +64,35 @@ const DealerProfileSettings = () => {
     const ext = file.name.split('.').pop();
     const path = `dealers/${dealerId}/logo.${ext}`;
 
-    const { error: uploadError } = await supabase.storage.from('logos').upload(path, file, { upsert: true });
-    if (uploadError) {
-      toast({ title: 'Upload failed', description: uploadError.message, variant: 'destructive' });
+    try {
+      await uploadToStorage('logos', path, file, { upsert: true });
+      const publicUrl = await getStoragePublicUrl('logos', path);
+      setForm(prev => ({ ...prev, logo_url: publicUrl }));
+      toast({ title: 'Logo uploaded' });
+    } catch (error: any) {
+      toast({ title: 'Upload failed', description: error?.message || 'Upload failed', variant: 'destructive' });
+    } finally {
       setUploading(false);
-      return;
     }
-
-    const { data: urlData } = supabase.storage.from('logos').getPublicUrl(path);
-    setForm(prev => ({ ...prev, logo_url: urlData.publicUrl }));
-    setUploading(false);
-    toast({ title: 'Logo uploaded' });
   };
 
   const handleSave = async () => {
     if (!dealerId) return;
     setSaving(true);
 
-    const { error } = await supabase.from('dealers').update({
-      name: form.name.trim(),
-      contact_email: form.contact_email.trim(),
-      contact_phone: form.contact_phone.trim() || null,
-      logo_url: form.logo_url || null,
-    }).eq('id', dealerId);
+    await apiDbQuery({
+      table: 'dealers',
+      action: 'update',
+      payload: {
+        name: form.name.trim(),
+        contact_email: form.contact_email.trim(),
+        contact_phone: form.contact_phone.trim() || null,
+        logo_url: form.logo_url || null,
+      },
+      filters: [{ field: 'id', op: 'eq', value: dealerId }],
+    });
 
-    if (error) {
-      toast({ title: 'Save failed', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Dealership updated' });
-    }
+    toast({ title: 'Dealership updated' });
     setSaving(false);
   };
 
@@ -104,20 +109,18 @@ const DealerProfileSettings = () => {
       return;
     }
     setCreating(true);
-    const { error } = await supabase.from('dealers').insert({
-      name,
-      slug,
-      contact_email: email,
-      contact_phone: createForm.contact_phone.trim() || null,
-      admin_user_id: user.id,
+    await apiDbQuery({
+      table: 'dealers',
+      action: 'insert',
+      values: {
+        name,
+        slug,
+        contact_email: email,
+        contact_phone: createForm.contact_phone.trim() || null,
+        admin_user_id: user.id,
+      },
     });
-    if (error) {
-      toast({ title: 'Creation failed', description: error.message, variant: 'destructive' });
-      setCreating(false);
-      return;
-    }
     toast({ title: 'Dealership created', description: 'Reloading your settings…' });
-    // Force re-resolve dealer context
     setTimeout(() => window.location.reload(), 600);
   };
 

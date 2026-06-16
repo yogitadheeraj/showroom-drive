@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  type LocationBlockedSlot,
+  type BlockedSlotWithConflicts,
+  listLocationBlockedSlots,
+  createLocationBlockedSlot,
+  deleteLocationBlockedSlot,
+  cancelConflictsForBlockedSlot,
+} from '@/lib/locationBlockedSlotService';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,20 +21,9 @@ import { format, isBefore, startOfToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-interface BlockedSlot {
-  id: string;
-  blocked_date: string;
-  start_time: string;
-  end_time: string;
-  reason: string | null;
-  block_source: string;
-  location_id: string;
-  created_at: string;
-}
-
 const BlockedSlotsManager = () => {
   const { profile } = useAuth();
-  const [slots, setSlots] = useState<BlockedSlot[]>([]);
+  const [slots, setSlots] = useState<LocationBlockedSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
@@ -37,6 +33,11 @@ const BlockedSlotsManager = () => {
   const [newEnd, setNewEnd] = useState('19:00');
   const [newReason, setNewReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const [conflictDialog, setConflictDialog] = useState<{
+    slotId: string;
+    count: number;
+    cancelling: boolean;
+  } | null>(null);
 
   const locationId = profile?.location_id;
 
@@ -46,13 +47,11 @@ const BlockedSlotsManager = () => {
 
   const fetchSlots = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('location_blocked_slots')
-      .select('*')
-      .eq('location_id', locationId!)
-      .gte('blocked_date', format(startOfToday(), 'yyyy-MM-dd'))
-      .order('blocked_date', { ascending: true })
-      .order('start_time', { ascending: true });
+    const today = format(startOfToday(), 'yyyy-MM-dd');
+    const data = await listLocationBlockedSlots({
+      location_id: locationId!,
+      from_date: today,
+    });
     setSlots(data || []);
     setLoading(false);
   };
@@ -64,32 +63,50 @@ const BlockedSlotsManager = () => {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from('location_blocked_slots').insert({
-      location_id: locationId,
-      blocked_date: format(newDate, 'yyyy-MM-dd'),
-      start_time: newStart,
-      end_time: newEnd,
-      reason: newReason.trim() || null,
-      block_source: 'manual',
-    });
-    if (error) {
-      toast.error('Failed to block slot');
-    } else {
-      toast.success('Time slot blocked');
+    try {
+      const result = await createLocationBlockedSlot({
+        location_id: locationId,
+        blocked_date: format(newDate, 'yyyy-MM-dd'),
+        start_time: newStart,
+        end_time: newEnd,
+        reason: newReason.trim() || null,
+        block_source: 'manual',
+      });
       setDialogOpen(false);
       resetForm();
-      fetchSlots();
+      void fetchSlots();
+      if (result?.affected_bookings && result.affected_bookings.length > 0) {
+        setConflictDialog({ slotId: result.id, count: result.affected_bookings.length, cancelling: false });
+      } else {
+        toast.success('Time slot blocked');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to block slot');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
+  };
+
+  const handleCancelConflicts = async () => {
+    if (!conflictDialog) return;
+    setConflictDialog(prev => prev ? { ...prev, cancelling: true } : null);
+    try {
+      const result = await cancelConflictsForBlockedSlot(conflictDialog.slotId);
+      toast.success(`${result?.cancelled?.length ?? 0} conflicting booking(s) cancelled`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to cancel conflicts');
+    } finally {
+      setConflictDialog(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from('location_blocked_slots').delete().eq('id', id);
-    if (error) {
-      toast.error('Failed to unblock slot');
-    } else {
+    try {
+      await deleteLocationBlockedSlot(id);
       toast.success('Slot unblocked');
-      fetchSlots();
+      void fetchSlots();
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to unblock slot');
     }
   };
 
@@ -101,7 +118,7 @@ const BlockedSlotsManager = () => {
   };
 
   // Group slots by date
-  const grouped = slots.reduce<Record<string, BlockedSlot[]>>((acc, s) => {
+  const grouped = slots.reduce<Record<string, LocationBlockedSlot[]>>((acc, s) => {
     (acc[s.blocked_date] ||= []).push(s);
     return acc;
   }, {});
@@ -222,6 +239,31 @@ const BlockedSlotsManager = () => {
             <Button variant="outline" className="rounded-xl" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
             <Button className="gradient-primary border-0 text-primary-foreground rounded-xl" onClick={handleAdd} disabled={saving || !newDate}>
               {saving ? 'Blocking…' : 'Block Slot'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Conflict Warning Dialog */}
+      <Dialog open={!!conflictDialog} onOpenChange={open => { if (!open && !conflictDialog?.cancelling) setConflictDialog(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-warning">Booking Conflicts Detected</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            <strong>{conflictDialog?.count}</strong> active test drive{conflictDialog?.count !== 1 ? 's are' : ' is'} already booked
+            in this blocked window. Do you want to cancel them now?
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="rounded-xl" onClick={() => setConflictDialog(null)} disabled={conflictDialog?.cancelling}>
+              Keep Bookings
+            </Button>
+            <Button
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleCancelConflicts}
+              disabled={conflictDialog?.cancelling}
+            >
+              {conflictDialog?.cancelling ? 'Cancelling…' : `Cancel ${conflictDialog?.count} Booking(s)`}
             </Button>
           </DialogFooter>
         </DialogContent>

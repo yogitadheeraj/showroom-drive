@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { apiDbQuery } from '@/lib/apiClient';
+import { createBrand, updateBrand } from '@/lib/locationBrandService';
+import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,14 +39,13 @@ const BrandSettings = () => {
     }
     const fetch = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('brands')
-        .select('id, name, logo_url, description, meta_title, meta_description')
-        .eq('dealer_id', dealerId)
-        .order('name');
-      if (error) {
-        toast({ title: 'Failed to load brands', description: error.message, variant: 'destructive' });
-      }
+      const data = await apiDbQuery<any[]>({
+        table: 'brands',
+        action: 'select',
+        select: 'id, name, logo_url, description, meta_title, meta_description',
+        filters: [{ field: 'dealer_id', op: 'eq', value: dealerId }],
+        order: [{ field: 'name', ascending: true }],
+      });
       if (data) {
         setBrands(data.map(b => ({
           id: b.id,
@@ -73,15 +74,16 @@ const BrandSettings = () => {
     const ext = file.name.split('.').pop();
     const path = `brands/${brandId}/logo.${ext}`;
 
-    const { error: uploadError } = await supabase.storage.from('logos').upload(path, file, { upsert: true });
-    if (uploadError) {
-      toast({ title: 'Upload failed', description: uploadError.message, variant: 'destructive' });
+    try {
+      await uploadToStorage('logos', path, file, { upsert: true });
+    } catch (uploadError: any) {
+      toast({ title: 'Upload failed', description: uploadError?.message || 'Could not upload brand logo', variant: 'destructive' });
       setUploadingId(null);
       return;
     }
 
-    const { data: urlData } = supabase.storage.from('logos').getPublicUrl(path);
-    updateBrand(brandId, 'logo_url', urlData.publicUrl);
+    const publicUrl = await getStoragePublicUrl('logos', path);
+    updateBrand(brandId, 'logo_url', publicUrl);
     setUploadingId(null);
     toast({ title: 'Brand logo uploaded' });
   };
@@ -89,32 +91,24 @@ const BrandSettings = () => {
   const handleSaveBrand = async (brand: BrandForm) => {
     setSavingId(brand.id);
 
-    const { error } = await supabase.from('brands').update({
-      name: brand.name.trim(),
-      logo_url: brand.logo_url || null,
-      description: brand.description.trim() || null,
-      meta_title: brand.meta_title.trim() || null,
-      meta_description: brand.meta_description.trim() || null,
-    } as any).eq('id', brand.id);
+    await updateBrand(brand.id, {
+        name: brand.name.trim(),
+        logo_url: brand.logo_url || null,
+        description: brand.description.trim() || null,
+        meta_title: brand.meta_title.trim() || null,
+        meta_description: brand.meta_description.trim() || null,
+    });
 
-    if (error) {
-      toast({ title: 'Save failed', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: `${brand.name} updated` });
-    }
+    toast({ title: `${brand.name} updated` });
     setSavingId(null);
   };
 
   const handleAddBrand = async () => {
     if (!dealerId || !newBrandName.trim()) return;
     setAddingBrand(true);
-    const { data, error } = await supabase
-      .from('brands')
-      .insert({ name: newBrandName.trim(), dealer_id: dealerId })
-      .select('id, name, logo_url, description, meta_title, meta_description')
-      .maybeSingle();
-    if (error || !data) {
-      toast({ title: 'Failed to add brand', description: error?.message, variant: 'destructive' });
+    const data = await createBrand({ name: newBrandName.trim(), dealer_id: dealerId });
+    if (!data) {
+      toast({ title: 'Failed to add brand', description: 'Error creating brand', variant: 'destructive' });
       setAddingBrand(false);
       return;
     }

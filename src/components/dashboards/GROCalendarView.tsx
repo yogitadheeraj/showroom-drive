@@ -1,15 +1,20 @@
 import { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Link, useNavigate } from 'react-router-dom';
+import { apiGet, apiPatch, apiPost } from '@/lib/apiClient';
+import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight, Calendar, LayoutGrid, UserPlus, RefreshCw } from 'lucide-react';
-import { format, addDays, startOfWeek, isSameDay, parseISO } from 'date-fns';
+import { ChevronLeft, ChevronRight, Calendar, LayoutGrid, UserPlus, UserPen, RefreshCw, AlertTriangle } from 'lucide-react';
+import WalkinDialog from '@/components/WalkinDialog';
+import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 
 const statusColor: Record<string, string> = {
   scheduled: 'bg-info/10 text-info border-info/20',
@@ -65,6 +70,7 @@ const extractHour = (time?: string | null) => {
 const GROCalendarView = () => {
   const { profile } = useAuth();
   const navigateTo = useNavigate();
+  const { toast } = useToast();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [locationVehicles, setLocationVehicles] = useState<any[]>([]);
   const [locationDetails, setLocationDetails] = useState<any | null>(null);
@@ -72,12 +78,22 @@ const GROCalendarView = () => {
   const [blockedSlots, setBlockedSlots] = useState<any[]>([]);
   const [specialPeriods, setSpecialPeriods] = useState<any[]>([]);
   const [salesPersons, setSalesPersons] = useState<any[]>([]);
+  const [onLeaveStaff, setOnLeaveStaff] = useState<any[]>([]);
+  const [bulkReassignDialog, setBulkReassignDialog] = useState(false);
+  const [bulkSource, setBulkSource] = useState('');
+  const [bulkTarget, setBulkTarget] = useState('');
+  const [bulkReassigning, setBulkReassigning] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
   const [assignDialog, setAssignDialog] = useState<{ open: boolean; testDriveId: string | null }>({ open: false, testDriveId: null });
   const [selectedSalesPerson, setSelectedSalesPerson] = useState('');
   const [selectedModelGroup, setSelectedModelGroup] = useState('all');
   const [selectedSalesFilter, setSelectedSalesFilter] = useState('all');
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [noShowConfirmId, setNoShowConfirmId] = useState<string | null>(null);
+  const [walkinDialog, setWalkinDialog] = useState<{ open: boolean; date?: string; time?: string }>({ open: false });
 
   useEffect(() => {
     void fetchTestDrives();
@@ -86,6 +102,18 @@ const GROCalendarView = () => {
     void fetchSalesPersons();
   }, [profile?.location_id, currentDate, viewMode]);
 
+  // Real-time: auto-refresh + toast when any test drive status changes
+  useTestDriveRealtime(profile?.location_id, (event) => {
+   const [testDriveId] = Object.keys(event);
+    const eventData = event[testDriveId];
+    const statusLabel = eventData.status.replace(/_/g, ' ');
+    toast({
+      title: 'Test Drive Updated',
+      description: `Test Drive Id : - ${testDriveId} is now "${statusLabel}"`,
+    });
+    void fetchTestDrives();
+  });
+
   const fetchTestDrives = async () => {
     if (!profile?.location_id) {
       setTestDrives([]);
@@ -93,34 +121,63 @@ const GROCalendarView = () => {
     }
     const startDate = viewMode === 'week' ? startOfWeek(currentDate, { weekStartsOn: 1 }) : currentDate;
     const endDate = viewMode === 'week' ? addDays(startDate, 6) : currentDate;
-
-    const { data } = await supabase.from('test_drives')
-      .select('*, customers(*), vehicles(*), locations(*), profiles!test_drives_assigned_sales_person_id_fkey(id, full_name)')
-      .eq('location_id', profile.location_id)
-      .gte('scheduled_date', format(startDate, 'yyyy-MM-dd'))
-      .lte('scheduled_date', format(endDate, 'yyyy-MM-dd'))
-      .order('scheduled_date', { ascending: true })
-      .order('scheduled_time', { ascending: true });
-
-    setTestDrives(data || []);
+    const params = new URLSearchParams({
+      location_id: profile.location_id,
+      date_gte: format(startDate, 'yyyy-MM-dd'),
+      date_lte: format(endDate, 'yyyy-MM-dd'),
+    });
+    const enriched = await apiGet<any[]>(`/api/test-drives?${params.toString()}`) || [];
+    setTestDrives(enriched);
   };
 
   const fetchSalesPersons = async () => {
     if (!profile?.location_id) {
       setSalesPersons([]);
+      setOnLeaveStaff([]);
       return;
     }
 
-    const { data: rolesData } = await supabase.from('user_roles').select('user_id').eq('role', 'sales');
-    if (!rolesData?.length) { setSalesPersons([]); return; }
-    const userIds = rolesData.map(r => r.user_id);
-    const { data } = await supabase.from('profiles')
-      .select('id, full_name, user_id, location_id, locations(name)')
-      .eq('location_id', profile.location_id)
-      .eq('is_active', true)
-      .order('full_name', { ascending: true })
-      .in('user_id', userIds);
-    setSalesPersons(data || []);
+    const rolesData = await apiGet<any[]>('/api/user-roles');
+    const assignableRoleUserIds = Array.from(
+      new Set(
+        (rolesData || [])
+          .filter((role) => ['sales', 'sales_admin', 'branch_admin'].includes(String(role.role || '').toLowerCase()))
+          .map((role) => role.user_id)
+          .filter(Boolean),
+      ),
+    );
+
+    if (!assignableRoleUserIds.length) {
+      setSalesPersons([]);
+      setOnLeaveStaff([]);
+      return;
+    }
+
+    const profiles = await apiGet<any[]>(`/api/profiles?location_id=${encodeURIComponent(profile.location_id)}&is_active=true`);
+    const allProfiles = (profiles || []).filter((item) => assignableRoleUserIds.includes(item.user_id));
+    allProfiles.sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')));
+
+    const locationIds = Array.from(new Set(allProfiles.map((item) => item.location_id).filter(Boolean)));
+    const locationRows = locationIds.length
+      ? await apiGet<any[]>(`/api/locations?ids=${encodeURIComponent(locationIds.join(','))}`)
+      : [];
+    const locationMap = new Map((locationRows || []).map((location) => [location.id, location]));
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const withLoc = allProfiles.map((item) => ({
+      ...item,
+      locations: item.location_id ? locationMap.get(item.location_id) || null : null,
+    }));
+
+    // Split into available (not on leave) and on-leave
+    const isOnLeaveNow = (p: any) => {
+      if (p.on_leave && !p.leave_end_date) return true; // indefinite
+      if (p.leave_start_date && p.leave_end_date && p.leave_start_date <= todayStr && p.leave_end_date >= todayStr) return true;
+      return false;
+    };
+
+    setSalesPersons(withLoc.filter((p) => !isOnLeaveNow(p)));
+    setOnLeaveStaff(withLoc.filter((p) => isOnLeaveNow(p)));
   };
 
   const fetchLocationVehicles = async () => {
@@ -129,13 +186,9 @@ const GROCalendarView = () => {
       return;
     }
 
-    const { data } = await supabase.from('vehicles')
-      .select('id, brand, model, location_id, available_units, total_units')
-      .eq('location_id', profile.location_id)
-      .eq('is_active', true)
-      .eq('is_available', true)
-      .order('brand', { ascending: true })
-      .order('model', { ascending: true });
+    const data = await apiGet<any[]>(
+      `/api/vehicles?location_id=${encodeURIComponent(profile.location_id)}&is_active=true&is_available=true`,
+    );
 
     setLocationVehicles(data || []);
   };
@@ -149,26 +202,68 @@ const GROCalendarView = () => {
       return;
     }
 
-    const [locationRes, hoursRes, blockedRes, specialRes] = await Promise.all([
-      supabase.from('locations').select('*').eq('id', profile.location_id).maybeSingle(),
-      supabase.from('location_operating_hours').select('*').eq('location_id', profile.location_id),
-      supabase.from('location_blocked_slots').select('*').eq('location_id', profile.location_id),
-      supabase.from('location_special_periods').select('*').eq('location_id', profile.location_id),
+    const [location, hours, blocked, special] = await Promise.all([
+      apiGet<any>(`/api/locations/${encodeURIComponent(profile.location_id)}`),
+      apiGet<any[]>(`/api/location-operating-hours?location_id=${encodeURIComponent(profile.location_id)}`),
+      apiGet<any[]>(`/api/location-blocked-slots?location_id=${encodeURIComponent(profile.location_id)}`),
+      apiGet<any[]>(`/api/location-special-periods?location_id=${encodeURIComponent(profile.location_id)}`),
     ]);
 
-    setLocationDetails(locationRes.data || null);
-    setOperatingHours(hoursRes.data || []);
-    setBlockedSlots(blockedRes.data || []);
-    setSpecialPeriods(specialRes.data || []);
+    setLocationDetails(location || null);
+    setOperatingHours(hours || []);
+    setBlockedSlots(blocked || []);
+    setSpecialPeriods(special || []);
   };
 
   const handleAssign = async () => {
     if (!assignDialog.testDriveId || !selectedSalesPerson) return;
-    await supabase.from('test_drives')
-      .update({ assigned_sales_person_id: selectedSalesPerson })
-      .eq('id', assignDialog.testDriveId);
+    await apiPatch(`/api/test-drives/${encodeURIComponent(assignDialog.testDriveId)}`, {
+      assigned_sales_person_id: selectedSalesPerson,
+    });
     setAssignDialog({ open: false, testDriveId: null });
     setSelectedSalesPerson('');
+    fetchTestDrives();
+  };
+
+  const handleBulkReassign = async () => {
+    if (!bulkSource || !bulkTarget) return;
+    setBulkReassigning(true);
+    try {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const result = await apiPost<{ data: { reassigned: number } }>('/api/test-drives/bulk-reassign', {
+        from_profile_id: bulkSource,
+        to_profile_id: bulkTarget,
+        date: todayStr,
+      });
+      const count = (result as any)?.data?.reassigned ?? (result as any)?.reassigned ?? 0;
+      toast({ title: 'Reassignment complete', description: `${count} test drive(s) moved to ${salesPersons.find(s => s.id === bulkTarget)?.full_name || 'new staff'}.` });
+      setBulkReassignDialog(false);
+      setBulkSource('');
+      setBulkTarget('');
+      void fetchTestDrives();
+      void fetchSalesPersons();
+    } catch {
+      toast({ title: 'Error', description: 'Bulk reassignment failed. Please try again.', variant: 'destructive' });
+    } finally {
+      setBulkReassigning(false);
+    }
+  };
+
+  const updateStatus = async (id: string, status: string) => {
+    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { status });
+    fetchTestDrives();
+  };
+
+  const handleReschedule = async () => {
+    if (!rescheduleId || !rescheduleDate || !rescheduleTime) return;
+    await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleId)}`, {
+      scheduled_date: rescheduleDate,
+      scheduled_time: `${rescheduleTime}:00`,
+      status: 'rescheduled',
+    });
+    setRescheduleId(null);
+    setRescheduleDate('');
+    setRescheduleTime('');
     fetchTestDrives();
   };
 
@@ -249,6 +344,8 @@ const GROCalendarView = () => {
     const slotDuration = getLocationSlotDuration(locationDetails);
     const slotSet = new Set<string>();
 
+    const plannerDateStrs = new Set(plannerDates.map((d) => format(d, 'yyyy-MM-dd')));
+
     plannerDates.forEach((date) => {
       const dateStr = format(date, 'yyyy-MM-dd');
       const hours = getEffectiveHoursForDate(dateStr);
@@ -263,6 +360,19 @@ const GROCalendarView = () => {
         const mm = String(minutes % 60).padStart(2, '0');
         slotSet.add(`${hh}:${mm}`);
       }
+    });
+
+    // Ensure test drives booked outside configured operating hours are still visible
+    // by adding their time as a slot boundary (snapped to the slot grid).
+    filteredTestDrives.forEach((td) => {
+      if (!td.scheduled_date || !td.scheduled_time) return;
+      if (!plannerDateStrs.has(td.scheduled_date.substring(0, 10))) return;
+      const bookingMinutes = toMinutes(td.scheduled_time);
+      if (bookingMinutes === null) return;
+      const slotStart = Math.floor(bookingMinutes / slotDuration) * slotDuration;
+      const hh = String(Math.floor(slotStart / 60)).padStart(2, '0');
+      const mm = String(slotStart % 60).padStart(2, '0');
+      slotSet.add(`${hh}:${mm}`);
     });
 
     const generatedSlots = Array.from(slotSet).sort((a, b) => (toMinutes(a) || 0) - (toMinutes(b) || 0));
@@ -281,7 +391,7 @@ const GROCalendarView = () => {
     }
 
     return generatedSlots;
-  }, [plannerDates, locationDetails, operatingHours, specialPeriods]);
+  }, [plannerDates, locationDetails, operatingHours, specialPeriods, filteredTestDrives]);
 
   const visibleHours = useMemo(() => {
     const viewDates = viewMode === 'day'
@@ -305,30 +415,40 @@ const GROCalendarView = () => {
   }, [filteredTestDrives, currentDate, viewMode, weekDays]);
 
   const getBookingsForSlot = (date: Date, hour: number) => {
+    const targetDateStr = format(date, 'yyyy-MM-dd');
     return filteredTestDrives.filter(td => {
-      const tdDate = parseISO(td.scheduled_date);
       const tdHour = extractHour(td.scheduled_time);
       if (tdHour === null) return false;
-      return isSameDay(tdDate, date) && tdHour === hour;
+      return td.scheduled_date?.substring(0, 10) === targetDateStr && tdHour === hour;
     });
   };
 
   const getBookingsForModelDate = (date: Date, modelLabel: string) => {
+    const targetDateStr = format(date, 'yyyy-MM-dd');
     return filteredTestDrives.filter((td) => {
       if (!td.scheduled_date) return false;
-      const bookingDate = parseISO(td.scheduled_date);
       const label = `${td?.vehicles?.brand || ''} ${td?.vehicles?.model || ''}`.trim();
-      return isSameDay(bookingDate, date) && label === modelLabel;
+      return td.scheduled_date.substring(0, 10) === targetDateStr && label === modelLabel;
     });
   };
 
   const getBookingsForTimeSlot = (date: Date, startTime: string) => {
+    const slotDuration = getLocationSlotDuration(locationDetails);
+    const slotStartMinutes = toMinutes(startTime);
+    if (slotStartMinutes === null) return [];
+    const slotEndMinutes = slotStartMinutes + slotDuration;
+    const targetDateStr = format(date, 'yyyy-MM-dd');
+
     return filteredTestDrives.filter((td) => {
       if (!td.scheduled_date || !td.scheduled_time) return false;
-      const bookingDate = parseISO(td.scheduled_date);
-      const bookingStart = td.scheduled_time.substring(0, 5);
+      if (td.scheduled_date.substring(0, 10) !== targetDateStr) return false;
 
-      return isSameDay(bookingDate, date) && bookingStart === startTime;
+      const bookingStartMinutes = toMinutes(td.scheduled_time);
+      if (bookingStartMinutes === null) return false;
+
+      // Place each booking in the slot window where its start time falls,
+      // so non-boundary times like 14:17 still appear in the planner.
+      return bookingStartMinutes >= slotStartMinutes && bookingStartMinutes < slotEndMinutes;
     });
   };
 
@@ -425,7 +545,6 @@ const GROCalendarView = () => {
     const slotBookings = getBookingsForTimeSlot(date, slotTime);
     const slotPast = isPastSlot(date, slotTime);
     const slotDisabled = slotPast || (selectedModelGroup !== 'all' && !isSlotAvailableForSelectedModel(date, slotTime));
-
     return (
       <div className="space-y-1">
         {selectedModelGroup !== 'all' ? (
@@ -441,12 +560,13 @@ const GROCalendarView = () => {
             Past Slot {slotTime}
           </div>
         ) : (
-          <Link
-            to={buildBookingLinkWithoutModel(date, slotTime)}
-            className="block rounded-md border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-colors"
+          <button
+            type="button"
+            onClick={() => setWalkinDialog({ open: true, date: format(date, 'yyyy-MM-dd'), time: slotTime })}
+            className="block w-full rounded-md border border-dashed border-primary/25 px-2 py-1 text-[11px] text-primary bg-primary/5 hover:bg-primary/10 transition-colors text-left"
           >
-            Select model to book this time slot
-          </Link>
+            + Book Walk-in at {slotTime}
+          </button>
         )}
         {slotBookings.map(renderBookingCard)}
       </div>
@@ -458,10 +578,8 @@ const GROCalendarView = () => {
   };
 
   const handleDatePlannerClick = (date: Date, slotTime: string) => {
-    if (selectedModelGroup === 'all') return;
     if (isPastSlot(date, slotTime)) return;
-    if (!isSlotAvailableForSelectedModel(date, slotTime)) return;
-    navigateTo(buildBookingLink(selectedModelGroup, date, slotTime));
+    setWalkinDialog({ open: true, date: format(date, 'yyyy-MM-dd'), time: slotTime });
   };
 
   const renderBookingCard = (td: any) => {
@@ -469,6 +587,8 @@ const GROCalendarView = () => {
     const canAssignByStatus = ASSIGNABLE_STATUSES.has(td.status);
     const canAssignBySource = source === 'online' || source === 'walkin';
     const canAssign = td.status !== 'completed' && td.status !== 'cancelled' && (canAssignByStatus || canAssignBySource);
+    const isIncomplete = ['scheduled', 'confirmed', 'show', 'no_show'].includes(td.status);
+    const canMarkNoShow = ['scheduled', 'confirmed', 'show'].includes(td.status);
 
     return (
     <div key={td.id} className={`p-2 rounded-md border text-xs mb-1 ${statusColor[td.status] || 'bg-muted'}`}>
@@ -484,26 +604,32 @@ const GROCalendarView = () => {
           </Badge>
         )}
       </div>
-      <div className="flex items-center justify-between mt-1">
-        {td.profiles?.full_name ? (
-          <span className="text-[10px] font-medium bg-background/50 px-1.5 py-0.5 rounded">{td.profiles.full_name}</span>
+      <div className="flex items-center justify-between mt-1 gap-1">
+        {td.assigned_sales_person?.full_name ? (
+          <span className="text-[10px] font-medium bg-background/50 px-1.5 py-0.5 rounded truncate">{td.assigned_sales_person?.full_name}</span>
         ) : (
           <span className="text-[10px] italic opacity-60">Unassigned</span>
         )}
-        {canAssign && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-5 w-5 p-0"
-            onClick={(event) => {
-              event.stopPropagation();
-              setAssignDialog({ open: true, testDriveId: td.id });
-              setSelectedSalesPerson(td.assigned_sales_person_id || '');
-            }}
-          >
-            {td.profiles?.full_name ? <RefreshCw className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
-          </Button>
-        )}
+        <div className="flex items-center gap-0.5 shrink-0">
+          {canAssign && (
+            <Button size="sm" variant="ghost" className="h-5 w-5 p-0" title={td.assigned_sales_person?.full_name ? 'Reassign' : 'Assign'}
+              onClick={(e) => { e.stopPropagation(); setAssignDialog({ open: true, testDriveId: td.id }); setSelectedSalesPerson(td.assigned_sales_person_id || ''); }}>
+              {td.assigned_sales_person?.full_name ? <UserPen className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
+            </Button>
+          )}
+          {isIncomplete && (
+            <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-info hover:bg-info/10 hover:text-info" title="Reschedule"
+              onClick={(e) => { e.stopPropagation(); setRescheduleId(td.id); setRescheduleDate(''); setRescheduleTime(''); }}>
+              <RefreshCw className="h-2.5 w-2.5" />
+            </Button>
+          )}
+          {canMarkNoShow && (
+            <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-warning hover:bg-warning/10 hover:text-warning" title="Mark No Show"
+              onClick={(e) => { e.stopPropagation(); setNoShowConfirmId(td.id); }}>
+              <AlertTriangle className="h-2.5 w-2.5" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -578,14 +704,29 @@ const GROCalendarView = () => {
                   {salesPersons.map((sp) => (
                     <SelectItem key={sp.id} value={sp.id}>{sp.full_name}</SelectItem>
                   ))}
+                  {onLeaveStaff.length > 0 && (
+                    <>
+                      <div className="px-2 py-1 text-[10px] font-semibold text-amber-600 uppercase tracking-wide">On Leave</div>
+                      {onLeaveStaff.map((sp) => (
+                        <SelectItem key={sp.id} value={sp.id} className="opacity-50">✈️ {sp.full_name}</SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
 
-              <Link to={bookingLink}>
-                <Button className="w-full md:w-auto">
-                  Book Appointment
+              <Button className="w-full md:w-auto" onClick={() => setWalkinDialog({ open: true, date: format(currentDate, 'yyyy-MM-dd') })}>
+                + Book Walk-in
+              </Button>
+              {onLeaveStaff.length > 0 && (
+                <Button
+                  variant="outline"
+                  className="w-full md:w-auto border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                  onClick={() => { setBulkReassignDialog(true); setBulkSource(''); setBulkTarget(''); }}
+                >
+                  ✈️ Reassign Absent Staff ({onLeaveStaff.length})
                 </Button>
-              </Link>
+              )}
             </div>
           </div>
         </div>
@@ -619,11 +760,11 @@ const GROCalendarView = () => {
                           const bookings = getBookingsForModelDate(date, model);
                           return (
                             <td key={`${date.toISOString()}-${model}`} className="p-2 align-top border-l border-border/50">
-                              <Link to={buildBookingLink(model, date)} className="block rounded-xl border border-dashed border-primary/25 bg-primary/5 p-3 hover:bg-primary/10 transition-colors">
+                              <button type="button" onClick={() => setWalkinDialog({ open: true, date: format(date, 'yyyy-MM-dd') })} className="block w-full rounded-xl border border-dashed border-primary/25 bg-primary/5 p-3 hover:bg-primary/10 transition-colors text-left">
                                 <div className="flex items-center justify-between gap-2">
                                   <div>
-                                    <p className="text-xs font-semibold text-primary">Book This Model</p>
-                                    <p className="text-[11px] text-muted-foreground">Date preselected for quick appointment booking</p>
+                                    <p className="text-xs font-semibold text-primary">Book Walk-in</p>
+                                    <p className="text-[11px] text-muted-foreground">Date preselected — opens walk-in form</p>
                                   </div>
                                   <Badge variant="outline" className="text-[10px]">
                                     {bookings.length} Booking{bookings.length === 1 ? '' : 's'}
@@ -641,7 +782,7 @@ const GROCalendarView = () => {
                                     )}
                                   </div>
                                 )}
-                              </Link>
+                              </button>
                             </td>
                           );
                         })}
@@ -727,19 +868,281 @@ const GROCalendarView = () => {
                 <SelectValue placeholder="Select sales person" />
               </SelectTrigger>
               <SelectContent>
-                {salesPersons.map(sp => (
-                  <SelectItem key={sp.id} value={sp.id}>
-                    {sp.full_name}{sp.locations?.name ? ` — ${sp.locations.name}` : ''}
-                  </SelectItem>
-                ))}
+                {salesPersons.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">No available staff right now</div>
+                )}
+                {salesPersons.map(sp => {
+                  const driveCount = testDrives.filter(
+                    td => td.assigned_sales_person_id === sp.id &&
+                    td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
+                    ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                  ).length;
+                  return (
+                    <SelectItem key={sp.id} value={sp.id}>
+                      <span className="flex items-center gap-2">
+                        {sp.full_name}{sp.locations?.name ? ` — ${sp.locations.name}` : ''}
+                        {driveCount > 0 && (
+                          <span className="text-[10px] text-muted-foreground">({driveCount} active)</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+                {onLeaveStaff.length > 0 && (
+                  <>
+                    <div className="px-2 pt-2 pb-1 text-[10px] font-semibold text-amber-600 uppercase tracking-wide border-t border-border mt-1">On Leave — cannot assign</div>
+                    {onLeaveStaff.map(sp => (
+                      <SelectItem key={sp.id} value={`_leave_${sp.id}`} disabled className="opacity-40 cursor-not-allowed">
+                        ✈️ {sp.full_name}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
               </SelectContent>
             </Select>
-            <Button onClick={handleAssign} className="w-full" disabled={!selectedSalesPerson}>
+            <Button onClick={handleAssign} className="w-full" disabled={!selectedSalesPerson || selectedSalesPerson.startsWith('_leave_')}>
               Confirm Assignment
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Reschedule Dialog */}
+      <Dialog open={!!rescheduleId} onOpenChange={(o) => !o && setRescheduleId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-heading">Reschedule Test Drive</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Date</Label>
+              <Input type="date" value={rescheduleDate} min={new Date().toISOString().split('T')[0]} onChange={(e) => setRescheduleDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>New Time</Label>
+              <Input type="time" value={rescheduleTime} min={rescheduleDate === new Date().toISOString().split('T')[0] ? `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}` : undefined} onChange={(e) => setRescheduleTime(e.target.value)} />
+            </div>
+            <Button
+              onClick={handleReschedule}
+              disabled={!rescheduleDate || !rescheduleTime}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Confirm Reschedule
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* No Show Confirmation Dialog */}
+      <Dialog open={!!noShowConfirmId} onOpenChange={(o) => !o && setNoShowConfirmId(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2 text-warning">
+              <AlertTriangle className="h-5 w-5" /> Mark as No Show?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {(() => {
+              const td = testDrives.find(t => t.id === noShowConfirmId);
+              return td
+                ? `Are you sure you want to mark ${td.customers?.full_name || 'this customer'}'s test drive as no-show?`
+                : 'Are you sure you want to mark this test drive as no-show?';
+            })()}
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="rounded-xl" onClick={() => setNoShowConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl bg-warning text-warning-foreground hover:bg-warning/90"
+              onClick={() => { updateStatus(noShowConfirmId!, 'no_show'); setNoShowConfirmId(null); }}
+            >
+              Yes, Mark No Show
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Bulk Reassign Absent Staff Dialog ── */}
+      <Dialog open={bulkReassignDialog} onOpenChange={(o) => { if (!o) { setBulkReassignDialog(false); setBulkSource(''); setBulkTarget(''); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-heading flex items-center gap-2">
+              <span className="text-amber-500">✈️</span> Reassign Absent Staff Leads
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            <p className="text-sm text-muted-foreground">
+              Select a staff member currently on leave, then choose who should receive their test drives for today.
+            </p>
+
+            {/* Staff on leave list */}
+            {onLeaveStaff.length === 0 ? (
+              <div className="rounded-lg border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+                No staff members are currently on leave.
+              </div>
+            ) : (
+              <>
+                {/* Absent staff with their today drive counts */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Staff on leave today</Label>
+                  <div className="space-y-1.5">
+                    {onLeaveStaff.map((sp) => {
+                      const driveCount = testDrives.filter(
+                        td => td.assigned_sales_person_id === sp.id &&
+                        td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
+                        ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                      ).length;
+                      const isSelected = bulkSource === sp.id;
+                      return (
+                        <button
+                          key={sp.id}
+                          type="button"
+                          onClick={() => setBulkSource(sp.id)}
+                          className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors text-left ${
+                            isSelected
+                              ? 'border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-900/20'
+                              : 'border-border hover:bg-muted/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">✈️</span>
+                            <div>
+                              <p className="font-medium text-foreground">{sp.full_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {sp.leave_start_date && sp.leave_end_date
+                                  ? sp.leave_start_date === sp.leave_end_date
+                                    ? `Leave: ${sp.leave_start_date}`
+                                    : `${sp.leave_start_date} → ${sp.leave_end_date}`
+                                  : 'On leave'}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className={driveCount > 0 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : ''}>
+                            {driveCount} drive{driveCount !== 1 ? 's' : ''} today
+                          </Badge>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {bulkSource && (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Reassign to (available staff)</Label>
+                    {salesPersons.length === 0 ? (
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                        No available staff to reassign to. All sales staff are either on leave or inactive.
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {salesPersons.map((sp) => {
+                          const driveCount = testDrives.filter(
+                            td => td.assigned_sales_person_id === sp.id &&
+                            td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
+                            ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                          ).length;
+                          const isSelected = bulkTarget === sp.id;
+                          return (
+                            <button
+                              key={sp.id}
+                              type="button"
+                              onClick={() => setBulkTarget(sp.id)}
+                              className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors text-left ${
+                                isSelected
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-border hover:bg-muted/50'
+                              }`}
+                            >
+                              <span className="font-medium text-foreground">{sp.full_name}</span>
+                              <Badge variant="secondary" className={driveCount === 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : ''}>
+                                {driveCount} active
+                              </Badge>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkReassignDialog(false)} disabled={bulkReassigning}>Cancel</Button>
+            <Button
+              onClick={handleBulkReassign}
+              disabled={!bulkSource || !bulkTarget || bulkReassigning}
+              className="bg-amber-500 text-white hover:bg-amber-600"
+            >
+              {bulkReassigning ? 'Reassigning...' : 'Confirm Reassignment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Staff Availability Panel (shown below calendars when staff exist) ── */}
+      {(salesPersons.length > 0 || onLeaveStaff.length > 0) && (
+        <Card className="shadow-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-heading text-sm flex items-center gap-2">
+              Staff Availability — Today
+              {onLeaveStaff.length > 0 && (
+                <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 text-xs">
+                  {onLeaveStaff.length} on leave
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {salesPersons.map((sp) => {
+                const activeDrives = testDrives.filter(
+                  td => td.assigned_sales_person_id === sp.id &&
+                  td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
+                  ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                );
+                return (
+                  <div key={sp.id} className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{sp.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{activeDrives.length > 0 ? `${activeDrives.length} active test drive${activeDrives.length > 1 ? 's' : ''}` : 'Free'}</p>
+                    </div>
+                    <Badge variant="secondary" className={activeDrives.length === 0 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : activeDrives.length >= 3 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}>
+                      {activeDrives.length === 0 ? 'Free' : activeDrives.length >= 3 ? 'Busy' : 'Active'}
+                    </Badge>
+                  </div>
+                );
+              })}
+              {onLeaveStaff.map((sp) => (
+                <div key={sp.id} className="flex items-center justify-between px-4 py-3 opacity-60">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">✈️ {sp.full_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {sp.leave_start_date && sp.leave_end_date
+                        ? `Leave until ${sp.leave_end_date}`
+                        : 'On leave'}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">On Leave</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <WalkinDialog
+        open={walkinDialog.open}
+        defaultDate={walkinDialog.date}
+        rebookDrive={true}
+        defaultTime={walkinDialog.time}
+        defaultLocationId={profile?.location_id}
+        onClose={(submitted) => {
+          setWalkinDialog({ open: false });
+          if (submitted) void fetchTestDrives();
+        }}
+      />
     </div>
   );
 };

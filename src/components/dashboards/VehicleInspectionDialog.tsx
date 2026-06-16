@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery } from '@/lib/apiClient';
+import { uploadToStorage } from '@/lib/storageClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -194,6 +195,11 @@ const VehicleInspectionDialog = ({ open, onClose, testDrive, type, onComplete }:
       return;
     }
 
+    if (!isPre && testDrive.pre_drive_km != null && parseFloat(km) < parseFloat(testDrive.pre_drive_km)) {
+      toast({ title: 'Invalid odometer reading', description: `Post-drive km cannot be less than pre-drive km (${testDrive.pre_drive_km} km).`, variant: 'destructive' });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const inspectedBy = profile?.full_name || 'Security';
@@ -207,8 +213,7 @@ const VehicleInspectionDialog = ({ open, onClose, testDrive, type, onComplete }:
           const safeExt = ext?.toLowerCase() || 'bin';
           const path = `test-drives/${testDrive.id}/inspection-${type}-${Date.now()}-${index}.${safeExt}`;
 
-          const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
-          if (uploadError) throw uploadError;
+          await uploadToStorage('documents', path, file);
           return path;
         });
 
@@ -230,7 +235,12 @@ const VehicleInspectionDialog = ({ open, onClose, testDrive, type, onComplete }:
             inspection_submitted_at: new Date().toISOString(),
           };
 
-      await supabase.from('test_drives').update(updateData as any).eq('id', testDrive.id);
+      await apiDbQuery({
+        table: 'test_drives',
+        action: 'update',
+        payload: updateData as any,
+        filters: [{ field: 'id', op: 'eq', value: testDrive.id }],
+      });
       if (user?.id) {
         await logStaffActivity({
           userId: user.id,
@@ -297,8 +307,16 @@ const VehicleInspectionDialog = ({ open, onClose, testDrive, type, onComplete }:
               type="number"
               placeholder="e.g. 12500"
               value={km}
+              min={!isPre && testDrive.pre_drive_km != null ? testDrive.pre_drive_km : undefined}
               onChange={e => setKm(e.target.value)}
+              className={!isPre && testDrive.pre_drive_km != null && km && parseFloat(km) < parseFloat(testDrive.pre_drive_km) ? 'border-destructive focus-visible:ring-destructive' : ''}
             />
+            {!isPre && testDrive.pre_drive_km != null && (
+              <p className="text-xs text-muted-foreground">Pre-drive reading: <span className="font-medium text-foreground">{testDrive.pre_drive_km} km</span> — post-drive must be ≥ this value.</p>
+            )}
+            {!isPre && testDrive.pre_drive_km != null && km && parseFloat(km) < parseFloat(testDrive.pre_drive_km) && (
+              <p className="text-xs text-destructive font-medium">⚠ Post-drive km cannot be less than pre-drive km ({testDrive.pre_drive_km} km).</p>
+            )}
           </div>
 
           <div className="space-y-2">

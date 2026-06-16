@@ -1,1 +1,0 @@
-UPDATE public.test_drives SET status = 'confirmed' WHERE id = 'd3292016-a1c1-47e5-87ad-bf1e9d25123d';

@@ -1,21 +1,28 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { apiGet, apiDbQuery, apiPatch, apiPost } from '@/lib/apiClient';
+import { sendTransactionalEmail } from '@/lib/functionService';
+import { getStorageSignedUrl, listStorageFiles, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone, UserCog, CalendarClock, ShieldCheck, AlertTriangle, TrendingUp, Filter } from 'lucide-react';
+import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone, UserCog, CalendarClock, ShieldCheck, AlertTriangle, TrendingUp, Filter, CheckSquare, CreditCard, Banknote, Link2, BookOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SalesSwapDialog from './SalesSwapDialog';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { logStaffActivity } from '@/lib/activityLogger';
 import { APP_ROLE } from '@/constants/roles';
+import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 
 type LeadTemperature = 'hot' | 'cold';
 
@@ -36,16 +43,30 @@ const SalesDashboard = () => {
   const [inspectionDocView, setInspectionDocView] = useState<{ url: string; filename: string } | null>(null);
   const [securityContacts, setSecurityContacts] = useState<Array<{ id: string; full_name: string; phone: string | null }>>([]);
   const [completionLeadDialogDrive, setCompletionLeadDialogDrive] = useState<any>(null);
+  const [completionStep, setCompletionStep] = useState<1 | 2>(1);
   const [leadTemperature, setLeadTemperature] = useState<LeadTemperature>('cold');
   const [followUpTaskTitle, setFollowUpTaskTitle] = useState('');
   const [followUpTaskDueAt, setFollowUpTaskDueAt] = useState('');
+  const [presetHandoverQuestions, setPresetHandoverQuestions] = useState<string[]>([]);
+  const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
+  const [handoverNotes, setHandoverNotes] = useState('');
   const [salesOpportunities, setSalesOpportunities] = useState<any[]>([]);
   const [salesTasks, setSalesTasks] = useState<any[]>([]);
   const [oppNotesDialog, setOppNotesDialog] = useState<{ open: boolean; opportunityId: string | null }>({ open: false, opportunityId: null });
   const [oppNoteText, setOppNoteText] = useState('');
+  const [oppFollowUpDueAt, setOppFollowUpDueAt] = useState('');
   const [taskNotesDialog, setTaskNotesDialog] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
   const [taskNoteText, setTaskNoteText] = useState('');
+  // Booking state (hot lead)
+  const [bookingPaymentMethod, setBookingPaymentMethod] = useState<'cash' | 'payment_link'>('cash');
+  const [bookingAmount, setBookingAmount] = useState('');
+  const [bookingPaymentLink, setBookingPaymentLink] = useState('');
+  const [bookingNotes, setBookingNotes] = useState('');
+  const [bookingCreating, setBookingCreating] = useState(false);
+  const notifiedHandoverIdsRef = useRef<Set<string>>(new Set());
+  const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const formatStatusLabel = (status: string) =>
     status
@@ -128,99 +149,41 @@ const SalesDashboard = () => {
     void fetchLeadWorkspace();
   }, [profile?.id]);
 
-  useEffect(() => {
-    if (!profile?.id) return;
-
-    const channel = supabase
-      .channel(`sales-completion-notify-${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'test_drives',
-          filter: `assigned_sales_person_id=eq.${profile.id}`,
-        },
-        async (payload) => {
-          const before = payload.old as any;
-          const after = payload.new as any;
-
-          if (after?.status !== 'key_handover_to_sales' || before?.status === 'key_handover_to_sales') return;
-
-          const { data: drive } = await supabase
-            .from('test_drives')
-            .select('id, customers(full_name)')
-            .eq('id', after.id)
-            .maybeSingle();
-
-          const customerName = drive?.customers?.full_name || 'Customer';
-
-          toast({
-            title: 'Key handover to sales',
-            description: `Please take follow up from Mr. ${customerName} and close the drive.`,
-          });
-
-          void fetchAssignedDrives();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [profile?.id, toast]);
+  useTestDriveRealtime(profile?.location_id, () => {
+    void fetchAssignedDrives();
+  });
 
   const fetchAssignedDrives = async () => {
     if (!profile?.id) return;
-    const { data } = await supabase.from('test_drives')
-      .select('*, customers(*), vehicles(*), locations(*)')
-      .eq('assigned_sales_person_id', profile.id)
-      .order('scheduled_date', { ascending: true });
+    const enrichedDrives = await apiGet<any[]>(`/api/test-drives?sales_person_id=${encodeURIComponent(profile.id)}`) || [];
+    setTestDrives(enrichedDrives);
 
-    const drives = data || [];
-    setTestDrives(drives);
+    const profileLocationIds = Array.from(new Set(enrichedDrives.map((drive: any) => drive.location_id).filter(Boolean)));
+    if (profileLocationIds.length > 0) {
+      const [securityProfiles, securityRoles] = await Promise.all([
+        apiGet<any[]>(`/api/profiles?location_ids=${encodeURIComponent(profileLocationIds.join(','))}&is_active=true`),
+        apiGet<any[]>('/api/user-roles?role=security'),
+      ]);
 
-    const locationIds = Array.from(new Set(drives.map((drive: any) => drive.location_id).filter(Boolean)));
-    if (locationIds.length > 0) {
-      const { data: securityProfiles } = await supabase
-        .from('profiles')
-        .select('id, user_id, full_name, phone, location_id, is_active')
-        .in('location_id', locationIds)
-        .eq('is_active', true)
-        .order('full_name');
+      const securityUserIds = new Set((securityRoles || []).map((row: any) => row.user_id));
+      const uniqueContacts = (securityProfiles || [])
+        .filter((profileRow: any) => securityUserIds.has(profileRow.user_id))
+        .reduce((acc: Array<{ id: string; full_name: string; phone: string | null }>, profileRow: any) => {
+          if (!acc.some((entry) => entry.id === profileRow.id)) {
+            acc.push({ id: profileRow.id, full_name: profileRow.full_name, phone: profileRow.phone || null });
+          }
+          return acc;
+        }, []);
 
-      const profiles = securityProfiles || [];
-      const userIds = profiles.map((profileRow: any) => profileRow.user_id).filter(Boolean);
-
-      if (userIds.length > 0) {
-        const { data: securityRoles } = await supabase
-          .from('user_roles')
-          .select('user_id, role')
-          .eq('role', APP_ROLE.SECURITY)
-          .in('user_id', userIds);
-
-        const securityUserIds = new Set((securityRoles || []).map((row: any) => row.user_id));
-        const uniqueContacts = profiles
-          .filter((profileRow: any) => securityUserIds.has(profileRow.user_id))
-          .reduce((acc: Array<{ id: string; full_name: string; phone: string | null }>, profileRow: any) => {
-            if (!acc.some((entry) => entry.id === profileRow.id)) {
-              acc.push({ id: profileRow.id, full_name: profileRow.full_name, phone: profileRow.phone || null });
-            }
-            return acc;
-          }, []);
-
-        setSecurityContacts(uniqueContacts);
-      } else {
-        setSecurityContacts([]);
-      }
+      setSecurityContacts(uniqueContacts);
     } else {
       setSecurityContacts([]);
     }
 
-    if (drives.length > 0) {
+    if (enrichedDrives.length > 0) {
       await Promise.all(
-        drives.map(async (drive) => {
-          const { data: docs } = await supabase.storage.from('documents').list(`test-drives/${drive.id}`, { limit: 200 });
+        enrichedDrives.map(async (drive) => {
+          const docs = await listStorageFiles('documents', `test-drives/${drive.id}`, 200);
           setInspectionDocsByDrive((prev) => ({ ...prev, [drive.id]: docs || [] }));
         })
       );
@@ -228,33 +191,28 @@ const SalesDashboard = () => {
       setInspectionDocsByDrive({});
     }
 
-    if (!drives.length) {
+    if (!enrichedDrives.length) {
       setSecurityEventsByDrive({});
       return;
     }
 
-    const driveIds = new Set(drives.map((d) => d.id));
-    const { data: securityEvents } = await supabase
-      .from('staff_activity_events')
-      .select('event_type, event_label, happened_at, metadata, profiles:profile_id(full_name)')
-      .eq('role', 'security')
-      .in('event_type', [
-        'test_drive_check_in',
-        'test_drive_check_out',
-        'test_drive_completed',
-        'vehicle_inspection_pre',
-        'vehicle_inspection_post',
-        'license_verified',
-      ])
-      .order('happened_at', { ascending: false })
-      .limit(1000);
+    const driveIds = new Set(enrichedDrives.map((d) => d.id));
+    const securityEvents = await apiGet<any[]>(
+      `/api/activity/events?role=security&event_types=${encodeURIComponent('test_drive_check_in,test_drive_check_out,test_drive_completed,vehicle_inspection_pre,vehicle_inspection_post,license_verified')}&limit=1000`
+    );
+
+    const activityProfileIds = Array.from(new Set((securityEvents || []).map((event: any) => event.profile_id).filter(Boolean)));
+    const eventProfiles = activityProfileIds.length
+      ? await apiGet<any[]>(`/api/profiles?ids=${encodeURIComponent(activityProfileIds.join(','))}`)
+      : [];
+    const profileNameMap = new Map((eventProfiles || []).map((row: any) => [row.id, row.full_name]));
 
     const perDrive: Record<string, any> = {};
     for (const event of securityEvents || []) {
       const testDriveId = (event as any)?.metadata?.testDriveId;
       if (!testDriveId || !driveIds.has(testDriveId)) continue;
 
-      const fullName = (event as any)?.profiles?.full_name || 'Security';
+      const fullName = profileNameMap.get((event as any)?.profile_id) || 'Security';
       if (!perDrive[testDriveId]) perDrive[testDriveId] = { logs: [] };
 
       perDrive[testDriveId].logs.push({
@@ -279,53 +237,98 @@ const SalesDashboard = () => {
     }
 
     setSecurityEventsByDrive(perDrive);
+
+    const keyHandoverDrives = enrichedDrives.filter((drive: any) => drive.status === 'key_handover_to_sales');
+    keyHandoverDrives.forEach((drive: any) => {
+      if (notifiedHandoverIdsRef.current.has(drive.id)) return;
+      notifiedHandoverIdsRef.current.add(drive.id);
+      const customerName = drive?.customers?.full_name || 'Customer';
+      toast({
+        title: 'Key handover to sales',
+        description: `Please take follow up from Mr. ${customerName} and close the drive.`,
+      });
+    });
   };
 
   const fetchLeadWorkspace = async () => {
     if (!profile?.id) return;
 
-    const [opportunityRes, taskRes] = await Promise.all([
-      (supabase as any)
-        .from('sales_opportunities')
-        .select('id, customer_id, latest_test_drive_id, temperature, stage, updated_at, notes, customers(id, full_name, phone, email), test_drives!sales_opportunities_latest_test_drive_id_fkey(id, scheduled_date, vehicles(brand, model))')
-        .eq('owner_profile_id', profile.id)
-        .order('updated_at', { ascending: false })
-        .limit(50),
-      (supabase as any)
-        .from('sales_tasks')
-          .select('id, title, due_at, status, priority, test_drive_id, created_at, customers(id, full_name, phone, email)')
-        .eq('assigned_to_profile_id', profile.id)
-        .eq('status', 'open')
-        .order('due_at', { ascending: true, nullsFirst: false })
-        .limit(50),
-    ]);
+    try {
+      const [opportunities, tasks] = await Promise.all([
+        apiDbQuery<any[]>({
+          table: 'sales_opportunities',
+          action: 'select',
+          select: 'id, customer_id, latest_test_drive_id, temperature, stage, updated_at, notes, owner_profile_id, location_id',
+          filters: [{ field: 'owner_profile_id', op: 'eq', value: profile.id }],
+          order: [{ field: 'updated_at', ascending: false }],
+          limit: 50,
+        }),
+        apiDbQuery<any[]>({
+          table: 'sales_tasks',
+          action: 'select',
+          select: 'id, title, due_at, status, priority, test_drive_id, created_at, customer_id, assigned_to_profile_id, opportunity_id',
+          filters: [
+            { field: 'assigned_to_profile_id', op: 'eq', value: profile.id },
+            { field: 'status', op: 'eq', value: 'open' },
+          ],
+          order: [{ field: 'due_at', ascending: true }],
+          limit: 50,
+        }),
+      ]);
 
-    if (opportunityRes.error) {
-      setSalesOpportunities([]);
-    } else {
-      // Deduplicate opportunities by customer_id + latest_test_drive_id to prevent duplicates
-      const seenCombo = new Set<string>();
-      const uniqueOpportunities = (opportunityRes.data || []).filter((opp: any) => {
+      const oppCustomerIds = Array.from(new Set((opportunities || []).map((opp: any) => opp.customer_id).filter(Boolean)));
+      const oppDriveIds = Array.from(new Set((opportunities || []).map((opp: any) => opp.latest_test_drive_id).filter(Boolean)));
+      const taskCustomerIds = Array.from(new Set((tasks || []).map((task: any) => task.customer_id).filter(Boolean)));
+      const allCustomerIds = Array.from(new Set([...oppCustomerIds, ...taskCustomerIds]));
+
+      const [customers, latestDrives] = await Promise.all([
+        allCustomerIds.length
+          ? apiGet<any[]>(`/api/customers?ids=${encodeURIComponent(allCustomerIds.join(','))}`)
+          : Promise.resolve([]),
+        oppDriveIds.length
+          ? apiGet<any[]>(`/api/test-drives?ids=${encodeURIComponent(oppDriveIds.join(','))}`)
+          : Promise.resolve([]),
+      ]);
+
+      const customerMap = new Map((customers || []).map((row: any) => [row.id, row]));
+      const driveMap = new Map((latestDrives || []).map((row: any) => [row.id, row]));
+
+      const seenOppCombo = new Set<string>();
+      const uniqueOpportunities = (opportunities || []).filter((opp: any) => {
         const key = `${opp.customer_id}-${opp.latest_test_drive_id}`;
-        if (seenCombo.has(key)) return false;
-        seenCombo.add(key);
+        if (seenOppCombo.has(key)) return false;
+        seenOppCombo.add(key);
         return true;
-      }).slice(0, 12);
+      }).slice(0, 12).map((opp: any) => {
+        const drive = driveMap.get(opp.latest_test_drive_id);
+        return {
+          ...opp,
+          customers: customerMap.get(opp.customer_id) || null,
+          test_drives: drive
+            ? {
+                id: drive.id,
+                scheduled_date: drive.scheduled_date,
+                vehicles: drive.vehicles || null,
+              }
+            : null,
+        };
+      });
       setSalesOpportunities(uniqueOpportunities);
-    }
 
-    if (taskRes.error) {
-      setSalesTasks([]);
-    } else {
-      // Deduplicate tasks by test_drive_id + title to prevent duplicates
-      const seenCombo = new Set<string>();
-      const uniqueTasks = (taskRes.data || []).filter((task: any) => {
+      const seenTaskCombo = new Set<string>();
+      const uniqueTasks = (tasks || []).filter((task: any) => {
         const key = `${task.test_drive_id}-${task.title}`;
-        if (seenCombo.has(key)) return false;
-        seenCombo.add(key);
+        if (seenTaskCombo.has(key)) return false;
+        seenTaskCombo.add(key);
         return true;
-      }).slice(0, 12);
+      }).slice(0, 12).map((task: any) => ({
+        ...task,
+        customers: customerMap.get(task.customer_id) || null,
+      }));
       setSalesTasks(uniqueTasks);
+    } catch {
+      setSalesOpportunities([]);
+      setSalesTasks([]);
     }
   };
 
@@ -341,37 +344,43 @@ const SalesDashboard = () => {
     const stage = selectedTemperature === 'hot' ? 'qualified' : 'new';
     const statusNote = `[${new Date().toLocaleString()}] Lead marked ${selectedTemperature.toUpperCase()} after test drive completion.`;
 
-    const { data: existingOpportunity } = await (supabase as any)
-      .from('sales_opportunities')
-      .select('id, notes')
-      .eq('customer_id', td.customer_id)
-      .eq('owner_profile_id', profile.id)
-      .eq('location_id', td.location_id)
-      .not('stage', 'in', '(won,lost)')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const existingOppRows = await apiDbQuery<any[]>({
+      table: 'sales_opportunities',
+      action: 'select',
+      select: 'id, notes',
+      filters: [
+        { field: 'customer_id', op: 'eq', value: td.customer_id },
+        { field: 'owner_profile_id', op: 'eq', value: profile.id },
+        { field: 'location_id', op: 'eq', value: td.location_id },
+        { field: 'stage', op: 'not_in', value: ['won', 'lost'] },
+      ],
+      order: [{ field: 'updated_at', ascending: false }],
+      limit: 1,
+    });
+    const existingOpportunity = existingOppRows?.[0] || null;
 
     let opportunityId: string;
     if (existingOpportunity?.id) {
       const mergedNotes = `${existingOpportunity.notes || ''}\n${statusNote}`.trim();
-      const { error: updateError } = await (supabase as any)
-        .from('sales_opportunities')
-        .update({
+      await apiDbQuery({
+        table: 'sales_opportunities',
+        action: 'update',
+        payload: {
           latest_test_drive_id: td.id,
           temperature: selectedTemperature,
           stage,
           notes: mergedNotes,
           updated_at: completedAt,
-        })
-        .eq('id', existingOpportunity.id);
-
-      if (updateError) throw updateError;
+        },
+        filters: [{ field: 'id', op: 'eq', value: existingOpportunity.id }],
+      });
       opportunityId = existingOpportunity.id;
     } else {
-      const { data: insertedOpportunity, error: insertError } = await (supabase as any)
-        .from('sales_opportunities')
-        .insert({
+      const insertedOpportunity = await apiDbQuery<any>({
+        table: 'sales_opportunities',
+        action: 'insert',
+        select: 'id',
+        payload: {
           customer_id: td.customer_id,
           latest_test_drive_id: td.id,
           location_id: td.location_id,
@@ -379,12 +388,11 @@ const SalesDashboard = () => {
           temperature: selectedTemperature,
           stage,
           notes: statusNote,
-        })
-        .select('id')
-        .single();
-
-      if (insertError || !insertedOpportunity?.id) throw insertError || new Error('Unable to create opportunity');
-      opportunityId = insertedOpportunity.id;
+        },
+      });
+      const row = Array.isArray(insertedOpportunity) ? insertedOpportunity[0] : insertedOpportunity;
+      if (!row?.id) throw new Error('Unable to create opportunity');
+      opportunityId = row.id;
     }
 
     const finalTaskTitle = (taskTitle || '').trim() || (selectedTemperature === 'hot'
@@ -396,19 +404,25 @@ const SalesDashboard = () => {
       : new Date(Date.now() + (selectedTemperature === 'hot' ? 24 : 72) * 60 * 60 * 1000).toISOString();
 
     // Check if task already exists for this test drive to prevent duplicates
-    const { data: existingTask } = await (supabase as any)
-      .from('sales_tasks')
-      .select('id')
-      .eq('test_drive_id', td.id)
-      .eq('assigned_to_profile_id', profile.id)
-      .eq('status', 'open')
-      .maybeSingle();
+    const existingTasks = await apiDbQuery<any[]>({
+      table: 'sales_tasks',
+      action: 'select',
+      select: 'id',
+      filters: [
+        { field: 'test_drive_id', op: 'eq', value: td.id },
+        { field: 'assigned_to_profile_id', op: 'eq', value: profile.id },
+        { field: 'status', op: 'eq', value: 'open' },
+      ],
+      limit: 1,
+    });
+    const existingTask = existingTasks?.[0] || null;
 
     // Only insert task if it doesn't already exist
     if (!existingTask?.id) {
-      const { error: taskError } = await (supabase as any)
-        .from('sales_tasks')
-        .insert({
+      await apiDbQuery({
+        table: 'sales_tasks',
+        action: 'insert',
+        values: {
           opportunity_id: opportunityId,
           test_drive_id: td.id,
           customer_id: td.customer_id,
@@ -417,9 +431,8 @@ const SalesDashboard = () => {
           due_at: dueAt,
           status: 'open',
           priority: selectedTemperature === 'hot' ? 'high' : 'medium',
-        });
-
-      if (taskError) throw taskError;
+        },
+      });
     }
   };
 
@@ -427,26 +440,49 @@ const SalesDashboard = () => {
     if (!oppNotesDialog.opportunityId || !oppNoteText.trim()) return;
 
     try {
-      const { data: opp } = await (supabase as any)
-        .from('sales_opportunities')
-        .select('notes')
-        .eq('id', oppNotesDialog.opportunityId)
-        .maybeSingle();
+      const oppRows = await apiDbQuery<any[]>({
+        table: 'sales_opportunities',
+        action: 'select',
+        select: 'notes, customer_id',
+        filters: [{ field: 'id', op: 'eq', value: oppNotesDialog.opportunityId }],
+        limit: 1,
+      });
+      const opp = oppRows?.[0] || null;
 
       const timestamp = new Date().toLocaleString();
       const newNote = `[${timestamp}] ${oppNoteText.trim()}`;
       const updatedNotes = opp?.notes ? `${opp.notes}\n\n${newNote}` : newNote;
 
-      const { error } = await (supabase as any)
-        .from('sales_opportunities')
-        .update({ notes: updatedNotes })
-        .eq('id', oppNotesDialog.opportunityId);
+      await apiDbQuery({
+        table: 'sales_opportunities',
+        action: 'update',
+        payload: { notes: updatedNotes },
+        filters: [{ field: 'id', op: 'eq', value: oppNotesDialog.opportunityId }],
+      });
 
-      if (error) throw error;
+      if (oppFollowUpDueAt.trim()) {
+        const dueAt = new Date(oppFollowUpDueAt);
+        if (!Number.isNaN(dueAt.getTime()) && profile?.id) {
+          await apiDbQuery({
+            table: 'sales_tasks',
+            action: 'insert',
+            values: {
+              opportunity_id: oppNotesDialog.opportunityId,
+              customer_id: opp?.customer_id || null,
+              assigned_to_profile_id: profile.id,
+              title: 'Follow-up after review note',
+              due_at: dueAt.toISOString(),
+              status: 'open',
+              priority: 'medium',
+            },
+          });
+        }
+      }
 
       toast({ title: 'Note added successfully' });
       setOppNotesDialog({ open: false, opportunityId: null });
       setOppNoteText('');
+      setOppFollowUpDueAt('');
       void fetchLeadWorkspace();
     } catch (err: any) {
       toast({ title: 'Failed to save note', description: err.message, variant: 'destructive' });
@@ -466,12 +502,12 @@ const SalesDashboard = () => {
   };
 
   const viewInspectionMedia = async (testDriveId: string, filename: string) => {
-    const { data, error } = await supabase.storage.from('documents').createSignedUrl(`test-drives/${testDriveId}/${filename}`, 300);
-    if (error || !data?.signedUrl) {
-      toast({ title: 'Failed to open media', description: error?.message || 'Unable to generate preview URL', variant: 'destructive' });
+    const signedUrl = await getStorageSignedUrl('documents', `test-drives/${testDriveId}/${filename}`, 300);
+    if (!signedUrl) {
+      toast({ title: 'Failed to open media', description: 'Unable to generate preview URL', variant: 'destructive' });
       return;
     }
-    setInspectionDocView({ url: data.signedUrl, filename });
+    setInspectionDocView({ url: signedUrl, filename });
   };
 
   const handleUploadLicense = async (testDriveId: string, customerId: string, file: File) => {
@@ -487,9 +523,8 @@ const SalesDashboard = () => {
 
       const ext = file.name.split('.').pop();
       const path = `licenses/${customerId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
-      if (uploadError) throw uploadError;
-      await supabase.from('customers').update({ driving_license_url: path }).eq('id', customerId);
+      await uploadToStorage('documents', path, file);
+      await apiPatch(`/api/customers/${encodeURIComponent(customerId)}`, { driving_license_url: path });
       toast({ title: 'License uploaded successfully' });
       fetchAssignedDrives();
     } catch (err: any) {
@@ -500,9 +535,7 @@ const SalesDashboard = () => {
   };
 
   const handleGiveKeyAndStart = async (id: string) => {
-    await supabase.from('test_drives').update({
-      key_handed_at: new Date().toISOString(),
-    } as any).eq('id', id);
+    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { key_handed_at: new Date().toISOString() });
     if (user?.id) {
       await logStaffActivity({
         userId: user.id,
@@ -520,14 +553,31 @@ const SalesDashboard = () => {
 
   const handleComplete = async (
     td: any,
-    options?: { leadTemperature?: LeadTemperature; taskTitle?: string; taskDueAt?: string }
+    options?: { leadTemperature?: LeadTemperature; taskTitle?: string; taskDueAt?: string; handoverFeedback?: { questions: string[]; notes: string } }
   ) => {
     const id = td.id;
     const completedAt = new Date().toISOString();
-    await supabase.from('test_drives').update({
-      status: 'completed' as any,
+
+    // Persist handover feedback into metadata if provided
+    const feedbackPayload = options?.handoverFeedback && (
+      options.handoverFeedback.questions.length > 0 || options.handoverFeedback.notes.trim()
+    ) ? {
+      status: 'completed',
       completed_at: completedAt,
-    }).eq('id', id);
+      metadata: {
+        ...(td.metadata || {}),
+        handover_feedback: {
+          questions: options.handoverFeedback.questions,
+          notes: options.handoverFeedback.notes.trim(),
+          recorded_at: completedAt,
+        },
+      },
+    } : {
+      status: 'completed',
+      completed_at: completedAt,
+    };
+
+    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, feedbackPayload as Record<string, unknown>);
 
     if (td?.customers?.email) {
       const customerName = td.customers.full_name || 'Customer';
@@ -535,8 +585,7 @@ const SalesDashboard = () => {
       const surveyLink = 'https://survey.showroom-drive.com/feedback'; // Replace with actual survey link
 
       // Send follow-up email
-      await supabase.functions.invoke('send-transactional-email', {
-        body: {
+      await sendTransactionalEmail({
           templateName: 'sales-follow-up',
           recipientEmail: td.customers.email,
           idempotencyKey: `test-drive-followup-${id}`,
@@ -546,12 +595,12 @@ const SalesDashboard = () => {
             surveyLink,
             thankYouMessage: 'Thank you for choosing us for your test drive experience!',
           },
-        },
       });
 
       // Send completed summary email
-      const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
-        body: {
+      let emailError: unknown = null;
+      try {
+        await sendTransactionalEmail({
           templateName: 'test-drive-completed',
           recipientEmail: td.customers.email,
           idempotencyKey: `test-drive-completed-${id}`,
@@ -565,8 +614,10 @@ const SalesDashboard = () => {
               ? Math.round((new Date(completedAt).getTime() - new Date(td.started_at).getTime()) / 60000)
               : undefined,
           },
-        },
-      });
+        });
+      } catch (error) {
+        emailError = error;
+      }
 
       if (emailError) {
         toast({
@@ -612,14 +663,12 @@ const SalesDashboard = () => {
   const handleReschedule = async () => {
     if (!rescheduleDrive?.id || !newDate || !newTime) return;
 
-    await supabase.from('test_drives')
-      .update({
-        scheduled_date: newDate,
-        scheduled_time: `${newTime}:00`,
-        status: 'rescheduled' as any,
-        notes: `${rescheduleDrive.notes || ''}\n[${new Date().toLocaleString()}] Rescheduled by ${profile?.full_name || 'Sales'} to ${newDate} ${newTime}`.trim(),
-      })
-      .eq('id', rescheduleDrive.id);
+    await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleDrive.id)}`, {
+      scheduled_date: newDate,
+      scheduled_time: `${newTime}:00`,
+      status: 'rescheduled',
+      notes: `${rescheduleDrive.notes || ''}\n[${new Date().toLocaleString()}] Rescheduled by ${profile?.full_name || 'Sales'} to ${newDate} ${newTime}`.trim(),
+    });
 
     if (user?.id) {
       await logStaffActivity({
@@ -639,20 +688,112 @@ const SalesDashboard = () => {
     setNewTime('');
     fetchAssignedDrives();
   };
-
+  const todayStr = (() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  })();
+  const maxDateStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
   const handleCompleteWithLead = async () => {
     if (!completionLeadDialogDrive) return;
+    const td = completionLeadDialogDrive;
+    const isHotWithBooking = leadTemperature === 'hot' && bookingAmount && parseFloat(bookingAmount) > 0;
 
-    await handleComplete(completionLeadDialogDrive, {
+    await handleComplete(td, {
       leadTemperature,
       taskTitle: followUpTaskTitle,
       taskDueAt: followUpTaskDueAt || undefined,
+      handoverFeedback: { questions: selectedQuestions, notes: handoverNotes },
     });
 
+    if (isHotWithBooking) {
+      await handleCreateBooking(undefined);
+    }
+
     setCompletionLeadDialogDrive(null);
+    setCompletionStep(1);
     setLeadTemperature('cold');
     setFollowUpTaskTitle('');
     setFollowUpTaskDueAt('');
+    setSelectedQuestions([]);
+    setHandoverNotes('');
+    setPresetHandoverQuestions([]);
+    setBookingPaymentMethod('cash');
+    setBookingAmount('');
+    setBookingPaymentLink('');
+    setBookingNotes('');
+  };
+
+  const handleCreateBooking = async (opportunityId?: string) => {
+    if (!completionLeadDialogDrive) return;
+    const amount = parseFloat(bookingAmount);
+    if (!bookingAmount || isNaN(amount) || amount <= 0) {
+      toast({ title: 'Enter a valid booking amount', variant: 'destructive' }); return;
+    }
+    if (bookingPaymentMethod === 'payment_link' && !bookingPaymentLink.trim()) {
+      toast({ title: 'Enter the payment link', variant: 'destructive' }); return;
+    }
+    setBookingCreating(true);
+    try {
+      const td = completionLeadDialogDrive;
+      const inserted = await apiPost<any>('/api/car-bookings', {
+        customer_id: td.customer_id,
+        vehicle_id: td.vehicle_id,
+        location_id: td.location_id,
+        test_drive_id: td.id,
+        opportunity_id: opportunityId || null,
+        sales_person_profile_id: profile?.id || null,
+        booking_status: 'confirmed',
+        payment_method: bookingPaymentMethod,
+        payment_status: bookingPaymentMethod === 'cash' ? 'paid' : 'pending',
+        booking_amount: amount,
+        payment_link: bookingPaymentMethod === 'payment_link' ? bookingPaymentLink.trim() : null,
+        notes: bookingNotes.trim() || null,
+      });
+      const bookingId = inserted?.id;
+
+      // Send booking confirmation email to customer
+      if (td.customers?.email) {
+        await sendTransactionalEmail({
+          templateName: 'car-booking-confirmation',
+          recipientEmail: td.customers.email,
+          idempotencyKey: `car-booking-${bookingId || Date.now()}`,
+          templateData: {
+            customerName: td.customers.full_name || 'Customer',
+            vehicleName: `${td.vehicles?.brand || ''} ${td.vehicles?.model || ''}`.trim(),
+            bookingAmount: amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }),
+            paymentMethod: bookingPaymentMethod === 'cash' ? 'Cash' : 'Payment Link',
+            paymentLink: bookingPaymentMethod === 'payment_link' ? bookingPaymentLink.trim() : null,
+            salesPersonName: profile?.full_name || '',
+            locationName: td.locations?.name || '',
+            bookingDate: new Date().toLocaleDateString(),
+          },
+        }).catch(() => null); // non-blocking
+      }
+
+      if (user?.id) {
+        await logStaffActivity({
+          userId: user.id,
+          profileId: profile?.id,
+          locationId: profile?.location_id,
+          role: 'sales',
+          eventType: 'car_booking_created',
+          label: `Car booking created — ${td.vehicles?.brand} ${td.vehicles?.model}`,
+          metadata: { bookingId, testDriveId: td.id, amount, paymentMethod: bookingPaymentMethod },
+        });
+      }
+
+      toast({ title: 'Booking confirmed!', description: `₹${amount.toLocaleString()} booking created. Email sent to customer.` });
+    } catch (err: any) {
+      toast({ title: 'Booking failed', description: err?.message, variant: 'destructive' });
+    } finally {
+      setBookingCreating(false);
+    }
   };
 
   const assignedLogs = testDrives
@@ -787,6 +928,9 @@ const SalesDashboard = () => {
         })}
       </div>
 
+      {/* ── Activity Insights ── */}
+      <ActivityInsightsMini />
+
       <Card className="shadow-card border-primary/20 bg-primary/5">
         <CardHeader className="pb-2">
           <CardTitle className="font-heading text-sm sm:text-base flex items-center gap-2">
@@ -883,6 +1027,7 @@ const SalesDashboard = () => {
                   onClick={() => {
                     setOppNotesDialog({ open: true, opportunityId: opportunity.id });
                     setOppNoteText('');
+                    setOppFollowUpDueAt('');
                   }}
                 >
                   + Add Follow-up Note
@@ -942,123 +1087,68 @@ const SalesDashboard = () => {
         <CardContent>
           <div className="max-h-[75vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2 sm:gap-3">
-            {filteredDrives.map(td => (
-              <div key={td.id} className="p-2.5 sm:p-3 rounded-lg border border-border space-y-2.5 bg-card/50">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-foreground text-sm sm:text-base">{td.customers?.full_name}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                      <Phone className="h-3 w-3" />{td.customers?.phone}
-                      {td.customers?.email && <><span>•</span>{td.customers.email}</>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>
-                      {formatStatusLabel(td.status)}
-                    </Badge>
-                    {td.key_handed_at && td.status !== 'in_progress' && td.status !== 'completed' && (
-                      <Badge className="text-xs bg-info/10 text-info">Vehicle Assigned</Badge>
+            {filteredDrives.slice(0, 5).map(td => (
+              <div
+                key={td.id}
+                className="p-3 rounded-lg border border-border bg-card/50 space-y-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => setDetailSheetDrive(td)}
+              >
+                {/* ── Top row: status + customer ── */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm text-foreground truncate">{td.customers?.full_name}</p>
+                    {td.customers?.phone && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Phone className="h-3 w-3" />{td.customers.phone}
+                      </p>
                     )}
                   </div>
+                  <Badge variant="secondary" className={`text-[10px] shrink-0 ${statusColor[td.status] || ''}`}>
+                    {formatStatusLabel(td.status)}
+                  </Badge>
                 </div>
-                <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
+
+                {/* ── Vehicle + Date ── */}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1"><Car className="h-3 w-3" />{td.vehicles?.brand} {td.vehicles?.model}</span>
-                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{td.scheduled_date} {td.scheduled_time}</span>
+                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{td.scheduled_date} {(td.scheduled_time || '').substring(0, 5)}</span>
+                  {td.key_handed_at && td.status !== 'in_progress' && td.status !== 'completed' && (
+                    <Badge className="text-[10px] bg-info/10 text-info border-info/20">Vehicle Assigned</Badge>
+                  )}
                 </div>
 
-                <div className="rounded-md border border-border/70 p-2 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Vehicle Assigned</span>
-                    <span className="text-foreground">{td.key_handed_at ? `By ${profile?.full_name || 'Sales'} • ${new Date(td.key_handed_at).toLocaleString()}` : 'Pending Confirmation'}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Security Start</span>
-                    <span className="text-foreground">{td.security_checked_in_at ? `${securityEventsByDrive[td.id]?.checkInBy || 'Security'} • ${new Date(td.security_checked_in_at).toLocaleString()}` : 'Pending Confirmation'}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Return Complete</span>
-                    <span className="text-foreground">{td.security_checked_out_at ? `${securityEventsByDrive[td.id]?.completedBy || securityEventsByDrive[td.id]?.checkOutBy || 'Security'} • ${new Date(td.security_checked_out_at).toLocaleString()}` : 'Pending Confirmation'}</span>
-                  </div>
-                </div>
-
-                {td.status === 'completed' && (
-                  <div className="rounded-md border border-success/30 bg-success/5 p-2.5 space-y-2 text-xs">
-                    <p className="font-semibold text-foreground">Completed Drive Details</p>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="text-muted-foreground">Pre KM:</span>{' '}
-                        <span className="font-medium">{(td as any).pre_drive_km ?? 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Pre Fuel:</span>{' '}
-                        <span className="font-medium">{(td as any).pre_drive_fuel_level || 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Post KM:</span>{' '}
-                        <span className="font-medium">{(td as any).post_drive_km ?? 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Post Fuel:</span>{' '}
-                        <span className="font-medium">{(td as any).post_drive_fuel_level || 'N/A'}</span>
-                      </div>
+                {/* ── Licence section (original) ── */}
+                <div onClick={e => e.stopPropagation()}>
+                  {!td.customers?.driving_license_url ? (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                      <Label htmlFor={`license-${td.id}`} className="text-xs shrink-0">Upload License:</Label>
+                      <Input id={`license-${td.id}`} type="file" accept="image/*,.pdf" className="max-w-full sm:max-w-xs text-xs" disabled={uploading === td.id}
+                        onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUploadLicense(td.id, td.customer_id, file); }} />
+                      {uploading === td.id && <span className="text-xs text-muted-foreground">Uploading...</span>}
                     </div>
-
-                    {(td as any).pre_drive_km && (td as any).post_drive_km && (
-                      <div>
-                        <span className="text-muted-foreground">Distance:</span>{' '}
-                        <span className="font-medium">{((td as any).post_drive_km - (td as any).pre_drive_km).toFixed(1)} km</span>
-                      </div>
-                    )}
-
-                    <div className="pt-1 border-t border-border/60 space-y-1">
-                      <p className="text-muted-foreground font-medium">Security Logs</p>
-                      {(securityEventsByDrive[td.id]?.logs?.length ?? 0) > 0 ? (
-                        <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                          {securityEventsByDrive[td.id].logs.map((log: any, index: number) => (
-                            <div key={`${log.eventType}-${log.happenedAt}-${index}`} className="rounded border border-border/60 bg-background/70 p-1.5">
-                              <p className="text-foreground leading-tight">{log.label}</p>
-                              <p className="text-muted-foreground">{log.by} • {new Date(log.happenedAt).toLocaleString()}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground">No security logs available.</p>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <FileCheck className="h-3.5 w-3.5 text-success" />
+                      <span className="text-xs text-success">License uploaded</span>
+                      {!td.customers?.driving_license_verified && (
+                        <>
+                          <Badge variant="outline" className="text-warning text-xs">Pending Verification</Badge>
+                          <Label htmlFor={`reupload-${td.id}`} className="cursor-pointer">
+                            <Button size="sm" className="bg-muted text-muted-foreground hover:bg-muted/80 text-xs h-7" asChild>
+                              <span><RotateCcw className="h-3 w-3 mr-1" /> Re-upload</span>
+                            </Button>
+                          </Label>
+                          <input id={`reupload-${td.id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={uploading === td.id}
+                            onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUploadLicense(td.id, td.customer_id, file); }} />
+                        </>
                       )}
+                      {td.customers?.driving_license_verified && <Badge variant="outline" className="text-success text-xs">Verified</Badge>}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                {/* License section */}
-                {!td.customers?.driving_license_url ? (
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                    <Label htmlFor={`license-${td.id}`} className="text-xs shrink-0">Upload License:</Label>
-                    <Input id={`license-${td.id}`} type="file" accept="image/*,.pdf" className="max-w-full sm:max-w-xs text-xs" disabled={uploading === td.id}
-                      onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUploadLicense(td.id, td.customer_id, file); }} />
-                    {uploading === td.id && <span className="text-xs text-muted-foreground">Uploading...</span>}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <FileCheck className="h-3.5 w-3.5 text-success" />
-                    <span className="text-xs text-success">License uploaded</span>
-                    {!td.customers?.driving_license_verified && (
-                      <>
-                        <Badge variant="outline" className="text-warning text-xs">Pending Verification</Badge>
-                        <Label htmlFor={`reupload-${td.id}`} className="cursor-pointer">
-                          <Button size="sm" className="bg-muted text-muted-foreground hover:bg-muted/80 text-xs h-7" asChild>
-                            <span><RotateCcw className="h-3 w-3 mr-1" /> Re-upload</span>
-                          </Button>
-                        </Label>
-                        <input id={`reupload-${td.id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={uploading === td.id}
-                          onChange={(e) => { const file = e.target.files?.[0]; if (file) handleUploadLicense(td.id, td.customer_id, file); }} />
-                      </>
-                    )}
-                    {td.customers?.driving_license_verified && <Badge variant="outline" className="text-success text-xs">Verified</Badge>}
-                  </div>
-                )}
-
-                {/* Action buttons */}
-                <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border">
+                {/* ── Action buttons ── */}
+                <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border" onClick={e => e.stopPropagation()}>
                   {['scheduled', 'confirmed', 'show'].includes(td.status) && (
                     <>
                       <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" onClick={() => setReassignDrive(td)}>
@@ -1073,8 +1163,8 @@ const SalesDashboard = () => {
                     </>
                   )}
                   {(td.status === 'show' || td.status === 'scheduled') && !td.key_handed_at && td?.customers?.driving_license_verified && (
-                    <Button size="sm" className={`bg-primary text-primary-foreground hover:bg-primary/90 text-xs`} onClick={() => handleGiveKeyAndStart(td.id)}>
-                      <Key className="h-3.5 w-3.5 mr-1" /> Assign key
+                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleGiveKeyAndStart(td.id)}>
+                      <Key className="h-3.5 w-3.5 mr-1" /> Assign Key
                     </Button>
                   )}
                   {td.status === 'key_handover_to_sales' && (
@@ -1083,11 +1173,20 @@ const SalesDashboard = () => {
                       <Button
                         size="sm"
                         className="bg-success text-success-foreground hover:bg-success/90 text-xs"
-                        onClick={() => {
+                        onClick={async () => {
                           setCompletionLeadDialogDrive(td);
                           setLeadTemperature('cold');
                           setFollowUpTaskTitle('');
                           setFollowUpTaskDueAt('');
+                          setSelectedQuestions([]);
+                          setHandoverNotes('');
+                          if (td.location_id) {
+                            try {
+                              const locationRow = await apiGet<any>(`/api/locations/${encodeURIComponent(td.location_id)}`);
+                              const meta = locationRow?.metadata || {};
+                              setPresetHandoverQuestions(Array.isArray(meta.handover_questions) ? meta.handover_questions : []);
+                            } catch { setPresetHandoverQuestions([]); }
+                          } else { setPresetHandoverQuestions([]); }
                         }}
                       >
                         <FileCheck className="h-3.5 w-3.5 mr-1" /> Key Handover To Sales
@@ -1106,6 +1205,13 @@ const SalesDashboard = () => {
               </div>
             ))}
             </div>
+            {filteredDrives.length > 5 && (
+              <div className="flex justify-center pt-3">
+                <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigate('/test-drives')}>
+                  View All {filteredDrives.length} Test Drives →
+                </Button>
+              </div>
+            )}
             {filteredDrives.length === 0 && (
               <p className="text-center text-muted-foreground py-8 text-sm">No Test Drives Found For The Selected Filter.</p>
             )}
@@ -1153,8 +1259,24 @@ const SalesDashboard = () => {
         </CardContent>
       </Card>
 
+      {/* Test Drive Detail Sheet */}
+      <TestDriveDetailSheet
+        testDrive={detailSheetDrive}
+        open={!!detailSheetDrive}
+        onClose={() => setDetailSheetDrive(null)}
+        securityEvents={detailSheetDrive ? securityEventsByDrive[detailSheetDrive.id] : undefined}
+      />
+
       {/* Opportunity Notes Dialog */}
-      <Dialog open={oppNotesDialog.open} onOpenChange={(open) => !open && setOppNotesDialog({ open: false, opportunityId: null })}>
+      <Dialog
+        open={oppNotesDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setOppNotesDialog({ open: false, opportunityId: null });
+            setOppFollowUpDueAt('');
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-heading">Add Follow-up Note to Opportunity</DialogTitle>
@@ -1168,6 +1290,14 @@ const SalesDashboard = () => {
                 onChange={(e) => setOppNoteText(e.target.value)}
                 placeholder="Add your follow-up comment, observations, or next steps..."
                 className="min-h-24"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Next Follow-up Date & Time</Label>
+              <Input
+                type="datetime-local"
+                value={oppFollowUpDueAt}
+                onChange={(e) => setOppFollowUpDueAt(e.target.value)}
               />
             </div>
             <Button onClick={handleSaveOppNote} className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={!oppNoteText.trim()}>
@@ -1216,11 +1346,11 @@ const SalesDashboard = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>New Date</Label>
-              <Input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} />
+              <Input type="date" value={newDate} min={new Date().toISOString().split('T')[0]} onChange={e => setNewDate(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>New Time</Label>
-              <Input type="time" value={newTime} onChange={e => setNewTime(e.target.value)} />
+              <Input type="time" value={newTime} min={newDate === new Date().toISOString().split('T')[0] ? `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}` : undefined} onChange={e => setNewTime(e.target.value)} />
             </div>
             <Button onClick={handleReschedule} className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={!newDate || !newTime}>
               Confirm Reschedule
@@ -1229,45 +1359,202 @@ const SalesDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!completionLeadDialogDrive} onOpenChange={(open) => !open && setCompletionLeadDialogDrive(null)}>
-        <DialogContent>
+      <Dialog open={!!completionLeadDialogDrive} onOpenChange={(open) => { if (!open) { setCompletionLeadDialogDrive(null); setCompletionStep(1); } }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-heading">Close Test Drive As Opportunity</DialogTitle>
-            <DialogDescription>
+            <div className="flex items-center justify-between gap-2">
+              <DialogTitle className="font-heading text-base">Close Test Drive As Opportunity</DialogTitle>
+              <span className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1 rounded-full shrink-0">Step {completionStep} of 2</span>
+            </div>
+            <DialogDescription className="text-xs">
               {completionLeadDialogDrive?.customers?.full_name} • {completionLeadDialogDrive?.vehicles?.brand} {completionLeadDialogDrive?.vehicles?.model}
             </DialogDescription>
+            {/* Step progress bar */}
+            <div className="flex gap-1.5 mt-2">
+              <div className={`h-1 flex-1 rounded-full transition-colors ${completionStep >= 1 ? 'bg-primary' : 'bg-muted'}`} />
+              <div className={`h-1 flex-1 rounded-full transition-colors ${completionStep >= 2 ? 'bg-primary' : 'bg-muted'}`} />
+            </div>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Lead Temperature</Label>
-              <Select value={leadTemperature} onValueChange={(value: LeadTemperature) => setLeadTemperature(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select lead temperature" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="hot">Hot Lead (customer wants to buy)</SelectItem>
-                  <SelectItem value="cold">Cold Lead (follow up later)</SelectItem>
-                </SelectContent>
-              </Select>
+
+          {/* ── Step 1: Drive Feedback ── */}
+          {completionStep === 1 && (
+            <div className="space-y-4 py-1">
+              <div>
+                <Label className="text-sm font-semibold mb-2 block">Lead Temperature</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setLeadTemperature('hot')}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 py-4 px-3 transition-colors ${
+                      leadTemperature === 'hot'
+                        ? 'border-warning bg-warning/10 text-warning'
+                        : 'border-border bg-background text-muted-foreground hover:border-warning/40'
+                    }`}
+                  >
+                    <span className="text-2xl">🔥</span>
+                    <span className="text-sm font-semibold">Hot Lead</span>
+                    <span className="text-[11px] text-center leading-tight opacity-80">Customer wants to buy now</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLeadTemperature('cold')}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 py-4 px-3 transition-colors ${
+                      leadTemperature === 'cold'
+                        ? 'border-info bg-info/10 text-info'
+                        : 'border-border bg-background text-muted-foreground hover:border-info/40'
+                    }`}
+                  >
+                    <span className="text-2xl">❄️</span>
+                    <span className="text-sm font-semibold">Cold Lead</span>
+                    <span className="text-[11px] text-center leading-tight opacity-80">Follow up later</span>
+                  </button>
+                </div>
+              </div>
+
+              {presetHandoverQuestions.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5 text-sm font-semibold">
+                    <CheckSquare className="h-4 w-4 text-primary" /> Questions Covered During Drive
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Tick all topics that were covered (mandatory checklist).</p>
+                  <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+                    {presetHandoverQuestions.map((q) => (
+                      <div key={q} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`hq-${q}`}
+                          checked={selectedQuestions.includes(q)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectedQuestions(prev => [...prev, q]);
+                            else setSelectedQuestions(prev => prev.filter(x => x !== q));
+                          }}
+                        />
+                        <label htmlFor={`hq-${q}`} className="text-sm cursor-pointer select-none">{q}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Handover Notes / Observations</Label>
+                <Textarea
+                  placeholder="Customer questions, concerns, observations during the test drive…"
+                  value={handoverNotes}
+                  onChange={e => setHandoverNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              <Button
+                className="w-full"
+                onClick={() => setCompletionStep(2)}
+              >
+                Next — Follow-up & Actions →
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label>Follow-up Task Title</Label>
-              <Input
-                value={followUpTaskTitle}
-                onChange={(event) => setFollowUpTaskTitle(event.target.value)}
-                placeholder={leadTemperature === 'hot'
-                  ? 'Call customer for booking amount and finance options'
-                  : 'Follow up after test drive and capture objections'}
-              />
+          )}
+
+          {/* ── Step 2: Follow-up & Close ── */}
+          {completionStep === 2 && (
+            <div className="space-y-4 py-1">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Follow-up Task Title</Label>
+                <Input
+                  value={followUpTaskTitle}
+                  onChange={(event) => setFollowUpTaskTitle(event.target.value)}
+                  placeholder={leadTemperature === 'hot'
+                    ? 'Call customer for booking amount and finance options'
+                    : 'Follow up after test drive and capture objections'}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Task Due At</Label>
+                <Input type="datetime-local"  min={todayStr}
+                      max={maxDateStr} 
+                      value={followUpTaskDueAt} onChange={(event) => setFollowUpTaskDueAt(event.target.value)} />
+              </div>
+
+              {/* HOT LEAD — Booking / Payment section */}
+              {leadTemperature === 'hot' && (
+                <div className="space-y-3 rounded-xl border-2 border-warning/40 bg-warning/5 p-4">
+                  <Label className="flex items-center gap-1.5 text-sm font-semibold text-warning-foreground">
+                    <BookOpen className="h-4 w-4 text-warning" /> Book Car — Payment Details
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Collect booking amount now or send a payment link.</p>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Payment Method</Label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBookingPaymentMethod('cash')}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
+                          bookingPaymentMethod === 'cash'
+                            ? 'border-success bg-success/10 text-success'
+                            : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
+                        }`}
+                      >
+                        <Banknote className="h-4 w-4" /> Cash
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBookingPaymentMethod('payment_link')}
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
+                          bookingPaymentMethod === 'payment_link'
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
+                        }`}
+                      >
+                        <Link2 className="h-4 w-4" /> Payment Link
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Booking Amount (₹)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="e.g. 50000"
+                      value={bookingAmount}
+                      onChange={e => setBookingAmount(e.target.value)}
+                    />
+                  </div>
+
+                  {bookingPaymentMethod === 'payment_link' && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Payment Link URL</Label>
+                      <Input
+                        type="url"
+                        placeholder="https://razorpay.com/l/your-link"
+                        value={bookingPaymentLink}
+                        onChange={e => setBookingPaymentLink(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Booking Notes</Label>
+                    <Input
+                      placeholder="e.g. Colour preference: White, Finance pre-approved"
+                      value={bookingNotes}
+                      onChange={e => setBookingNotes(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setCompletionStep(1)}>
+                  ← Back
+                </Button>
+                <Button onClick={handleCompleteWithLead} className="flex-1 bg-success text-success-foreground hover:bg-success/90">
+                  <FileCheck className="h-4 w-4 mr-1.5" />
+                  {leadTemperature === 'hot' ? 'Complete + Book' : 'Complete + Create Task'}
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Task Due At</Label>
-              <Input type="datetime-local" value={followUpTaskDueAt} onChange={(event) => setFollowUpTaskDueAt(event.target.value)} />
-            </div>
-            <Button onClick={handleCompleteWithLead} className="w-full bg-success text-success-foreground hover:bg-success/90">
-              Complete Drive + Create Opportunity + Task
-            </Button>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
 

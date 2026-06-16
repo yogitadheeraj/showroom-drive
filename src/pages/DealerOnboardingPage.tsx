@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
+import { apiGet, apiRpc } from '@/lib/apiClient';
+import { authResendSignupVerification, authSignUp } from '@/lib/authClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Car, Building2, MapPin, User, CheckCircle, ArrowRight, ArrowLeft, Plus, X } from 'lucide-react';
+import { Car, Building2, MapPin, User, CheckCircle, ArrowRight, ArrowLeft, Plus, X, Eye, EyeOff } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
 
 const STEPS = [
@@ -26,6 +27,8 @@ interface LocationForm {
 }
 
 const DealerOnboardingPage = () => {
+  const [showPw, setShowPw] = useState({ password: false, confirmPassword: false });
+
   const navigate = useNavigate();
   const { toast } = useToast();
   const [step, setStep] = useState(0);
@@ -65,22 +68,41 @@ const DealerOnboardingPage = () => {
       const slug = emailPrefix || dealerData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
       // Check for duplicate slug before creating anything
-      const { data: existingDealer } = await supabase
-        .from('dealers')
-        .select('id')
-        .eq('slug', slug)
-        .maybeSingle();
+      const existingDealers = await apiGet<any[]>(`/api/dealers?slug=${encodeURIComponent(slug)}`);
+      const existingDealer = existingDealers?.[0] || null;
       if (existingDealer) {
         throw new Error('A dealership with this email already exists. Please use a different email address.');
       }
 
       // 1. Create admin account
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: accountData.email,
-        password: accountData.password,
-        options: { data: { full_name: accountData.fullName } },
-      });
-      if (authError) throw authError;
+      const { data: authData, error: authError } = await authSignUp(
+        accountData.email,
+        accountData.password,
+        accountData.fullName
+      );
+      if (authError) {
+        if (authError.message === 'UNVERIFIED_EMAIL_EXISTS_RESEND_CONFIRM') {
+          const wantsResend = window.confirm(
+            'This email is already registered but not verified. Do you want to send the verification email again?',
+          );
+
+          if (wantsResend) {
+            const { error: resendError } = await authResendSignupVerification(accountData.email);
+
+            if (resendError) throw resendError;
+
+            toast({
+              title: 'Verification email sent',
+              description: 'Please verify your email, then login and continue onboarding.',
+            });
+            return;
+          }
+
+          throw new Error('Please verify your email first to continue.');
+        }
+
+        throw authError;
+      }
       if (!authData.user) throw new Error('Account creation failed');
 
       const userId = authData.user.id;
@@ -88,12 +110,14 @@ const DealerOnboardingPage = () => {
       // 2. Create dealer, brands, and locations via security definer function
       const validBrands = brands.filter(b => b.trim());
 
-      const { error: onboardError } = await supabase.rpc('onboard_dealer', {
+      await apiRpc('onboard_dealer', {
         _dealer_name: dealerData.name,
         _slug: slug,
         _contact_email: dealerData.contactEmail,
         _contact_phone: dealerData.contactPhone || null,
         _admin_user_id: userId,
+        _full_name: accountData.fullName,
+        _email: accountData.email,
         _brands: validBrands,
         _locations: locationForms.map(loc => ({
           name: loc.name,
@@ -104,7 +128,6 @@ const DealerOnboardingPage = () => {
           email: loc.email || '',
         })),
       } as any);
-      if (onboardError) throw onboardError;
 
       toast({ title: 'Dealership created!', description: 'Please check your email to verify your account, then log in.' });
       navigate('/auth');
@@ -185,11 +208,21 @@ const DealerOnboardingPage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Password *</Label>
-                    <Input type="password" value={accountData.password} onChange={e => setAccountData(p => ({ ...p, password: e.target.value }))} placeholder="Min 6 characters" />
+                    <div className="relative">
+                      <Input type={showPw.password ? 'text' : 'password'} value={accountData.password} onChange={e => setAccountData(p => ({ ...p, password: e.target.value }))} placeholder="Min 6 characters" className="pr-10" />
+                      <button type="button" tabIndex={-1} onClick={() => setShowPw(p => ({ ...p, password: !p.password }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showPw.password ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Confirm Password *</Label>
-                    <Input type="password" value={accountData.confirmPassword} onChange={e => setAccountData(p => ({ ...p, confirmPassword: e.target.value }))} />
+                    <div className="relative">
+                      <Input type={showPw.confirmPassword ? 'text' : 'password'} value={accountData.confirmPassword} onChange={e => setAccountData(p => ({ ...p, confirmPassword: e.target.value }))} className="pr-10" />
+                      <button type="button" tabIndex={-1} onClick={() => setShowPw(p => ({ ...p, confirmPassword: !p.confirmPassword }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showPw.confirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 {accountData.password && accountData.confirmPassword && accountData.password !== accountData.confirmPassword && (
@@ -212,7 +245,7 @@ const DealerOnboardingPage = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Contact Phone</Label>
-                    <Input value={dealerData.contactPhone} onChange={e => setDealerData(p => ({ ...p, contactPhone: e.target.value }))} placeholder="+91 98765 43210" />
+                    <Input value={dealerData.contactPhone} onChange={e => setDealerData(p => ({ ...p, contactPhone: e.target.value }))} placeholder="+91 8*********" />
                   </div>
                 </div>
               </div>

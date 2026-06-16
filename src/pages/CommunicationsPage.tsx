@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { MessageSquare, User, Clock, Send, Mail, Phone } from 'lucide-react';
+import { apiGet } from '@/lib/apiClient';
 
 const CommunicationsPage = () => {
   const [communications, setCommunications] = useState<any[]>([]);
@@ -17,22 +17,48 @@ const CommunicationsPage = () => {
   }, [typeFilter, dealerLocationIds, dealerLoading]);
 
   const fetchCommunications = async () => {
-    let query = supabase.from('communications')
-      .select('*, customers(full_name, phone), test_drives(scheduled_date, location_id)')
-      .order('created_at', { ascending: false });
-    if (typeFilter !== 'all') query = query.eq('type', typeFilter as any);
-    const { data } = await query;
-    
-    let filtered = data || [];
-    if (dealerLocationIds && dealerLocationIds.length > 0) {
-      filtered = filtered.filter(c => {
-        if (c.test_drive_id && c.test_drives?.location_id) {
-          return dealerLocationIds.includes(c.test_drives.location_id);
-        }
-        return !c.test_drive_id;
-      });
+    try {
+      const params = new URLSearchParams({ limit: '500' });
+      if (typeFilter !== 'all') params.set('type', typeFilter);
+      const baseComms = await apiGet<any[]>(`/api/communications?${params}`);
+
+      const customerIds = Array.from(
+        new Set((baseComms || []).map((c: any) => c.customer_id).filter(Boolean))
+      );
+      const testDriveIds = Array.from(
+        new Set((baseComms || []).map((c: any) => c.test_drive_id).filter(Boolean))
+      );
+
+      const [customers, testDrives] = await Promise.all([
+        customerIds.length
+          ? apiGet<any[]>(`/api/customers?ids=${encodeURIComponent(customerIds.join(','))}`)
+          : Promise.resolve([] as any[]),
+        testDriveIds.length
+          ? apiGet<any[]>(`/api/test-drives?ids=${encodeURIComponent(testDriveIds.join(','))}&include_related=false`)
+          : Promise.resolve([] as any[]),
+      ]);
+
+      const customerMap = new Map((customers || []).map((c: any) => [c.id, c]));
+      const testDriveMap = new Map((testDrives || []).map((td: any) => [td.id, td]));
+
+      let enriched = (baseComms || []).map((c: any) => ({
+        ...c,
+        customers: c.customer_id ? customerMap.get(c.customer_id) || null : null,
+        test_drives: c.test_drive_id ? testDriveMap.get(c.test_drive_id) || null : null,
+      }));
+
+      if (dealerLocationIds && dealerLocationIds.length > 0) {
+        enriched = enriched.filter((c: any) => {
+          if (c.test_drive_id && c.test_drives?.location_id) {
+            return dealerLocationIds.includes(c.test_drives.location_id);
+          }
+          return !c.test_drive_id;
+        });
+      }
+      setCommunications(enriched);
+    } catch {
+      setCommunications([]);
     }
-    setCommunications(filtered);
   };
 
   const typeColor: Record<string, string> = {
@@ -96,7 +122,7 @@ const CommunicationsPage = () => {
                     <tr key={c.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                       <td className="p-3 font-medium text-foreground">{c.customers?.full_name}</td>
                       <td className="p-3"><Badge variant="secondary" className={typeColor[c.type]}>{c.type}</Badge></td>
-                      <td className="p-3 text-muted-foreground capitalize">{c.purpose.replace('_', ' ')}</td>
+                      <td className="p-3 text-muted-foreground capitalize">{c.purpose?.replace('_', ' ')}</td>
                       <td className="p-3 text-muted-foreground">{c.sent_to}</td>
                       <td className="p-3 text-muted-foreground">{c.subject || '-'}</td>
                       <td className="p-3"><Badge variant="secondary" className={statusColor[c.status]}>{c.status}</Badge></td>
@@ -130,7 +156,7 @@ const CommunicationsPage = () => {
                       </div>
                       <div>
                         <p className="font-heading font-semibold text-sm text-foreground">{c.customers?.full_name}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{c.purpose.replace('_', ' ')}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{c.purpose?.replace('_', ' ')}</p>
                       </div>
                     </div>
                     <Badge variant="secondary" className={`text-xs ${statusColor[c.status]}`}>{c.status}</Badge>

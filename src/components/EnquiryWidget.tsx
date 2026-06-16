@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery, apiPost } from '@/lib/apiClient';
 import { toast } from 'sonner';
 
 const EnquiryWidget = () => {
@@ -23,32 +23,35 @@ const EnquiryWidget = () => {
     setLoading(true);
     try {
       // Find or create customer, then log as a communication
-      let { data: customer } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('phone', form.phone.trim())
-        .maybeSingle();
+      let customers = await apiDbQuery<any[]>({
+        table: 'customers',
+        action: 'select',
+        select: 'id',
+        filters: [{ field: 'phone', op: 'eq', value: form.phone.trim() }],
+        limit: 1,
+      });
 
+      let customer = customers?.[0] || null;
       if (!customer) {
-        const { data: newCustomer, error } = await supabase
-          .from('customers')
-          .insert({ full_name: form.name.trim(), phone: form.phone.trim(), email: form.email.trim() || null })
-          .select('id')
-          .single();
-        if (error) throw error;
-        customer = newCustomer;
+        const newCustomers = await apiDbQuery<any[]>({
+          table: 'customers',
+          action: 'insert',
+          values: { full_name: form.name.trim(), phone: form.phone.trim(), email: form.email.trim() || null },
+        });
+        customer = newCustomers?.[0] || null;
       }
 
-      const { error } = await supabase.from('communications').insert({
-        customer_id: customer!.id,
-        type: 'email' as const,
-        purpose: 'custom' as const,
-        sent_to: form.email.trim() || form.phone.trim(),
-        subject: 'Website Enquiry',
-        body: form.message.trim(),
-        status: 'pending',
-      });
-      if (error) throw error;
+      if (!customer?.id) throw new Error('Failed to create/find customer');
+
+      await apiPost('/api/communications', {
+          customer_id: customer.id,
+          type: 'email',
+          purpose: 'custom',
+          sent_to: form.email.trim() || form.phone.trim(),
+          subject: 'Website Enquiry',
+          body: form.message.trim(),
+          status: 'pending',
+        });
 
       setSubmitted(true);
       setForm({ name: '', phone: '', email: '', message: '' });

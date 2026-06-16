@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery, apiInvokeFunction } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,19 +58,19 @@ const ReportMonitoringDashboard = () => {
   const fetchAttempts = async () => {
     try {
       setLoading(true);
-      let query = supabase
-        .from('report_send_attempts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500);
+      const filters = dealerLocationIds && dealerLocationIds.length > 0
+        ? [{ field: 'location_id', op: 'in' as const, value: dealerLocationIds }]
+        : [];
 
-      if (dealerLocationIds && dealerLocationIds.length > 0) {
-        query = query.in('location_id', dealerLocationIds);
-      }
+      const data = await apiDbQuery<SendAttempt[]>({
+        table: 'report_send_attempts',
+        action: 'select',
+        select: '*',
+        filters,
+        order: [{ field: 'created_at', ascending: false }],
+        limit: 500,
+      });
 
-      const { data, error } = await query;
-
-      if (error) throw error;
       setAttempts((data || []) as unknown as SendAttempt[]);
     } catch (error) {
       console.error('Error fetching attempts:', error);
@@ -86,27 +86,28 @@ const ReportMonitoringDashboard = () => {
     try {
       setScheduleLoading(true);
 
-      const [scheduleRes, locationRes] = await Promise.all([
-        supabase
-          .from('report_schedule_config')
-          .select('id, location_id, report_type, schedule_time, days_of_week, timezone, is_enabled')
-          .in('location_id', dealerLocationIds)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('locations')
-          .select('id, name')
-          .in('id', dealerLocationIds),
+      const [scheduleData, locationData] = await Promise.all([
+        apiDbQuery<ReportSchedule[]>({
+          table: 'report_schedule_config',
+          action: 'select',
+          select: 'id, location_id, report_type, schedule_time, days_of_week, timezone, is_enabled, created_at',
+          filters: [{ field: 'location_id', op: 'in', value: dealerLocationIds }],
+          order: [{ field: 'created_at', ascending: false }],
+        }),
+        apiDbQuery<Array<{ id: string; name: string }>>({
+          table: 'locations',
+          action: 'select',
+          select: 'id, name',
+          filters: [{ field: 'id', op: 'in', value: dealerLocationIds }],
+        }),
       ]);
 
-      if (scheduleRes.error) throw scheduleRes.error;
-      if (locationRes.error) throw locationRes.error;
-
       const names: Record<string, string> = {};
-      (locationRes.data || []).forEach((loc) => {
+      (locationData || []).forEach((loc) => {
         names[loc.id] = loc.name;
       });
 
-      setSchedules((scheduleRes.data || []) as ReportSchedule[]);
+      setSchedules((scheduleData || []) as ReportSchedule[]);
       setLocationNames(names);
     } catch (error) {
       console.error('Error fetching report schedules:', error);
@@ -126,14 +127,10 @@ const ReportMonitoringDashboard = () => {
           ? 'send-daily-test-drive-reports'
           : 'send-daily-activity-reports';
 
-      const { error } = await supabase.functions.invoke(functionName, {
-        body: {
-          reportDate: today,
-          locationIds: [schedule.location_id],
-        },
+      await apiInvokeFunction(functionName, {
+        reportDate: today,
+        locationIds: [schedule.location_id],
       });
-
-      if (error) throw error;
 
       toast.success('Report sent immediately');
       setTimeout(() => fetchAttempts(), 1000);
@@ -151,33 +148,12 @@ const ReportMonitoringDashboard = () => {
       const attempt = attempts.find((a) => a.id === attemptId);
       if (!attempt) return;
 
-      // Call handle-report-retry edge function
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.access_token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/handle-report-retry`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.session.access_token}`,
-          },
-          body: JSON.stringify({
-            locationId: attempt.location_id,
-            reportType: attempt.report_type,
-            recipientEmail: attempt.recipient_email,
-            reportDate: attempt.report_date,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Retry failed: ${errorText}`);
-      }
+      await apiInvokeFunction('handle-report-retry', {
+        locationId: attempt.location_id,
+        reportType: attempt.report_type,
+        recipientEmail: attempt.recipient_email,
+        reportDate: attempt.report_date,
+      });
 
       toast.success('Retry triggered successfully');
       // Refresh data after a short delay to let the function complete

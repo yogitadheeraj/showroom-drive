@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +13,10 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
+import { apiDbQuery, apiGet, apiPatch, apiPost } from '@/lib/apiClient';
+import { logStaffActivity } from '@/lib/activityLogger';
+import { sendTransactionalEmail } from '@/lib/functionService';
+import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 
 interface Enquiry {
   id: string;
@@ -81,57 +84,83 @@ const EnquiriesPage = () => {
 
   const fetchEnquiries = async () => {
     setLoading(true);
-    let customerIds: string[] | null = null;
+    try {
+      let customerIds: string[] | null = null;
 
-    if (role === APP_ROLE.SALES) {
-      if (!profile?.id) {
-        setAllComms([]);
-        setLoading(false);
-        return;
-      }
-
-      const { data: assignedDrives } = await supabase
-        .from('test_drives')
-        .select('customer_id, location_id, locations(name)')
-        .eq('assigned_sales_person_id', profile.id);
-
-      const locationMap = new Map<string, string>();
-      (assignedDrives || []).forEach((d: any) => {
-        if (d.location_id) {
-          const name = d.locations?.name || 'Unknown Location';
-          locationMap.set(d.location_id, name);
+      if (role === APP_ROLE.SALES) {
+        if (!profile?.id) {
+          setAllComms([]);
+          return;
         }
-      });
 
-      setSalesLocations(Array.from(locationMap.entries()).map(([id, name]) => ({ id, name })));
+        const assignedDrives = await apiDbQuery<any[]>({
+          table: 'test_drives',
+          action: 'select',
+          select: 'customer_id, location_id',
+          filters: [{ field: 'assigned_sales_person_id', op: 'eq', value: profile.id }],
+          limit: 1000,
+        });
 
-      const drivesByLocation = locationFilter === 'all'
-        ? (assignedDrives || [])
-        : (assignedDrives || []).filter((d: any) => d.location_id === locationFilter);
+        const locationIds = Array.from(
+          new Set((assignedDrives || []).map((d: any) => d.location_id).filter(Boolean))
+        );
+        const locations = locationIds.length
+          ? await apiDbQuery<any[]>({
+              table: 'locations',
+              action: 'select',
+              select: 'id, name',
+              filters: [{ field: 'id', op: 'in', value: locationIds }],
+              limit: Math.max(1000, locationIds.length),
+            })
+          : [];
 
-      customerIds = Array.from(new Set(drivesByLocation.map((d: any) => d.customer_id)));
+        const locationNameMap = new Map((locations || []).map((l: any) => [l.id, l.name]));
+        const locationMap = new Map<string, string>();
+        (assignedDrives || []).forEach((d: any) => {
+          if (d.location_id) {
+            locationMap.set(d.location_id, locationNameMap.get(d.location_id) || 'Unknown Location');
+          }
+        });
 
-      if (customerIds.length === 0) {
-        setAllComms([]);
-        setLoading(false);
-        return;
+        setSalesLocations(Array.from(locationMap.entries()).map(([id, name]) => ({ id, name })));
+
+        const drivesByLocation = locationFilter === 'all'
+          ? (assignedDrives || [])
+          : (assignedDrives || []).filter((d: any) => d.location_id === locationFilter);
+
+        customerIds = Array.from(new Set(drivesByLocation.map((d: any) => d.customer_id)));
+
+        if (customerIds.length === 0) {
+          setAllComms([]);
+          return;
+        }
+      } else {
+        setSalesLocations([]);
       }
-    } else {
-      setSalesLocations([]);
+
+      const commsParams = new URLSearchParams({ purpose: 'custom,follow_up', order: 'asc', limit: '2000' });
+      if (customerIds) commsParams.set('customer_ids', customerIds.join(','));
+      const comms = await apiGet<any[]>(`/api/communications?${commsParams.toString()}`) || [];
+
+      const commCustomerIds = Array.from(new Set((comms || []).map((c: any) => c.customer_id).filter(Boolean)));
+      const customers = commCustomerIds.length
+        ? await apiGet<any[]>(`/api/customers?ids=${encodeURIComponent(commCustomerIds.join(','))}`)
+        : [];
+
+      const customerMap = new Map((customers || []).map((c: any) => [c.id, c]));
+
+      const enrichedComms = (comms || []).map((c: any) => ({
+        ...c,
+        customers: c.customer_id ? customerMap.get(c.customer_id) || null : null,
+      }));
+
+      setAllComms((enrichedComms as unknown as Enquiry[]) || []);
+    } catch {
+      setAllComms([]);
+      toast.error('Failed to load enquiries');
+    } finally {
+      setLoading(false);
     }
-
-    let query = supabase
-      .from('communications')
-      .select('id, customer_id, subject, body, sent_to, status, created_at, parent_id, customers(full_name, phone, email)')
-      .in('purpose', ['custom', 'follow_up'])
-      .order('created_at', { ascending: true });
-
-    if (customerIds) query = query.in('customer_id', customerIds);
-
-    const { data } = await query;
-
-    setAllComms((data as unknown as Enquiry[]) || []);
-    setLoading(false);
   };
 
   // Only top-level enquiries (no parent_id) shown in the list
@@ -162,12 +191,16 @@ const EnquiriesPage = () => {
     if (!editingMessageId) return;
     setSavingEdit(true);
     try {
-      const { error } = await supabase
-        .from('communications')
-        .update({ body: editText.trim() })
-        .eq('id', editingMessageId);
-
-      if (error) throw error;
+      await apiPatch(`/api/communications/${encodeURIComponent(editingMessageId)}`, { body: editText.trim() });
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'enquiry_message_edited',
+          label: 'Edited enquiry message',
+          route: '/enquiries',
+          metadata: { communicationId: editingMessageId, customerId: selected?.customer_id ?? null },
+        });
+      }
       toast.success('Enquiry message updated');
       cancelEditMessage();
       fetchEnquiries();
@@ -206,21 +239,22 @@ const EnquiriesPage = () => {
     setReplying(true);
     try {
       const recipientEmail = selected.customers?.email || selected.sent_to;
-      const { data: inserted, error } = await supabase.from('communications').insert({
+      const inserted = await apiPost<any>('/api/communications', {
         customer_id: selected.customer_id,
-        type: 'email' as const,
-        purpose: 'follow_up' as const,
+        type: 'email',
+        purpose: 'follow_up',
         sent_to: recipientEmail,
         subject: `Re: ${selected.subject || 'Website Enquiry'}`,
         body: finalMessage,
         status: 'pending',
         parent_id: selected.id,
-      }).select('id').single();
-      if (error) throw error;
+      });
+      if (!inserted?.id) throw new Error('Failed to create follow-up communication');
 
       if (selected.customers?.email) {
-        const { error: emailError } = await supabase.functions.invoke('send-transactional-email', {
-          body: {
+        let emailError: unknown = null;
+        try {
+          await sendTransactionalEmail({
             templateName: 'sales-follow-up',
             recipientEmail: selected.customers.email,
             idempotencyKey: `follow-up-${inserted.id}`,
@@ -228,18 +262,29 @@ const EnquiriesPage = () => {
               customerName: selected.customers.full_name,
               message: finalMessage,
             },
-          },
-        });
+          });
+        } catch (error) {
+          emailError = error;
+        }
 
         if (emailError) {
-          await supabase.from('communications').update({ status: 'failed' }).eq('id', inserted.id);
+          await apiPatch(`/api/communications/${encodeURIComponent(inserted.id)}`, { status: 'failed' });
           throw emailError;
         }
 
-        await supabase.from('communications').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', inserted.id);
+        await apiPatch(`/api/communications/${encodeURIComponent(inserted.id)}`, { status: 'sent', sent_at: new Date().toISOString() });
       }
 
       toast.success('Reply added to thread');
+      if (profile?.user_id) {
+        void logStaffActivity({
+          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          eventType: 'enquiry_replied',
+          label: `Replied to enquiry from ${selected.customers?.full_name ?? selected.sent_to}`,
+          route: '/enquiries',
+          metadata: { communicationId: inserted.id, customerId: selected.customer_id, customerName: selected.customers?.full_name ?? null, sentTo: selected.customers?.email ?? selected.sent_to },
+        });
+      }
       setReplyText('');
       setLinkToShare('');
       setImageUrlToShare('');
@@ -269,11 +314,9 @@ const EnquiriesPage = () => {
       const ext = file.name.split('.').pop() || 'jpg';
       const path = `chat-media/${selected.customer_id}/${Date.now()}.${ext}`;
 
-      const { error: uploadError } = await supabase.storage.from('documents').upload(path, file);
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from('documents').getPublicUrl(path);
-      setImageUrlToShare(data.publicUrl);
+      await uploadToStorage('documents', path, file);
+      const publicUrl = await getStoragePublicUrl('documents', path);
+      setImageUrlToShare(publicUrl);
       toast.success('Image ready to send');
     } catch (err: any) {
       toast.error(err.message || 'Failed to upload image');

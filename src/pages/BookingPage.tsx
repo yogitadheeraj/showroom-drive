@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery, apiPost } from '@/lib/apiClient';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -215,43 +216,57 @@ const BookingPage = () => {
 
   // Load all active available vehicles, locations, and operating hours
   useEffect(() => {
-    Promise.all([
-      supabase.from('vehicles').select('*').eq('is_active', true).eq('is_available', true),
-      supabase.from('locations').select('*').eq('is_active', true),
-      supabase.from('dealers').select('id, name').eq('is_active', true),
-      supabase.from('brands').select('dealer_id, name').order('name'),
-      supabase.from('location_operating_hours').select('*'),
-      supabase.from('location_blocked_slots').select('*'),
-      supabase.from('location_special_periods').select('*'),
-    ]).then(([vRes, lRes, dRes, bRes, ohRes, bsRes, spRes]) => {
-      setAllVehicles(vRes.data || []);
-      let locs = lRes.data || [];
-      // Hide locations for dealer admin if flagged
+    (async () => {
+      const [vehicles, locationRows, dealers, brands, operatingHoursRows, blockedSlotRows] = await Promise.all([
+        apiDbQuery<any[]>({
+          table: 'vehicles',
+          action: 'select',
+          select: '*',
+          filters: [
+            { field: 'is_active', op: 'eq', value: true },
+            { field: 'is_available', op: 'eq', value: true },
+          ],
+        }),
+        apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'is_active', op: 'eq', value: true }] }),
+        apiDbQuery<any[]>({ table: 'dealers', action: 'select', select: 'id, name', filters: [{ field: 'is_active', op: 'eq', value: true }] }),
+        apiDbQuery<any[]>({ table: 'brands', action: 'select', select: 'dealer_id, name', order: [{ field: 'name', ascending: true }] }),
+        apiDbQuery<any[]>({ table: 'location_operating_hours', action: 'select', select: '*' }),
+        apiDbQuery<any[]>({ table: 'location_blocked_slots', action: 'select', select: '*' }),
+      ]);
+
+      let specialPeriodRows: any[] = [];
+      try {
+        specialPeriodRows = await apiDbQuery<any[]>({ table: 'location_special_periods', action: 'select', select: '*' });
+      } catch (error: any) {
+        if (!isMissingSpecialPeriodsTableError(error)) {
+          throw error;
+        }
+      }
+
+      setAllVehicles(vehicles || []);
+      let locs = locationRows || [];
       const role = localStorage.getItem('app_role');
       if (role === 'dealer_admin') {
         locs = locs.filter((l: any) => !l.disabled_for_dealer_admin);
       }
       setLocations(locs);
-      const dealerNameMap = (dRes.data || []).reduce((acc: Record<string, string>, dealer: any) => {
+
+      const dealerNameMap = (dealers || []).reduce((acc: Record<string, string>, dealer: any) => {
         acc[dealer.id] = dealer.name;
         return acc;
       }, {});
-      const brandMap = (bRes.data || []).reduce((acc: Record<string, string[]>, brand: any) => {
+      const brandMap = (brands || []).reduce((acc: Record<string, string[]>, brand: any) => {
         if (!acc[brand.dealer_id]) acc[brand.dealer_id] = [];
         acc[brand.dealer_id].push(brand.name);
         return acc;
       }, {});
+
       setDealerNamesById(dealerNameMap);
       setBrandsByDealerId(brandMap);
-      setOperatingHours(ohRes.data || []);
-      setBlockedSlots(bsRes.data || []);
-
-      if (spRes.error && isMissingSpecialPeriodsTableError(spRes.error)) {
-        setSpecialPeriods([]);
-      } else {
-        setSpecialPeriods(spRes.data || []);
-      }
-    });
+      setOperatingHours(operatingHoursRows || []);
+      setBlockedSlots(blockedSlotRows || []);
+      setSpecialPeriods(specialPeriodRows || []);
+    })();
   }, []);
 
   const categoryFilteredVehicles = useMemo(() => {
@@ -419,28 +434,23 @@ const BookingPage = () => {
         return;
       }
 
-      const { data: vehicleBookings } = await supabase
-        .from('test_drives')
-        .select('scheduled_time, slot_duration_minutes')
-        .eq('vehicle_id', formData.vehicleId)
-        .eq('location_id', formData.locationId)
-        .eq('scheduled_date', formData.scheduledDate)
-        .in('status', ['scheduled', 'confirmed', 'show', 'in_progress']);
+      const vehicleBookings = await apiDbQuery<any[]>({
+        table: 'test_drives',
+        action: 'select',
+        select: 'scheduled_time, slot_duration_minutes',
+        filters: [
+          { field: 'vehicle_id', op: 'eq', value: formData.vehicleId },
+          { field: 'location_id', op: 'eq', value: formData.locationId },
+          { field: 'scheduled_date', op: 'eq', value: formData.scheduledDate },
+          { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+        ],
+      });
 
       // Check if selected date is today
       const now = new Date();
       const currentDateStr = now.toISOString().split('T')[0];
       const isToday = formData.scheduledDate === currentDateStr;
       const currentTimeMinutes = now.getHours() * 60 + now.getMinutes();
-
-
-      // Enforce: Only allow booking if slot starts at least 30 mins before closing
-      const closeTimeStr = selectedDateHours?.close_time;
-      let closeTimeMinutes = null;
-      if (closeTimeStr) {
-        const [closeHour, closeMin] = closeTimeStr.split(':').map(Number);
-        closeTimeMinutes = closeHour * 60 + closeMin;
-      }
 
       const filteredSlots = (slots || []).filter((slot: any) => {
         const slotBlocked = blockedSlots.some((bs: any) =>
@@ -456,11 +466,6 @@ const BookingPage = () => {
           if (slot.startMinutes < currentTimeMinutes) {
             return false;
           }
-        }
-
-        // Enforce 30 min before closing
-        if (closeTimeMinutes !== null && slot.startMinutes > closeTimeMinutes - 30) {
-          return false;
         }
 
         const slotStart = slot.startMinutes;
@@ -623,97 +628,21 @@ const BookingPage = () => {
 
     setIsSubmitting(true);
     try {
-      const { data: existingCustomer } = await supabase
-        .from('customers').select('id').eq('phone', formData.phone).maybeSingle();
-
-      let customerId: string;
-      if (existingCustomer) {
-        customerId = existingCustomer.id;
-        await supabase.from('customers').update({
-          full_name: formData.fullName,
-          email: formData.email || null,
-          preferred_contact: formData.preferredContact,
-        }).eq('id', customerId);
-      } else {
-        const { data: newCustomer, error } = await supabase.from('customers').insert({
-          full_name: formData.fullName,
-          email: formData.email || null,
-          phone: formData.phone,
-          preferred_contact: formData.preferredContact,
-        }).select('id').single();
-        if (error) throw error;
-        customerId = newCustomer.id;
-      }
-
-      const { data: tdData, error: tdError } = await supabase.from('test_drives').insert({
-        customer_id: customerId,
+      const tdData = await apiPost<any>('/api/public/book', {
+        full_name: formData.fullName,
+        phone: formData.phone,
+        email: formData.email || null,
+        preferred_contact: formData.preferredContact,
         vehicle_id: formData.vehicleId,
         location_id: formData.locationId,
         scheduled_date: formData.scheduledDate,
         scheduled_time: formData.scheduledTime,
         slot_duration_minutes: slotDurationMinutes,
-        source: 'online',
-      }).select('id, assigned_sales_person_id').single();
-      if (tdError) throw tdError;
-
-      const displayVehicle = vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle;
-      const vehicleName = displayVehicle ? `${displayVehicle.brand} ${displayVehicle.model} ${displayVehicle.variant || ''}`.trim() : 'your selected vehicle';
-      const locationName = selectedLocation?.name || 'our showroom';
-
-      // Fetch assigned sales person details
-      let salesPersonName: string | null = null;
-      let salesPersonPhone: string | null = null;
-      if (tdData.assigned_sales_person_id) {
-        const { data: salesProfile } = await supabase.from('profiles')
-          .select('full_name, phone')
-          .eq('id', tdData.assigned_sales_person_id)
-          .single();
-        if (salesProfile) {
-          salesPersonName = salesProfile.full_name;
-          salesPersonPhone = salesProfile.phone;
-        }
-      }
-
-      // Always send WhatsApp confirmation
-      const confirmationMsg = `✅ *Test Drive Confirmed!*\n\nHi ${formData.fullName},\n\nYour test drive has been booked:\n🚗 *Vehicle:* ${vehicleName}\n📍 *Location:* ${locationName}\n📅 *Date:* ${formData.scheduledDate}\n⏰ *Time:* ${formData.scheduledTime}${salesPersonName ? `\n👤 *Your Sales Executive:* ${salesPersonName}` : ''}\n\nPlease bring a valid driving license. See you there!\n\n— Auto Advant`;
-      supabase.functions.invoke('send-whatsapp', {
-        body: { to: formData.phone, message: confirmationMsg, customerId, testDriveId: tdData.id, purpose: 'booking_confirmed' },
-      }).catch(err => console.error('WhatsApp send failed:', err));
-
-      // Also send email if email is provided
-      if (formData.email) {
-        supabase.functions.invoke('send-transactional-email', {
-          body: {
-            templateName: 'booking-confirmation',
-            recipientEmail: formData.email,
-            idempotencyKey: `booking-confirm-${tdData.id}`,
-            templateData: { customerName: formData.fullName, vehicleName, locationName, scheduledDate: formData.scheduledDate, scheduledTime: formData.scheduledTime },
-          },
-        }).catch(err => console.error('Email send failed:', err));
-
-        // Send sales person assignment email if assigned
-        if (salesPersonName) {
-          supabase.functions.invoke('send-transactional-email', {
-            body: {
-              templateName: 'sales-assignment',
-              recipientEmail: formData.email,
-              idempotencyKey: `sales-assign-${tdData.id}`,
-              templateData: {
-                customerName: formData.fullName,
-                vehicleName,
-                locationName,
-                scheduledDate: formData.scheduledDate,
-                scheduledTime: formData.scheduledTime,
-                salesPersonName,
-                salesPersonPhone,
-              },
-            },
-          }).catch(err => console.error('Sales assignment email failed:', err));
-        }
-      }
+      });
+      if (!tdData?.id) throw new Error('Failed to create test drive');
 
       setSuccess(true);
-      toast({ title: 'Test drive booked!', description: `You will receive a WhatsApp confirmation shortly.${salesPersonName ? ` Your sales executive: ${salesPersonName}` : ''}${formData.email ? ' An email confirmation has also been sent.' : ''}` });
+      toast({ title: 'Test drive booked!', description: 'You will receive a WhatsApp confirmation shortly.' });
     } catch (err: any) {
       toast({ title: 'Booking failed', description: err.message, variant: 'destructive' });
     } finally {
@@ -1365,7 +1294,7 @@ const BookingPage = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number *</Label>
-                    <Input id="phone" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="+91 98765 43210" />
+                    <Input id="phone" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="+91 8*********" />
                     {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
                   </div>
                 </div>

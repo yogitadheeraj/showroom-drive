@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { apiDbQuery, apiPost } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -62,15 +62,34 @@ const ComparePage = () => {
   const [sentAvailabilityEnquiry, setSentAvailabilityEnquiry] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    supabase
-      .from('vehicles')
-      .select('*, locations(name)')
-      .eq('is_active', true)
-      .order('brand')
-      .order('model')
-      .then(({ data }) => {
-        setAllVehicles(data || []);
+    (async () => {
+      const vehicles = await apiDbQuery<any[]>({
+        table: 'vehicles',
+        action: 'select',
+        select: '*',
+        filters: [{ field: 'is_active', op: 'eq', value: true }],
+        order: [
+          { field: 'brand', ascending: true },
+          { field: 'model', ascending: true },
+        ],
       });
+
+      const locationIds = Array.from(new Set((vehicles || []).map((vehicle: any) => vehicle.location_id).filter(Boolean)));
+      const locations = locationIds.length
+        ? await apiDbQuery<any[]>({
+            table: 'locations',
+            action: 'select',
+            select: 'id, name',
+            filters: [{ field: 'id', op: 'in', value: locationIds }],
+          })
+        : [];
+
+      const locationMap = new Map((locations || []).map((loc: any) => [loc.id, loc]));
+      setAllVehicles((vehicles || []).map((vehicle: any) => ({
+        ...vehicle,
+        locations: locationMap.get(vehicle.location_id) || null,
+      })));
+    })();
   }, []);
 
   useEffect(() => {
@@ -161,37 +180,40 @@ const ComparePage = () => {
     setSendingAvailabilityEnquiry((prev) => ({ ...prev, [vehicle.id]: true }));
 
     try {
-      let { data: customer } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('phone', payload.phone.trim())
-        .maybeSingle();
+      const customerRows = await apiDbQuery<any[]>({
+        table: 'customers',
+        action: 'select',
+        select: 'id',
+        filters: [{ field: 'phone', op: 'eq', value: payload.phone.trim() }],
+        limit: 1,
+      });
+      let customer = customerRows?.[0] || null;
 
       if (!customer) {
-        const { data: createdCustomer, error: createCustomerError } = await supabase
-          .from('customers')
-          .insert({
+        const createdCustomer = await apiDbQuery<any>({
+          table: 'customers',
+          action: 'insert',
+          select: 'id',
+          values: {
             full_name: payload.name.trim(),
             phone: payload.phone.trim(),
-          })
-          .select('id')
-          .single();
+          },
+        });
 
-        if (createCustomerError) throw createCustomerError;
-        customer = createdCustomer;
+        const customerRow = Array.isArray(createdCustomer) ? createdCustomer[0] : createdCustomer;
+        if (!customerRow?.id) throw new Error('Unable to create customer');
+        customer = customerRow;
       }
 
-      const { error: commError } = await supabase.from('communications').insert({
-        customer_id: customer.id,
-        type: 'sms',
-        purpose: 'custom',
-        sent_to: payload.phone.trim(),
-        subject: `Availability Enquiry - ${vehicle.brand} ${vehicle.model}`,
-        body: payload.message.trim(),
-        status: 'pending',
-      });
-
-      if (commError) throw commError;
+      await apiPost('/api/communications', {
+          customer_id: customer.id,
+          type: 'sms',
+          purpose: 'custom',
+          sent_to: payload.phone.trim(),
+          subject: `Availability Enquiry - ${vehicle.brand} ${vehicle.model}`,
+          body: payload.message.trim(),
+          status: 'pending',
+        });
 
       setSentAvailabilityEnquiry((prev) => ({ ...prev, [vehicle.id]: true }));
       setAvailabilityEnquiry((prev) => ({

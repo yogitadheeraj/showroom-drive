@@ -3,11 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { sendTransactionalEmail } from '@/lib/functionService';
 import {
   Mail, Car, ShieldCheck, KeyRound, ClipboardCheck,
   CheckCircle2, AlertCircle, MessageSquare, Star, Building2,
-  Send, Loader2, Clock3, ExternalLink
+  Send, Loader2, Clock3, ExternalLink, MessageSquareText, CheckSquare
 } from 'lucide-react';
 
 interface TestDrive {
@@ -177,8 +177,7 @@ export function TestDriveJourneyDialog({ testDrive, open, onClose }: Props) {
 
     setSending(true);
     try {
-      const { error } = await supabase.functions.invoke('send-transactional-email', {
-        body: {
+      await sendTransactionalEmail({
           templateName: 'test-drive-journey',
           recipientEmail: customerEmail,
           templateData: {
@@ -195,10 +194,7 @@ export function TestDriveJourneyDialog({ testDrive, open, onClose }: Props) {
             enquiryId,
             totalDurationMinutes: durationMinutes,
           },
-        },
       });
-
-      if (error) throw error;
 
       toast({ title: 'Journey email sent!', description: `Full journey steps sent to ${customerEmail}` });
     } catch (err: any) {
@@ -364,6 +360,44 @@ export function TestDriveJourneyDialog({ testDrive, open, onClose }: Props) {
             </div>
           </div>
         </div>
+
+        {/* Handover Feedback (if recorded) */}
+        {(() => {
+          const feedback = (testDrive.metadata as any)?.handover_feedback;
+          if (!feedback || (!feedback.questions?.length && !feedback.notes?.trim())) return null;
+          return (
+            <div className="mx-6 mb-0 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <MessageSquareText className="h-4 w-4 text-amber-600 shrink-0" />
+                <span className="font-semibold text-sm text-amber-800">Sales Handover Feedback</span>
+                {feedback.recorded_at && (
+                  <span className="text-[10px] text-amber-600 ml-auto">
+                    {new Date(feedback.recorded_at).toLocaleString()}
+                  </span>
+                )}
+              </div>
+
+              {feedback.questions?.length > 0 && (
+                <div className="mb-3 space-y-1.5">
+                  <p className="text-xs font-medium text-amber-700 uppercase tracking-wide mb-1">Customer Questions During Test Drive</p>
+                  {(feedback.questions as string[]).map((q: string, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-sm text-amber-900">
+                      <CheckSquare className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <span>{q}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {feedback.notes?.trim() && (
+                <div>
+                  <p className="text-xs font-medium text-amber-700 uppercase tracking-wide mb-1">Additional Notes</p>
+                  <p className="text-sm text-amber-900 whitespace-pre-line leading-relaxed">{feedback.notes}</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Showroom & Purchase Footer */}
         <div className="mx-6 mb-6 rounded-xl border border-border bg-gradient-to-br from-muted/50 to-muted/20 p-4">
