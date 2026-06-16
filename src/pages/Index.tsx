@@ -10,6 +10,7 @@ import { motion, type Variants } from 'framer-motion';
 import EnquiryWidget from '@/components/EnquiryWidget';
 import SiteHeader from '@/components/SiteHeader';
 import { useTheme } from '@/hooks/useTheme';
+import { useWhitelabel } from '@/hooks/useWhitelabel';
 import { toast } from 'sonner';
 import showcaseAdminDashboard from '@/assets/showcase-admin-dashboard.jpg';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
@@ -23,6 +24,7 @@ const fadeUp: Variants = {
 };
 export default function AutoAdvantLandingPage() {
     const { resolvedTheme } = useTheme();
+    const brand = useWhitelabel();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [activeHeroSlide, setActiveHeroSlide] = useState(0);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -250,7 +252,7 @@ export default function AutoAdvantLandingPage() {
 
     return (
         <div className="min-h-screen bg-background text-foreground dark:text-white">
-            <SiteHeader variant="landing" />
+            <SiteHeader variant="landing" dealerName={brand.dealerName} dealerLogoUrl={brand.dealerLogoUrl} />
 
             <main className={`landing-main bg-background text-foreground${resolvedTheme === 'dark' ? ' dark' : ''}`}>
                 <section className="relative overflow-hidden">
@@ -693,7 +695,7 @@ export default function AutoAdvantLandingPage() {
                 </section>
 
                 {/* ── UAE / KSA Positioning ── */}
-                <section className="border-y border-white/10 bg-gradient-to-r from-emerald-950/30 via-teal-950/20 to-slate-900/40">
+                <section className="border-y hidden border-white/10 bg-gradient-to-r from-emerald-950/30 via-teal-950/20 to-slate-900/40">
                     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
                         <div className="grid gap-10 lg:grid-cols-2 items-center">
                             <div>
@@ -739,7 +741,7 @@ export default function AutoAdvantLandingPage() {
                 </section>
 
                 {/* ── Case Study ── */}
-                <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+                <section className="mx-auto hidden max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
                     <div className="text-center mb-12">
                         <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Case Study</p>
                         <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">From chaos to control in 60 days</h2>

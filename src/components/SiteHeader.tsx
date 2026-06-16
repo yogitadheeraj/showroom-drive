@@ -10,11 +10,13 @@ interface SiteHeaderProps {
   leftSlot?: React.ReactNode;
   dealerName?: string | null;
   dealerLogoUrl?: string | null;
+  showLogo?: boolean;
 }
 
-const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot, leftSlot, dealerName, dealerLogoUrl }: SiteHeaderProps) => {
+const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightSlot, leftSlot, dealerName, dealerLogoUrl }: SiteHeaderProps) => {
   const { user } = useAuth();
   const isLoggedIn = !!user;
+  console.log('SiteHeader render', { variant, showNav, isLoggedIn, dealerName, dealerLogoUrl });
   const { resolvedTheme, toggleTheme } = useTheme();
 
   const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
@@ -24,8 +26,9 @@ const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot, leftSlot, 
       <div className="mx-auto flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           {leftSlot}
-          <Link to="/" className="flex items-center shrink-0">
-            {variant === 'app' && (dealerLogoUrl || dealerName) ? (
+         {showLogo && (
+            <Link to="/" className="flex items-center shrink-0">
+            {(dealerLogoUrl || dealerName) ? (
               <div className="flex flex-col leading-none">
                 <div className="flex items-center gap-2">
                   {dealerLogoUrl && (
@@ -62,6 +65,7 @@ const SiteHeader = ({ variant = 'landing', showNav = true, rightSlot, leftSlot, 
               />
             )}
           </Link>
+          )}
         </div>
 
         {showNav && variant === 'landing' && (

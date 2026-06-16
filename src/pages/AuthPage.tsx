@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowRight, BadgeCheck, Bell, Building2, CheckCircle2, Eye, EyeOff, KeyRound, MailCheck, ShieldCheck, Sparkles } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
+import { useWhitelabel } from '@/hooks/useWhitelabel';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
@@ -28,7 +29,8 @@ const AuthPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const logoUrl = 'https://res.cloudinary.com/totalesworld/image/upload/v1774900050/logo_acnpcu_Nero_AI_Background_Remover_transparent_1_srpzwi.png';
+  const brand = useWhitelabel();
+  const logoUrl = brand.dealerLogoUrl || '/images/auth_logo.png';
 
   useEffect(() => {
     if (searchParams.get('verified') === 'true') {
@@ -129,7 +131,7 @@ const AuthPage = () => {
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
-      <SiteHeader variant="landing" />
+      <SiteHeader variant="landing" dealerName={brand.dealerName} dealerLogoUrl={brand.dealerLogoUrl} />
       {/* SaaS dark backdrop with subtle grid + glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div
@@ -154,10 +156,23 @@ const AuthPage = () => {
             <div className="w-full max-w-xl animate-fade-in space-y-5">
               <Card className="overflow-hidden rounded-[2rem] border-border bg-card shadow-elevated backdrop-blur-xl text-card-foreground">
                 <CardHeader className="space-y-2 border-b border-border bg-card/60 px-6 pb-5 pt-7 sm:px-8">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Auto Advant</p>
+                  {brand.isBranded ? (
+                    <div className="flex items-center gap-3 mb-1">
+                      {brand.dealerLogoUrl && (
+                        <img src={brand.dealerLogoUrl} alt={brand.dealerName || 'Dealer'} className="h-10 w-auto max-w-[120px] object-contain" />
+                      )}
+                      {brand.dealerName && (
+                        <span className="text-base font-bold text-foreground">{brand.dealerName}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Auto Advant</p>
+                  )}
                   <CardTitle className="font-heading text-3xl font-bold tracking-tight">Welcome back</CardTitle>
                   <CardDescription className="text-sm leading-6 text-muted-foreground">
-                    Sign in to manage daily test drives, staff activity, customers, and scheduled reporting.
+                    {brand.isBranded
+                      ? `Sign in to your ${brand.dealerName || 'dealership'} portal`
+                      : 'Sign in to manage daily test drives, staff activity, customers, and scheduled reporting.'}
                   </CardDescription>
                 </CardHeader>
 

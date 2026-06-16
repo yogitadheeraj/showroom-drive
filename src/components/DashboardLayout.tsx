@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { apiGet, apiDbQuery, apiPatch } from '@/lib/apiClient';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { useWhitelabel } from '@/hooks/useWhitelabel';
 import {
   Select,
   SelectContent,
@@ -124,7 +125,11 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { user, role, profile, signOut, refreshProfile } = useAuth();
-  const { dealerLocations, selectedLocationId, setSelectedLocationId, dealerName, dealerLogoUrl } = useDealerContext();
+  const { dealerLocations, selectedLocationId, setSelectedLocationId, dealerName: ctxDealerName, dealerLogoUrl: ctxDealerLogoUrl } = useDealerContext();
+  const wl = useWhitelabel();
+  // Whitelabel branding takes precedence; fall back to DealerContext values
+  const dealerName    = wl.dealerName    ?? ctxDealerName;
+  const dealerLogoUrl = wl.dealerLogoUrl ?? ctxDealerLogoUrl;
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -470,12 +475,36 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
         <div className="flex flex-col h-full overflow-hidden">
           {/* Header */}
           <div className={`bg-[hsl(220,50%,10%)] flex items-center dark:bg-[hsl(220,50%,10%)] px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
-            {!sidebarCollapsed && (
+           
+           <Link to="/" className="flex items-center shrink-0">
+            {(dealerLogoUrl || dealerName) ? (
+              <div className="flex flex-col leading-none">
+                <div className="flex items-center gap-2">
+                  {dealerLogoUrl && (
+                    <img
+                      src={dealerLogoUrl}
+                      alt={dealerName || 'Dealer'}
+                      className="h-8 w-auto max-w-[120px] object-contain"
+                    />
+                  )}
+                  {!sidebarCollapsed && dealerName && (
+                    <span className="text-base font-bold text-foreground dark:text-slate-100 truncate max-w-[180px]">
+                      {dealerName}
+                    </span>
+                  )}
+                </div>
+             
+              </div>
+            ) : (
+              <> {
+                !sidebarCollapsed && (
               <img src="/images/autoadvant-logo.png" alt="AutoAdvant" className="h-10 w-auto" />
             )}
             {sidebarCollapsed && (
               <img src="/images/auth_logo.png" alt="AutoAdvant" className="h-8 w-8 object-contain rounded" />
+            )}</>
             )}
+          </Link>
             <div className="flex items-center gap-1">
               {/* Desktop collapse toggle */}
               <button
@@ -589,8 +618,9 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
         <SiteHeader
           variant="app"
           showNav={false}
-          dealerName={dealerName}
-          dealerLogoUrl={dealerLogoUrl}
+          showLogo={false}
+          dealerName={''}
+          dealerLogoUrl={''}
           leftSlot={
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground dark:text-slate-100">
               <Menu className="h-5 w-5" />

@@ -36,12 +36,14 @@ import ActivityLogsPage from "./pages/ActivityLogsPage.tsx";
 import MyProfilePage from "./pages/MyProfilePage.tsx";
 import { ROUTE_ALLOWED_ROLES } from "@/constants/roles";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import { WhitelabelProvider } from "@/hooks/useWhitelabel";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
    <ThemeProvider>
+    <WhitelabelProvider>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -83,6 +85,7 @@ const App = () => (
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
+    </WhitelabelProvider>
    </ThemeProvider>
   </QueryClientProvider>
 );

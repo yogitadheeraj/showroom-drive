@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, useCallback, ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
 import { apiGet } from '@/lib/apiClient';
@@ -54,13 +54,13 @@ export function DealerContextProvider({ children }: { children: ReactNode }) {
   });
   const [loading, setLoading] = useState(true);
 
-  const setSelectedLocationId = (id: string | null) => {
+  const setSelectedLocationId = useCallback((id: string | null) => {
     try {
       if (id) localStorage.setItem(SELECTED_LOCATION_KEY, id);
       else localStorage.removeItem(SELECTED_LOCATION_KEY);
     } catch { /* storage unavailable */ }
     setSelectedLocationIdRaw(id);
-  };
+  }, []); // setSelectedLocationIdRaw from useState is stable
 
   useEffect(() => {
     if (!user) {
@@ -126,7 +126,17 @@ export function DealerContextProvider({ children }: { children: ReactNode }) {
           setDealerLocations(locs);
           const ids = locs.map((l) => l.id);
           setAllDealerLocationIds(ids);
-          setSelectedLocationIdRaw((prev) => (prev && ids.includes(prev) ? prev : null));
+          // Validate stored selection; clear localStorage if no longer valid
+          setSelectedLocationIdRaw((prev) => {
+            const next = prev && ids.includes(prev) ? prev : null;
+            if (next !== prev) {
+              try {
+                if (next) localStorage.setItem(SELECTED_LOCATION_KEY, next);
+                else localStorage.removeItem(SELECTED_LOCATION_KEY);
+              } catch { /* ok */ }
+            }
+            return next;
+          });
         } else {
           setDealerName(null);
           setDealerLogoUrl(null);
@@ -149,7 +159,10 @@ export function DealerContextProvider({ children }: { children: ReactNode }) {
     void fetchDealer();
   }, [user, role, profile]);
 
-  const dealerLocationIds = selectedLocationId ? [selectedLocationId] : allDealerLocationIds;
+  const dealerLocationIds = useMemo(
+    () => selectedLocationId ? [selectedLocationId] : allDealerLocationIds,
+    [selectedLocationId, allDealerLocationIds]
+  );
 
   return (
     <DealerCtx.Provider

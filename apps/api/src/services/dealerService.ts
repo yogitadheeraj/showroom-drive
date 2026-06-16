@@ -23,6 +23,12 @@ export async function getDealerById(id: string) {
   const o = { ...doc } as any; delete o._id; return o;
 }
 
+export async function getDealerBySlug(slug: string) {
+  const doc = await Dealer.findOne({ slug, is_active: true }).lean();
+  if (!doc) return null;
+  const o = { ...doc } as any; delete o._id; return o;
+}
+
 export async function createDealer(data: Record<string, unknown>) {
   const now = new Date().toISOString();
   const doc = new Dealer({ ...data, id: String(data.id || randomUUID()), created_at: now, updated_at: now });

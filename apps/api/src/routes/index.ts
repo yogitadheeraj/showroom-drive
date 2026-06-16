@@ -69,6 +69,7 @@ import {
   createDealerController,
   deleteDealerController,
   getDealerController,
+  getDealerBrandingController,
   listDealersController,
   updateDealerController,
 } from '../controllers/dealerController.js';
@@ -286,6 +287,7 @@ apiRouter.post('/car-bookings', requireAuth, createCarBookingController);
 apiRouter.patch('/car-bookings/:id', requireAuth, updateCarBookingController);
 
 // Dealers
+apiRouter.get('/dealers/branding/:slug', getDealerBrandingController); // public — no auth
 apiRouter.get('/dealers', listDealersController);
 apiRouter.get('/dealers/:id', getDealerController);
 apiRouter.post('/dealers', requireAuth, createDealerController);
