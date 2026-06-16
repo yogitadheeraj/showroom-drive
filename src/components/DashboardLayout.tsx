@@ -624,10 +624,42 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           leftSlot={
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground dark:text-slate-100">
               <Menu className="h-5 w-5" />
+              
             </button>
           }
           rightSlot={
             <>
+              {role === APP_ROLE.DEALER_ADMIN && dealerLocations.length > 1 && (
+            <div className="flex items-center gap-3 rounded-xl bg-transparent">
+              <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground whitespace-nowrap">Filter by location:</span>
+              <Select
+                value={selectedLocationId ?? '__all__'}
+                onValueChange={(v) => setSelectedLocationId(v === '__all__' ? null : v)}
+              >
+                <SelectTrigger className="h-8 w-64 max-w-full text-sm">
+                  <SelectValue placeholder="All Locations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All Locations</SelectItem>
+                  {dealerLocations.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      {loc.name}{loc.city ? ` — ${loc.city}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedLocationId && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedLocationId(null)}
+                  className="ml-auto text-xs text-muted-foreground underline hover:text-foreground"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
               <Button
                 variant="outline"
                 size="sm"
@@ -652,15 +684,8 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                   <p className="text-[11px] text-muted-foreground dark:text-slate-400">{displayRole}</p>
                 </div>
               </Link>
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden sm:inline-flex"
-                onClick={handleSignOut}
-              >
-                <LogOut className="h-4 w-4 mr-1.5" />
-                Sign Out
-              </Button>
+             
+              
             </>
           }
         />
@@ -704,37 +729,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
               </div>
             </div>
           )}
-          {role === APP_ROLE.DEALER_ADMIN && dealerLocations.length > 1 && (
-            <div className="mb-4 flex items-center gap-3 rounded-xl border border-border bg-muted/50 px-4 py-2.5 dark:border-white/10 dark:bg-white/5">
-              <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Filter by location:</span>
-              <Select
-                value={selectedLocationId ?? '__all__'}
-                onValueChange={(v) => setSelectedLocationId(v === '__all__' ? null : v)}
-              >
-                <SelectTrigger className="h-8 w-64 max-w-full text-sm">
-                  <SelectValue placeholder="All Locations" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All Locations</SelectItem>
-                  {dealerLocations.map((loc) => (
-                    <SelectItem key={loc.id} value={loc.id}>
-                      {loc.name}{loc.city ? ` — ${loc.city}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedLocationId && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedLocationId(null)}
-                  className="ml-auto text-xs text-muted-foreground underline hover:text-foreground"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          )}
+        
           {children}
         </div>
       </main>
