@@ -74,7 +74,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
             <a href="/#benefits" className="transition hover:text-foreground dark:hover:text-white">Benefits</a>
             <a href="/#contact" className="transition hover:text-foreground dark:hover:text-white">Contact</a>
             <Link to="/dealer-onboarding" className="transition hover:text-foreground dark:hover:text-white">Dealer Onboarding</Link>
-            <Link to="/compare" className="transition hover:text-foreground dark:hover:text-white">Compare Vehicles</Link>
+            <Link to="/compare" className="transition hover:text-foreground dark:hover:text-white">Compare Vehicles Test</Link>
             <Link to={staffEntryPath} className="transition hover:text-foreground dark:hover:text-white">Staff Login</Link>
           </nav>
         )}

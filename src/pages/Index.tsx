@@ -969,7 +969,7 @@ export default function AutoAdvantLandingPage() {
 
                     <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
                         <Link to="/dealer-onboarding" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Dealer Onboarding</Link>
-                        <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
+                        <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles Test</Link>
                         <Link to={staffEntryPath} className="text-sm text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
                     </div>
                     <p className="text-xs sm:text-sm text-muted-foreground text-center">© {new Date().getFullYear()} AutoAdvant — Smart Test Drive & Lead Platform</p>
