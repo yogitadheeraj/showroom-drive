@@ -39,7 +39,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
                     />
                   )}
                   {dealerName && (
-                    <span className="text-base font-bold text-foreground dark:text-slate-100 truncate max-w-[180px]">
+                    <span className="text-base font-bold text-white dark:text-slate-100 truncate max-w-[180px]">
                       {dealerName}
                     </span>
                   )}
