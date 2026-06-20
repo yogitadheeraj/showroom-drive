@@ -68,6 +68,7 @@ async function processQueue(
         subject: payload.subject,
         html: payload.html,
         text: payload.text,
+        attachments: payload.attachments as any,
       });
 
       await EmailSendLog.create({

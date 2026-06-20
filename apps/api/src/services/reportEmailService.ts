@@ -10,16 +10,16 @@ import { sendMail } from './mailService.js';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface TestDriveStats {
+export interface TestDriveStats {
   scheduled: number; confirmed: number; show: number; no_show: number;
   in_progress: number; completed: number; cancelled: number; rescheduled: number;
 }
 
-interface SalesPersonData { id: string; name: string; assigned: number; completed: number; no_show: number; }
-interface SecurityData { id: string; name: string; checked_in: number; checked_out: number; }
-interface GROData { id: string; name: string; assigned: number; completed: number; }
+export interface SalesPersonData { id: string; name: string; assigned: number; completed: number; no_show: number; }
+export interface SecurityData { id: string; name: string; checked_in: number; checked_out: number; }
+export interface GROData { id: string; name: string; assigned: number; completed: number; }
 
-interface ReportData {
+export interface ReportData {
   dealer: { id: string; name: string; email: string };
   location: { id: string; name: string };
   reportDate: string;
@@ -37,7 +37,7 @@ interface ReportData {
 
 // ── HTML Report Generator ─────────────────────────────────────────────────────
 
-function generateReportHTML(report: ReportData): string {
+export function generateReportHTML(report: ReportData): string {
   const dateFormatted = new Date(report.reportDate).toLocaleDateString('en-IN', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
@@ -145,7 +145,7 @@ function generateReportHTML(report: ReportData): string {
 
 // ── Report Data Builder ───────────────────────────────────────────────────────
 
-async function buildReportData(locationId: string, reportDate: string): Promise<ReportData | null> {
+export async function buildReportData(locationId: string, reportDate: string): Promise<ReportData | null> {
   const location = await Location.findOne({ id: locationId }).lean();
   if (!location) return null;
 

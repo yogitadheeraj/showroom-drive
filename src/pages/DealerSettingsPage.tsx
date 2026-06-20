@@ -27,8 +27,8 @@ const DealerSettingsPage = () => {
           <p className="text-sm text-muted-foreground mt-1">Manage your dealership profile and brand settings</p>
         </div>
 
-        <Tabs defaultValue="profile" className="space-y-6">
-          <div className="w-full overflow-x-auto pb-1 -mb-1">
+        <Tabs defaultValue="profile" className="space-y-6 divide-y divide-border border-t pt-6 dark:divide-white/10">
+          <div className="w-full overflow-x-auto pb-1 -mb-1 flex items-center justify-start">
             <TabsList className="w-max min-w-full flex justify-start">
             <TabsTrigger value="profile" className="gap-2 shrink-0">
               <Building2 className="h-4 w-4" /> Dealership Profile

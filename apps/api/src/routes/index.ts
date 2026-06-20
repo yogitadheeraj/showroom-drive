@@ -158,6 +158,22 @@ import {
   uploadCustomerDocumentController,
 } from '../controllers/customerBookingController.js';
 import {
+  deleteReportDispatchConfigController,
+  downloadReportController,
+  getReportDispatchConfigController,
+  listReportDispatchConfigsController,
+  reportRecipientsPreviewController,
+  runReportDispatchJobNowController,
+  sendReportNowController,
+  upsertReportDispatchConfigController,
+} from '../controllers/reportController.js';
+import {
+  chatStreamController,
+  deleteConversationController,
+  getConversationController,
+  listConversationsController,
+} from '../controllers/agentController.js';
+import {
   fleetOverviewController,
   vehicleAvailabilityController,
   listTransitsController,
@@ -368,4 +384,20 @@ apiRouter.post('/firebase/users/:uid/claims', requireAuth, setCustomClaimsContro
 
 // Firebase – Test Drive Notifications
 apiRouter.post('/firebase/notify/test-drive', requireAuth, sendTestDriveNotificationController);
+
+// Reports
+apiRouter.get('/reports/download', requireAuth, downloadReportController);
+apiRouter.get('/reports/recipients-preview', requireAuth, reportRecipientsPreviewController);
+apiRouter.post('/reports/send', requireAuth, sendReportNowController);
+apiRouter.get('/reports/dispatch-config', requireAuth, listReportDispatchConfigsController);
+apiRouter.get('/reports/dispatch-config/:locationId', requireAuth, getReportDispatchConfigController);
+apiRouter.put('/reports/dispatch-config', requireAuth, upsertReportDispatchConfigController);
+apiRouter.delete('/reports/dispatch-config/:locationId', requireAuth, deleteReportDispatchConfigController);
+apiRouter.post('/reports/dispatch-jobs/run-now', requireAuth, requireSuperAdmin, runReportDispatchJobNowController);
+
+// AI Agent
+apiRouter.post('/agent/chat', requireAuth, chatStreamController);
+apiRouter.get('/agent/conversations', requireAuth, listConversationsController);
+apiRouter.get('/agent/conversations/:id', requireAuth, getConversationController);
+apiRouter.delete('/agent/conversations/:id', requireAuth, deleteConversationController);
 

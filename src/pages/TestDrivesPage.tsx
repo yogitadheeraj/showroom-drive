@@ -561,6 +561,7 @@ const TestDrivesPage = () => {
     setCalendarInsight(null);
   };
 
+
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6">
@@ -962,7 +963,7 @@ const TestDrivesPage = () => {
         ) : viewMode === 'grid' ? (
           <div className="space-y-6">
             {displayGroups.map(({ label, drives }) => (
-              <div key={label || '__all__'}>
+              <div key={label || ''}>
                 {label && (
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                     <User className="h-4 w-4 text-primary shrink-0" />

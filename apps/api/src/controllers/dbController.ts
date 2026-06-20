@@ -45,7 +45,9 @@ const LOCATION_SCOPED_TABLES = new Set([
   'location_blocked_slots',
   'location_operating_hours',
   'location_special_periods',
-  'sales_tasks'
+  'sales_tasks',
+  'report_audit_logs',
+  'report_dispatch_configs',
 ]);
 
 /** Tables scoped to a dealer group via `dealer_id`. */

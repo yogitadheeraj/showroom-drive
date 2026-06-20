@@ -29,6 +29,7 @@ import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
 import { getAppRoleLabel } from '@/lib/roles';
 import { logStaffActivity, updateActivitySession } from '@/lib/activityLogger';
 import SiteHeader from '@/components/SiteHeader';
+import AiChatPanel from '@/components/AiChatPanel';
 
 interface NavItem {
   label: string;
@@ -51,7 +52,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
-    { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
+    { label: 'Reports', path: '/reports/monitoring', icon: BarChart3 },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.DEALER_ADMIN]: [
@@ -69,7 +70,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
-    { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
+    { label: 'Reports', path: '/reports/monitoring', icon: BarChart3 },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.SALES_ADMIN]: [
@@ -87,7 +88,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
-    { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
+    { label: 'Reports', path: '/reports/monitoring', icon: BarChart3 },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.GRO]: [
@@ -134,6 +135,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
   });
@@ -634,14 +636,14 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
               <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="text-sm text-muted-foreground whitespace-nowrap">Filter by location:</span>
               <Select
-                value={selectedLocationId ?? '__all__'}
-                onValueChange={(v) => setSelectedLocationId(v === '__all__' ? null : v)}
+                value={selectedLocationId ?? 'all_locations'}
+                onValueChange={(v) => setSelectedLocationId(v === 'all_locations' ? null : v)}
               >
                 <SelectTrigger className="h-8 w-64 max-w-full text-sm">
                   <SelectValue placeholder="All Locations" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">All Locations</SelectItem>
+                  <SelectItem value="all_locations">All Locations</SelectItem>
                   {dealerLocations.map((loc) => (
                     <SelectItem key={loc.id} value={loc.id}>
                       {loc.name}{loc.city ? ` — ${loc.city}` : ''}
@@ -733,6 +735,22 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           {children}
         </div>
       </main>
+
+      {/* Floating AI Assistant button */}
+      <button
+        type="button"
+        onClick={() => setAiChatOpen(true)}
+        className="fixed bottom-6 right-6 z-40 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+        title="Ask AutoAdvant AI"
+        aria-label="Open AI assistant"
+      >
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+        </svg>
+      </button>
+
+      {/* AI Chat Panel */}
+      <AiChatPanel isOpen={aiChatOpen} onClose={() => setAiChatOpen(false)} />
     </div>
   );
 };

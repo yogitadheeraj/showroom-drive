@@ -36,4 +36,8 @@ export const env = {
   oauthStateSecret: process.env.OAUTH_STATE_SECRET || 'change-me-in-production',
   // Public frontend URL (used for customer-facing links in emails)
   publicFrontendUrl: process.env.PUBLIC_FRONTEND_URL || 'http://localhost:8080',
+  // AI Agent — Gemini (OpenAI-compatible endpoint)
+  geminiApiKey: process.env.GEMINI_API_KEY || 'AQ.Ab8RN6LQLd6VNbuq0FMEkMwAolaXigs1-JlOWt4pdgo-0rz6GA.',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
+  geminiBaseUrl: process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai',
 };

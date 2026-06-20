@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Car, Edit2, MapPin, Palette, FileSpreadsheet, CalendarCheck, DollarSign, Zap, AlertCircle, Truck, PowerOff } from 'lucide-react';
+import { Plus, Car, Edit2, MapPin, Palette, FileSpreadsheet, CalendarCheck, DollarSign, Zap, AlertCircle, Truck, PowerOff, CheckCircle2, Fuel, Hash, Layers, Settings2, Image } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import BulkVehicleImport from '@/components/vehicles/BulkVehicleImport';
@@ -608,22 +608,55 @@ const VehiclesPage = () => {
 
         {/* ── Add / Edit Dialog ───────────────────── */}
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
-          <DialogContent>
+          <DialogContent className='sm:max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden'>
             <DialogHeader>
-              <DialogTitle className="font-heading">{editingId ? 'Edit Vehicle' : 'Add Vehicle'}</DialogTitle>
+              <DialogTitle className='font-heading'>{editingId ? 'Edit Vehicle' : 'Add Vehicle'}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-                {/* Stepper indicator */}
-              <div className="flex items-center justify-center gap-2">
-                {Array.from({ length: totalSteps }, (_, i) => i + 1).map((step) => (
-                  <div key={step} className={`h-1.5 w-20 rounded-full transition-colors ${formStep >= step ? 'bg-primary' : 'bg-muted'}`} />
-                ))}
-              </div>
+
+            {/* Named step indicator */}
+            {(() => {
+              const stepLabels = showDemoSetupStep
+                ? ['Vehicle Identity', 'Specs & Location', 'Demo Setup']
+                : ['Vehicle Identity', 'Specs & Location']
+              return (
+                <div className='flex items-start px-1 pb-1'>
+                  {stepLabels.map((label, idx) => {
+                    const step = idx + 1
+                    const isDone = formStep > step
+                    const isCurrent = formStep === step
+                    return (
+                      <div key={step} className='flex items-start flex-1'>
+                        <div className='flex flex-col items-center gap-1 min-w-0'>
+                          <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
+                            isDone ? 'bg-primary text-primary-foreground' : isCurrent ? 'bg-primary text-primary-foreground ring-4 ring-primary/20' : 'bg-muted text-muted-foreground'
+                          }`}>
+                            {isDone ? <CheckCircle2 className='h-4 w-4' /> : step}
+                          </div>
+                          <span className={`text-[10px] font-medium text-center leading-tight px-1 ${
+                            isCurrent ? 'text-primary' : isDone ? 'text-foreground' : 'text-muted-foreground'
+                          }`}>{label}</span>
+                        </div>
+                        {idx < stepLabels.length - 1 && (
+                          <div className={`flex-1 h-0.5 mt-3.5 mx-1 rounded-full ${formStep > step ? 'bg-primary' : 'bg-muted'}`} />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+
+            <div className='flex-1 overflow-y-auto'>
+            <div className='space-y-4 px-1 pb-2'>
 
               {/* ── Step 1: Identity ── */}
               {formStep === 1 && (
-                <Card className="border-2 border-primary">
-                  <CardContent className="p-4 space-y-4">
+                <Card className='border-2 border-primary/50 shadow-sm'>
+                  <CardContent className='p-4 space-y-4'>
+                    <div className='flex items-center gap-2 pb-1 border-b border-border/60'>
+                      <div className='h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center'><Layers className='h-4 w-4 text-primary' /></div>
+                      <div><p className='text-sm font-semibold text-foreground'>Vehicle Identity</p><p className='text-xs text-muted-foreground'>Category, brand, model and variant details</p></div>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label>Category *</Label>
@@ -777,8 +810,12 @@ const VehiclesPage = () => {
 
               {/* ── Step 2: Specs & Availability ── */}
               {formStep === 2 && (
-                <Card className="border-2 border-primary">
-                  <CardContent className="p-4 space-y-4">
+                <Card className='border-2 border-primary/50 shadow-sm'>
+                  <CardContent className='p-4 space-y-4'>
+                    <div className='flex items-center gap-2 pb-1 border-b border-border/60'>
+                      <div className='h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center'><Settings2 className='h-4 w-4 text-primary' /></div>
+                      <div><p className='text-sm font-semibold text-foreground'>Specs &amp; Location</p><p className='text-xs text-muted-foreground'>Powertrain, price, availability and location</p></div>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label>Powertrain</Label>
@@ -964,9 +1001,12 @@ const VehiclesPage = () => {
 
               {/* ── Step 3: Demo setup (optional) ── */}
               {formStep === 3 && showDemoSetupStep && (
-                <Card className="border-2 border-violet-400">
-                  <CardContent className="p-4 space-y-4">
-                    <p className="text-sm font-medium text-violet-700">⚡ Demo vehicle details (linked to new car above)</p>
+                <Card className='border-2 border-violet-400/60 shadow-sm'>
+                  <CardContent className='p-4 space-y-4'>
+                    <div className='flex items-center gap-2 pb-1 border-b border-violet-200/60'>
+                      <div className='h-7 w-7 rounded-lg bg-violet-100 flex items-center justify-center'><Zap className='h-4 w-4 text-violet-600' /></div>
+                      <div><p className='text-sm font-semibold text-violet-700'>Demo Vehicle Details</p><p className='text-xs text-muted-foreground'>Linked demo unit for this new vehicle</p></div>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label>Demo Variant Label</Label>
@@ -1000,20 +1040,21 @@ const VehiclesPage = () => {
               )}
 
               {/* Stepper controls */}
-              <div className="flex gap-2">
-                {formStep > 1 && <Button variant="outline" onClick={() => setFormStep((s) => Math.max(s - 1, 1))} className="flex-1">Back</Button>}
+              <div className='flex gap-2 pt-1'>
+                {formStep > 1 && <Button variant='outline' onClick={() => setFormStep((s) => Math.max(s - 1, 1))} className='flex-1'>← Back</Button>}
                 {formStep < totalSteps && (
-                  <Button onClick={() => setFormStep((s) => Math.min(s + 1, totalSteps))} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">
-                    {formStep === 2 && showDemoSetupStep ? 'Configure Demo →' : 'Next →'}
+                  <Button onClick={() => setFormStep((s) => Math.min(s + 1, totalSteps))} className='flex-1 bg-primary text-primary-foreground hover:bg-primary/90'>
+                    {formStep === 2 && showDemoSetupStep ? 'Configure Demo →' : 'Next: ' + (showDemoSetupStep ? ['Specs & Location', 'Demo Setup'][formStep - 1] : 'Specs & Location') + ' →'}
                   </Button>
                 )}
                 {formStep === totalSteps && (
-                  <Button onClick={handleSubmit} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">
-                    {editingId ? 'Update Vehicle' : 'Add Vehicle'}
+                  <Button onClick={handleSubmit} className='flex-1 bg-primary text-primary-foreground hover:bg-primary/90'>
+                    {editingId ? '✓ Update Vehicle' : '✓ Add Vehicle'}
                   </Button>
                 )}
               </div>
             </div>
+            </div>{/* end scrollable */}
           </DialogContent>
         </Dialog>
 

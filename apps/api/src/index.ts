@@ -8,10 +8,49 @@ import { attachAuthUser } from './middleware/auth.js';
 import { apiRouter } from './routes/index.js';
 import { processEmailQueues } from './services/emailProcessorService.js';
 import { runTestDriveReminderJobs } from './services/testDriveReminderService.js';
+import { processConfiguredReportDispatchJobs } from './services/reportDeliveryService.js';
 
 const app = express();
 
-app.use(cors({ origin: env.corsOrigin, credentials: true }));
+// CORS configuration: allow multiple origins for development
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Allow requests without origin (like mobile apps, curl, postman)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    const allowedOrigins = [
+      env.corsOrigin, // Default from .env (typically http://localhost:8080)
+      'http://localhost:8080',
+      'http://localhost:8081',
+      'http://localhost:8082',
+      'http://127.0.0.1:8080',
+      'http://127.0.0.1:8081',
+      'http://127.0.0.1:8082',
+    ];
+
+    // In production, only allow configured origin
+    if (env.nodeEnv === 'production') {
+      if (origin === env.corsOrigin) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    } else {
+      // In development, allow localhost origins
+      if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:')) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(attachAuthUser);
@@ -52,6 +91,22 @@ async function start() {
     void runTestDriveReminderJobs();
   }, REMINDER_INTERVAL_MS);
 
+  // Configured report dispatch scheduler — runs every 5 minutes
+  const REPORT_DISPATCH_INTERVAL_MS = 5 * 60_000;
+  void processConfiguredReportDispatchJobs();
+  const reportDispatchInterval = setInterval(async () => {
+    try {
+      const result = await processConfiguredReportDispatchJobs();
+      if (result.processed > 0 || result.failures > 0) {
+        console.log(
+          `[reportDispatch] processed=${result.processed} skipped=${result.skipped} failures=${result.failures}`,
+        );
+      }
+    } catch (err) {
+      console.error('[reportDispatch] Error while processing configured report jobs', err);
+    }
+  }, REPORT_DISPATCH_INTERVAL_MS);
+
   const server = app.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`);
   });
@@ -60,6 +115,7 @@ async function start() {
     console.log(`[shutdown] ${signal} received — closing gracefully`);
     clearInterval(emailInterval);
     clearInterval(reminderInterval);
+    clearInterval(reportDispatchInterval);
     server.close();
     await mongoose.disconnect();
     const apps = getApps();
