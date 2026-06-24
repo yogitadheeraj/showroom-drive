@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Upload, X, ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { ENTITY_ORCHESTRATION, ENTITY_ORCHESTRATION_LABEL } from '@/constants/entityOrchestration';
 
 interface BrandForm {
   id: string;
@@ -134,7 +135,7 @@ const BrandSettings = () => {
     return (
       <Card className="shadow-elevated">
         <CardContent className="py-12 text-center text-muted-foreground">
-          Create your dealership first in the Dealership Profile tab.
+          Create your {ENTITY_ORCHESTRATION.dealer.toLowerCase()} first in the {ENTITY_ORCHESTRATION.dealer} Profile tab.
         </CardContent>
       </Card>
     );
@@ -142,10 +143,11 @@ const BrandSettings = () => {
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">Orchestration: {ENTITY_ORCHESTRATION_LABEL}</p>
       <Card className="shadow-elevated">
         <CardContent className="p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
           <div className="flex-1 space-y-2">
-            <Label>Add a Brand</Label>
+            <Label>Add {ENTITY_ORCHESTRATION.brands}</Label>
             <Input
               value={newBrandName}
               onChange={e => setNewBrandName(e.target.value)}
@@ -159,7 +161,7 @@ const BrandSettings = () => {
             className="gap-2"
           >
             <Plus className="h-4 w-4" />
-            {addingBrand ? 'Adding…' : 'Add Brand'}
+            {addingBrand ? 'Adding…' : `Add ${ENTITY_ORCHESTRATION.dealer} ${ENTITY_ORCHESTRATION.brands}`}
           </Button>
         </CardContent>
       </Card>
@@ -167,7 +169,7 @@ const BrandSettings = () => {
       {brands.length === 0 && (
         <Card className="shadow-elevated">
           <CardContent className="py-10 text-center text-muted-foreground">
-            No brands yet. Add your first brand above.
+            No {ENTITY_ORCHESTRATION.brands.toLowerCase()} yet. Add your first one above.
           </CardContent>
         </Card>
       )}

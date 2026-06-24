@@ -16,6 +16,7 @@ import { Car, CheckCircle, Zap, ArrowRight, MapPin, Clock, User, ChevronRight, S
 import { z } from 'zod';
 import { format, isBefore, startOfDay } from 'date-fns';
 import { checkAndReleaseNoShowBookings, getAvailableTimeSlots, getAvailableVehicles } from '@/lib/slotAvailability';
+import { ENTITY_ORCHESTRATION, ENTITY_ORCHESTRATION_LABEL } from '@/constants/entityOrchestration';
 
 const STEPS = [
   { id: 'vehicle', label: 'Vehicle', icon: Car },
@@ -1024,6 +1025,7 @@ const BookingPage = () => {
                   <p className="text-sm text-muted-foreground">No locations have this model available. Try a different model.</p>
                 ) : (
                   <>
+                    <p className="text-xs text-muted-foreground">Orchestration: {ENTITY_ORCHESTRATION_LABEL}</p>
                     <div className="grid gap-3">
                       {openLocationsForDate.map(loc => {
                         const isSelected = formData.locationId === loc.id;
@@ -1063,10 +1065,10 @@ const BookingPage = () => {
                                 <p className="text-xs text-muted-foreground">{loc.address}, {loc.city}</p>
                                 <div className="mt-1.5 space-y-1">
                                   <p className="text-[11px] text-muted-foreground">
-                                    Dealer: <span className="font-medium text-foreground">{dealerNamesById[loc.dealer_id] || 'Unknown'}</span>
+                                    {ENTITY_ORCHESTRATION.dealer}: <span className="font-medium text-foreground">{dealerNamesById[loc.dealer_id] || 'Unknown'}</span>
                                   </p>
                                   <p className="text-[11px] text-muted-foreground">
-                                    Brands: <span className="font-medium text-foreground">{(brandsByDealerId[loc.dealer_id] || []).join(', ') || 'No brands mapped'}</span>
+                                    {ENTITY_ORCHESTRATION.brands}: <span className="font-medium text-foreground">{(brandsByDealerId[loc.dealer_id] || []).join(', ') || `No ${ENTITY_ORCHESTRATION.brands.toLowerCase()} mapped`}</span>
                                   </p>
                                 </div>
                               </div>
@@ -1323,10 +1325,10 @@ const BookingPage = () => {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div><span className="text-muted-foreground">Vehicle:</span> <span className="font-medium text-foreground">{(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle) ? `${(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.brand} ${(vehicleCategoryFilter === 'new' ? selectedVariantVehicle : selectedVehicle)?.model}` : '—'}</span></div>
                     <div><span className="text-muted-foreground">Date:</span> <span className="font-medium text-foreground">{formData.scheduledDate || '—'}</span></div>
-                    <div><span className="text-muted-foreground">Location:</span> <span className="font-medium text-foreground">{selectedLocation?.name || '—'}</span></div>
+                    <div><span className="text-muted-foreground">{ENTITY_ORCHESTRATION.location}:</span> <span className="font-medium text-foreground">{selectedLocation?.name || '—'}</span></div>
                     <div><span className="text-muted-foreground">Time:</span> <span className="font-medium text-foreground">{formData.scheduledTime || '—'}</span></div>
-                    <div><span className="text-muted-foreground">Dealer:</span> <span className="font-medium text-foreground">{selectedLocation ? dealerNamesById[selectedLocation.dealer_id] || 'Unknown' : '—'}</span></div>
-                    <div><span className="text-muted-foreground">Brands:</span> <span className="font-medium text-foreground">{selectedLocation ? (brandsByDealerId[selectedLocation.dealer_id] || []).join(', ') || 'No brands mapped' : '—'}</span></div>
+                    <div><span className="text-muted-foreground">{ENTITY_ORCHESTRATION.dealer}:</span> <span className="font-medium text-foreground">{selectedLocation ? dealerNamesById[selectedLocation.dealer_id] || 'Unknown' : '—'}</span></div>
+                    <div><span className="text-muted-foreground">{ENTITY_ORCHESTRATION.brands}:</span> <span className="font-medium text-foreground">{selectedLocation ? (brandsByDealerId[selectedLocation.dealer_id] || []).join(', ') || `No ${ENTITY_ORCHESTRATION.brands.toLowerCase()} mapped` : '—'}</span></div>
                   </div>
                 </div>
               </div>

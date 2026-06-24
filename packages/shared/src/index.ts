@@ -1,8 +1,12 @@
 export const APP_ROLE = {
   SUPERADMIN: 'superadmin',
+  ENTITY: 'entity',
+  BRAND_ADMIN: 'brand_admin',
+  BRAND_BRANCH_ADMIN: 'brand_branch_admin',
   DEALER_ADMIN: 'dealer_admin',
+  SALES_ADMIN: 'sales_admin',
+  SALES_PERSON: 'sales_person',
   GRO: 'gro',
-  SALES: 'sales',
   SECURITY: 'security',
 } as const;
 

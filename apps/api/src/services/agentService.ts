@@ -2,10 +2,13 @@ import OpenAI from 'openai';
 import { randomUUID } from 'node:crypto';
 import { Response } from 'express';
 import { env } from '../config/env.js';
+import { ENTITY_ORCHESTRATION_LABEL } from '../config/entityOrchestration.js';
 import { AgentConversation } from '../models/AgentConversation.js';
 import { AGENT_TOOLS, executeTool } from './agentTools.js';
 
 const SYSTEM_PROMPT = `You are AutoAdvant AI, a smart dealership operations assistant embedded inside the AutoAdvant showroom management platform.
+
+Core hierarchy: ${ENTITY_ORCHESTRATION_LABEL}
 
 Your role is to help dealership staff - sales reps, branch admins, dealer admins, GRO (Guest Relationship Officers) and security - with their daily operations.
 

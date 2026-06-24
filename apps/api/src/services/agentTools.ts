@@ -4,6 +4,7 @@ import { Vehicle } from '../models/Vehicle.js';
 import { Location } from '../models/Location.js';
 import { Profile } from '../models/Profile.js';
 import { StaffActivityEvent } from '../models/StaffActivityEvent.js';
+import { ENTITY_ORCHESTRATION } from '../config/entityOrchestration.js';
 
 type JsonSchema = {
   type: 'object';
@@ -32,7 +33,7 @@ export const AGENT_TOOLS: AgentTool[] = [
       parameters: {
         type: 'object',
         properties: {
-          location_id: { type: 'string', description: 'The location/showroom ID. Use the user\'s assigned location if not specified.' },
+          location_id: { type: 'string', description: `The ${ENTITY_ORCHESTRATION.location.toLowerCase()} ID. Use the user's assigned ${ENTITY_ORCHESTRATION.location.toLowerCase()} if not specified.` },
           date_from: { type: 'string', description: 'Start date YYYY-MM-DD (default: today)' },
           date_to: { type: 'string', description: 'End date YYYY-MM-DD (default: today)' },
         },
@@ -45,11 +46,11 @@ export const AGENT_TOOLS: AgentTool[] = [
     function: {
       name: 'list_recent_test_drives',
       description:
-        'List recent test drives for a location with customer, vehicle and status details. Returns up to 20 most recent entries.',
+        `List recent test drives for a ${ENTITY_ORCHESTRATION.location.toLowerCase()} with customer, vehicle and status details. Returns up to 20 most recent entries.`,
       parameters: {
         type: 'object',
         properties: {
-          location_id: { type: 'string', description: 'The location/showroom ID.' },
+          location_id: { type: 'string', description: `The ${ENTITY_ORCHESTRATION.location.toLowerCase()} ID.` },
           status: { type: 'string', description: 'Filter by status: scheduled|confirmed|show|in_progress|completed|no_show|cancelled|rescheduled' },
           date: { type: 'string', description: 'Filter by scheduled date YYYY-MM-DD' },
           limit: { type: 'number', description: 'Max records to return (max 20)' },
@@ -67,7 +68,7 @@ export const AGENT_TOOLS: AgentTool[] = [
         type: 'object',
         properties: {
           search: { type: 'string', description: 'Customer name or phone number to search for.' },
-          location_id: { type: 'string', description: 'Optional: restrict search to a specific location.' },
+          location_id: { type: 'string', description: `Optional: restrict search to a specific ${ENTITY_ORCHESTRATION.location.toLowerCase()}.` },
         },
         required: ['search'],
       },
@@ -77,11 +78,11 @@ export const AGENT_TOOLS: AgentTool[] = [
     type: 'function',
     function: {
       name: 'get_vehicle_availability',
-      description: 'Check vehicle availability and inventory at a location. Returns available units per vehicle.',
+      description: `Check vehicle availability and inventory at a ${ENTITY_ORCHESTRATION.location.toLowerCase()}. Returns available units per vehicle.`,
       parameters: {
         type: 'object',
         properties: {
-          location_id: { type: 'string', description: 'The location/showroom ID.' },
+          location_id: { type: 'string', description: `The ${ENTITY_ORCHESTRATION.location.toLowerCase()} ID.` },
           brand: { type: 'string', description: 'Optional: filter by brand name.' },
         },
         required: ['location_id'],
@@ -92,11 +93,11 @@ export const AGENT_TOOLS: AgentTool[] = [
     type: 'function',
     function: {
       name: 'get_staff_activity_summary',
-      description: 'Get a summary of staff activity events for a location on a given date. Shows event counts by type and by role.',
+      description: `Get a summary of staff activity events for a ${ENTITY_ORCHESTRATION.location.toLowerCase()} on a given date. Shows event counts by type and by role.`,
       parameters: {
         type: 'object',
         properties: {
-          location_id: { type: 'string', description: 'The location/showroom ID.' },
+          location_id: { type: 'string', description: `The ${ENTITY_ORCHESTRATION.location.toLowerCase()} ID.` },
           date: { type: 'string', description: 'Date YYYY-MM-DD (default: today).' },
         },
         required: ['location_id'],
@@ -107,11 +108,11 @@ export const AGENT_TOOLS: AgentTool[] = [
     type: 'function',
     function: {
       name: 'get_location_info',
-      description: 'Get details about a showroom location including name, city, operating status and linked dealer.',
+      description: `Get details about a ${ENTITY_ORCHESTRATION.location.toLowerCase()} including name, city, operating status and linked ${ENTITY_ORCHESTRATION.dealer.toLowerCase()}.`,
       parameters: {
         type: 'object',
         properties: {
-          location_id: { type: 'string', description: 'The location ID.' },
+          location_id: { type: 'string', description: `The ${ENTITY_ORCHESTRATION.location.toLowerCase()} ID.` },
         },
         required: ['location_id'],
       },

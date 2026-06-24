@@ -7,6 +7,7 @@ export interface ILocation extends Document {
   city: string | null;
   state: string | null;
   country: string | null;
+  brands: { name: string; is_active: boolean }[];
   address: string | null;
   pincode: string | null;
   phone: string | null;
@@ -34,6 +35,7 @@ const LocationSchema = new Schema<ILocation>(
     city: { type: String, default: null },
     state: { type: String, default: null },
     country: { type: String, default: null },
+    brands: { type: [{ name: String, is_active: Boolean }], default: [] },
     address: { type: String, default: null },
     pincode: { type: String, default: null },
     phone: { type: String, default: null },

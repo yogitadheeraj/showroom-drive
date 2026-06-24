@@ -11,6 +11,7 @@ import { ArrowRight, BadgeCheck, Bell, Building2, CheckCircle2, Eye, EyeOff, Key
 import SiteHeader from '@/components/SiteHeader';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import { useWhitelabel } from '@/hooks/useWhitelabel';
+import { ENTITY_ORCHESTRATION } from '@/constants/entityOrchestration';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
@@ -171,7 +172,7 @@ const AuthPage = () => {
                   <CardTitle className="font-heading text-3xl font-bold tracking-tight">Welcome back</CardTitle>
                   <CardDescription className="text-sm leading-6 text-muted-foreground">
                     {brand.isBranded
-                      ? `Sign in to your ${brand.dealerName || 'dealership'} portal`
+                      ? `Sign in to your ${brand.dealerName || ENTITY_ORCHESTRATION.dealer.toLowerCase()} portal`
                       : 'Sign in to manage daily test drives, staff activity, customers, and scheduled reporting.'}
                   </CardDescription>
                 </CardHeader>
@@ -203,7 +204,7 @@ const AuthPage = () => {
                               <Input
                                 id="forgot-email"
                                 type="email"
-                                placeholder="name@dealership.com"
+                                placeholder="name@dealer.com"
                                 value={forgotEmail}
                                 onChange={(e) => setForgotEmail(e.target.value)}
                                 required
@@ -238,7 +239,7 @@ const AuthPage = () => {
                             <Input
                               id="signin-email"
                               type="email"
-                              placeholder="name@dealership.com"
+                              placeholder="name@dealer.com"
                               value={email}
                               onChange={(e) => setEmail(e.target.value)}
                               required

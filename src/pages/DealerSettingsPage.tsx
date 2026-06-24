@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Building2, Palette, Mail, SunMoon, BellRing, Key, CalendarClock, Plug } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
+import { ENTITY_ORCHESTRATION, ENTITY_ORCHESTRATION_LABEL } from '@/constants/entityOrchestration';
 
 const DealerSettingsPage = () => {
   const { role } = useAuth();
@@ -24,17 +25,17 @@ const DealerSettingsPage = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-heading font-bold text-foreground">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage your dealership profile and brand settings</p>
+          <p className="text-sm text-muted-foreground mt-1">Manage your entity stack: {ENTITY_ORCHESTRATION_LABEL}</p>
         </div>
 
         <Tabs defaultValue="profile" className="space-y-6 divide-y divide-border border-t pt-6 dark:divide-white/10">
           <div className="w-full overflow-x-auto pb-1 -mb-1 flex items-center justify-start">
             <TabsList className="w-max min-w-full flex justify-start">
             <TabsTrigger value="profile" className="gap-2 shrink-0">
-              <Building2 className="h-4 w-4" /> Dealership Profile
+              <Building2 className="h-4 w-4" /> {ENTITY_ORCHESTRATION.dealer} Profile
             </TabsTrigger>
             <TabsTrigger value="brands" className="gap-2 shrink-0">
-              <Palette className="h-4 w-4" /> Brand Settings
+              <Palette className="h-4 w-4" /> {ENTITY_ORCHESTRATION.entity} {ENTITY_ORCHESTRATION.brands}
             </TabsTrigger>
             <TabsTrigger value="reports" className="gap-2 shrink-0">
               <Mail className="h-4 w-4" /> Report Settings

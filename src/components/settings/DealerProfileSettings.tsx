@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Upload, X, Building2 } from 'lucide-react';
+import { ENTITY_ORCHESTRATION } from '@/constants/entityOrchestration';
 
 const DealerProfileSettings = () => {
   const { dealerId, loading: dealerLoading } = useDealerContext();
@@ -133,16 +134,16 @@ const DealerProfileSettings = () => {
       <Card className="shadow-elevated">
         <CardHeader>
           <CardTitle className="font-heading flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-primary" /> Set Up Your Dealership
+            <Building2 className="h-5 w-5 text-primary" /> Set Up Your {ENTITY_ORCHESTRATION.dealer}
           </CardTitle>
           <CardDescription>
-            No dealership is linked to your account yet. Create one below to unlock brand settings, locations, and reports.
+            No {ENTITY_ORCHESTRATION.dealer.toLowerCase()} is linked to your account yet. Create one below to unlock {ENTITY_ORCHESTRATION.brands.toLowerCase()}, locations, and reports.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Dealership Name *</Label>
+              <Label>{ENTITY_ORCHESTRATION.dealer} Name *</Label>
               <Input
                 value={createForm.name}
                 onChange={e => setCreateForm(prev => ({
@@ -185,7 +186,7 @@ const DealerProfileSettings = () => {
               className="gap-2"
             >
               <Save className="h-4 w-4" />
-              {creating ? 'Creating…' : 'Create Dealership'}
+              {creating ? 'Creating…' : `Create ${ENTITY_ORCHESTRATION.dealer}`}
             </Button>
           </div>
         </CardContent>
@@ -197,12 +198,12 @@ const DealerProfileSettings = () => {
     <Card className="shadow-elevated">
       <CardHeader>
         <CardTitle className="font-heading">Dealership Profile</CardTitle>
-        <CardDescription>Update your dealership information and logo</CardDescription>
+        <CardDescription>Update your {ENTITY_ORCHESTRATION.dealer.toLowerCase()} information and logo</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Logo */}
         <div className="space-y-3">
-          <Label>Dealership Logo</Label>
+          <Label>{ENTITY_ORCHESTRATION.dealer} Logo</Label>
           <div className="flex items-center gap-4">
             {form.logo_url ? (
               <div className="relative">
@@ -234,7 +235,7 @@ const DealerProfileSettings = () => {
         {/* Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Dealership Name *</Label>
+            <Label>{ENTITY_ORCHESTRATION.dealer} Name *</Label>
             <Input value={form.name} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} />
           </div>
           <div className="space-y-2">

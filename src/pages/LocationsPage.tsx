@@ -25,6 +25,7 @@ import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, 
 import { logStaffActivity } from '@/lib/activityLogger';
 import { cn } from '@/lib/utils';
 import { COUNTRIES, validatePhoneForCountry, validateEmail } from '@/lib/countries';
+import { ENTITY_ORCHESTRATION, ENTITY_ORCHESTRATION_LABEL } from '@/constants/entityOrchestration';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -54,7 +55,7 @@ const LocationsPage = () => {
 
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
+  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', brands: [] as { name: string; is_active: boolean }[] });
   const [locErrors, setLocErrors] = useState<Record<string, string>>({});
   const [hoursDialog, setHoursDialog] = useState<string | null>(null);
   const [hours, setHours] = useState<any[]>([]);
@@ -405,6 +406,7 @@ const LocationsPage = () => {
     if (!formData.city.trim()) errs.city = 'City is required';
     if (!formData.state.trim()) errs.state = 'State/Province is required';
     if (!formData.country.trim()) errs.country = 'Country is required';
+    if (!formData.brands || (Array.isArray(formData.brands) && formData.brands.length === 0)) errs.brands = 'Select at least one brand';
     setLocErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -447,7 +449,7 @@ const LocationsPage = () => {
       }
       setShowDialog(false);
       setEditingId(null);
-      setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
+      setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', brands: [] });
       setLocErrors({});
       fetchLocations();
     } catch (err: any) {
@@ -469,7 +471,12 @@ const LocationsPage = () => {
       longitude: loc.longitude || '',
       googleplaceid: loc.googleplaceid || '',
       maplink: loc.maplink || '',
-      currency_type: loc.currency_type || 'INR'
+      currency_type: loc.currency_type || 'INR',
+      brands: Array.isArray(loc.brands)
+        ? loc.brands.map((b: any) => (typeof b === 'string' ? { name: b, is_active: true } : { name: b.name || String(b), is_active: typeof b.is_active === 'boolean' ? b.is_active : true }))
+        : loc.brands
+          ? (typeof loc.brands === 'string' ? [{ name: loc.brands, is_active: true }] : [{ name: loc.brands.name || String(loc.brands), is_active: loc.brands.is_active ?? true }])
+          : [],
     });
     setLocErrors({});
     setShowDialog(true);
@@ -765,12 +772,13 @@ const LocationsPage = () => {
       <div className="space-y-4 sm:space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">Locations</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage your dealership locations and devices</p>
+            <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">{ENTITY_ORCHESTRATION.location}s</h1>
+            <p className="text-sm text-muted-foreground mt-1">Manage your {ENTITY_ORCHESTRATION.dealer.toLowerCase()} {ENTITY_ORCHESTRATION.location.toLowerCase()}s, devices, and {ENTITY_ORCHESTRATION.brands.toLowerCase()} mapping</p>
+            <p className="text-xs text-muted-foreground mt-1">Orchestration: {ENTITY_ORCHESTRATION_LABEL}</p>
           </div>
-          <Button onClick={() => { setEditingId(null); setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' }); setLocErrors({}); setStep(1); setShowDialog(true); }}
+          <Button onClick={() => { setEditingId(null); setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', brands: [] }); setLocErrors({}); setStep(1); setShowDialog(true); }}
             className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" /> Add Location
+            <Plus className="h-4 w-4 mr-2" /> Add {ENTITY_ORCHESTRATION.location}
           </Button>
         </div>
 
@@ -778,7 +786,7 @@ const LocationsPage = () => {
           <Card className="shadow-card">
             <CardContent className="p-8 sm:p-12 text-center">
               <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-              <p className="text-muted-foreground">No locations yet. Create your first location to get started.</p>
+              <p className="text-muted-foreground">No {ENTITY_ORCHESTRATION.location.toLowerCase()}s yet. Create your first {ENTITY_ORCHESTRATION.location.toLowerCase()} to get started.</p>
             </CardContent>
           </Card>
         ) : (
@@ -827,9 +835,10 @@ const LocationsPage = () => {
                     {dealerNamesById[loc.dealer_id] || 'Unknown'}
                   </Badge>
                   <Badge variant="secondary" className="text-[10px] max-w-xs truncate font-medium">
-                    {(dealerBrandsByDealerId[loc.dealer_id] || []).length > 0
-                      ? dealerBrandsByDealerId[loc.dealer_id].slice(0, 2).join(', ') + ((dealerBrandsByDealerId[loc.dealer_id] || []).length > 2 ? '...' : '')
-                      : 'No brands'}
+                    {(() => {
+                      const mapped = (loc.brands || []).map((b: any) => `${b.name}${b.is_active ? '' : ' (disabled)'}`);
+                      return mapped.length > 0 ? mapped.slice(0, 2).join(', ') + (mapped.length > 2 ? '...' : '') : 'No brands';
+                    })()}
                   </Badge>
                   {loc.currency_type && (
                     <Badge variant="outline" className="text-[10px] font-medium">
@@ -1030,6 +1039,48 @@ const LocationsPage = () => {
                       />
                       {locErrors.state && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.state}</p>}
                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Brands <span className="text-destructive">*</span></Label>
+                    <div className="flex flex-col gap-2">
+                      {((dealerBrandsByDealerId[dealerId] || []) as string[]).length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No brands configured for this dealer. Add brands first.</p>
+                      ) : (
+                        (dealerBrandsByDealerId[dealerId] || []).map((b: string) => {
+                          const mapped = (formData.brands || []).find((x: any) => x.name === b);
+                          return (
+                          <div key={b} className="flex items-center gap-3">
+                            <label className="inline-flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={!!mapped}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setFormData((p: any) => ({
+                                    ...p,
+                                    brands: checked
+                                      ? [...(p.brands || []), { name: b, is_active: true }]
+                                      : (p.brands || []).filter((x: any) => x.name !== b),
+                                  }));
+                                  setLocErrors(p => ({ ...p, brands: '' }));
+                                }}
+                              />
+                              <span className="text-sm">{b}</span>
+                            </label>
+                            {mapped && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Enabled</span>
+                                <Switch
+                                  checked={mapped.is_active}
+                                  onCheckedChange={(v) => setFormData((p: any) => ({ ...p, brands: (p.brands || []).map((x: any) => x.name === b ? { ...x, is_active: v } : x) }))}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        })
+                      )}
+                    </div>
+                    {locErrors.brands && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.brands}</p>}
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
                     <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>

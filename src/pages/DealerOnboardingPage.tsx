@@ -9,12 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Car, Building2, MapPin, User, CheckCircle, ArrowRight, ArrowLeft, Plus, X, Eye, EyeOff } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
+import { ENTITY_ORCHESTRATION, ENTITY_ORCHESTRATION_LABEL } from '@/constants/entityOrchestration';
 
 const STEPS = [
   { id: 'account', label: 'Admin Account', icon: User },
-  { id: 'dealer', label: 'Dealership', icon: Building2 },
-  { id: 'brands', label: 'Brands', icon: Car },
-  { id: 'locations', label: 'Locations', icon: MapPin },
+  { id: 'dealer', label: ENTITY_ORCHESTRATION.dealer, icon: Building2 },
+  { id: 'brands', label: ENTITY_ORCHESTRATION.brands, icon: Car },
+  { id: 'locations', label: `${ENTITY_ORCHESTRATION.location}s`, icon: MapPin },
 ];
 
 interface LocationForm {
@@ -24,6 +25,7 @@ interface LocationForm {
   state: string;
   phone: string;
   email: string;
+  brand?: string;
 }
 
 const DealerOnboardingPage = () => {
@@ -38,15 +40,15 @@ const DealerOnboardingPage = () => {
   const [dealerData, setDealerData] = useState({ name: '', contactEmail: '', contactPhone: '' });
   const [brands, setBrands] = useState<string[]>(['']);
   const [locationForms, setLocationForms] = useState<LocationForm[]>([
-    { name: '', address: '', city: '', state: '', phone: '', email: '' },
+    { name: '', address: '', city: '', state: '', phone: '', email: '', brand: '' },
   ]);
 
   const addBrand = () => setBrands(prev => [...prev, '']);
   const removeBrand = (i: number) => setBrands(prev => prev.filter((_, idx) => idx !== i));
   const updateBrand = (i: number, val: string) => setBrands(prev => prev.map((b, idx) => idx === i ? val : b));
 
-  const addLocation = () => setLocationForms(prev => [...prev, { name: '', address: '', city: '', state: '', phone: '', email: '' }]);
   const removeLocation = (i: number) => setLocationForms(prev => prev.filter((_, idx) => idx !== i));
+  const addLocation = () => setLocationForms(prev => [...prev, { name: '', address: '', city: '', state: '', phone: '', email: '', brand: '' }]);
   const updateLocation = (i: number, field: keyof LocationForm, val: string) =>
     setLocationForms(prev => prev.map((l, idx) => idx === i ? { ...l, [field]: val } : l));
 
@@ -55,7 +57,7 @@ const DealerOnboardingPage = () => {
       case 0: return accountData.fullName && accountData.email && accountData.password.length >= 6 && accountData.password === accountData.confirmPassword;
       case 1: return dealerData.name && dealerData.contactEmail;
       case 2: return brands.filter(b => b.trim()).length > 0;
-      case 3: return locationForms.every(l => l.name && l.address && l.city);
+      case 3: return locationForms.every(l => l.name && l.address && l.city && (!!l.brand || brands.filter(b => b.trim()).length === 1));
       default: return false;
     }
   };
@@ -126,6 +128,7 @@ const DealerOnboardingPage = () => {
           state: loc.state || '',
           phone: loc.phone || '',
           email: loc.email || '',
+          brands: loc.brand ? [loc.brand] : [],
         })),
       } as any);
 
@@ -152,6 +155,9 @@ const DealerOnboardingPage = () => {
 
       {/* Steps */}
       <div className="max-w-2xl mx-auto px-4 pt-6">
+        <p className="text-xs text-muted-foreground mb-3">
+          Orchestration: {ENTITY_ORCHESTRATION_LABEL}
+        </p>
         <div className="flex items-center justify-between mb-6">
           {STEPS.map((s, i) => {
             const Icon = s.icon;
@@ -182,15 +188,15 @@ const DealerOnboardingPage = () => {
           <CardHeader>
             <CardTitle className="font-heading">
               {step === 0 && 'Create Admin Account'}
-              {step === 1 && 'Dealership Details'}
-              {step === 2 && 'Add Your Brands'}
-              {step === 3 && 'Setup Locations'}
+              {step === 1 && `${ENTITY_ORCHESTRATION.dealer} Details`}
+              {step === 2 && `Add ${ENTITY_ORCHESTRATION.brands}`}
+              {step === 3 && `Setup ${ENTITY_ORCHESTRATION.location}s`}
             </CardTitle>
             <CardDescription>
               {step === 0 && 'This will be the master admin account for your dealership'}
-              {step === 1 && 'Tell us about your dealership'}
-              {step === 2 && 'Which vehicle brands do you sell?'}
-              {step === 3 && 'Add your showroom locations'}
+              {step === 1 && `Tell us about your ${ENTITY_ORCHESTRATION.dealer.toLowerCase()}`}
+              {step === 2 && `Configure ${ENTITY_ORCHESTRATION.entity.toLowerCase()} ${ENTITY_ORCHESTRATION.brands.toLowerCase()}`}
+              {step === 3 && `Add your showroom ${ENTITY_ORCHESTRATION.location.toLowerCase()}s`}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -235,7 +241,7 @@ const DealerOnboardingPage = () => {
             {step === 1 && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Dealership Name *</Label>
+                  <Label>{ENTITY_ORCHESTRATION.dealer} Name *</Label>
                   <Input value={dealerData.name} onChange={e => setDealerData(p => ({ ...p, name: e.target.value }))} placeholder="ABC Motors" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -308,6 +314,22 @@ const DealerOnboardingPage = () => {
                         <Label>Email</Label>
                         <Input value={loc.email} onChange={e => updateLocation(i, 'email', e.target.value)} placeholder="location@..." />
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Brand *</Label>
+                      <select
+                        className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
+                        value={loc.brand || ''}
+                        onChange={e => updateLocation(i, 'brand', e.target.value)}
+                      >
+                        <option value="">Select brand</option>
+                        {brands.filter(b => b.trim()).map((b, idx) => (
+                          <option key={idx} value={b}>{b}</option>
+                        ))}
+                      </select>
+                      {(!loc.brand && brands.filter(b => b.trim()).length > 1) && (
+                        <p className="text-xs text-destructive">Brand is required for each location</p>
+                      )}
                     </div>
                   </div>
                 ))}
