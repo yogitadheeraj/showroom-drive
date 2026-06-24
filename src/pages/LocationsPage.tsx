@@ -67,7 +67,7 @@ const LocationsPage = () => {
   const [advBookingDays, setAdvBookingDays] = useState<number>(30);
   const [advBookingDaysMap, setAdvBookingDaysMap] = useState<Record<string, number>>({});
   const { toast } = useToast();
-  const { dealerId, loading: dealerLoading } = useDealerContext();
+  const { organizationId, dealerId, loading: dealerLoading } = useDealerContext();
   const { role, profile } = useAuth();
 
   // Device management states
@@ -104,35 +104,45 @@ const LocationsPage = () => {
   };
 
   // Check if user can manage schedules / breaks
-  const canManageSchedules = [APP_ROLE.GRO, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN].includes(role as any);
+  const canManageSchedules = [APP_ROLE.GRO, APP_ROLE.DEALER_ADMIN, APP_ROLE.SALES_ADMIN, APP_ROLE.SUPERADMIN].includes(role as any);
 
   useEffect(() => {
     if (!dealerLoading) fetchLocations();
-  }, [dealerId, dealerLoading]);
+  }, [organizationId, dealerId, dealerLoading]);
 
   const fetchLocations = async () => {
-    const filters = dealerId ? [{ field: 'dealer_id', op: 'eq' as const, value: dealerId }] : undefined;
+    const activeOrgId = organizationId || dealerId;
+    const filters = []
     const data = await apiDbQuery<any[]>({
-      table: 'locations',
+      table: 'locations_new',
       action: 'select',
       select: '*',
       filters,
       order: [{ field: 'name', ascending: true }],
     });
-    setLocations(data || []);
-
-    if (data) {
+   const normalizedLocations = (data || []).map((loc: any) => {
+      const orgScopedId = String(loc.orgId?._id || loc.orgId || loc.organization_id || '');
+      return {
+        ...loc,
+        id: String(loc.id || loc._id || ''),
+        dealer_id: orgScopedId || null,
+      };
+    });
+    setLocations(normalizedLocations);
+   console.log('Fetched locations normalizedLocations:', data);
+  
+    if (normalizedLocations.length > 0) {
       const durations: Record<string, number> = {};
       const advDays: Record<string, number> = {};
-      data.forEach(loc => {
+      normalizedLocations.forEach(loc => {
         durations[loc.id] = getLocationSlotDuration(loc);
         advDays[loc.id] = loc.advance_booking_days ?? 30;
       });
       setSlotDurations(durations);
       setAdvBookingDaysMap(advDays);
     }
-    const locationIds = (data || []).map((loc) => loc.id);
-    const dealerIds = Array.from(new Set((data || []).map((loc) => loc.dealer_id).filter(Boolean)));
+    const locationIds = normalizedLocations.map((loc) => loc.id);
+    const dealerIds = Array.from(new Set(normalizedLocations.map((loc) => loc.dealer_id).filter(Boolean)));
     const today = new Date();
     const dayOfWeek = today.getDay();
     const todayStr = today.toISOString().split('T')[0];
@@ -140,12 +150,11 @@ const LocationsPage = () => {
     if (dealerIds.length > 0 || locationIds.length > 0) {
       const [dealersData, brandsData, todayHoursData, activePeriods] = await Promise.all([
         dealerIds.length > 0
-          ? apiDbQuery<any[]>({
-              table: 'dealers',
-              action: 'select',
-              select: 'id, name',
-              filters: [{ field: 'id', op: 'in', value: dealerIds }],
-            })
+          ? Promise.all(
+              dealerIds.map((id) =>
+                apiGet<any>(`/api/v1/organizations/${encodeURIComponent(id)}`).catch(() => null)
+              )
+            ).then((rows) => rows.filter(Boolean))
           : Promise.resolve([] as any[]),
         dealerIds.length > 0
           ? apiDbQuery<any[]>({
@@ -215,8 +224,8 @@ const LocationsPage = () => {
     }
 
     // Fetch related data for each location
-    if (data) {
-      data.forEach(loc => {
+    if (normalizedLocations.length > 0) {
+      normalizedLocations.forEach(loc => {
         fetchDevices(loc.id);
         fetchStaffCount(loc.id);
         fetchTestDriveCount(loc.id);
@@ -342,7 +351,7 @@ const LocationsPage = () => {
     if (!advBookingDaysDialog) return;
     try {
       await apiDbQuery({
-        table: 'locations',
+        table: 'locations_new',
         action: 'update',
         payload: { advance_booking_days: advBookingDays },
         filters: [{ field: 'id', op: 'eq', value: advBookingDaysDialog }],
@@ -361,7 +370,7 @@ const LocationsPage = () => {
     try {
       try {
         await apiDbQuery({
-          table: 'locations',
+          table: 'locations_new',
           action: 'update',
           payload: { slot_duration_minutes: slotDuration },
           filters: [{ field: 'id', op: 'eq', value: slotDurationDialog }],
@@ -377,7 +386,7 @@ const LocationsPage = () => {
 
         try {
           await apiDbQuery({
-            table: 'locations',
+            table: 'locations_new',
             action: 'update',
             payload: { metadata } as any,
             filters: [{ field: 'id', op: 'eq', value: slotDurationDialog }],
@@ -438,7 +447,7 @@ const LocationsPage = () => {
 
   const handleSubmit = async () => {
     if (!validateLocationStep2()) return;
-    const payload = { ...formData, dealer_id: dealerId };
+    const payload = { ...formData, orgId: organizationId || dealerId };
     try {
       if (editingId) {
         await updateLocation(editingId, payload as Record<string, unknown>);
@@ -1049,34 +1058,35 @@ const LocationsPage = () => {
                         (dealerBrandsByDealerId[dealerId] || []).map((b: string) => {
                           const mapped = (formData.brands || []).find((x: any) => x.name === b);
                           return (
-                          <div key={b} className="flex items-center gap-3">
-                            <label className="inline-flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={!!mapped}
-                                onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  setFormData((p: any) => ({
-                                    ...p,
-                                    brands: checked
-                                      ? [...(p.brands || []), { name: b, is_active: true }]
-                                      : (p.brands || []).filter((x: any) => x.name !== b),
-                                  }));
-                                  setLocErrors(p => ({ ...p, brands: '' }));
-                                }}
-                              />
-                              <span className="text-sm">{b}</span>
-                            </label>
-                            {mapped && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">Enabled</span>
-                                <Switch
-                                  checked={mapped.is_active}
-                                  onCheckedChange={(v) => setFormData((p: any) => ({ ...p, brands: (p.brands || []).map((x: any) => x.name === b ? { ...x, is_active: v } : x) }))}
+                            <div key={b} className="flex items-center gap-3">
+                              <label className="inline-flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={!!mapped}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setFormData((p: any) => ({
+                                      ...p,
+                                      brands: checked
+                                        ? [...(p.brands || []), { name: b, is_active: true }]
+                                        : (p.brands || []).filter((x: any) => x.name !== b),
+                                    }));
+                                    setLocErrors(p => ({ ...p, brands: '' }));
+                                  }}
                                 />
-                              </div>
-                            )}
-                          </div>
+                                <span className="text-sm">{b}</span>
+                              </label>
+                              {mapped && (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">Enabled</span>
+                                  <Switch
+                                    checked={mapped.is_active}
+                                    onCheckedChange={(v) => setFormData((p: any) => ({ ...p, brands: (p.brands || []).map((x: any) => x.name === b ? { ...x, is_active: v } : x) }))}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
                         })
                       )}
                     </div>

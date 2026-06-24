@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { apiGet } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ const AuthPage = () => {
   const [resetSent, setResetSent] = useState(false);
   const { signIn, resendVerificationEmail, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const brand = useWhitelabel();
@@ -47,12 +48,26 @@ const AuthPage = () => {
     setCanOpenLeadPage(!!user);
   }, [user]);
 
+  const resolvePostLoginPath = () => {
+    const next = searchParams.get('next');
+    if (next && next.startsWith('/')) {
+      return next;
+    }
+
+    const fromPath = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+    if (fromPath?.pathname && fromPath.pathname !== '/auth') {
+      return `${fromPath.pathname}${fromPath.search || ''}`;
+    }
+
+    return '/dashboard';
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
       await signIn(email, password);
-      navigate('/dashboard');
+      navigate(resolvePostLoginPath());
     } catch (err: any) {
       toast({ title: 'Sign in failed', description: err.message, variant: 'destructive' });
     } finally {

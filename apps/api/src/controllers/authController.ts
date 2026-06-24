@@ -3,6 +3,7 @@ import { getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { env } from '../config/env.js';
 import { getCollectionModel } from '../models/collectionModel.js';
+import { resolveAuthRoleContext } from '../services/authRoleResolverService.js';
 
 export async function meController(req: Request, res: Response) {
   if (!req.authUser?.uid) {
@@ -11,14 +12,13 @@ export async function meController(req: Request, res: Response) {
   }
 
   const profiles = getCollectionModel('profiles');
-  const userRoles = getCollectionModel('user_roles');
+  const locations = getCollectionModel('locations');
 
-  const [profile, role] = await Promise.all([
+  const [profile, resolvedRole, location] = await Promise.all([
     profiles.findOne({ user_id: req.authUser.uid }).lean(),
-    userRoles.findOne({ user_id: req.authUser.uid }).lean(),
+    resolveAuthRoleContext(req.authUser.uid),
+    locations.findOne({ user_id: req.authUser.uid }).lean(),
   ]);
-
-  const roleValue = (role as { role?: string } | null)?.role || null;
 
   res.status(200).json({
     data: {
@@ -27,7 +27,8 @@ export async function meController(req: Request, res: Response) {
         email: req.authUser.email || null,
       },
       profile: profile || null,
-      role: roleValue,
+      role: resolvedRole.role,
+      permissions: resolvedRole.permissions,
     },
     error: null,
   });
@@ -35,6 +36,7 @@ export async function meController(req: Request, res: Response) {
 
 export async function resendVerificationController(req: Request, res: Response) {
   const email = String(req.body?.email || '').trim().toLowerCase();
+  const redirectUrl = typeof req.body?.redirectUrl === 'string' ? req.body.redirectUrl.trim() : '';
 
   if (!email) {
     res.status(400).json({ data: null, error: { message: 'Email is required.' } });
@@ -54,7 +56,10 @@ export async function resendVerificationController(req: Request, res: Response) 
       return;
     }
 
-    const continueUrl = `${env.corsOrigin}/auth?verified=true`;
+    const continueUrl =
+      redirectUrl && redirectUrl.startsWith(env.corsOrigin)
+        ? redirectUrl
+        : `${env.corsOrigin}/auth?verified=true`;
     const link = await getAuth().generateEmailVerificationLink(email, { url: continueUrl });
 
     res.status(200).json({ data: { message: 'Verification email sent.', link }, error: null });

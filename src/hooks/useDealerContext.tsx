@@ -3,7 +3,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
 import { apiGet } from '@/lib/apiClient';
 
-export const SELECTED_LOCATION_KEY = 'dealer_selected_location_id';
+export const SELECTED_LOCATION_KEY = 'hierarchy_selected_location_id';
+
+export interface HierarchyEntity {
+  id: string;
+  name: string;
+  type: 'organization' | 'business_unit' | 'sales_office' | 'plant' | 'location';
+}
 
 export interface DealerLocation {
   id: string;
@@ -12,22 +18,21 @@ export interface DealerLocation {
 }
 
 interface DealerContextValue {
-  dealerId: string | null;
-  dealerName: string | null;
-  dealerLogoUrl: string | null;
-  /** All active locations for this dealer — used for the filter dropdown. */
+  // Legacy interface names maintained for backward compatibility
+  dealerId: string | null; // Now organizationId
+  dealerName: string | null; // Now organizationName
+  dealerLogoUrl: string | null; // Now organizationLogoUrl
   dealerLocations: DealerLocation[];
-  /** All location IDs regardless of current filter. */
   allDealerLocationIds: string[] | null;
-  /** Currently selected location filter (null = all locations). */
   selectedLocationId: string | null;
   setSelectedLocationId: (id: string | null) => void;
-  /**
-   * Effective location IDs for data queries:
-   * [selectedLocationId] when a location is chosen, otherwise allDealerLocationIds.
-   */
   dealerLocationIds: string[] | null;
   loading: boolean;
+  // New hierarchy context
+  organizationId: string | null;
+  organizationName: string | null;
+  businessUnitId: string | null;
+  locationId: string | null;
 }
 
 const DealerCtx = createContext<DealerContextValue>({
@@ -40,33 +45,55 @@ const DealerCtx = createContext<DealerContextValue>({
   setSelectedLocationId: () => {},
   dealerLocationIds: null,
   loading: true,
+  organizationId: null,
+  organizationName: null,
+  businessUnitId: null,
+  locationId: null,
 });
 
 export function DealerContextProvider({ children }: { children: ReactNode }) {
   const { user, role, profile } = useAuth();
-  const [dealerId, setDealerId] = useState<string | null>(null);
-  const [dealerName, setDealerName] = useState<string | null>(null);
-  const [dealerLogoUrl, setDealerLogoUrl] = useState<string | null>(null);
+  
+  // Organization hierarchy
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
+  const [businessUnitId, setBusinessUnitId] = useState<string | null>(null);
+  const [locationId, setLocationId] = useState<string | null>(null);
+  
+  // Locations list for current organization/scope
   const [dealerLocations, setDealerLocations] = useState<DealerLocation[]>([]);
   const [allDealerLocationIds, setAllDealerLocationIds] = useState<string[] | null>(null);
+  
   const [selectedLocationId, setSelectedLocationIdRaw] = useState<string | null>(() => {
-    try { return localStorage.getItem(SELECTED_LOCATION_KEY); } catch { return null; }
+    try {
+      return localStorage.getItem(SELECTED_LOCATION_KEY);
+    } catch {
+      return null;
+    }
   });
   const [loading, setLoading] = useState(true);
 
   const setSelectedLocationId = useCallback((id: string | null) => {
     try {
-      if (id) localStorage.setItem(SELECTED_LOCATION_KEY, id);
-      else localStorage.removeItem(SELECTED_LOCATION_KEY);
-    } catch { /* storage unavailable */ }
+      if (id) {
+        localStorage.setItem(SELECTED_LOCATION_KEY, id);
+      } else {
+        localStorage.removeItem(SELECTED_LOCATION_KEY);
+      }
+    } catch {
+      /* storage unavailable */
+    }
     setSelectedLocationIdRaw(id);
-  }, []); // setSelectedLocationIdRaw from useState is stable
+  }, []);
 
+  // Initialize organizational hierarchy context
   useEffect(() => {
-    if (!user) {
-      setDealerId(null);
-      setDealerName(null);
-      setDealerLogoUrl(null);
+    // Clear context for superadmin or unauthorized users
+    if (!user || role === APP_ROLE.SUPERADMIN) {
+      setOrganizationId(null);
+      setOrganizationName(null);
+      setBusinessUnitId(null);
+      setLocationId(null);
       setDealerLocations([]);
       setAllDealerLocationIds(null);
       setSelectedLocationId(null);
@@ -74,81 +101,95 @@ export function DealerContextProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (role === APP_ROLE.SUPERADMIN) {
-      setDealerId(null);
-      setDealerName(null);
-      setDealerLogoUrl(null);
-      setDealerLocations([]);
-      setAllDealerLocationIds(null);
-      setSelectedLocationId(null);
-      setLoading(false);
+    // Wait for profile to load
+    if (role === undefined || profile === undefined) {
       return;
     }
-
-    // Wait until profile is loaded by useAuth
-    if (role === undefined || profile === undefined) return;
-
-    const fetchDealer = async () => {
+debugger;
+    const initializeHierarchyContext = async () => {
       setLoading(true);
+
       try {
-        // Resolve dealer_id: profile.location_id → location.dealer_id
-        const locationId = profile?.location_id;
-        if (!locationId) {
-          setDealerId(null);
-          setDealerName(null);
-          setDealerLogoUrl(null);
-          setDealerLocations([]);
-          setAllDealerLocationIds(null);
-          setLoading(false);
-          return;
+        const userLocationId = profile?.location_id;
+        if (!userLocationId) {
+          throw new Error('User profile has no location assigned');
         }
 
-        const location = await apiGet<any>(`/api/locations/${locationId}`);
-        const resolvedDealerId: string | null = location?.dealer_id || null;
+        // Step 1: Fetch user's location to resolve hierarchy
+        const userLocation = await apiGet<any>(`/api/v1/locations/${userLocationId}`);
+        if (!userLocation) {
+          throw new Error('Location not found');
+        }
 
-        setDealerId(resolvedDealerId);
+        const resolvedOrgId = String(
+          userLocation.organization_id ||
+          userLocation.orgId?._id ||
+          userLocation.orgId ||
+          ''
+        ) || null;
+        if (!resolvedOrgId) {
+          throw new Error('Location has no organization assignment');
+        }
 
-        if (resolvedDealerId) {
-          const [dealer, allLocations] = await Promise.all([
-            apiGet<any>(`/api/dealers/${resolvedDealerId}`),
-            apiGet<any[]>(`/api/locations?dealer_id=${resolvedDealerId}&is_active=true`),
-          ]);
+        setOrganizationId(resolvedOrgId);
+        setBusinessUnitId(
+          String(
+            userLocation.business_unit_id ||
+            userLocation.businessUnitId?._id ||
+            userLocation.businessUnitId ||
+            ''
+          ) || null
+        );
+        setLocationId(userLocationId);
 
-          setDealerName(dealer?.name || null);
-          setDealerLogoUrl(dealer?.logo_url || null);
+        // Step 2: Fetch organization info and locations scoped to user's hierarchy in parallel
+        const [orgInfo, locationsData] = await Promise.all([
+          apiGet<any>(`/api/v1/organizations/${resolvedOrgId}`).catch(() => null),
+          apiGet<any[]>(`/api/v1/locations?orgId=${resolvedOrgId}&is_active=true`).catch(() => []),
+        ]);
 
-          const locs: DealerLocation[] = (allLocations || []).map((l: any) => ({
-            id: l.id,
-            name: l.name || l.id,
-            city: l.city || null,
-          }));
+        // Set organization metadata
+        setOrganizationName(orgInfo?.name ?? null);
 
-          setDealerLocations(locs);
-          const ids = locs.map((l) => l.id);
-          setAllDealerLocationIds(ids);
-          // Validate stored selection; clear localStorage if no longer valid
-          setSelectedLocationIdRaw((prev) => {
-            const next = prev && ids.includes(prev) ? prev : null;
-            if (next !== prev) {
-              try {
-                if (next) localStorage.setItem(SELECTED_LOCATION_KEY, next);
-                else localStorage.removeItem(SELECTED_LOCATION_KEY);
-              } catch { /* ok */ }
+        // Transform and set locations
+        const transformedLocations: DealerLocation[] = (locationsData ?? [])
+          .map((loc: any) => ({
+            id: String(loc.id || loc._id || ''),
+            name: loc.name ?? String(loc.id || loc._id || ''),
+            city: loc.city ?? null,
+          }))
+          .filter((loc: DealerLocation) => Boolean(loc.id));
+
+        setDealerLocations(transformedLocations);
+        const locationIds = transformedLocations.map((l) => l.id);
+        setAllDealerLocationIds(locationIds);
+
+        // Step 3: Validate and restore selected location from localStorage
+        setSelectedLocationIdRaw((prevSelected) => {
+          const isValidSelection = prevSelected && locationIds.includes(prevSelected);
+          const nextSelected = isValidSelection ? prevSelected : null;
+
+          // Sync with localStorage
+          if (nextSelected !== prevSelected) {
+            try {
+              if (nextSelected) {
+                localStorage.setItem(SELECTED_LOCATION_KEY, nextSelected);
+              } else {
+                localStorage.removeItem(SELECTED_LOCATION_KEY);
+              }
+            } catch {
+              /* ignore storage errors */
             }
-            return next;
-          });
-        } else {
-          setDealerName(null);
-          setDealerLogoUrl(null);
-          setDealerLocations([]);
-          setAllDealerLocationIds(null);
-          setSelectedLocationId(null);
-        }
-      } catch {
-        // Silently fail — context degrades gracefully
-        setDealerId(null);
-        setDealerName(null);
-        setDealerLogoUrl(null);
+          }
+
+          return nextSelected;
+        });
+      } catch (error) {
+        // Gracefully degrade on error — context remains null/empty
+        setOrganizationId(null);
+        setOrganizationName(null);
+        setBusinessUnitId(null);
+        setLocationId(null);
         setDealerLocations([]);
         setAllDealerLocationIds(null);
       } finally {
@@ -156,26 +197,34 @@ export function DealerContextProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    void fetchDealer();
-  }, [user, role, profile]);
+    void initializeHierarchyContext();
+  }, [user, role, profile, setSelectedLocationId]);
 
+  // Compute effective location IDs for queries
   const dealerLocationIds = useMemo(
-    () => selectedLocationId ? [selectedLocationId] : allDealerLocationIds,
+    () => (selectedLocationId ? [selectedLocationId] : allDealerLocationIds),
     [selectedLocationId, allDealerLocationIds]
   );
 
+  // Legacy interface support: map new hierarchy to old names
   return (
     <DealerCtx.Provider
       value={{
-        dealerId,
-        dealerName,
-        dealerLogoUrl,
+        // Legacy names (for backward compatibility with consumers)
+        dealerId: organizationId,
+        dealerName: organizationName,
+        dealerLogoUrl: null, // Organizations might not have logos like dealers did
         dealerLocations,
         allDealerLocationIds,
         selectedLocationId,
         setSelectedLocationId,
         dealerLocationIds,
         loading,
+        // New hierarchy context (preferred for new code)
+        organizationId,
+        organizationName,
+        businessUnitId,
+        locationId,
       }}
     >
       {children}
@@ -184,4 +233,3 @@ export function DealerContextProvider({ children }: { children: ReactNode }) {
 }
 
 export const useDealerContext = (): DealerContextValue => useContext(DealerCtx);
-

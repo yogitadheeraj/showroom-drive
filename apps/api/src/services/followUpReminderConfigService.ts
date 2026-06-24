@@ -4,9 +4,9 @@ import { Location } from '../models/Location.js';
 import { Profile } from '../models/Profile.js';
 import { UserRole } from '../models/UserRole.js';
 
-type AppUserRole = 'superadmin' | 'super_admin' | 'dealer_admin' | 'sales_admin' | 'gro' | 'sales' | 'security' | string;
+type AppUserRole = 'superadmin' | 'super_admin' | 'entity_admin' | 'dealer_admin' | 'sales_admin' | 'brand_admin' | 'brand_branch_admin' | 'gro' | 'sales' | 'security' | string;
 
-const ALLOWED_ROLES: AppUserRole[] = ['superadmin', 'super_admin', 'dealer_admin', 'sales_admin'];
+const ALLOWED_ROLES: AppUserRole[] = ['superadmin', 'super_admin', 'entity_admin', 'dealer_admin', 'sales_admin', 'brand_admin', 'brand_branch_admin'];
 
 function lean(doc: any) {
   const o = doc.toObject ? doc.toObject() : { ...doc };
@@ -52,7 +52,7 @@ async function ensureManagePermission(userId: string, locationId: string) {
   }
 
   // sales_admin and gro can only manage their own location
-  if (actor.role === 'sales_admin') {
+  if (actor.role === 'sales_admin' || actor.role === 'brand_branch_admin') {
     if (!actor.locationId || actor.locationId !== locationId) {
       throw new Error('Forbidden: Branch Admin can only manage config for own location');
     }
@@ -60,7 +60,7 @@ async function ensureManagePermission(userId: string, locationId: string) {
   }
 
   // dealer_admin can manage any location within their dealer
-  if (actor.role === 'dealer_admin') {
+  if (actor.role === 'dealer_admin' || actor.role === 'brand_admin') {
     const targetLocation = await Location.findOne({ id: locationId }, { dealer_id: 1 }).lean();
     if (!targetLocation?.dealer_id) throw new Error('Location not found');
 

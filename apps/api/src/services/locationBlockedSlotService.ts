@@ -8,6 +8,7 @@ import { UserRole } from '../models/UserRole.js';
 type AppUserRole =
   | 'superadmin'
   | 'super_admin'
+  | 'entity_admin'
   | 'dealer_admin'
   | 'sales_admin'
   | 'gro'
@@ -45,8 +46,8 @@ async function ensureManagePermission(userId: string, locationId: string) {
     return actor;
   }
 
-  // GRO and sales_admin can manage their own location only
-  if (actor.role === 'gro' || actor.role === 'sales_admin') {
+  // GRO, sales_admin and brand_branch_admin can manage their own location only
+  if (actor.role === 'gro' || actor.role === 'sales_admin' || actor.role === 'brand_branch_admin') {
     if (!actor.locationId || actor.locationId !== locationId) {
       throw new Error('Forbidden: can only manage blocked slots for own location');
     }
@@ -54,7 +55,7 @@ async function ensureManagePermission(userId: string, locationId: string) {
   }
 
   // dealer_admin can manage any location within their dealer
-  if (actor.role === 'dealer_admin') {
+  if (actor.role === 'dealer_admin' || actor.role === 'brand_admin') {
     const targetLoc = await Location.findOne({ id: locationId }, { dealer_id: 1 }).lean();
     if (!targetLoc?.dealer_id) throw new Error('Location not found');
 

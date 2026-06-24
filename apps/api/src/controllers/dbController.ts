@@ -55,7 +55,7 @@ const DEALER_SCOPED_TABLES = new Set(['locations']);
 
 /** Staff roles that are restricted to their single assigned location. */
 const LOCATION_SCOPED_ROLES = new Set([
-  'gro', 'sales', 'sales_admin', 'branch_admin', 'security',
+  'gro', 'sales', 'sales_admin', 'branch_admin', 'brand_branch_admin', 'sales_person', 'security',
 ]);
 
 /**
@@ -91,7 +91,7 @@ function enforceScope(body: ParsedQuery, req: Request): void {
     return;
   }
 
-  if (role === 'dealer_admin') {
+  if (role === 'dealer_admin' || role === 'brand_admin') {
     const dealerLocationIds = req.authUser?.dealer_location_ids;
     const dealerId = req.authUser?.dealer_id;
 

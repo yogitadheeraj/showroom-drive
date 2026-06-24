@@ -1,6 +1,5 @@
 import DashboardLayout from '@/components/DashboardLayout';
 import DealerProfileSettings from '@/components/settings/DealerProfileSettings';
-import BrandSettings from '@/components/settings/BrandSettings';
 import OperatingHoursSettings from '@/components/settings/OperatingHoursSettings';
 import ReportSettingsConfig from '@/components/settings/ReportSettingsConfig';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
@@ -10,7 +9,7 @@ import BookingSettings from '@/components/settings/BookingSettings';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import EmailTemplateSettings from '@/components/settings/EmailTemplateSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, Palette, Mail, SunMoon, BellRing, Key, CalendarClock, Plug } from 'lucide-react';
+import { Building2, Mail, SunMoon, BellRing, Key, CalendarClock, Plug } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
 import { ENTITY_ORCHESTRATION, ENTITY_ORCHESTRATION_LABEL } from '@/constants/entityOrchestration';
@@ -33,9 +32,6 @@ const DealerSettingsPage = () => {
             <TabsList className="w-max min-w-full flex justify-start">
             <TabsTrigger value="profile" className="gap-2 shrink-0">
               <Building2 className="h-4 w-4" /> {ENTITY_ORCHESTRATION.dealer} Profile
-            </TabsTrigger>
-            <TabsTrigger value="brands" className="gap-2 shrink-0">
-              <Palette className="h-4 w-4" /> {ENTITY_ORCHESTRATION.entity} {ENTITY_ORCHESTRATION.brands}
             </TabsTrigger>
             <TabsTrigger value="reports" className="gap-2 shrink-0">
               <Mail className="h-4 w-4" /> Report Settings
@@ -65,10 +61,6 @@ const DealerSettingsPage = () => {
 
           <TabsContent value="profile">
             <DealerProfileSettings />
-          </TabsContent>
-
-          <TabsContent value="brands">
-            <BrandSettings />
           </TabsContent>
 
           <TabsContent value="reports">

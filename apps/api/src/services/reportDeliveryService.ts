@@ -484,22 +484,20 @@ async function resolveRecipients(locationId: string, roles: ReportDispatchRecipi
   const wantedRoles = new Set(roles);
   const emails = new Set<string>();
 
-  if (wantedRoles.has('sales')) {
-    const salesRoles = await UserRole.find({ role: 'sales' }, { user_id: 1 }).lean();
-    const salesUserIds = salesRoles.map((r: any) => r.user_id).filter(Boolean);
-    if (salesUserIds.length) {
-      const salesProfiles = await Profile.find(
-        {
-          user_id: { $in: salesUserIds },
-          location_id: locationId,
-          is_active: true,
-          email: { $ne: null },
-        },
-        { email: 1 },
-      ).lean();
-      for (const p of salesProfiles as any[]) {
-        if (p.email) emails.add(String(p.email).toLowerCase());
-      }
+  const salesRoles = await UserRole.find({ role: { $in: ['sales', 'sales_person'] } }, { user_id: 1 }).lean();
+  const salesUserIds = salesRoles.map((r: any) => r.user_id).filter(Boolean);
+  if (salesUserIds.length && (wantedRoles.has('sales') || wantedRoles.has('sales_person'))) {
+    const salesProfiles = await Profile.find(
+      {
+        user_id: { $in: salesUserIds },
+        location_id: locationId,
+        is_active: true,
+        email: { $ne: null },
+      },
+      { email: 1 },
+    ).lean();
+    for (const p of salesProfiles as any[]) {
+      if (p.email) emails.add(String(p.email).toLowerCase());
     }
   }
 

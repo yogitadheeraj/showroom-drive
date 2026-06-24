@@ -333,7 +333,7 @@ const EmailTemplateSettings = () => {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Building2 className="h-4 w-4" /> Select Dealer
+              <Building2 className="h-4 w-4" /> Select Entity / Dealer
             </CardTitle>
           </CardHeader>
           <CardContent>

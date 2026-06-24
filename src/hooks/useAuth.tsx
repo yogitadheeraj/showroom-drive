@@ -10,7 +10,7 @@ import {
 import { firebaseAuth, type Session, type User } from '@/integrations/supabase/client';
 import { apiGet, apiPatch, apiPost } from '@/lib/apiClient';
 import { AppRole } from '@/constants/roles';
-import { isAppRole } from '@/lib/roles';
+import { normalizeAppRole } from '@/lib/roles';
 import { ensureActivitySession, endActivitySession } from '@/lib/activityLogger';
 
 interface AuthContextType {
@@ -49,7 +49,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUserData = async (authUser: User) => {
     const me = await apiGet<{ user: User; profile: any; role: string | null }>('/api/auth/me').catch(() => null);
-    const resolvedRole = isAppRole(me?.role) ? me!.role as AppRole : null;
+    const resolvedRole = normalizeAppRole(me?.role) as AppRole | null;
     setRole(resolvedRole);
     const profileData = me?.profile ?? null;
     setProfile(profileData);

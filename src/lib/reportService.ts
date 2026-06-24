@@ -19,12 +19,14 @@ export interface ReportDispatchConfig {
   report_type: 'test_drive_daily' | 'activity_daily'
   enabled: boolean
   send_time_utc: string
-  recipient_roles: Array<'dealer_admin' | 'sales'>
+  recipient_roles: Array<'dealer_admin' | 'sales' | 'sales_person'>
   formats: Array<'excel' | 'pdf'>
   last_dispatched_for_date: string | null
   created_at: string
   updated_at: string
 }
+
+export type ReportDispatchRecipientRoleInput = 'dealer_admin' | 'sales' | 'sales_person'
 
 type DownloadFormat = 'excel' | 'pdf'
 export type ReportType = 'test_drive_daily' | 'activity_daily'
@@ -39,7 +41,7 @@ export interface DownloadRangeInput {
 
 export interface ReportRecipientsPreview {
   location_id: string
-  recipient_roles: Array<'dealer_admin' | 'sales'>
+  recipient_roles: Array<'dealer_admin' | 'sales' | 'sales_person'>
   recipients: string[]
   count: number
 }
@@ -213,7 +215,7 @@ export async function sendReportNow(options: {
   location_id: string
   report_date?: string
   report_type?: 'test_drive_daily' | 'activity_daily'
-  recipient_roles?: Array<'dealer_admin' | 'sales'>
+  recipient_roles?: Array<ReportDispatchRecipientRoleInput>
   formats?: Array<'excel' | 'pdf'>
 }) {
   return apiPost<{ queued: number; recipients: string[] }>('/api/reports/send', options as unknown as Record<string, unknown>)
@@ -221,7 +223,7 @@ export async function sendReportNow(options: {
 
 export async function previewReportRecipients(args: {
   locationId: string
-  recipientRoles: Array<'dealer_admin' | 'sales'>
+  recipientRoles: Array<ReportDispatchRecipientRoleInput>
 }) {
   const roleCsv = args.recipientRoles.join(',')
   const query = new URLSearchParams({
@@ -242,7 +244,7 @@ export async function upsertDispatchConfig(payload: {
   report_type: 'test_drive_daily' | 'activity_daily'
   enabled: boolean
   send_time_utc: string
-  recipient_roles: Array<'dealer_admin' | 'sales'>
+  recipient_roles: Array<ReportDispatchRecipientRoleInput>
   formats: Array<'excel' | 'pdf'>
 }) {
   return apiPut<ReportDispatchConfig>('/api/reports/dispatch-config', payload as unknown as Record<string, unknown>)

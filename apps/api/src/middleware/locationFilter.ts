@@ -9,6 +9,8 @@ const LOCATION_SCOPED_ROLES = new Set([
   'sales',
   'sales_admin',
   'branch_admin',
+  'brand_branch_admin',
+  'sales_person',
   'security',
 ]);
 
@@ -43,7 +45,7 @@ export function applyLocationScope(
     }
   }
   const { location_id} = req.query as Record<string, string>;
-  if (role === 'dealer_admin' && req.authUser?.dealer_id && !location_id) {
+  if ((role === 'dealer_admin' || role === 'brand_admin') && req.authUser?.dealer_id && !location_id) {
     const dealerLocationIds = req.authUser?.dealer_location_ids;
     const dealerId = req.authUser?.dealer_id;
 

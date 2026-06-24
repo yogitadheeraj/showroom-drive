@@ -26,6 +26,8 @@ import EnquiriesPage from "./pages/EnquiriesPage.tsx";
 import ComparePage from "./pages/ComparePage.tsx";
 import DealerOnboardingPage from "./pages/DealerOnboardingPage.tsx";
 import DealerSettingsPage from "./pages/DealerSettingsPage.tsx";
+import EntityBrandsPage from "./pages/EntityBrandsPage.tsx";
+import HierarchyManagementPage from "./pages/HierarchyManagementPage.tsx";
 import FollowUpsPage from "./pages/FollowUpsPage.tsx";
 import CarBookingsPage from "./pages/CarBookingsPage.tsx";import CustomerBookingPage from './pages/CustomerBookingPage.tsx';
 import RouteCalculatorDemo from './pages/RouteCalculatorDemo.tsx';
@@ -68,7 +70,9 @@ const App = () => (
             <Route path="/compare" element={<ComparePage />} />
             <Route path="/follow-ups" element={<ProtectedRoute><FollowUpsPage /></ProtectedRoute>} />
             <Route path="/car-bookings" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.BOOKINGS]}><CarBookingsPage /></ProtectedRoute>} />
+            <Route path="/hierarchy" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.HIERARCHY]}><HierarchyManagementPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.SETTINGS]}><DealerSettingsPage /></ProtectedRoute>} />
+            <Route path="/entity-brands" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.SETTINGS]}><EntityBrandsPage /></ProtectedRoute>} />
             <Route path="/dealer-onboarding" element={<DealerOnboardingPage />} />
             <Route path="/unsubscribe" element={<UnsubscribePage />} />
             <Route path="/customer/booking/:testDriveId" element={<CustomerBookingPage />} />

@@ -135,8 +135,23 @@ export async function apiStorageRemove(bucket: string, paths: string[]) {
 }
 
 export async function apiRpc<T>(name: string, payload: Record<string, unknown> = {}) {
-  return request<T>(`/api/rpc/${encodeURIComponent(name)}`, {
+  return request<T>(`/api/pc/${encodeURIComponent(name)}`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+export async function hierarchyGet<T>(path: string) {
+  return request<T>(path, { method: 'GET' });
+}
+
+export async function hierarchyPost<T>(path: string, payload: Record<string, unknown>) {
+  return request<T>(path, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function hierarchyPatch<T>(path: string, payload: Record<string, unknown>) {
+  return request<T>(path, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+export async function hierarchyDelete<T>(path: string) {
+  return request<T>(path, { method: 'DELETE' });
 }

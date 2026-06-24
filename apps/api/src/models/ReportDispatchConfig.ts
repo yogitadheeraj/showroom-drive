@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export type ReportDispatchType = 'test_drive_daily' | 'activity_daily';
 export type ReportDispatchFormat = 'excel' | 'pdf';
-export type ReportDispatchRecipientRole = 'dealer_admin' | 'sales';
+export type ReportDispatchRecipientRole = 'dealer_admin' | 'sales' | 'sales_person';
 
 export interface IReportDispatchConfig extends Document {
   id: string;
@@ -42,7 +42,7 @@ const ReportDispatchConfigSchema = new Schema<IReportDispatchConfig>(
     },
     recipient_roles: {
       type: [String],
-      enum: ['dealer_admin', 'sales'],
+      enum: ['dealer_admin', 'sales', 'sales_person'],
       default: ['dealer_admin'],
     },
     formats: {

@@ -1,20 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { apiDbQuery } from '@/lib/apiClient';
-import { createBrand, updateBrand } from '@/lib/locationBrandService';
+import { createBrand, updateBrand as updateBrandRecord } from '@/lib/locationBrandService';
 import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Upload, X, ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import { ENTITY_ORCHESTRATION, ENTITY_ORCHESTRATION_LABEL } from '@/constants/entityOrchestration';
+import { useAuth } from '@/hooks/useAuth';
+import { APP_ROLE } from '@/constants/roles';
 
 interface BrandForm {
   id: string;
   name: string;
+  dealer_id: string;
   logo_url: string;
   description: string;
   meta_title: string;
@@ -23,33 +27,52 @@ interface BrandForm {
 
 const BrandSettings = () => {
   const { dealerId, loading: dealerLoading } = useDealerContext();
+  const { role } = useAuth();
+  const isSuperAdmin = role === APP_ROLE.DEALER_ADMIN || role === APP_ROLE.SUPERADMIN;
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [brands, setBrands] = useState<BrandForm[]>([]);
+  const [dealers, setDealers] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedDealerId, setSelectedDealerId] = useState<string>('all');
   const [expandedBrand, setExpandedBrand] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [newBrandName, setNewBrandName] = useState('');
   const [addingBrand, setAddingBrand] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmBrandId, setDeleteConfirmBrandId] = useState<string | null>(null);
 
   useEffect(() => {
     if (dealerLoading) return;
-    if (!dealerId) {
-      setLoading(false);
-      return;
-    }
+
     const fetch = async () => {
       setLoading(true);
+      if (isSuperAdmin) {
+        const dealerRows = await apiDbQuery<any[]>({
+          table: 'dealers',
+          action: 'select',
+          select: 'id, name',
+          order: [{ field: 'name', ascending: true }],
+        });
+        setDealers((dealerRows || []).map((d) => ({ id: d.id, name: d.name })));
+      }
+
+      const filters = !isSuperAdmin
+        ? (dealerId ? [{ field: 'dealer_id', op: 'eq' as const, value: dealerId }] : undefined)
+        : (selectedDealerId !== 'all' ? [{ field: 'dealer_id', op: 'eq' as const, value: selectedDealerId }] : undefined);
+
       const data = await apiDbQuery<any[]>({
         table: 'brands',
         action: 'select',
-        select: 'id, name, logo_url, description, meta_title, meta_description',
-        filters: [{ field: 'dealer_id', op: 'eq', value: dealerId }],
+        select: 'id, dealer_id, name, logo_url, description, meta_title, meta_description',
+        filters,
         order: [{ field: 'name', ascending: true }],
       });
+
       if (data) {
         setBrands(data.map(b => ({
           id: b.id,
+          dealer_id: b.dealer_id,
           name: b.name,
           logo_url: b.logo_url || '',
           description: (b as any).description || '',
@@ -60,10 +83,16 @@ const BrandSettings = () => {
       }
       setLoading(false);
     };
-    void fetch();
-  }, [dealerId, dealerLoading, toast]);
 
-  const updateBrand = (id: string, field: keyof BrandForm, value: string) => {
+    if (!dealerId) {
+      setLoading(false);
+      return;
+    }
+
+    void fetch();
+  }, [dealerId, dealerLoading, isSuperAdmin, selectedDealerId]);
+
+  const updateBrandField = (id: string, field: keyof BrandForm, value: string) => {
     setBrands(prev => prev.map(b => b.id === id ? { ...b, [field]: value } : b));
   };
 
@@ -84,7 +113,7 @@ const BrandSettings = () => {
     }
 
     const publicUrl = await getStoragePublicUrl('logos', path);
-    updateBrand(brandId, 'logo_url', publicUrl);
+    updateBrandField(brandId, 'logo_url', publicUrl);
     setUploadingId(null);
     toast({ title: 'Brand logo uploaded' });
   };
@@ -92,7 +121,7 @@ const BrandSettings = () => {
   const handleSaveBrand = async (brand: BrandForm) => {
     setSavingId(brand.id);
 
-    await updateBrand(brand.id, {
+    await updateBrandRecord(brand.id, {
         name: brand.name.trim(),
         logo_url: brand.logo_url || null,
         description: brand.description.trim() || null,
@@ -105,9 +134,11 @@ const BrandSettings = () => {
   };
 
   const handleAddBrand = async () => {
-    if (!dealerId || !newBrandName.trim()) return;
+    const targetDealerId = (selectedDealerId !== 'all' ? selectedDealerId : '') || (dealerId || '');
+    if (!targetDealerId || !newBrandName.trim()) return;
+
     setAddingBrand(true);
-    const data = await createBrand({ name: newBrandName.trim(), dealer_id: dealerId });
+    const data = await createBrand({ name: newBrandName.trim(), dealer_id: targetDealerId });
     if (!data) {
       toast({ title: 'Failed to add brand', description: 'Error creating brand', variant: 'destructive' });
       setAddingBrand(false);
@@ -115,6 +146,7 @@ const BrandSettings = () => {
     }
     setBrands(prev => [...prev, {
       id: data.id,
+      dealer_id: (data as any).dealer_id || targetDealerId,
       name: data.name,
       logo_url: data.logo_url || '',
       description: (data as any).description || '',
@@ -125,6 +157,24 @@ const BrandSettings = () => {
     setNewBrandName('');
     setAddingBrand(false);
     toast({ title: 'Brand added' });
+  };
+
+  const handleDeleteBrand = async (brandId: string) => {
+    setDeletingId(brandId);
+    try {
+      await deleteBrand(brandId);
+      setBrands(prev => prev.filter(b => b.id !== brandId));
+      setDeleteConfirmBrandId(null);
+      toast({ title: 'Brand deleted successfully' });
+    } catch (error: any) {
+      toast({ 
+        title: 'Failed to delete brand', 
+        description: error?.message || 'Error deleting brand', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   if (dealerLoading || loading) {
@@ -146,6 +196,22 @@ const BrandSettings = () => {
       <p className="text-xs text-muted-foreground">Orchestration: {ENTITY_ORCHESTRATION_LABEL}</p>
       <Card className="shadow-elevated">
         <CardContent className="p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+          {isSuperAdmin && (
+            <div className="sm:w-72 space-y-2">
+              <Label>Filter by {ENTITY_ORCHESTRATION.dealer}</Label>
+              <Select value={selectedDealerId} onValueChange={setSelectedDealerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={`All ${ENTITY_ORCHESTRATION.brands}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All {ENTITY_ORCHESTRATION.brands}</SelectItem>
+                  {dealers.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="flex-1 space-y-2">
             <Label>Add {ENTITY_ORCHESTRATION.brands}</Label>
             <Input
@@ -157,7 +223,6 @@ const BrandSettings = () => {
           </div>
           <Button
             onClick={handleAddBrand}
-            disabled={!newBrandName.trim() || addingBrand}
             className="gap-2"
           >
             <Plus className="h-4 w-4" />
@@ -194,6 +259,9 @@ const BrandSettings = () => {
                   <h3 className="font-heading font-semibold text-foreground">{brand.name}</h3>
                   <p className="text-xs text-muted-foreground">
                     {brand.meta_title ? 'Branding configured' : 'No branding yet'}
+                    {isSuperAdmin && brand.dealer_id && (
+                      <> • {dealers.find((d) => d.id === brand.dealer_id)?.name || brand.dealer_id}</>
+                    )}
                   </p>
                 </div>
               </div>
@@ -210,7 +278,7 @@ const BrandSettings = () => {
                       <div className="relative">
                         <img src={brand.logo_url} alt={brand.name} className="h-16 w-16 rounded-xl object-cover border border-border" />
                         <button
-                          onClick={() => updateBrand(brand.id, 'logo_url', '')}
+                          onClick={() => updateBrandField(brand.id, 'logo_url', '')}
                           className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
                         >
                           <X className="h-3 w-3" />
@@ -234,13 +302,13 @@ const BrandSettings = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Brand Name</Label>
-                    <Input value={brand.name} onChange={e => updateBrand(brand.id, 'name', e.target.value)} />
+                    <Input value={brand.name} onChange={e => updateBrandField(brand.id, 'name', e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label>Page Title (Meta)</Label>
                     <Input
                       value={brand.meta_title}
-                      onChange={e => updateBrand(brand.id, 'meta_title', e.target.value)}
+                      onChange={e => updateBrandField(brand.id, 'meta_title', e.target.value)}
                       placeholder="e.g. Toyota Test Drives — Book Now"
                       maxLength={60}
                     />
@@ -253,7 +321,7 @@ const BrandSettings = () => {
                   <Label>Brand Description</Label>
                   <Textarea
                     value={brand.description}
-                    onChange={e => updateBrand(brand.id, 'description', e.target.value)}
+                    onChange={e => updateBrandField(brand.id, 'description', e.target.value)}
                     placeholder="A brief description of this brand for your showroom..."
                     rows={3}
                   />
@@ -264,7 +332,7 @@ const BrandSettings = () => {
                   <Label>Meta Description (SEO)</Label>
                   <Textarea
                     value={brand.meta_description}
-                    onChange={e => updateBrand(brand.id, 'meta_description', e.target.value)}
+                    onChange={e => updateBrandField(brand.id, 'meta_description', e.target.value)}
                     placeholder="A 160 character description for search engines..."
                     rows={2}
                     maxLength={160}

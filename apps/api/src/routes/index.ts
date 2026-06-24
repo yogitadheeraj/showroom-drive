@@ -191,10 +191,16 @@ import {
   rejectTransitRequestController,
   cancelTransitRequestController,
 } from '../controllers/vehicleFleetController.js';
+import hierarchyRoutes from './hierarchyRoutes.js';
+import migrationRoutes from './migrationRoutes.js';
+import { adminResetController } from '../controllers/adminCleanupController.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export const apiRouter = express.Router();
+
+// ── Superadmin admin utilities ───────────────────────────────────────────────
+apiRouter.post('/admin/reset', requireAuth, requireSuperAdmin, adminResetController);
 
 // Generic DB query (fallback for all other collections)
 apiRouter.post('/db/query', dbQueryController);
@@ -401,3 +407,8 @@ apiRouter.get('/agent/conversations', requireAuth, listConversationsController);
 apiRouter.get('/agent/conversations/:id', requireAuth, getConversationController);
 apiRouter.delete('/agent/conversations/:id', requireAuth, deleteConversationController);
 
+// ── Hierarchy Management (New Organizational Structure) ───────────────────────
+apiRouter.use('/v1', hierarchyRoutes);
+
+// ── Migration (Legacy to Hierarchy) ────────────────────────────────────────────
+apiRouter.use('/v1', migrationRoutes);

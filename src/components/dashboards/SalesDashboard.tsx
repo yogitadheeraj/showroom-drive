@@ -1182,7 +1182,7 @@ const SalesDashboard = () => {
                           setHandoverNotes('');
                           if (td.location_id) {
                             try {
-                              const locationRow = await apiGet<any>(`/api/locations/${encodeURIComponent(td.location_id)}`);
+                              const locationRow = await apiGet<any>(`/api/v1/locations/${encodeURIComponent(td.location_id)}`);
                               const meta = locationRow?.metadata || {};
                               setPresetHandoverQuestions(Array.isArray(meta.handover_questions) ? meta.handover_questions : []);
                             } catch { setPresetHandoverQuestions([]); }

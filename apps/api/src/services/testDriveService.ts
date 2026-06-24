@@ -519,7 +519,7 @@ async function notifyStaffStatusChange(opts: {
 
   // 2. Admin staff at the location (dealer_admin, sales_admin, branch_admin, superadmin)
   if (td.location_id) {
-    const adminRoles = new Set(['dealer_admin', 'sales_admin', 'branch_admin', 'superadmin', 'super_admin']);
+    const adminRoles = new Set(['dealer_admin', 'entity_admin', 'sales_admin', 'branch_admin', 'superadmin', 'super_admin']);
     const locationProfiles: any[] = await Profile.find(
       { location_id: td.location_id },
       { id: 1, user_id: 1, full_name: 1, email: 1 },
@@ -804,7 +804,7 @@ async function sendTestDriveBookedNotifications(td: any) {
   const roleMap = new Map(roleRows.map((r: any) => [r.user_id, r.role]));
   const profileByUserId = new Map(locationProfiles.map((p: any) => [p.user_id, p]));
 
-  const adminRoles = new Set(['dealer_admin', 'sales_admin', 'branch_admin', 'superadmin', 'super_admin']);
+  const adminRoles = new Set(['dealer_admin', 'entity_admin', 'sales_admin', 'branch_admin', 'superadmin', 'super_admin']);
   const notifyRoles = new Set(['gro', 'security']);
 
   const staffBranding = await resolveDealerBranding(td.location_id);

@@ -36,7 +36,11 @@ export type DbQueryRequest = {
 
 function toPlain<T extends Record<string, unknown>>(doc: T) {
   const cloned = { ...doc };
+  const mongoId = (cloned as Record<string, unknown>)._id;
   delete (cloned as Record<string, unknown>)._id;
+  if (mongoId) {
+    (cloned as Record<string, unknown>).id = String(mongoId);
+  }
   return cloned;
 }
 

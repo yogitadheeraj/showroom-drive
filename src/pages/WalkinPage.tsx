@@ -32,7 +32,7 @@ type Step = 'customer' | 'license' | 'confirm';
 const WalkinPage = () => {
   const { profile, role } = useAuth();
   const isDealerLevel = [APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN].includes(role as any);
-  const { dealerId, loading: dealerLoading } = useDealerContext();
+  const { organizationId, dealerId, loading: dealerLoading } = useDealerContext();
   const [locations, setLocations] = useState<any[]>([]);
   const [locationStatus, setLocationStatus] = useState<Record<string, { isOpen: boolean; openTime: string | null; closeTime: string | null }>>({});
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -85,9 +85,12 @@ const WalkinPage = () => {
     if (isDealerLevel) {
       // SUPERADMIN and DEALER_ADMIN see all locations
       const params = new URLSearchParams({ is_active: 'true' });
-      if (dealerId) params.set('dealer_id', dealerId);
-      apiGet<any[]>(`/api/locations?${params}`).then((data) => {
-        let locs = data || [];
+      const activeOrgId = organizationId || dealerId;
+      if (activeOrgId) params.set('orgId', activeOrgId);
+      apiGet<any[]>(`/api/v1/locations?${params}`).then((data) => {
+        let locs = (data || [])
+          .map((l: any) => ({ ...l, id: String(l.id || l._id || '') }))
+          .filter((l: any) => Boolean(l.id));
         if (role === APP_ROLE.DEALER_ADMIN) {
           locs = locs.filter((l: any) => !l.disabled_for_dealer_admin);
         }
@@ -95,11 +98,14 @@ const WalkinPage = () => {
       });
     } else if (profile?.location_id) {
       // Branch roles: only fetch their own location
-      apiGet<any[]>(`/api/locations?ids=${encodeURIComponent(profile.location_id)}&is_active=true`).then((data) => {
-        setLocations(data || []);
+      apiGet<any[]>(`/api/v1/locations?ids=${encodeURIComponent(profile.location_id)}&is_active=true`).then((data) => {
+        const locs = (data || [])
+          .map((l: any) => ({ ...l, id: String(l.id || l._id || '') }))
+          .filter((l: any) => Boolean(l.id));
+        setLocations(locs);
       });
     }
-  }, [dealerId, dealerLoading, role, isDealerLevel, profile?.location_id]);
+  }, [organizationId, dealerId, dealerLoading, role, isDealerLevel, profile?.location_id]);
 
   useEffect(() => {
     if (locations.length === 0) return;

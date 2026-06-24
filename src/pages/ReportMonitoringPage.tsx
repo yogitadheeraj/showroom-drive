@@ -64,7 +64,7 @@ const ReportMonitoringPage = () => {
 
   const [locationId, setLocationId] = useState<string | null>(null)
   const [selectedSections, setSelectedSections] = useState<ReportType[]>(['test_drive_daily', 'activity_daily'])
-  const [recipientRoles, setRecipientRoles] = useState<Array<'dealer_admin' | 'sales'>>(['dealer_admin'])
+  const [recipientRoles, setRecipientRoles] = useState<Array<'dealer_admin' | 'sales' | 'sales_person'>>(['dealer_admin'])
   const [recipientPreview, setRecipientPreview] = useState<string[]>([])
 
   // Activity log UI state
@@ -221,7 +221,7 @@ const ReportMonitoringPage = () => {
     })
   }
 
-  function toggleRecipientRole(role: 'dealer_admin' | 'sales') {
+  function toggleRecipientRole(role: 'dealer_admin' | 'sales' | 'sales_person') {
     setRecipientRoles((prev) => {
       const exists = prev.includes(role)
       const next = exists ? prev.filter((x) => x !== role) : [...prev, role]
@@ -578,7 +578,7 @@ const ReportMonitoringPage = () => {
               </CardHeader>
               <CardContent className='space-y-3'>
                 <div className='flex gap-2'>
-                  {(['dealer_admin', 'sales'] as const).map((r) => (
+                  {(['dealer_admin', 'sales', 'sales_person'] as const).map((r) => (
                     <button
                       key={r}
                       type='button'
@@ -589,7 +589,12 @@ const ReportMonitoringPage = () => {
                           : 'bg-background text-muted-foreground border-border hover:border-primary/50'
                       }`}
                     >
-                      {r === 'dealer_admin' ? '👔 Dealer Admin' : '🤝 Sales'}
+                      {r === 'dealer_admin'
+                        ? '👔 Dealer Admin'
+                        : r === 'sales'
+                          ? '🤝 Sales'
+                          : '🧑‍💼 Sales Person'
+                      }
                     </button>
                   ))}
                 </div>

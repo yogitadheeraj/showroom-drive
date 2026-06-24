@@ -15,17 +15,24 @@ const DataCenterPage = () => {
   const [dailyData, setDailyData] = useState<any[]>([]);
   const [vehicleData, setVehicleData] = useState<any[]>([]);
   const [sourceData, setSourceData] = useState<any[]>([]);
-  const { dealerId, dealerLocationIds, loading: dealerLoading } = useDealerContext();
+  const { organizationId, dealerId, dealerLocationIds, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
     if (!dealerLoading) {
       const params = new URLSearchParams();
-      if (dealerId) params.set('dealer_id', dealerId);
-      apiGet<any[]>(`/api/locations${params.toString() ? `?${params.toString()}` : ''}`)
-        .then((data) => setLocations(data || []))
+      const activeOrgId = organizationId || dealerId;
+      if (activeOrgId) params.set('orgId', activeOrgId);
+      apiGet<any[]>(`/api/v1/locations${params.toString() ? `?${params.toString()}` : ''}`)
+        .then((data) => {
+          const normalized = (data || []).map((loc: any) => ({
+            ...loc,
+            id: String(loc.id || loc._id || ''),
+          }));
+          setLocations(normalized.filter((loc: any) => Boolean(loc.id)));
+        })
         .catch(() => setLocations([]));
     }
-  }, [dealerId, dealerLoading]);
+  }, [organizationId, dealerId, dealerLoading]);
 
   useEffect(() => {
     if (!dealerLoading) fetchAnalytics();

@@ -27,6 +27,8 @@ const CONDITION_CLASS: Record<string, string> = {
   used: 'bg-amber-100 text-amber-700 border-amber-200',
   demo: 'bg-violet-100 text-violet-700 border-violet-200',
 };
+const USED_ALL_BRANDS_VALUE = '__ALL_BRANDS__';
+const USED_ALL_BRANDS_LABEL = 'All Brands';
 
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -94,7 +96,7 @@ const VehiclesPage = () => {
 
     const locationParams = new URLSearchParams({ is_active: 'true' });
     if (dealerId) locationParams.set('dealer_id', dealerId);
-    apiGet<any[]>(`/api/locations?${locationParams}`)
+    apiGet<any[]>(`/api/v1/locations?${locationParams}`)
       .then((data) => setLocations(data || []));
 
     const brandParams = new URLSearchParams();
@@ -173,7 +175,7 @@ const VehiclesPage = () => {
       // Hydrate location name
       let locList = locations;
       if (!locList.length) {
-        locList = await apiGet<any[]>('/api/locations') || [];
+        locList = await apiGet<any[]>('/api/v1/locations') || [];
       }
       const locationMap = (locList || []).reduce((acc: Record<string, any>, loc: any) => {
         acc[loc.id] = loc;
@@ -261,8 +263,11 @@ const VehiclesPage = () => {
     }
 
     const condition = formData.vehicle_condition;
+    const resolvedBrand = condition === 'used' && formData.brand === USED_ALL_BRANDS_VALUE
+      ? USED_ALL_BRANDS_LABEL
+      : formData.brand;
     const payload: Record<string, unknown> = {
-      brand: formData.brand,
+      brand: resolvedBrand,
       model: formData.model,
       grade: formData.grade || null,
       trim: formData.trim || null,
@@ -300,9 +305,9 @@ const VehiclesPage = () => {
           void logStaffActivity({
             userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
             eventType: 'vehicle_updated',
-            label: `Updated vehicle: ${formData.brand} ${formData.model}`,
+            label: `Updated vehicle: ${resolvedBrand} ${formData.model}`,
             route: '/vehicles',
-            metadata: { vehicleId: editingId, brand: formData.brand, model: formData.model, condition: formData.vehicle_condition, registrationNumber: formData.registration_number || null },
+            metadata: { vehicleId: editingId, brand: resolvedBrand, model: formData.model, condition: formData.vehicle_condition, registrationNumber: formData.registration_number || null },
           });
         }
       } else {
@@ -312,7 +317,7 @@ const VehiclesPage = () => {
         // Optionally create linked demo vehicle for a new car
         if (showDemoSetupStep && createdId) {
           const demoPayload: Record<string, unknown> = {
-            brand: formData.brand,
+            brand: resolvedBrand,
             model: formData.model,
             grade: formData.grade || null,
             trim: formData.trim || null,
@@ -337,9 +342,9 @@ const VehiclesPage = () => {
             void logStaffActivity({
               userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
               eventType: 'vehicle_created',
-              label: `Created vehicle + demo: ${formData.brand} ${formData.model}`,
+              label: `Created vehicle + demo: ${resolvedBrand} ${formData.model}`,
               route: '/vehicles',
-              metadata: { vehicleId: createdId, brand: formData.brand, model: formData.model, condition: 'new', withDemo: true },
+              metadata: { vehicleId: createdId, brand: resolvedBrand, model: formData.model, condition: 'new', withDemo: true },
             });
           }
         } else {
@@ -348,9 +353,9 @@ const VehiclesPage = () => {
             void logStaffActivity({
               userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
               eventType: 'vehicle_created',
-              label: `Created vehicle: ${formData.brand} ${formData.model}`,
+              label: `Created vehicle: ${resolvedBrand} ${formData.model}`,
               route: '/vehicles',
-              metadata: { vehicleId: createdId, brand: formData.brand, model: formData.model, condition: formData.vehicle_condition },
+              metadata: { vehicleId: createdId, brand: resolvedBrand, model: formData.model, condition: formData.vehicle_condition },
             });
           }
         }
@@ -407,11 +412,11 @@ const VehiclesPage = () => {
             {isSuperAdmin && (
               <div className="flex items-end gap-3">
                 <div className="flex-1 max-w-xs">
-                  <Label className="text-sm text-muted-foreground mb-2 block">Filter by Dealer</Label>
+                  <Label className="text-sm text-muted-foreground mb-2 block">Filter by Entity</Label>
                   <Select value={selectedDealer} onValueChange={setSelectedDealer}>
-                    <SelectTrigger><SelectValue placeholder="Select dealer" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select entity" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Dealers</SelectItem>
+                      <SelectItem value="all">All Entities</SelectItem>
                       {dealers.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -666,7 +671,7 @@ const VehiclesPage = () => {
                             setFormData((p) => ({
                               ...p, vehicle_condition: v,
                               demo_for_vehicle_id: v === 'demo' ? p.demo_for_vehicle_id : '',
-                              brand: v === 'demo' ? '' : p.brand,
+                              brand: v === 'demo' ? '' : (v !== 'used' && p.brand === USED_ALL_BRANDS_VALUE ? '' : p.brand),
                               model: v === 'demo' ? '' : p.model,
                               grade: v === 'demo' ? '' : p.grade,
                               trim: v === 'demo' ? '' : p.trim,
@@ -736,8 +741,11 @@ const VehiclesPage = () => {
                         >
                           <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
                           <SelectContent>
+                            {formData.vehicle_condition === 'used' && (
+                              <SelectItem value={USED_ALL_BRANDS_VALUE}>{USED_ALL_BRANDS_LABEL}</SelectItem>
+                            )}
                             {brands.map((b: any) => <SelectItem key={b.id} value={b.name}>{b.name}</SelectItem>)}
-                            {formData.brand && !brands.some((b: any) => b.name === formData.brand) && (
+                            {formData.brand && !brands.some((b: any) => b.name === formData.brand) && formData.brand !== USED_ALL_BRANDS_VALUE && (
                               <SelectItem value={formData.brand}>{formData.brand}</SelectItem>
                             )}
                           </SelectContent>

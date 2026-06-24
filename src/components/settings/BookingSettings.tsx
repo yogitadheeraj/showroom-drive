@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { apiDbQuery, apiPatch } from '@/lib/apiClient';
+import { apiGet, apiPatch } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Save, Loader2, MapPin, CalendarClock } from 'lucide-react';
 
 const BookingSettings = () => {
-  const { dealerId, loading: dealerLoading } = useDealerContext();
+  const { organizationId, dealerId, loading: dealerLoading } = useDealerContext();
   const { toast } = useToast();
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,22 +17,20 @@ const BookingSettings = () => {
   const [form, setForm] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    if (dealerLoading || !dealerId) return;
+    const activeOrgId = organizationId || dealerId;
+    if (dealerLoading || !activeOrgId) return;
     const load = async () => {
       setLoading(true);
-      const rows = await apiDbQuery<any[]>({
-        table: 'locations',
-        action: 'select',
-        select: 'id, name, public_booking_rate_limit_minutes',
-        filters: [
-          { field: 'dealer_id', op: 'eq', value: dealerId },
-          { field: 'is_active', op: 'eq', value: true },
-        ],
-        order: [{ field: 'name', ascending: true }],
-      }).catch(() => [] as any[]);
-      setLocations(rows ?? []);
+      const rows = await apiGet<any[]>(`/api/v1/locations?orgId=${encodeURIComponent(activeOrgId)}&is_active=true`).catch(() => [] as any[]);
+      const normalizedRows = (rows ?? [])
+        .map((loc: any) => ({
+          ...loc,
+          id: String(loc.id || loc._id || ''),
+        }))
+        .filter((loc: any) => Boolean(loc.id));
+      setLocations(normalizedRows);
       const initial: Record<string, number> = {};
-      (rows ?? []).forEach((loc: any) => {
+      normalizedRows.forEach((loc: any) => {
         initial[loc.id] = typeof loc.public_booking_rate_limit_minutes === 'number'
           ? loc.public_booking_rate_limit_minutes
           : 10;
@@ -41,7 +39,7 @@ const BookingSettings = () => {
       setLoading(false);
     };
     void load();
-  }, [dealerId, dealerLoading]);
+  }, [organizationId, dealerId, dealerLoading]);
 
   const handleSave = async (locationId: string) => {
     const value = form[locationId];
@@ -51,8 +49,8 @@ const BookingSettings = () => {
     }
     setSaving(prev => ({ ...prev, [locationId]: true }));
     try {
-      await apiPatch(`/api/locations/${encodeURIComponent(locationId)}`, {
-        public_booking_rate_limit_minutes: value,
+      await apiPatch(`/api/v1/locations/${encodeURIComponent(locationId)}`, {
+      public_booking_rate_limit_minutes: value,
       });
       toast({ title: 'Saved', description: 'Booking rate limit updated.' });
     } catch (err: any) {
@@ -141,3 +139,21 @@ const BookingSettings = () => {
 };
 
 export default BookingSettings;
+
+function useAuth(): { role: any } {
+  const [role, setRole] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const storedRole = window.localStorage.getItem('role') ?? (window as any).APP_ROLE ?? (window as any).appRole;
+    if (storedRole) {
+      setRole(storedRole);
+    }
+  }, []);
+
+  return { role };
+}
+

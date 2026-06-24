@@ -154,7 +154,7 @@ const SuperAdminDashboard = () => {
       const filters: Array<{ field: string; op: 'eq'; value: unknown }> = [{ field: 'is_active', op: 'eq', value: true }];
       if (activeDealerId) filters.push({ field: 'dealer_id', op: 'eq', value: activeDealerId });
       const data = await apiDbQuery<any[]>({
-        table: 'locations',
+        table: 'locations_new',
         action: 'select',
         select: 'id, name, dealer_id',
         filters,

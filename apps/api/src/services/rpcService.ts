@@ -7,6 +7,11 @@ import { createLocation } from './locationService.js';
 import { deleteLocation } from './locationService.js';
 import { deleteProfileByUserId, getProfileByUserId, upsertProfile } from './profileService.js';
 import { deleteUserRole, getRoleByUserId, upsertUserRole } from './userRoleService.js';
+import { sendMail } from './mailService.js';
+import { Organization } from '../models/Organization.js';
+import { RoleNew } from '../models/RoleNew.js';
+import { UserRoleAssignmentNew } from '../models/UserRoleAssignmentNew.js';
+import { ensureHierarchyRoleCatalogSeeded } from './hierarchyRoleCatalogService.js';
 
 type LocationInput = {
   name?: string;
@@ -35,8 +40,132 @@ function requiredString(args: Record<string, unknown>, keys: string[], fieldName
 }
 
 export async function runRpc(name: string, args: Record<string, unknown>) {
-  if (name !== 'onboard_dealer') {
+  if (name !== 'onboard_dealer' && name !== 'onboard_entity') {
     return { ok: true, rpc: name, args };
+  }
+
+  if (name === 'onboard_entity') {
+    const userId = requiredString(args, ['_admin_user_id', 'admin_user_id', '_user_id', 'user_id'], 'admin_user_id');
+    const organizationName = requiredString(args, ['_organization_name', 'organization_name', '_entity_name', 'entity_name'], 'organization_name');
+    const fullName = requiredString(args, ['_full_name', 'full_name'], 'full_name');
+    const email = requiredString(args, ['_email', 'email'], 'email');
+    const contactPhone = readArg<string>(args, '_contact_phone', 'contact_phone');
+    const country = String(readArg<string>(args, '_country', 'country') || 'AE').trim().toUpperCase() || 'AE';
+    const type = String(readArg<string>(args, '_organization_type', 'organization_type') || 'ENTITY').trim().toUpperCase() || 'ENTITY';
+    const code = requiredString(args, ['_organization_code', 'organization_code', '_code', 'code'], 'organization_code')
+      .replace(/[^A-Za-z0-9_-]+/g, '')
+      .toUpperCase();
+
+    if (!['GROUP', 'ENTITY', 'COMPANY'].includes(type)) {
+      throw new Error('organization_type must be GROUP, ENTITY, or COMPANY');
+    }
+
+    await ensureHierarchyRoleCatalogSeeded();
+
+    const dealerAdminRole = await RoleNew.findOne({ code: 'DEALER_ADMIN', isActive: true }).lean();
+    if (!dealerAdminRole?._id) {
+      throw new Error('Hierarchy role catalog could not be initialized for onboarding.');
+    }
+
+    const existingProfile = await getProfileByUserId(userId);
+    const existingRole = await getRoleByUserId(userId);
+    const existingAssignments = await UserRoleAssignmentNew.find({ userId }).lean();
+    const createdAssignmentIds: string[] = [];
+    let createdOrgId = '';
+
+    try {
+      const org = await Organization.create({
+        name: organizationName,
+        code,
+        type,
+        country,
+        isActive: true,
+      });
+      createdOrgId = String(org._id);
+
+      await upsertProfile({
+        user_id: userId,
+        full_name: fullName,
+        email,
+        phone: contactPhone || null,
+        location_id: null,
+        brand_id: null,
+        hierarchy_level: 'ORG',
+        is_active: true,
+      });
+
+      await upsertUserRole(userId, 'dealer_admin');
+
+      await UserRoleAssignmentNew.updateMany(
+        { userId, isActive: true },
+        { isPrimary: false },
+      );
+
+      const assignment = await UserRoleAssignmentNew.create({
+        userId,
+        roleId: dealerAdminRole._id,
+        orgId: org._id,
+        businessUnitId: null,
+        brandId: null,
+        salesOfficeId: null,
+        plantId: null,
+        locationId: null,
+        isPrimary: true,
+        isActive: true,
+      });
+      createdAssignmentIds.push(String(assignment._id));
+
+      await sendMail({
+        to: 'autoadvantplatform@gmail.com',
+        subject: `New entity onboarding: ${organizationName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; line-height:1.5; color:#111;">
+            <h2>New Entity Registered</h2>
+            <p><strong>Organization:</strong> ${organizationName}</p>
+            <p><strong>Code:</strong> ${code}</p>
+            <p><strong>Type:</strong> ${type}</p>
+            <p><strong>Country:</strong> ${country}</p>
+            <p><strong>Admin Email:</strong> ${email}</p>
+            <p><strong>Admin Name:</strong> ${fullName}</p>
+            <p><strong>Contact Phone:</strong> ${contactPhone || 'N/A'}</p>
+          </div>
+        `,
+        text: `New Entity Registered:\nOrganization: ${organizationName}\nCode: ${code}\nType: ${type}\nCountry: ${country}\nAdmin Email: ${email}\nAdmin Name: ${fullName}\nContact Phone: ${contactPhone || 'N/A'}`,
+      });
+
+      return {
+        ok: true,
+        organization_id: createdOrgId,
+        organization_code: code,
+      };
+    } catch (error) {
+      if (createdAssignmentIds.length > 0) {
+        await UserRoleAssignmentNew.deleteMany({ _id: { $in: createdAssignmentIds } });
+      }
+
+      if (existingAssignments.length > 0) {
+        await UserRoleAssignmentNew.deleteMany({ userId });
+        await UserRoleAssignmentNew.insertMany(existingAssignments.map(({ _id, ...rest }: any) => rest));
+      }
+
+      if (existingRole) {
+        await upsertUserRole(userId, existingRole.role);
+      } else {
+        await deleteUserRole(userId);
+      }
+
+      if (existingProfile) {
+        await upsertProfile(existingProfile as unknown as Record<string, unknown>);
+      } else {
+        await deleteProfileByUserId(userId);
+      }
+
+      if (createdOrgId) {
+        await Organization.findByIdAndDelete(createdOrgId);
+      }
+
+      throw error;
+    }
   }
 
   const dealerId = randomUUID();
@@ -151,6 +280,24 @@ export async function runRpc(name: string, args: Record<string, unknown>) {
     });
 
     await upsertUserRole(userId, 'dealer_admin');
+
+    await sendMail({
+      to: 'autoadvantplatform@gmail.com',
+      subject: `New dealer onboarding: ${dealerName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height:1.5; color:#111;">
+          <h2>New Dealer / Entity Registered</h2>
+          <p><strong>Dealer Name:</strong> ${dealerName}</p>
+          <p><strong>Admin Email:</strong> ${email}</p>
+          <p><strong>Contact Email:</strong> ${contactEmail}</p>
+          <p><strong>Contact Phone:</strong> ${contactPhone || 'N/A'}</p>
+          <p><strong>Brands:</strong> ${brandList.join(', ')}</p>
+          <p><strong>Locations:</strong> ${locationList.length}</p>
+          <p><strong>Dealer Slug:</strong> ${slug}</p>
+        </div>
+      `,
+      text: `New Dealer / Entity Registered:\nDealer Name: ${dealerName}\nAdmin Email: ${email}\nContact Email: ${contactEmail}\nContact Phone: ${contactPhone || 'N/A'}\nBrands: ${brandList.join(', ')}\nLocations: ${locationList.length}\nDealer Slug: ${slug}`,
+    });
   } catch (error) {
     // Compensating rollback to avoid partial onboarding data.
     if (existingRole) {

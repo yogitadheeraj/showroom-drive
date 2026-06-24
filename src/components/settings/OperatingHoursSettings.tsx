@@ -29,7 +29,7 @@ interface HoursForm {
 }
 
 const OperatingHoursSettings = () => {
-  const { dealerId, loading: dealerLoading } = useDealerContext();
+  const { organizationId, dealerId, loading: dealerLoading } = useDealerContext();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [locations, setLocations] = useState<any[]>([]);
@@ -38,17 +38,21 @@ const OperatingHoursSettings = () => {
   const [expandedLocation, setExpandedLocation] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!dealerId || dealerLoading) return;
+    const activeOrgId = organizationId || dealerId;
+    if (!activeOrgId || dealerLoading) return;
     const fetch = async () => {
       // Fetch locations
-      const locs = await apiGet<any[]>(`/api/locations?dealer_id=${dealerId}`).catch(() => null);
+      const locs = await apiGet<any[]>(`/api/v1/locations?orgId=${encodeURIComponent(activeOrgId)}&is_active=true`).catch(() => null);
 
       if (locs && locs.length > 0) {
-        setLocations(locs);
-        if (locs.length > 0) setExpandedLocation(locs[0].id);
+        const normalizedLocs = locs
+          .map((loc: any) => ({ ...loc, id: String(loc.id || loc._id || '') }))
+          .filter((loc: any) => Boolean(loc.id));
+        setLocations(normalizedLocs);
+        if (normalizedLocs.length > 0) setExpandedLocation(normalizedLocs[0].id);
 
         // Fetch operating hours for all locations
-        const locationIds = locs.map((l: any) => l.id);
+        const locationIds = normalizedLocs.map((l: any) => l.id);
         const hoursPromises = locationIds.map((id: string) =>
           apiGet<any[]>(`/api/location-operating-hours?location_id=${id}`).catch(() => [])
         );
@@ -71,7 +75,7 @@ const OperatingHoursSettings = () => {
 
           // Add missing day combinations
           const allHours: HoursForm[] = [];
-          locs.forEach(loc => {
+          normalizedLocs.forEach(loc => {
             DAYS.forEach(day => {
               const key = `${loc.id}-${day.value}`;
               if (hoursMap.has(key)) {
@@ -94,7 +98,7 @@ const OperatingHoursSettings = () => {
       setLoading(false);
     };
     fetch();
-  }, [dealerId, dealerLoading]);
+  }, [organizationId, dealerId, dealerLoading]);
 
   const updateHours = (index: number, field: keyof HoursForm, value: any) => {
     setHoursData(prev => {

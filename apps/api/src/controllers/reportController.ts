@@ -35,7 +35,11 @@ function parseFormats(value: unknown): Array<'excel' | 'pdf'> {
 function parseRecipientRoles(value: unknown): Array<'dealer_admin' | 'sales'> {
   const src = Array.isArray(value) ? value : [];
   const out = src
-    .map((v) => String(v || '').toLowerCase().trim())
+    .map((v) => {
+      const s = String(v || '').toLowerCase().trim();
+      if (s === 'sales_person') return 'sales';
+      return s;
+    })
     .filter((v): v is 'dealer_admin' | 'sales' => v === 'dealer_admin' || v === 'sales');
   return out.length ? Array.from(new Set(out)) : ['dealer_admin'];
 }
@@ -58,14 +62,14 @@ async function ensureLocationAccess(userId: string, locationId: string): Promise
     return;
   }
 
-  if (['sales_admin', 'branch_admin', 'sales', 'gro', 'security'].includes(role)) {
+  if (['sales_admin', 'branch_admin', 'sales', 'gro', 'security', 'brand_branch_admin', 'sales_person'].includes(role)) {
     if (!userLocationId || userLocationId !== locationId) {
       throw new Error('Forbidden: location access denied');
     }
     return;
   }
 
-  if (role === 'dealer_admin') {
+  if (role === 'dealer_admin' || role === 'brand_admin') {
     const [userLoc, targetLoc] = await Promise.all([
       userLocationId ? Location.findOne({ id: userLocationId }, { dealer_id: 1 }).lean() : null,
       Location.findOne({ id: locationId }, { dealer_id: 1 }).lean(),

@@ -27,7 +27,7 @@ export type FollowUpReminderConfigPayload = Pick<
 >;
 
 export async function getFollowUpReminderConfig(locationId: string) {
-  return apiGet<FollowUpReminderConfig>(`/api/follow-up-reminder-config/${encodeURIComponent(locationId)}`);
+  return apiGet<FollowUpReminderConfig>(`/api/v1/follow-up-reminder-config/${encodeURIComponent(locationId)}`);
 }
 
 export async function upsertFollowUpReminderConfig(payload: Partial<FollowUpReminderConfigPayload> & { location_id: string }) {
@@ -35,5 +35,5 @@ export async function upsertFollowUpReminderConfig(payload: Partial<FollowUpRemi
 }
 
 export async function deleteFollowUpReminderConfig(locationId: string) {
-  return apiDelete<FollowUpReminderConfig>(`/api/follow-up-reminder-config/${encodeURIComponent(locationId)}`);
+  return apiDelete<FollowUpReminderConfig>(`/api/v1/follow-up-reminder-config/${encodeURIComponent(locationId)}`);
 }

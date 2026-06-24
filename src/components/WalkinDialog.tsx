@@ -35,7 +35,7 @@ interface WalkinDialogProps {
 
 const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocationId, defaultVehicleId, defaultCustomerName, defaultCustomerPhone, rebookCustomerId, rebookCustomerEmail }: WalkinDialogProps) => {
   const { profile, role } = useAuth();
-  const { dealerId, loading: dealerLoading } = useDealerContext();
+  const { organizationId, dealerId, loading: dealerLoading } = useDealerContext();
   const [locations, setLocations] = useState<any[]>([]);
   const [locationStatus, setLocationStatus] = useState<Record<string, { isOpen: boolean; openTime: string | null; closeTime: string | null }>>({});
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -93,19 +93,25 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
     if (dealerLoading || !open) return;
     // SUPERADMIN sees all active locations; everyone else only their own branch
     if (role === APP_ROLE.SUPERADMIN) {
-      const filters: Array<{ field: string; op: 'eq'; value: unknown }> = [{ field: 'is_active', op: 'eq', value: true }];
-      if (dealerId) filters.push({ field: 'dealer_id', op: 'eq', value: dealerId });
-      apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters }).then((data) => {
-        setLocations(data || []);
+      const params = new URLSearchParams({ is_active: 'true' });
+      const activeOrgId = organizationId || dealerId;
+      if (activeOrgId) params.set('orgId', activeOrgId);
+      apiGet<any[]>(`/api/v1/locations?${params}`).then((data) => {
+        const locs = (data || [])
+          .map((loc: any) => ({ ...loc, id: String(loc.id || loc._id || '') }))
+          .filter((loc: any) => Boolean(loc.id));
+        setLocations(locs);
       });
     } else if (profile?.location_id) {
       // Fetch only the user's own location (for name/city/hours display)
-      apiDbQuery<any[]>({
-        table: 'locations', action: 'select', select: '*',
-        filters: [{ field: 'id', op: 'eq', value: profile.location_id }],
-      }).then((data) => setLocations(data || []));
+      apiGet<any[]>(`/api/v1/locations?ids=${encodeURIComponent(profile.location_id)}&is_active=true`).then((data) => {
+        const locs = (data || [])
+          .map((loc: any) => ({ ...loc, id: String(loc.id || loc._id || '') }))
+          .filter((loc: any) => Boolean(loc.id));
+        setLocations(locs);
+      });
     }
-  }, [dealerId, dealerLoading, role, open, profile?.location_id]);
+  }, [organizationId, dealerId, dealerLoading, role, open, profile?.location_id]);
 
   useEffect(() => {
     if (locations.length === 0) return;

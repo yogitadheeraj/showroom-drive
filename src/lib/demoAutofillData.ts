@@ -1,7 +1,7 @@
 // demoAutofillData.ts
 // Centralized autofill data for all forms
 
-import type { AppRole } from '@/constants/roles';
+import type { CanonicalAppRole } from '@/constants/roles';
 
 export const demoAutofillData = {
   VehiclesPage: {
@@ -60,7 +60,7 @@ export const demoAutofillData = {
     email: 'user@example.com',
     password: 'Demo@1234',
     fullName: 'Demo Staff',
-    role: 'sales' as AppRole,
+    role: 'sales_person' as CanonicalAppRole,
     locationId: '',
   },
 };

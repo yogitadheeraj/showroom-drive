@@ -159,7 +159,7 @@ const GROCalendarView = () => {
 
     const locationIds = Array.from(new Set(allProfiles.map((item) => item.location_id).filter(Boolean)));
     const locationRows = locationIds.length
-      ? await apiGet<any[]>(`/api/locations?ids=${encodeURIComponent(locationIds.join(','))}`)
+      ? await apiGet<any[]>(`/api/v1/locations?ids=${encodeURIComponent(locationIds.join(','))}`)
       : [];
     const locationMap = new Map((locationRows || []).map((location) => [location.id, location]));
 
@@ -203,7 +203,7 @@ const GROCalendarView = () => {
     }
 
     const [location, hours, blocked, special] = await Promise.all([
-      apiGet<any>(`/api/locations/${encodeURIComponent(profile.location_id)}`),
+      apiGet<any>(`/api/v1/locations/${encodeURIComponent(profile.location_id)}`),
       apiGet<any[]>(`/api/location-operating-hours?location_id=${encodeURIComponent(profile.location_id)}`),
       apiGet<any[]>(`/api/location-blocked-slots?location_id=${encodeURIComponent(profile.location_id)}`),
       apiGet<any[]>(`/api/location-special-periods?location_id=${encodeURIComponent(profile.location_id)}`),

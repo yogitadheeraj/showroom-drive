@@ -140,7 +140,7 @@ export default function SharedVehicleFleetPage() {
   }, [dealerId, profile?.location_id]);
 
   const loadLocations = useCallback(async () => {
-    const data = await apiGet<any[]>('/api/locations');
+    const data = await apiGet<any[]>('/api/v1/locations');
     setLocations(data || []);
   }, []);
 

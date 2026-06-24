@@ -6,6 +6,9 @@ import { Location } from '../models/Location.js';
 
 type AppUserRole = 'superadmin' | 'super_admin' | 'dealer_admin' | 'sales_admin' | 'branch_admin' | string;
 
+// Expand roles to include brand roles and sales person alias
+type ExtendedAppUserRole = AppUserRole | 'brand_admin' | 'brand_branch_admin' | 'sales_person';
+
 function normalizeFormats(value: unknown): ReportDispatchFormat[] {
   const src = Array.isArray(value) ? value : [];
   const allowed: ReportDispatchFormat[] = ['excel', 'pdf'];
@@ -17,7 +20,7 @@ function normalizeFormats(value: unknown): ReportDispatchFormat[] {
 
 function normalizeRecipientRoles(value: unknown): ReportDispatchRecipientRole[] {
   const src = Array.isArray(value) ? value : [];
-  const allowed: ReportDispatchRecipientRole[] = ['dealer_admin', 'sales'];
+  const allowed: ReportDispatchRecipientRole[] = ['dealer_admin', 'sales', 'sales_person'];
   const out = src
     .map((v) => String(v || '').trim().toLowerCase())
     .filter((v): v is ReportDispatchRecipientRole => allowed.includes(v as ReportDispatchRecipientRole));
@@ -56,7 +59,7 @@ async function ensureCanManage(userId: string, locationId: string) {
     return;
   }
 
-  if (actor.role === 'dealer_admin') {
+  if (actor.role === 'dealer_admin' || actor.role === 'brand_admin') {
     const actorLoc = actor.location_id ? await Location.findOne({ id: actor.location_id }, { dealer_id: 1 }).lean() : null;
     const targetLoc = await Location.findOne({ id: locationId }, { dealer_id: 1 }).lean();
     if (!actorLoc?.dealer_id || !targetLoc?.dealer_id || actorLoc.dealer_id !== targetLoc.dealer_id) {
@@ -65,7 +68,7 @@ async function ensureCanManage(userId: string, locationId: string) {
     return;
   }
 
-  if (actor.role === 'sales_admin' || actor.role === 'branch_admin') {
+  if (actor.role === 'sales_admin' || actor.role === 'branch_admin' || actor.role === 'brand_branch_admin') {
     if (actor.location_id !== locationId) {
       throw new Error('Forbidden: Branch Admin can manage only own location');
     }

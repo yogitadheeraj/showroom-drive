@@ -22,7 +22,7 @@ import {
 import {
   type LucideIcon,
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
-  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText, PlaneLanding, Truck, ChevronLeft, ChevronRight
+  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText, PlaneLanding, Truck, ChevronLeft, ChevronRight, Network
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
@@ -37,7 +37,7 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-const NAV_ITEMS: Record<AppRole, NavItem[]> = {
+const NAV_ITEMS: Partial<Record<AppRole, NavItem[]>> = {
   [APP_ROLE.SUPERADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
@@ -51,6 +51,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
+    { label: 'Entity Brands', path: '/entity-brands', icon: Car },
+    { label: 'Hierarchy', path: '/hierarchy', icon: Network },
     { label: 'Settings', path: '/settings', icon: Settings },
     { label: 'Reports', path: '/reports/monitoring', icon: BarChart3 },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
@@ -69,6 +71,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
+    { label: 'Entity Brands', path: '/entity-brands', icon: Car },
+    { label: 'Hierarchy', path: '/hierarchy', icon: Network },
     { label: 'Settings', path: '/settings', icon: Settings },
     { label: 'Reports', path: '/reports/monitoring', icon: BarChart3 },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
@@ -87,6 +91,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
+    { label: 'Entity Brands', path: '/entity-brands', icon: Car },
+    { label: 'Hierarchy', path: '/hierarchy', icon: Network },
     { label: 'Settings', path: '/settings', icon: Settings },
     { label: 'Reports', path: '/reports/monitoring', icon: BarChart3 },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
@@ -100,6 +106,17 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
+    { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
+    { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
+  ],
+  [APP_ROLE.SALES_PERSON]: [
+    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'My Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
+    { label: 'Walk-in', path: '/walkin', icon: Users },
+    { label: 'Enquiries', path: '/enquiries', icon: Inbox },
+    { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
@@ -126,6 +143,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { user, role, profile, signOut, refreshProfile } = useAuth();
+  console.log('DashboardLayout render:', { user, role, profile });
   const { dealerLocations, selectedLocationId, setSelectedLocationId, dealerName: ctxDealerName, dealerLogoUrl: ctxDealerLogoUrl } = useDealerContext();
   const wl = useWhitelabel();
   // Whitelabel branding takes precedence; fall back to DealerContext values
@@ -209,7 +227,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     });
   };
 
-  const navItems = NAV_ITEMS[role ?? DEFAULT_APP_ROLE];
+  const navItems = NAV_ITEMS[role ?? DEFAULT_APP_ROLE] ?? [];
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Staff User';
   const displayRole = role ? getAppRoleLabel(role) : 'Staff';
 
@@ -644,7 +662,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all_locations">All Locations</SelectItem>
-                  {dealerLocations.map((loc) => (
+                  {dealerLocations.filter((loc) => Boolean(loc.id)).map((loc) => (
                     <SelectItem key={loc.id} value={loc.id}>
                       {loc.name}{loc.city ? ` — ${loc.city}` : ''}
                     </SelectItem>

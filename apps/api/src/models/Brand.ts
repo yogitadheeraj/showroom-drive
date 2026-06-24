@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IBrand extends Document {
   id: string;
   dealer_id: string | null;
+  entity_id: string | null;
   name: string;
   description: string | null;
   logo_url: string | null;
@@ -17,6 +18,7 @@ const BrandSchema = new Schema<IBrand>(
   {
     id: { type: String, required: true, unique: true, index: true },
     dealer_id: { type: String, default: null, index: true },
+    entity_id: { type: String, default: null, index: true },
     name: { type: String, required: true },
     description: { type: String, default: null },
     logo_url: { type: String, default: null },

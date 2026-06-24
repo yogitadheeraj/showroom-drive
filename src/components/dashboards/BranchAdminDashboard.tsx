@@ -74,7 +74,7 @@ const BranchAdminDashboard = () => {
     setLoading(true);
     try {
       // Location info
-      const loc = await apiGet<any>(`/api/locations/${locationId}`);
+      const loc = await apiGet<any>(`/api/v1/locations/${locationId}`);
       setLocationInfo(loc);
 
       // All staff + roles for this location

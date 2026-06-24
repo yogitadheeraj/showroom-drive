@@ -118,7 +118,7 @@ const FollowUpReminderSettings = () => {
           <CardTitle className="flex items-center gap-2">
             <BellRing className="h-5 w-5" /> Follow-up Reminders
           </CardTitle>
-          <CardDescription>Only Dealer Admin and Branch Admin can configure reminder preferences.</CardDescription>
+          <CardDescription>Only Dealer Admin, Brand Admin and Branch Admin can configure reminder preferences.</CardDescription>
         </CardHeader>
       </Card>
     );

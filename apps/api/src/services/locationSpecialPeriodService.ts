@@ -4,7 +4,7 @@ import { Location } from '../models/Location.js';
 import { Profile } from '../models/Profile.js';
 import { UserRole } from '../models/UserRole.js';
 
-type AppUserRole = 'superadmin' | 'super_admin' | 'dealer_admin' | 'gro' | string;
+type AppUserRole = 'superadmin' | 'super_admin' | 'entity_admin' | 'dealer_admin' | 'gro'  | string;
 
 type SpecialPeriodFilters = {
   location_id?: string;
@@ -49,7 +49,14 @@ async function ensureManagePermission(userId: string, locationId: string) {
     return;
   }
 
-  if (actor.role === 'dealer_admin') {
+  if (actor.role === 'brand_branch_admin') {
+    if (!actor.locationId || actor.locationId !== locationId) {
+      throw new Error('Forbidden: Brand branch admin can only manage special periods for own location');
+    }
+    return;
+  }
+
+  if (actor.role === 'dealer_admin' || actor.role === 'brand_admin') {
     const targetLocation = await Location.findOne({ id: locationId }, { dealer_id: 1 }).lean();
     if (!targetLocation?.dealer_id) {
       throw new Error('Location not found');

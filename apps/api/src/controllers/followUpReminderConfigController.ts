@@ -28,7 +28,7 @@ export async function getFollowUpReminderConfigController(req: Request, res: Res
 
     const data = await getConfigByLocationId(locationId);
     if (!data) {
-      res.status(404).json({ data: null, error: { message: 'Reminder config not found for this location' } });
+      res.status(200).json({ data: null, error: { message: 'Reminder config not found for this location' } });
       return;
     }
 
@@ -69,7 +69,7 @@ export async function deleteFollowUpReminderConfigController(req: Request, res: 
 
     const data = await deleteConfig(req.authUser.uid, locationId);
     if (!data) {
-      res.status(404).json({ data: null, error: { message: 'Reminder config not found for this location' } });
+      res.status(200).json({ data: null, error: { message: 'Reminder config not found for this location' } });
       return;
     }
 

@@ -16,6 +16,7 @@ import { deleteUserRole, getRoleByUserId, upsertUserRole } from './userRoleServi
 import { env } from '../config/env.js';
 import { sendMail, staffVerificationTemplate } from './mailService.js';
 import { processEmailQueues } from './emailProcessorService.js';
+import { resolveAuthRoleContext } from './authRoleResolverService.js';
 import {
   sendDailyTestDriveReports,
   sendDailyActivityReports,
@@ -25,9 +26,9 @@ import {
 } from './reportEmailService.js';
 import { EmailUnsubscribeToken } from '../models/EmailUnsubscribeToken.js';
 
-const CREATEABLE_ROLES = ['dealer_admin', 'sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
-const DEALER_ADMIN_CREATEABLE_ROLES = ['sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
-const SALES_ADMIN_CREATEABLE_ROLES = ['sales'] as const;
+const CREATEABLE_ROLES = ['dealer_admin', 'sales_admin', 'gro', 'security', 'sales_person'] as const;
+const DEALER_ADMIN_CREATEABLE_ROLES = ['sales_admin', 'gro', 'security', 'sales_person'] as const;
+const SALES_ADMIN_CREATEABLE_ROLES = ['sales_person'] as const;
 
 type CreateableRole = (typeof CREATEABLE_ROLES)[number];
 
@@ -37,7 +38,9 @@ function normalizeRole(input: unknown): CreateableRole | null {
 
   const normalized = raw.replace(/[-\s]+/g, '_');
   if (normalized === 'salesadmin') return 'sales_admin';
-  if (normalized === 'branchadmin') return 'branch_admin';
+  if (normalized === 'branchadmin' || normalized === 'brandbranchadmin' || normalized === 'branch_admin' || normalized === 'brand_branch_admin') return 'sales_admin';
+  if (normalized === 'brandadmin' || normalized === 'brand_admin' || normalized === 'entity' || normalized === 'entity_admin') return 'dealer_admin';
+  if (normalized === 'sales') return 'sales_person';
 
   if ((CREATEABLE_ROLES as readonly string[]).includes(normalized)) {
     return normalized as CreateableRole;
@@ -47,9 +50,8 @@ function normalizeRole(input: unknown): CreateableRole | null {
 }
 
 async function getCallerRole(userId: string): Promise<string | null> {
-  const userRoles = getCollectionModel('user_roles');
-  const roleRow = await userRoles.findOne({ user_id: userId });
-  return roleRow?.role ? String(roleRow.role) : null;
+  const roleContext = await resolveAuthRoleContext(userId);
+  return roleContext.role;
 }
 
 async function resolveDealerIdForUser(userId: string): Promise<string | null> {
@@ -69,9 +71,10 @@ async function createStaffUser(payload: Record<string, unknown>, callerUserId?: 
   }
 
   const callerRole = await getCallerRole(callerUserId);
-  const isSuperAdmin = callerRole === 'superadmin' || callerRole === 'super_admin';
+  const isSuperAdmin = callerRole === 'superadmin';
+  const isEntityAdmin = callerRole === 'entity_admin';
   const isDealerAdmin = callerRole === 'dealer_admin';
-  const isSalesAdmin = callerRole === 'sales_admin' || callerRole === 'branch_admin';
+  const isSalesAdmin = callerRole === 'sales_admin';
 
   if (!isSuperAdmin && !isDealerAdmin && !isSalesAdmin) {
     throw new Error('Forbidden');
@@ -200,9 +203,10 @@ async function resolveDealerIdForTargetUser(targetUserId: string): Promise<strin
 
 async function canAccessTargetUser(callerUserId: string, targetUserId: string) {
   const callerRole = await getCallerRole(callerUserId);
-  const isSuperAdmin = callerRole === 'superadmin' || callerRole === 'super_admin';
+  const isSuperAdmin = callerRole === 'superadmin';
+  const isEntityAdmin = callerRole === 'entity_admin';
   const isDealerAdmin = callerRole === 'dealer_admin';
-  const isSalesAdmin = callerRole === 'sales_admin' || callerRole === 'branch_admin';
+  const isSalesAdmin = callerRole === 'sales_admin';
 
   if (!isSuperAdmin && !isDealerAdmin && !isSalesAdmin) {
     return { allowed: false, reason: 'Forbidden', callerRole, isSuperAdmin, isDealerAdmin, isSalesAdmin };
@@ -223,8 +227,8 @@ async function canAccessTargetUser(callerUserId: string, targetUserId: string) {
     return { allowed: false, reason: 'Only superadmin can manage dealer admin users', callerRole, isSuperAdmin, isDealerAdmin, isSalesAdmin };
   }
 
-  if (isSalesAdmin && targetRole !== 'sales') {
-    return { allowed: false, reason: 'Sales admin can manage only sales users', callerRole, isSuperAdmin, isDealerAdmin, isSalesAdmin };
+  if (isSalesAdmin && targetRole !== 'sales_person') {
+    return { allowed: false, reason: 'Sales admin can manage only sales person users', callerRole, isSuperAdmin, isDealerAdmin, isSalesAdmin };
   }
 
   return { allowed: true, reason: null, callerRole, isSuperAdmin, isDealerAdmin, isSalesAdmin, targetRole };

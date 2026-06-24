@@ -31,7 +31,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2, MoreHorizontal, PlaneTakeoff, PlaneLanding, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, DEALER_ASSIGNABLE_ROLES, type AppRole } from '@/constants/roles';
+import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, DEALER_ASSIGNABLE_ROLES, type AppRole, type CanonicalAppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
 
 const UsersPage = () => {
@@ -71,13 +71,18 @@ const UsersPage = () => {
     ? STAFF_ROLE_OPTIONS
     : isDealerAdmin
       ? DEALER_ASSIGNABLE_ROLES
-      : [{ value: APP_ROLE.SALES, label: 'Sales Person' }] as const;
+      : [
+          { value: APP_ROLE.SALES_PERSON, label: 'Sales Person' },
+        ] as const;
 
   const getPrimaryRole = (u: any) => u?.user_roles?.[0]?.role as AppRole | undefined;
   const canEditTargetUser = (u: any) => {
     if (!canManageStaff) return false;
     if (u?.user_id === user?.id) return false;
-    if (isSalesAdmin) return getPrimaryRole(u) === APP_ROLE.SALES;
+    if (isSalesAdmin) {
+      const targetRole = getPrimaryRole(u);
+      return targetRole === APP_ROLE.SALES_PERSON;
+    }
     return true;
   };
 
@@ -99,7 +104,7 @@ const UsersPage = () => {
       } else if (!isSuperAdmin && dealerId) {
         locationParams.set('dealer_id', dealerId);
       }
-      apiGet<any[]>(`/api/locations?${locationParams}`).then((data) => setLocations(data || []));
+      apiGet<any[]>(`/api/v1/locations?${locationParams}`).then((data) => setLocations(data || []));
     }
   }, [dealerId, dealerLoading, isSuperAdmin, isSalesAdmin, profile?.location_id, selectedDealerFilter]);
 
@@ -115,7 +120,7 @@ const UsersPage = () => {
     const [profiles, roles, allLocations] = await Promise.all([
       apiGet<any[]>(`/api/profiles${profileParams.toString() ? `?${profileParams}` : ''}`),
       apiGet<any[]>('/api/user-roles'),
-      apiGet<any[]>('/api/locations'),
+      apiGet<any[]>('/api/v1/locations'),
     ]);
 
     const locationDealerMap = (allLocations || []).reduce((acc: Record<string, string>, loc: any) => {
@@ -220,8 +225,8 @@ const UsersPage = () => {
       return;
     }
 
-    if (isSalesAdmin && createForm.role !== APP_ROLE.SALES) {
-      toast({ title: 'Not allowed', description: 'Sales Admin can add only Sales members.', variant: 'destructive' });
+    if (isSalesAdmin && createForm.role !== APP_ROLE.SALES_PERSON) {
+      toast({ title: 'Not allowed', description: 'Sales Admin can add only Sales Person members.', variant: 'destructive' });
       return;
     }
 
@@ -271,8 +276,9 @@ const UsersPage = () => {
 
     if (isSalesAdmin) {
       const targetRole = getPrimaryRole(editingUser);
-      if (targetRole !== APP_ROLE.SALES || editForm.role !== APP_ROLE.SALES) {
-        toast({ title: 'Not allowed', description: 'Sales Admin can edit only Sales members.', variant: 'destructive' });
+      const newRoleAllowed = editForm.role === APP_ROLE.SALES_PERSON;
+      if (targetRole !== APP_ROLE.SALES_PERSON || !newRoleAllowed) {
+        toast({ title: 'Not allowed', description: 'Sales Admin can edit only Sales Person members.', variant: 'destructive' });
         return;
       }
     }
@@ -509,10 +515,10 @@ const UsersPage = () => {
             {isSuperAdmin && (
               <Select value={selectedDealerFilter} onValueChange={setSelectedDealerFilter}>
                 <SelectTrigger className="w-full sm:w-[220px]">
-                  <SelectValue placeholder="Filter by dealer" />
+                  <SelectValue placeholder="Filter by Entity" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Dealers</SelectItem>
+                  <SelectItem value="all">All Entities</SelectItem>
                   {dealers.map(d => (
                     <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
                   ))}
@@ -863,7 +869,7 @@ const UsersPage = () => {
             <div className="space-y-4">
               {profile?.can_use_demo_data && (
                 <div className="flex justify-end mb-2">
-                  <Button variant="outline" size="sm" type="button" onClick={() => setCreateForm(p => ({ ...p, ...demoAutofillData.UsersPage }))}>
+                  <Button variant="outline" size="sm" type="button" onClick={() => setCreateForm(p => ({ ...p, ...demoAutofillData.UsersPage, role: demoAutofillData.UsersPage.role as CanonicalAppRole }))}>
                     Show Demo Data
                   </Button>
                 </div>
@@ -891,7 +897,7 @@ const UsersPage = () => {
               </div>
               <div className="space-y-2">
                 <Label>Role *</Label>
-<Select value={createForm.role} onValueChange={(v: string) => setCreateForm(p => ({ ...p, role: v as AppRole }))}>
+<Select value={createForm.role} onValueChange={(v: string) => setCreateForm(p => ({ ...p, role: v as CanonicalAppRole }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {assignableRolesForCurrentUser

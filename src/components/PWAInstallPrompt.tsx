@@ -51,7 +51,7 @@ export default function PWAInstallPrompt() {
       <Button size="sm" className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 text-xs gap-1" onClick={handleInstall}>
         <Download className="h-3.5 w-3.5" /> Install
       </Button>
-      <button onClick={handleDismiss} className="text-white/50 hover:text-white shrink-0">
+      <button onClick={handleDismiss} className="text-red/50 hover:text-white shrink-0">
         <X className="h-4 w-4" />
       </button>
     </div>

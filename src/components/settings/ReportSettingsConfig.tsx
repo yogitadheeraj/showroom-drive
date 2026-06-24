@@ -36,10 +36,11 @@ const ReportSettingsConfig = () => {
     return dealerLocationIds?.[0] || null
   }, [selectedLocationId, profile?.location_id, dealerLocationIds])
 
+  type ReportRecipientRole = 'dealer_admin' | 'sales' | 'sales_person'
   const [form, setForm] = useState<Record<'test_drive_daily' | 'activity_daily', {
     enabled: boolean
     send_time_utc: string
-    recipient_roles: Array<'dealer_admin' | 'sales'>
+    recipient_roles: Array<ReportRecipientRole>
     formats: Array<'excel' | 'pdf'>
   }>>({
     test_drive_daily: { enabled: true, send_time_utc: '18:00', recipient_roles: ['dealer_admin'], formats: ['excel'] },
@@ -65,7 +66,7 @@ const ReportSettingsConfig = () => {
           next[type] = {
             enabled: Boolean(cfg.enabled),
             send_time_utc: cfg.send_time_utc || '18:00',
-            recipient_roles: (cfg.recipient_roles?.length ? cfg.recipient_roles : ['dealer_admin']) as Array<'dealer_admin' | 'sales'>,
+            recipient_roles: (cfg.recipient_roles?.length ? cfg.recipient_roles : ['dealer_admin']) as Array<ReportRecipientRole>,
             formats: (cfg.formats?.length ? cfg.formats : ['excel']) as Array<'excel' | 'pdf'>,
           }
         }
@@ -79,7 +80,7 @@ const ReportSettingsConfig = () => {
     }
   }
 
-  function toggleRole(type: 'test_drive_daily' | 'activity_daily', role: 'dealer_admin' | 'sales') {
+  function toggleRole(type: 'test_drive_daily' | 'activity_daily', role: 'dealer_admin' | 'sales' | 'sales_person') {
     const current = form[type].recipient_roles
     const exists = current.includes(role)
     const next = exists ? current.filter((x) => x !== role) : [...current, role]
@@ -169,7 +170,7 @@ const ReportSettingsConfig = () => {
         <CardHeader>
           <CardTitle>Report Dispatch Configuration</CardTitle>
           <CardDescription>
-            Configure automatic report delivery for this showroom. Recipients are role-based (Dealer Admin / Sales).
+            Configure automatic report delivery for this showroom. Recipients are role-based (Dealer Admin / Sales / Sales Person).
           </CardDescription>
         </CardHeader>
         <CardContent className='text-xs text-muted-foreground'>
@@ -235,6 +236,14 @@ const ReportSettingsConfig = () => {
                     onClick={() => toggleRole(type, 'sales')}
                   >
                     Sales
+                  </Button>
+                  <Button
+                    type='button'
+                    variant={cfg.recipient_roles.includes('sales_person') ? 'default' : 'outline'}
+                    size='sm'
+                    onClick={() => toggleRole(type, 'sales_person')}
+                  >
+                    Sales Person
                   </Button>
                 </div>
               </div>

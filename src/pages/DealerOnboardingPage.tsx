@@ -1,32 +1,21 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiGet, apiRpc } from '@/lib/apiClient';
+import { apiRpc } from '@/lib/apiClient';
 import { authResendSignupVerification, authSignUp } from '@/lib/authClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Car, Building2, MapPin, User, CheckCircle, ArrowRight, ArrowLeft, Plus, X, Eye, EyeOff } from 'lucide-react';
+import { Building2, Network, User, CheckCircle, ArrowRight, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
-import { ENTITY_ORCHESTRATION, ENTITY_ORCHESTRATION_LABEL } from '@/constants/entityOrchestration';
+import { ENTITY_ORCHESTRATION } from '@/constants/entityOrchestration';
 
 const STEPS = [
   { id: 'account', label: 'Admin Account', icon: User },
-  { id: 'dealer', label: ENTITY_ORCHESTRATION.dealer, icon: Building2 },
-  { id: 'brands', label: ENTITY_ORCHESTRATION.brands, icon: Car },
-  { id: 'locations', label: `${ENTITY_ORCHESTRATION.location}s`, icon: MapPin },
+  { id: 'organization', label: 'Organization', icon: Building2 },
+  { id: 'handoff', label: 'Hierarchy Setup', icon: Network },
 ];
-
-interface LocationForm {
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  phone: string;
-  email: string;
-  brand?: string;
-}
 
 const DealerOnboardingPage = () => {
   const [showPw, setShowPw] = useState({ password: false, confirmPassword: false });
@@ -37,27 +26,31 @@ const DealerOnboardingPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [accountData, setAccountData] = useState({ fullName: '', email: '', password: '', confirmPassword: '' });
-  const [dealerData, setDealerData] = useState({ name: '', contactEmail: '', contactPhone: '' });
-  const [brands, setBrands] = useState<string[]>(['']);
-  const [locationForms, setLocationForms] = useState<LocationForm[]>([
-    { name: '', address: '', city: '', state: '', phone: '', email: '', brand: '' },
-  ]);
+  const [organizationData, setOrganizationData] = useState({
+    name: '',
+    code: '',
+    type: 'ENTITY',
+    country: 'AE',
+    contactPhone: '',
+  });
 
-  const addBrand = () => setBrands(prev => [...prev, '']);
-  const removeBrand = (i: number) => setBrands(prev => prev.filter((_, idx) => idx !== i));
-  const updateBrand = (i: number, val: string) => setBrands(prev => prev.map((b, idx) => idx === i ? val : b));
+  const normalizedOrgCode = useMemo(() => {
+    return organizationData.code
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_-]+/g, '');
+  }, [organizationData.code]);
 
-  const removeLocation = (i: number) => setLocationForms(prev => prev.filter((_, idx) => idx !== i));
-  const addLocation = () => setLocationForms(prev => [...prev, { name: '', address: '', city: '', state: '', phone: '', email: '', brand: '' }]);
-  const updateLocation = (i: number, field: keyof LocationForm, val: string) =>
-    setLocationForms(prev => prev.map((l, idx) => idx === i ? { ...l, [field]: val } : l));
+  const verificationRedirectUrl = useMemo(() => {
+    const next = `/hierarchy?orgCode=${encodeURIComponent(normalizedOrgCode || 'NEW-ORG')}`;
+    return `${window.location.origin}/auth?verified=true&next=${encodeURIComponent(next)}`;
+  }, [normalizedOrgCode]);
 
   const canProceed = () => {
     switch (step) {
       case 0: return accountData.fullName && accountData.email && accountData.password.length >= 6 && accountData.password === accountData.confirmPassword;
-      case 1: return dealerData.name && dealerData.contactEmail;
-      case 2: return brands.filter(b => b.trim()).length > 0;
-      case 3: return locationForms.every(l => l.name && l.address && l.city && (!!l.brand || brands.filter(b => b.trim()).length === 1));
+      case 1: return organizationData.name && normalizedOrgCode && organizationData.country;
+      case 2: return true;
       default: return false;
     }
   };
@@ -65,22 +58,11 @@ const DealerOnboardingPage = () => {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      // Generate slug from admin email to ensure uniqueness
-      const emailPrefix = accountData.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const slug = emailPrefix || dealerData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-
-      // Check for duplicate slug before creating anything
-      const existingDealers = await apiGet<any[]>(`/api/dealers?slug=${encodeURIComponent(slug)}`);
-      const existingDealer = existingDealers?.[0] || null;
-      if (existingDealer) {
-        throw new Error('A dealership with this email already exists. Please use a different email address.');
-      }
-
-      // 1. Create admin account
       const { data: authData, error: authError } = await authSignUp(
         accountData.email,
         accountData.password,
-        accountData.fullName
+        accountData.fullName,
+        verificationRedirectUrl,
       );
       if (authError) {
         if (authError.message === 'UNVERIFIED_EMAIL_EXISTS_RESEND_CONFIRM') {
@@ -89,14 +71,15 @@ const DealerOnboardingPage = () => {
           );
 
           if (wantsResend) {
-            const { error: resendError } = await authResendSignupVerification(accountData.email);
+            const { error: resendError } = await authResendSignupVerification(accountData.email, verificationRedirectUrl);
 
             if (resendError) throw resendError;
 
             toast({
               title: 'Verification email sent',
-              description: 'Please verify your email, then login and continue onboarding.',
+              description: 'Please verify your email, then sign in to continue hierarchy setup.',
             });
+            navigate(`/auth?next=${encodeURIComponent(`/hierarchy?orgCode=${encodeURIComponent(normalizedOrgCode)}`)}`);
             return;
           }
 
@@ -107,33 +90,24 @@ const DealerOnboardingPage = () => {
       }
       if (!authData.user) throw new Error('Account creation failed');
 
-      const userId = authData.user.id;
+      const userId = authData.user.uid;
 
-      // 2. Create dealer, brands, and locations via security definer function
-      const validBrands = brands.filter(b => b.trim());
-
-      await apiRpc('onboard_dealer', {
-        _dealer_name: dealerData.name,
-        _slug: slug,
-        _contact_email: dealerData.contactEmail,
-        _contact_phone: dealerData.contactPhone || null,
+      await apiRpc('onboard_entity', {
+        _organization_name: organizationData.name,
+        _organization_code: normalizedOrgCode,
+        _organization_type: organizationData.type,
+        _country: organizationData.country,
+        _contact_phone: organizationData.contactPhone || null,
         _admin_user_id: userId,
         _full_name: accountData.fullName,
         _email: accountData.email,
-        _brands: validBrands,
-        _locations: locationForms.map(loc => ({
-          name: loc.name,
-          address: loc.address,
-          city: loc.city,
-          state: loc.state || '',
-          phone: loc.phone || '',
-          email: loc.email || '',
-          brands: loc.brand ? [loc.brand] : [],
-        })),
       } as any);
 
-      toast({ title: 'Dealership created!', description: 'Please check your email to verify your account, then log in.' });
-      navigate('/auth');
+      toast({
+        title: 'Organization created!',
+        description: 'Verify your email, then sign in to continue setup in Hierarchy Management.',
+      });
+      navigate(`/auth?next=${encodeURIComponent(`/hierarchy?orgCode=${encodeURIComponent(normalizedOrgCode)}`)}`);
     } catch (err: any) {
       toast({ title: 'Setup failed', description: err.message, variant: 'destructive' });
     } finally {
@@ -155,9 +129,6 @@ const DealerOnboardingPage = () => {
 
       {/* Steps */}
       <div className="max-w-2xl mx-auto px-4 pt-6">
-        <p className="text-xs text-muted-foreground mb-3">
-          Orchestration: {ENTITY_ORCHESTRATION_LABEL}
-        </p>
         <div className="flex items-center justify-between mb-6">
           {STEPS.map((s, i) => {
             const Icon = s.icon;
@@ -188,15 +159,13 @@ const DealerOnboardingPage = () => {
           <CardHeader>
             <CardTitle className="font-heading">
               {step === 0 && 'Create Admin Account'}
-              {step === 1 && `${ENTITY_ORCHESTRATION.dealer} Details`}
-              {step === 2 && `Add ${ENTITY_ORCHESTRATION.brands}`}
-              {step === 3 && `Setup ${ENTITY_ORCHESTRATION.location}s`}
+              {step === 1 && 'Create Organization'}
+              {step === 2 && 'Continue In Hierarchy Management'}
             </CardTitle>
             <CardDescription>
-              {step === 0 && 'This will be the master admin account for your dealership'}
-              {step === 1 && `Tell us about your ${ENTITY_ORCHESTRATION.dealer.toLowerCase()}`}
-              {step === 2 && `Configure ${ENTITY_ORCHESTRATION.entity.toLowerCase()} ${ENTITY_ORCHESTRATION.brands.toLowerCase()}`}
-              {step === 3 && `Add your showroom ${ENTITY_ORCHESTRATION.location.toLowerCase()}s`}
+              {step === 0 && 'Create the primary admin who will own this organization setup'}
+              {step === 1 && 'Start with your top-level organization. The rest of the hierarchy can be configured after sign-in.'}
+              {step === 2 && 'After verification and sign-in, you will land in Hierarchy Management with your organization ready to select.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -237,105 +206,64 @@ const DealerOnboardingPage = () => {
               </div>
             )}
 
-            {/* Step 1: Dealer Info */}
+            {/* Step 1: Organization Info */}
             {step === 1 && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>{ENTITY_ORCHESTRATION.dealer} Name *</Label>
-                  <Input value={dealerData.name} onChange={e => setDealerData(p => ({ ...p, name: e.target.value }))} placeholder="ABC Motors" />
+                  <Label>Organization Name *</Label>
+                  <Input value={organizationData.name} onChange={e => setOrganizationData(p => ({ ...p, name: e.target.value }))} placeholder="Al Futtaim Automotive" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Contact Email *</Label>
-                    <Input type="email" value={dealerData.contactEmail} onChange={e => setDealerData(p => ({ ...p, contactEmail: e.target.value }))} placeholder="info@dealer.com" />
+                    <Label>Organization Code *</Label>
+                    <Input
+                      value={organizationData.code}
+                      onChange={e => setOrganizationData(p => ({ ...p, code: e.target.value.toUpperCase() }))}
+                      placeholder="ALF"
+                    />
+                    {organizationData.code && organizationData.code !== normalizedOrgCode && (
+                      <p className="text-xs text-muted-foreground">Saved as {normalizedOrgCode}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Country *</Label>
+                    <Input value={organizationData.country} onChange={e => setOrganizationData(p => ({ ...p, country: e.target.value.toUpperCase() }))} placeholder="AE" maxLength={3} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Organization Type *</Label>
+                    <select
+                      value={organizationData.type}
+                      onChange={e => setOrganizationData(p => ({ ...p, type: e.target.value }))}
+                      className="w-full h-10 px-3 py-2 border border-input rounded-md text-sm bg-background"
+                    >
+                      <option value="ENTITY">ENTITY</option>
+                      <option value="GROUP">GROUP</option>
+                      <option value="COMPANY">COMPANY</option>
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <Label>Contact Phone</Label>
-                    <Input value={dealerData.contactPhone} onChange={e => setDealerData(p => ({ ...p, contactPhone: e.target.value }))} placeholder="+91 8*********" />
+                    <Input value={organizationData.contactPhone} onChange={e => setOrganizationData(p => ({ ...p, contactPhone: e.target.value }))} placeholder="+971..." />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Step 2: Brands */}
+            {/* Step 2: Handoff */}
             {step === 2 && (
-              <div className="space-y-4">
-                {brands.map((brand, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <Input value={brand} onChange={e => updateBrand(i, e.target.value)} placeholder={`Brand ${i + 1} (e.g. Toyota, BMW)`} />
-                    {brands.length > 1 && (
-                      <button onClick={() => removeBrand(i)} className="h-8 w-8 rounded-lg bg-destructive/10 flex items-center justify-center hover:bg-destructive/20 transition-colors">
-                        <X className="h-4 w-4 text-destructive" />
-                      </button>
-                    )}
+              <div className="space-y-4 rounded-2xl border border-border bg-muted/20 p-5">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="mt-0.5 h-5 w-5 text-primary" />
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground">What happens next</p>
+                    <p>1. We create your admin account and top-level organization.</p>
+                    <p>2. You verify your email and sign in.</p>
+                    <p>3. You land in Hierarchy Management and select <strong className="text-foreground">{organizationData.name || 'your organization'}</strong>.</p>
+                    <p>4. Then you continue setting up business units, sales offices, plants, locations, vehicles, and staff roles.</p>
                   </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={addBrand} className="gap-2">
-                  <Plus className="h-4 w-4" /> Add Another Brand
-                </Button>
-              </div>
-            )}
-
-            {/* Step 3: Locations */}
-            {step === 3 && (
-              <div className="space-y-6">
-                {locationForms.map((loc, i) => (
-                  <div key={i} className="p-4 rounded-xl border border-border space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-foreground">Location {i + 1}</h4>
-                      {locationForms.length > 1 && (
-                        <button onClick={() => removeLocation(i)} className="text-xs text-destructive hover:underline">Remove</button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Location Name *</Label>
-                        <Input value={loc.name} onChange={e => updateLocation(i, 'name', e.target.value)} placeholder="Downtown Showroom" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>City *</Label>
-                        <Input value={loc.city} onChange={e => updateLocation(i, 'city', e.target.value)} placeholder="Mumbai" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Address *</Label>
-                      <Input value={loc.address} onChange={e => updateLocation(i, 'address', e.target.value)} placeholder="123 Main Street" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>State</Label>
-                        <Input value={loc.state} onChange={e => updateLocation(i, 'state', e.target.value)} placeholder="Maharashtra" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Phone</Label>
-                        <Input value={loc.phone} onChange={e => updateLocation(i, 'phone', e.target.value)} placeholder="+91..." />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Email</Label>
-                        <Input value={loc.email} onChange={e => updateLocation(i, 'email', e.target.value)} placeholder="location@..." />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Brand *</Label>
-                      <select
-                        className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
-                        value={loc.brand || ''}
-                        onChange={e => updateLocation(i, 'brand', e.target.value)}
-                      >
-                        <option value="">Select brand</option>
-                        {brands.filter(b => b.trim()).map((b, idx) => (
-                          <option key={idx} value={b}>{b}</option>
-                        ))}
-                      </select>
-                      {(!loc.brand && brands.filter(b => b.trim()).length > 1) && (
-                        <p className="text-xs text-destructive">Brand is required for each location</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={addLocation} className="gap-2">
-                  <Plus className="h-4 w-4" /> Add Another Location
-                </Button>
+                </div>
               </div>
             )}
 
@@ -351,7 +279,7 @@ const DealerOnboardingPage = () => {
                 </Button>
               ) : (
                 <Button onClick={handleSubmit} disabled={isSubmitting || !canProceed()} className="gradient-primary border-0 text-primary-foreground gap-2" size="lg">
-                  {isSubmitting ? 'Setting up...' : 'Complete Setup'}
+                  {isSubmitting ? 'Creating organization...' : 'Create Organization'}
                 </Button>
               )}
             </div>

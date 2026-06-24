@@ -1,6 +1,6 @@
 export const APP_ROLE = {
   SUPERADMIN: 'superadmin',
-  ENTITY: 'entity',
+  ENTITY_ADMIN: 'entity_admin',
   BRAND_ADMIN: 'brand_admin',
   BRAND_BRANCH_ADMIN: 'brand_branch_admin',
   DEALER_ADMIN: 'dealer_admin',

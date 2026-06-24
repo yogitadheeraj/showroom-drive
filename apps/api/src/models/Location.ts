@@ -3,6 +3,9 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface ILocation extends Document {
   id: string;
   dealer_id: string | null;
+  brand_id: string | null;
+  parent_location_id: string | null;
+  hierarchy_level: 'brand_branch' | 'branch' | 'location' | null;
   name: string;
   city: string | null;
   state: string | null;
@@ -31,6 +34,9 @@ const LocationSchema = new Schema<ILocation>(
   {
     id: { type: String, required: true, unique: true, index: true },
     dealer_id: { type: String, default: null, index: true },
+    brand_id: { type: String, default: null, index: true },
+    parent_location_id: { type: String, default: null, index: true },
+    hierarchy_level: { type: String, enum: ['brand_branch', 'branch', 'location', null], default: null },
     name: { type: String, required: true },
     city: { type: String, default: null },
     state: { type: String, default: null },

@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyIdToken } from '../config/firebaseAdmin.js';
-import { UserRole } from '../models/UserRole.js';
 import { Profile } from '../models/Profile.js';
 import { Location } from '../models/Location.js';
 import { applyLocationScope } from '../middleware/locationFilter.js';
+import { resolveAuthRoleContext } from '../services/authRoleResolverService.js';
 
 import { z } from 'zod';
 
@@ -71,11 +71,11 @@ export async function attachAuthUser(req: Request, _res: Response, next: NextFun
 
     // Load role and location context for location-based filtering
     try {
-      const [roleDoc, profileDoc] = await Promise.all([
-        UserRole.findOne({ user_id: decoded.uid }, { role: 1 }).lean(),
+      const [roleContext, profileDoc] = await Promise.all([
+        resolveAuthRoleContext(decoded.uid),
         Profile.findOne({ user_id: decoded.uid }, { location_id: 1 }).lean(),
       ]);
-      req.authUser.role = (roleDoc?.role as string | undefined) ?? undefined;
+      req.authUser.role = roleContext.role ?? undefined;
       req.authUser.location_id = (profileDoc as any)?.location_id ?? null;
 
       // Resolve dealer_id via the user's assigned location
@@ -128,7 +128,7 @@ const DEALER_SCOPED_TABLES = new Set(['locations']);
 
 /** Staff roles that are restricted to their single assigned location. */
 const LOCATION_SCOPED_ROLES = new Set([
-  'gro', 'sales', 'sales_admin', 'branch_admin', 'security',
+  'gro', 'sales_person', 'sales_admin', 'security',
 ]);
 
 /**
