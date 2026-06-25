@@ -656,7 +656,7 @@ const UsersPage = () => {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleResendVerificationForUser(u)}
-                            disabled={verificationByUserId[u.user_id] || !!resendingVerificationByUserId[u.user_id] || saving}
+                            disabled={!canEditTargetUser(u) || saving}
                           >
                             <Mail className="h-3.5 w-3.5 mr-2" />
                             {resendingVerificationByUserId[u.user_id] ? 'Sending Verification...' : 'Send Verification'}
@@ -803,7 +803,7 @@ const UsersPage = () => {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => handleResendVerificationForUser(u)}
-                        disabled={verificationByUserId[u.user_id] || !!resendingVerificationByUserId[u.user_id] || saving}
+                        disabled={!canEditTargetUser(u) || saving}
                       >
                         <Mail className="h-3.5 w-3.5 mr-2" />
                         {resendingVerificationByUserId[u.user_id] ? 'Sending Verification...' : 'Send Verification'}

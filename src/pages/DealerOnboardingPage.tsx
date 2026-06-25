@@ -104,8 +104,8 @@ const DealerOnboardingPage = () => {
         throw authError;
       }
       if (!authData.user) throw new Error('Account creation failed');
-
-      const userId = authData.user.id;
+console.log('Created admin user:',  authData.user);
+      const userId = authData.user.id|| authData.user.uid;
 
       // 2. Create dealer, brands, and locations via security definer function
       const validBrands = brands.filter(b => b.trim());

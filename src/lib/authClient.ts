@@ -1,4 +1,4 @@
-import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { apiPost } from '@/lib/apiClient';
 
 export async function authSignUp(email: string, password: string, fullName: string) {
@@ -7,6 +7,10 @@ export async function authSignUp(email: string, password: string, fullName: stri
   if (fullName) {
     await updateProfile(result.user, { displayName: fullName });
   }
+  await sendEmailVerification(result.user, {
+    url: `${window.location.origin}/auth`,
+    handleCodeInApp: false,
+  });
   return { data: { user: result.user }, error: null };
 }
 

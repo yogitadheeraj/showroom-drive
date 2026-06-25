@@ -3,6 +3,7 @@ import { getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { env } from '../config/env.js';
 import { getCollectionModel } from '../models/collectionModel.js';
+import { sendMail, staffVerificationTemplate } from '../services/mailService.js';
 
 export async function meController(req: Request, res: Response) {
   if (!req.authUser?.uid) {
@@ -56,8 +57,29 @@ export async function resendVerificationController(req: Request, res: Response) 
 
     const continueUrl = `${env.corsOrigin}/auth?verified=true`;
     const link = await getAuth().generateEmailVerificationLink(email, { url: continueUrl });
+    const template = staffVerificationTemplate({
+      fullName: user.displayName || 'there',
+      roleLabel: 'Dealer Admin',
+      verificationLink: link,
+      loginUrl: `${env.corsOrigin}/auth`,
+    });
 
-    res.status(200).json({ data: { message: 'Verification email sent.', link }, error: null });
+    const mailStatus = await sendMail({
+      to: email,
+      subject: 'Verify your account to sign in',
+      html: template.html,
+      text: template.text,
+    });
+
+    res.status(200).json({
+      data: {
+        message: mailStatus.sent ? 'Verification email sent.' : 'Verification link generated. Email send skipped.',
+        sent: mailStatus.sent,
+        skipped: mailStatus.skipped,
+        link: mailStatus.sent ? null : link,
+      },
+      error: null,
+    });
   } catch (error: any) {
     const code = error?.errorInfo?.code || '';
     if (code === 'auth/user-not-found') {
