@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { apiGet, apiDbQuery, apiPatch } from '@/lib/apiClient';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { useTheme } from '@/hooks/useTheme';
 import { useWhitelabel } from '@/hooks/useWhitelabel';
 import {
   Select,
@@ -22,7 +23,7 @@ import {
 import {
   type LucideIcon,
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
-  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText, PlaneLanding, Truck, ChevronLeft, ChevronRight
+  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText, PlaneLanding, Truck, ChevronLeft, ChevronRight, Tag
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
@@ -90,6 +91,15 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
+  [APP_ROLE.BRAND_ADMIN]: [
+    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'Brands', path: '/brands', icon: Tag },
+    { label: 'Vehicles', path: '/vehicles', icon: Car },
+    { label: 'Locations', path: '/locations', icon: MapPin },
+    { label: 'Enquiries', path: '/enquiries', icon: Inbox },
+    { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
+    { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
+  ],
   [APP_ROLE.GRO]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
@@ -137,6 +147,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
   });
+  const { resolvedTheme, toggleTheme } = useTheme();
+
   const [newLeadCount, setNewLeadCount] = useState(0);
   const [endingLeave, setEndingLeave] = useState(false);
   const leadPollRef = useRef({
@@ -488,7 +500,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                     />
                   )}
                   {!sidebarCollapsed && dealerName && (
-                    <span className="text-base font-bold text-foreground dark:text-slate-100 truncate max-w-[180px]">
+                    <span className={resolvedTheme === 'dark' ? 'text-sm font-semibold text-white' : 'text-md font-semibold text-white'}>
                       {dealerName}
                     </span>
                   )}

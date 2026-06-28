@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
+import { APP_ROLE } from '@/constants/roles';
 import { apiDbQuery } from '@/lib/apiClient';
 import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,15 +11,18 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Upload, X, Building2 } from 'lucide-react';
 
-const DealerProfileSettings = () => {
-  const { dealerId, loading: dealerLoading } = useDealerContext();
-  const { user } = useAuth();
+const DealerProfileSettings = ({ dealerIdOverride }: { dealerIdOverride?: string } = {}) => {
+  const { dealerId: ctxDealerId, loading: dealerLoading } = useDealerContext();
+  const dealerId = dealerIdOverride || ctxDealerId;
+  const { user, role } = useAuth();
+  const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [dealer, setDealer] = useState<any>(null);
+  const [allDealers, setAllDealers] = useState<any[]>([]);
   const [form, setForm] = useState({ name: '', contact_email: '', contact_phone: '', logo_url: '' });
   const [createForm, setCreateForm] = useState({ name: '', slug: '', contact_email: '', contact_phone: '' });
 
@@ -26,8 +30,15 @@ const DealerProfileSettings = () => {
     if (dealerLoading) return;
     if (!dealerId) {
       setLoading(false);
-      // Pre-fill create form with the user's email
-      if (user?.email) {
+      if (isSuperAdmin) {
+        // Load all dealers for superadmin
+        apiDbQuery<any[]>({
+          table: 'dealers',
+          action: 'select',
+          select: 'id, name, slug, contact_email, contact_phone, logo_url, created_at',
+          order: [{ field: 'name', ascending: true }],
+        }).then(d => setAllDealers(d ?? []));
+      } else if (user?.email) {
         setCreateForm(prev => ({ ...prev, contact_email: prev.contact_email || user.email || '' }));
       }
       return;
@@ -126,6 +137,45 @@ const DealerProfileSettings = () => {
 
   if (dealerLoading || loading) {
     return <div className="text-muted-foreground animate-pulse p-8">Loading...</div>;
+  }
+
+  if (!dealerId && isSuperAdmin) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Building2 className="h-5 w-5 text-primary" />
+          <span className="text-sm font-semibold text-foreground">All Dealers</span>
+          <span className="text-xs text-muted-foreground">({allDealers.length} total)</span>
+        </div>
+        {allDealers.length === 0 ? (
+          <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">No dealers found.</CardContent></Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {allDealers.map(d => (
+              <Card key={d.id} className="border-border/50">
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-center gap-3">
+                    {d.logo_url ? (
+                      <img src={d.logo_url} alt={d.name} className="h-10 w-10 rounded-lg object-cover border border-border shrink-0" />
+                    ) : (
+                      <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                        <Building2 className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{d.name}</p>
+                      {d.slug && <p className="text-[11px] text-muted-foreground font-mono truncate">{d.slug}</p>}
+                    </div>
+                  </div>
+                  {d.contact_email && <p className="text-xs text-muted-foreground truncate">{d.contact_email}</p>}
+                  {d.contact_phone && <p className="text-xs text-muted-foreground">{d.contact_phone}</p>}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   if (!dealerId) {

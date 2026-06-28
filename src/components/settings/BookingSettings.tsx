@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { useAuth } from '@/hooks/useAuth';
+import { APP_ROLE } from '@/constants/roles';
 import { apiDbQuery, apiPatch } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,8 +10,11 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Loader2, MapPin, CalendarClock } from 'lucide-react';
 
-const BookingSettings = () => {
-  const { dealerId, loading: dealerLoading } = useDealerContext();
+const BookingSettings = ({ dealerIdOverride }: { dealerIdOverride?: string } = {}) => {
+  const { dealerId: ctxDealerId, loading: dealerLoading } = useDealerContext();
+  const dealerId = dealerIdOverride || ctxDealerId;
+  const { role } = useAuth();
+  const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
   const { toast } = useToast();
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,17 +22,17 @@ const BookingSettings = () => {
   const [form, setForm] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    if (dealerLoading || !dealerId) return;
+    if (dealerLoading || (!dealerId && !isSuperAdmin)) return;
     const load = async () => {
       setLoading(true);
+      const filters: any[] = [];
+      if (dealerId) filters.push({ field: 'dealer_id', op: 'eq', value: dealerId });
+      filters.push({ field: 'is_active', op: 'eq', value: true });
       const rows = await apiDbQuery<any[]>({
         table: 'locations',
         action: 'select',
         select: 'id, name, public_booking_rate_limit_minutes',
-        filters: [
-          { field: 'dealer_id', op: 'eq', value: dealerId },
-          { field: 'is_active', op: 'eq', value: true },
-        ],
+        filters,
         order: [{ field: 'name', ascending: true }],
       }).catch(() => [] as any[]);
       setLocations(rows ?? []);

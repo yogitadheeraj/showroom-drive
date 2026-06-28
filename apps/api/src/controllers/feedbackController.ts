@@ -111,7 +111,7 @@ export async function submitTestDriveFeedbackController(req: Request, res: Respo
       }
     }
 
-    // 3. Notify dealer admins at this location
+    // 3. Notify Organization Admins at this location
     if (td?.location_id) {
       const adminRoles = await UserRole.find({ role: { $in: ['dealer_admin', 'sales_admin'] } }, { user_id: 1 }).lean();
       const adminUserIds = adminRoles.map((r: any) => r.user_id).filter(Boolean);

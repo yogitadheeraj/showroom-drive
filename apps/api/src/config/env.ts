@@ -11,6 +11,7 @@ export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   mongoUri: process.env.MONGODB_URI || '',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:8080',
+  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:8080,http://localhost:8081').split(',').map((origin) => origin.trim()).filter(Boolean),
   firebaseProjectId: process.env.FIREBASE_PROJECT_ID || '',
   firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',
   firebasePrivateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),

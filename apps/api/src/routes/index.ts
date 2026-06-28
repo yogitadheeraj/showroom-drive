@@ -4,6 +4,30 @@ import { dbQueryController } from '../controllers/dbController.js';
 import { invokeFunctionController } from '../controllers/functionsController.js';
 import { rpcController } from '../controllers/rpcController.js';
 import {
+  listBrandsWithLocationsController,
+  updateBrandBusinessUnitController,
+  listBrandLocationsController,
+  linkBrandLocationController,
+  unlinkBrandLocationController,
+} from '../controllers/brandLocationController.js';
+import {
+  listBusinessUnitsController,
+  getBusinessUnitController,
+  createBusinessUnitController,
+  updateBusinessUnitController,
+  deleteBusinessUnitController,
+  listSalesOfficesController,
+  getSalesOfficeController,
+  createSalesOfficeController,
+  updateSalesOfficeController,
+  deleteSalesOfficeController,
+  listPlantsController,
+  getPlantController,
+  createPlantController,
+  updatePlantController,
+  deletePlantController,
+} from '../controllers/hierarchyController.js';
+import {
   listController,
   publicUrlController,
   removeController,
@@ -368,4 +392,32 @@ apiRouter.post('/firebase/users/:uid/claims', requireAuth, setCustomClaimsContro
 
 // Firebase – Test Drive Notifications
 apiRouter.post('/firebase/notify/test-drive', requireAuth, sendTestDriveNotificationController);
+
+// ── Hierarchy: Business Units ─────────────────────────────────────────────────
+apiRouter.get('/business-units', requireAuth, listBusinessUnitsController);
+apiRouter.get('/business-units/:id', requireAuth, getBusinessUnitController);
+apiRouter.post('/business-units', requireAuth, createBusinessUnitController);
+apiRouter.patch('/business-units/:id', requireAuth, updateBusinessUnitController);
+apiRouter.delete('/business-units/:id', requireAuth, deleteBusinessUnitController);
+
+// ── Hierarchy: Sales Offices ──────────────────────────────────────────────────
+apiRouter.get('/sales-offices', requireAuth, listSalesOfficesController);
+apiRouter.get('/sales-offices/:id', requireAuth, getSalesOfficeController);
+apiRouter.post('/sales-offices', requireAuth, createSalesOfficeController);
+apiRouter.patch('/sales-offices/:id', requireAuth, updateSalesOfficeController);
+apiRouter.delete('/sales-offices/:id', requireAuth, deleteSalesOfficeController);
+
+// ── Hierarchy: Plants ─────────────────────────────────────────────────────────
+apiRouter.get('/plants', requireAuth, listPlantsController);
+apiRouter.get('/plants/:id', requireAuth, getPlantController);
+apiRouter.post('/plants', requireAuth, createPlantController);
+apiRouter.patch('/plants/:id', requireAuth, updatePlantController);
+apiRouter.delete('/plants/:id', requireAuth, deletePlantController);
+
+// ── Brand ↔ Location management ───────────────────────────────────────────────
+apiRouter.get('/brands-with-locations', requireAuth, listBrandsWithLocationsController);
+apiRouter.patch('/brands/:id/business-unit', requireAuth, updateBrandBusinessUnitController);
+apiRouter.get('/brand-locations', requireAuth, listBrandLocationsController);
+apiRouter.post('/brand-locations', requireAuth, linkBrandLocationController);
+apiRouter.delete('/brand-locations/:brandId/:locationId', requireAuth, unlinkBrandLocationController);
 

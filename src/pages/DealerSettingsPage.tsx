@@ -9,23 +9,61 @@ import HandoverQuestionsSettings from '@/components/settings/HandoverQuestionsSe
 import BookingSettings from '@/components/settings/BookingSettings';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import EmailTemplateSettings from '@/components/settings/EmailTemplateSettings';
+import HierarchySettings from '@/components/settings/HierarchySettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, Palette, Mail, SunMoon, BellRing, Key, CalendarClock, Plug } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Building2, Palette, Mail, SunMoon, BellRing, Key, CalendarClock, Plug, GitBranch, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
+import { useEffect, useState } from 'react';
+import { apiDbQuery } from '@/lib/apiClient';
 
 const DealerSettingsPage = () => {
   const { role } = useAuth();
   const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
   const showEmailTemplates = isSuperAdmin || role === APP_ROLE.DEALER_ADMIN;
 
+  const [allDealers, setAllDealers] = useState<{ id: string; name: string }[]>([]);
+  const [selectedDealer, setSelectedDealer] = useState('');
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    apiDbQuery<any[]>({
+      table: 'dealers',
+      action: 'select',
+      select: 'id, name',
+      order: [{ field: 'name', ascending: true }],
+    }).then(d => setAllDealers((d ?? []).map((x: any) => ({ id: x.id, name: x.name }))));
+  }, [isSuperAdmin]);
+
+  const dealerOverride = isSuperAdmin ? selectedDealer || undefined : undefined;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage your dealership profile and brand settings</p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-heading font-bold text-foreground">Settings</h1>
+            <p className="text-sm text-muted-foreground mt-1">Manage your dealership profile and brand settings</p>
+          </div>
+          {isSuperAdmin && (
+            <div className="flex items-center gap-2 min-w-0">
+              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              <select
+                className="h-9 px-3 border border-input rounded-md text-sm bg-background min-w-[200px]"
+                value={selectedDealer}
+                onChange={e => setSelectedDealer(e.target.value)}
+              >
+                <option value="">— Select a Dealer —</option>
+                {allDealers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+          )}
         </div>
+
+        {isSuperAdmin && !selectedDealer ? (
+          <div className="text-xs text-muted-foreground px-1">Showing data for all dealers. Select a dealer above to scope to one.</div>
+        ) : null}
 
         <Tabs defaultValue="profile" className="space-y-6">
           <div className="w-full overflow-x-auto pb-1 -mb-1">
@@ -54,6 +92,9 @@ const DealerSettingsPage = () => {
             <TabsTrigger value="integrations" className="gap-2 shrink-0">
               <Plug className="h-4 w-4" /> Integrations
             </TabsTrigger>
+            <TabsTrigger value="hierarchy" className="gap-2 shrink-0">
+              <GitBranch className="h-4 w-4" /> Entity Hierarchy
+            </TabsTrigger>
             {showEmailTemplates && (
               <TabsTrigger value="email-templates" className="gap-2 shrink-0">
                 <Mail className="h-4 w-4" /> Email Templates
@@ -63,11 +104,11 @@ const DealerSettingsPage = () => {
           </div>
 
           <TabsContent value="profile">
-            <DealerProfileSettings />
+            <DealerProfileSettings dealerIdOverride={dealerOverride} />
           </TabsContent>
 
           <TabsContent value="brands">
-            <BrandSettings />
+            <BrandSettings dealerIdOverride={dealerOverride} />
           </TabsContent>
 
           <TabsContent value="reports">
@@ -87,7 +128,7 @@ const DealerSettingsPage = () => {
           </TabsContent>
 
           <TabsContent value="booking">
-            <BookingSettings />
+            <BookingSettings dealerIdOverride={dealerOverride} />
           </TabsContent>
 
           <TabsContent value="integrations">
@@ -101,7 +142,11 @@ const DealerSettingsPage = () => {
           )}
 
           <TabsContent value="hours">
-            <OperatingHoursSettings />
+            <OperatingHoursSettings dealerIdOverride={dealerOverride} />
+          </TabsContent>
+
+          <TabsContent value="hierarchy">
+            <HierarchySettings dealerIdOverride={dealerOverride} />
           </TabsContent>
         </Tabs>
       </div>

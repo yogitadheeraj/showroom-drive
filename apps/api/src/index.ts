@@ -11,7 +11,19 @@ import { runTestDriveReminderJobs } from './services/testDriveReminderService.js
 
 const app = express();
 
-app.use(cors({ origin: env.corsOrigin, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = new Set([...env.corsOrigins, env.corsOrigin]);
+    if (allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    callback(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(attachAuthUser);

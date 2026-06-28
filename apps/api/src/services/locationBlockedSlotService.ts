@@ -64,7 +64,7 @@ async function ensureManagePermission(userId: string, locationId: string) {
       actorDealerId = actorLoc?.dealer_id || null;
     }
     if (!actorDealerId || targetLoc.dealer_id !== actorDealerId) {
-      throw new Error('Forbidden: dealer admin can only manage slots for own dealer locations');
+      throw new Error('Forbidden: Organization Admin can only manage slots for own dealer locations');
     }
     return actor;
   }

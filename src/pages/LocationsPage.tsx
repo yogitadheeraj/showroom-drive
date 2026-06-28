@@ -8,12 +8,14 @@ import {
   listLocationSpecialPeriods,
   updateLocationSpecialPeriod,
 } from '@/lib/locationSpecialPeriodsService';
+import { listBusinessUnits, listSalesOffices, listPlants, type BusinessUnit, type SalesOffice, type Plant } from '@/lib/hierarchyService';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
-import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, ChevronRight, Users, Calendar, AlertCircle, Lock, CalendarX, CalendarDays } from 'lucide-react';
+import { Plus, MapPin, Pencil, Clock, Phone, Mail, Smartphone, Monitor, Trash2, ChevronRight, Users, Calendar, AlertCircle, Lock, CalendarX, CalendarDays, Tag, Building2, Layers, Factory, Globe, ExternalLink, Info, Eye } from 'lucide-react';
 import { logStaffActivity } from '@/lib/activityLogger';
 import { cn } from '@/lib/utils';
 import { COUNTRIES, validatePhoneForCountry, validateEmail } from '@/lib/countries';
@@ -50,12 +52,27 @@ const getLocationSlotDuration = (location: any) => {
 
 const LocationsPage = () => {
   const [locations, setLocations] = useState<any[]>([]);
+  const [detailLoc, setDetailLoc] = useState<any | null>(null);
   const [step, setStep] = useState(1);
+
+  // Superadmin filter state
+  const [allDealers, setAllDealers] = useState<{ id: string; name: string }[]>([]);
+  const [filterDealerId, setFilterDealerId] = useState('');
+  const [filterBrandId, setFilterBrandId] = useState('');
+  const [filterBUId, setFilterBUId] = useState('');
+  const [filterCity, setFilterCity] = useState('');
+  const [allBrandsForFilter, setAllBrandsForFilter] = useState<{ id: string; name: string; dealer_id: string }[]>([]);
 
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
+  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', businessUnitId: '', businessUnitName: '', salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '', brandId: '', brandName: '' });
+  const [dealerBrands, setDealerBrands] = useState<{ id: string; name: string }[]>([]);
   const [locErrors, setLocErrors] = useState<Record<string, string>>({});
+
+  // Hierarchy data for dropdowns
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
+  const [salesOffices, setSalesOffices] = useState<SalesOffice[]>([]);
+  const [plants, setPlants] = useState<Plant[]>([]);
   const [hoursDialog, setHoursDialog] = useState<string | null>(null);
   const [hours, setHours] = useState<any[]>([]);
   const [savingHours, setSavingHours] = useState(false);
@@ -103,19 +120,95 @@ const LocationsPage = () => {
   };
 
   // Check if user can manage schedules / breaks
-  const canManageSchedules = [APP_ROLE.GRO, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN].includes(role as any);
+  const canManageSchedules = [APP_ROLE.GRO, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN, APP_ROLE.BRAND_ADMIN, APP_ROLE.SALES_ADMIN].includes(role as any);
+
+  const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
 
   useEffect(() => {
-    if (!dealerLoading) fetchLocations();
+    if (!dealerLoading) {
+      fetchLocations();
+      if (isSuperAdmin) {
+        // Load all data across all dealers for superadmin
+        void Promise.all([
+          apiDbQuery<any[]>({ table: 'dealers', action: 'select', select: 'id, name', order: [{ field: 'name', ascending: true }] })
+            .then(d => setAllDealers((d ?? []).map((x: any) => ({ id: x.id, name: x.name })))),
+          listBusinessUnits().then(d => setBusinessUnits(d ?? [])),
+          listSalesOffices().then(d => setSalesOffices(d ?? [])),
+          listPlants().then(d => setPlants(d ?? [])),
+          apiDbQuery<any[]>({ table: 'brands', action: 'select', select: 'id, name, dealer_id', order: [{ field: 'name', ascending: true }] })
+            .then(d => {
+              const brands = d ?? [];
+              setAllBrandsForFilter(brands.map((b: any) => ({ id: b.id, name: b.name, dealer_id: b.dealer_id })));
+              setDealerBrands(brands.map((b: any) => ({ id: b.id, name: b.name })));
+            }),
+        ]);
+      } else if (dealerId) {
+        void Promise.all([
+          listBusinessUnits(dealerId).then(d => setBusinessUnits(d ?? [])),
+          listSalesOffices({ orgId: dealerId }).then(d => setSalesOffices(d ?? [])),
+          listPlants({ orgId: dealerId }).then(d => setPlants(d ?? [])),
+          apiDbQuery<any[]>({
+            table: 'brands',
+            action: 'select',
+            select: 'id, name',
+            filters: [{ field: 'dealer_id', op: 'eq', value: dealerId }],
+            order: [{ field: 'name', ascending: true }],
+          }).then(d => setDealerBrands((d ?? []).map((b: any) => ({ id: b.id, name: b.name })))),
+        ]);
+      }
+    }
   }, [dealerId, dealerLoading]);
 
+  // Re-fetch when superadmin changes filters
+  useEffect(() => {
+    if (!dealerLoading && isSuperAdmin) fetchLocations();
+  }, [filterDealerId, filterBrandId, filterBUId, filterCity]);
+
+  // Auto-select dropdowns when only one option is available
+  useEffect(() => {
+    if (!showDialog) return;
+    if (dealerBrands.length === 1 && !formData.brandId) {
+      const br = dealerBrands[0];
+      setFormData(p => ({ ...p, brandId: br.id, brandName: br.name }));
+    }
+    if (businessUnits.length === 1 && !formData.businessUnitId) {
+      const bu = businessUnits[0];
+      setFormData(p => ({ ...p, businessUnitId: bu.id, businessUnitName: bu.name, salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '' }));
+    }
+  }, [showDialog, dealerBrands, businessUnits]);
+
+  // Auto-select single Sales Office when BU is chosen
+  useEffect(() => {
+    if (!showDialog || !formData.businessUnitId) return;
+    const soList = salesOffices.filter(so => so.businessUnitId === formData.businessUnitId);
+    if (soList.length === 1 && !formData.salesOfficeId) {
+      const so = soList[0];
+      setFormData(p => ({ ...p, salesOfficeId: so.id, salesOfficeName: so.name, plantId: '', plantName: '' }));
+    }
+  }, [showDialog, formData.businessUnitId, salesOffices]);
+
+  // Auto-select single Plant when SO is chosen
+  useEffect(() => {
+    if (!showDialog || !formData.salesOfficeId) return;
+    const plList = plants.filter(pl => pl.salesOfficeId === formData.salesOfficeId);
+    if (plList.length === 1 && !formData.plantId) {
+      const pl = plList[0];
+      setFormData(p => ({ ...p, plantId: pl.id, plantName: pl.name }));
+    }
+  }, [showDialog, formData.salesOfficeId, plants]);
+
   const fetchLocations = async () => {
-    const filters = dealerId ? [{ field: 'dealer_id', op: 'eq' as const, value: dealerId }] : undefined;
+    const filters: { field: string; op: 'eq' | 'ilike'; value: any }[] = [];
+    if (dealerId) filters.push({ field: 'dealer_id', op: 'eq', value: dealerId });
+    if (isSuperAdmin && filterDealerId) filters.push({ field: 'dealer_id', op: 'eq', value: filterDealerId });
+    if (isSuperAdmin && filterBrandId) filters.push({ field: 'brandId', op: 'eq', value: filterBrandId });
+    if (isSuperAdmin && filterBUId) filters.push({ field: 'businessUnitId', op: 'eq', value: filterBUId });
+    if (isSuperAdmin && filterCity.trim()) filters.push({ field: 'city', op: 'ilike', value: `%${filterCity.trim()}%` });
     const data = await apiDbQuery<any[]>({
       table: 'locations',
       action: 'select',
       select: '*',
-      filters,
+      filters: filters.length > 0 ? filters : undefined,
       order: [{ field: 'name', ascending: true }],
     });
     setLocations(data || []);
@@ -446,8 +539,9 @@ const LocationsPage = () => {
         toast({ title: 'Location added' });
       }
       setShowDialog(false);
+      setStep(1);
       setEditingId(null);
-      setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' });
+      setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', businessUnitId: '', businessUnitName: '', salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '', brandId: '', brandName: '' });
       setLocErrors({});
       fetchLocations();
     } catch (err: any) {
@@ -469,9 +563,18 @@ const LocationsPage = () => {
       longitude: loc.longitude || '',
       googleplaceid: loc.googleplaceid || '',
       maplink: loc.maplink || '',
-      currency_type: loc.currency_type || 'INR'
+      currency_type: loc.currency_type || 'INR',
+      businessUnitId: loc.businessUnitId || '',
+      businessUnitName: loc.businessUnitName || '',
+      salesOfficeId: loc.salesOfficeId || '',
+      salesOfficeName: loc.salesOfficeName || '',
+      plantId: loc.plantId || '',
+      plantName: loc.plantName || '',
+      brandId: loc.brandId || '',
+      brandName: loc.brandName || '',
     });
     setLocErrors({});
+    setStep(1);
     setShowDialog(true);
   };
 
@@ -768,11 +871,80 @@ const LocationsPage = () => {
             <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">Locations</h1>
             <p className="text-sm text-muted-foreground mt-1">Manage your dealership locations and devices</p>
           </div>
-          <Button onClick={() => { setEditingId(null); setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR' }); setLocErrors({}); setStep(1); setShowDialog(true); }}
+          <Button onClick={() => { setEditingId(null); setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', businessUnitId: '', businessUnitName: '', salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '', brandId: '', brandName: '' }); setLocErrors({}); setStep(1); setShowDialog(true); }}
             className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" /> Add Location
           </Button>
         </div>
+
+        {/* Superadmin filter bar */}
+        {isSuperAdmin && (
+          <Card className="border-border/50 shadow-sm">
+            <CardContent className="p-3">
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="space-y-1 flex-1 min-w-[140px]">
+                  <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Dealer</Label>
+                  <select
+                    className="w-full h-8 px-2 border border-input rounded-md text-xs bg-background"
+                    value={filterDealerId}
+                    onChange={e => setFilterDealerId(e.target.value)}
+                  >
+                    <option value="">All Dealers</option>
+                    {allDealers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1 flex-1 min-w-[140px]">
+                  <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Brand</Label>
+                  <select
+                    className="w-full h-8 px-2 border border-input rounded-md text-xs bg-background"
+                    value={filterBrandId}
+                    onChange={e => setFilterBrandId(e.target.value)}
+                  >
+                    <option value="">All Brands</option>
+                    {(filterDealerId
+                      ? allBrandsForFilter.filter(b => b.dealer_id === filterDealerId)
+                      : allBrandsForFilter
+                    ).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1 flex-1 min-w-[140px]">
+                  <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Business Unit</Label>
+                  <select
+                    className="w-full h-8 px-2 border border-input rounded-md text-xs bg-background"
+                    value={filterBUId}
+                    onChange={e => setFilterBUId(e.target.value)}
+                  >
+                    <option value="">All BUs</option>
+                    {(filterDealerId
+                      ? businessUnits.filter(b => b.orgId === filterDealerId)
+                      : businessUnits
+                    ).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1 flex-1 min-w-[120px]">
+                  <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">City</Label>
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="Search city..."
+                    value={filterCity}
+                    onChange={e => setFilterCity(e.target.value)}
+                  />
+                </div>
+                {(filterDealerId || filterBrandId || filterBUId || filterCity) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs self-end"
+                    onClick={() => { setFilterDealerId(''); setFilterBrandId(''); setFilterBUId(''); setFilterCity(''); }}
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2">{locations.length} location{locations.length !== 1 ? 's' : ''} shown</p>
+            </CardContent>
+          </Card>
+        )}
 
         {locations.length === 0 ? (
           <Card className="shadow-card">
@@ -785,174 +957,89 @@ const LocationsPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {locations.map(loc => (
               <Card key={loc.id} className="shadow-card hover:shadow-elevated transition-all duration-300 overflow-hidden border-border/50 rounded-lg text-xs p-0">
-                {/* Header Section - compact */}
+                {/* Header */}
                 <div className="bg-gradient-to-r from-primary/8 via-primary/4 to-transparent border-b border-border/50 p-3 flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                  <div className="flex items-start gap-2 flex-1 min-w-0 cursor-pointer group/detail" onClick={() => setDetailLoc(loc)}>
                     <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shrink-0 shadow-sm">
                       <MapPin className="h-5 w-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-base font-heading font-bold text-foreground leading-tight truncate">{loc.name}</h3>
+                      <h3 className="text-base font-heading font-bold text-foreground leading-tight truncate group-hover/detail:text-primary transition-colors">{loc.name}</h3>
                       <p className="text-xs text-muted-foreground truncate">{loc.address}</p>
                       <p className="text-xs text-muted-foreground truncate">{loc.city}{loc.state ? `, ${loc.state}` : ''}</p>
-                      {loc.country && (() => {
-                        const c = COUNTRIES.find(cnt => cnt.name === loc.country);
-                        return (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <span>{c?.flag ?? '🌍'}</span>
-                            <span>{loc.country}</span>
-                            {c && <span className="font-mono text-[10px] bg-muted/60 px-1 rounded">{c.dialCode}</span>}
-                          </p>
-                        );
-                      })()}
                     </div>
                   </div>
-                  <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0 h-7 w-7 p-0" onClick={() => editLocation(loc)} title="Edit Location">
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => setDetailLoc(loc)} title="View Details">
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 h-7 w-7 p-0" onClick={() => editLocation(loc)} title="Edit Location">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
 
-                {/* Status & Info Badges - compact */}
+                {/* Badges row */}
                 <div className="px-3 pt-2 flex flex-wrap items-center gap-1">
                   {(() => {
                     const s = getLocationStatus(loc.id);
                     return (
                       <Badge className={`text-[10px] font-semibold border ${s.open ? 'bg-success/10 text-success border-success/30' : 'bg-destructive/10 text-destructive border-destructive/30'}`}>
-                        <span className="mr-1">●</span>
-                        {s.label}
+                        <span className="mr-1">●</span>{s.label}
                       </Badge>
                     );
                   })()}
-                  <Badge variant="outline" className="text-[10px] font-medium">
-                    {dealerNamesById[loc.dealer_id] || 'Unknown'}
-                  </Badge>
-                  <Badge variant="secondary" className="text-[10px] max-w-xs truncate font-medium">
-                    {(dealerBrandsByDealerId[loc.dealer_id] || []).length > 0
-                      ? dealerBrandsByDealerId[loc.dealer_id].slice(0, 2).join(', ') + ((dealerBrandsByDealerId[loc.dealer_id] || []).length > 2 ? '...' : '')
-                      : 'No brands'}
-                  </Badge>
-                  {loc.currency_type && (
-                    <Badge variant="outline" className="text-[10px] font-medium">
-                      {loc.currency_type}
+                  {loc.brandName ? (
+                    <Badge variant="secondary" className="text-[10px] font-medium flex items-center gap-1">
+                      <Tag className="h-2.5 w-2.5" />{loc.brandName}
                     </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground">No brand</Badge>
+                  )}
+                  {loc.currency_type && (
+                    <Badge variant="outline" className="text-[10px] font-medium">{loc.currency_type}</Badge>
                   )}
                 </div>
 
                 <CardContent className="p-3 space-y-2">
-                  {/* KPI Grid - compact */}
-                  <div>
-                    <div className="grid grid-cols-2 gap-1">
-                      {[
-                        { label: 'Drives', value: testDriveCounts[loc.id] || 0, icon: '📊' },
-                        { label: 'Today', value: testDriveTodayCounts[loc.id] || 0, icon: '📅' },
-                        { label: 'Next 7d', value: testDriveNext7DaysCounts[loc.id] || 0, icon: '📈' },
-                        { label: 'Staff', value: staffCounts[loc.id] || 0, icon: '👥' },
-                        { label: 'Devices', value: (devices[loc.id] || []).filter(d => d.is_active).length, icon: '📱' },
-                        { label: 'Hours', value: todayHoursByLocation[loc.id] || '—', icon: '🕐' },
-                      ].map((stat, idx) => (
-                        <div key={idx} className="rounded border border-border/40 bg-gradient-to-br from-muted/10 to-transparent p-2 text-center">
-                          <div className="text-base mb-0.5">{stat.icon}</div>
-                          <div className="text-xs font-semibold mb-0.5">{stat.value}</div>
-                          <div className="text-[10px] text-muted-foreground leading-tight">{stat.label}</div>
-                        </div>
-                      ))}
-                    </div>
+                  {/* Compact stats row */}
+                  <div className="grid grid-cols-4 gap-1">
+                    {[
+                      { label: 'Drives', value: testDriveCounts[loc.id] || 0, icon: '📊' },
+                      { label: 'Today', value: testDriveTodayCounts[loc.id] || 0, icon: '📅' },
+                      { label: 'Staff', value: staffCounts[loc.id] || 0, icon: '👥' },
+                      { label: 'Devices', value: (devices[loc.id] || []).filter(d => d.is_active).length, icon: '📱' },
+                    ].map((stat, idx) => (
+                      <div key={idx} className="rounded border border-border/40 bg-muted/10 p-1.5 text-center">
+                        <div className="text-sm mb-0.5">{stat.icon}</div>
+                        <div className="text-xs font-bold">{stat.value}</div>
+                        <div className="text-[10px] text-muted-foreground leading-tight">{stat.label}</div>
+                      </div>
+                    ))}
                   </div>
 
-                  {/* Contact & Location Data Section - compact */}
-                  <div className="border-t border-border/40 pt-2 grid grid-cols-2 gap-1">
-                    {loc.phone && (
-                      <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
-                        <Phone className="h-4 w-4 text-info" />
-                        <span className="truncate">{loc.phone}</span>
-                      </div>
-                    )}
-                    {loc.email && (
-                      <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
-                        <Mail className="h-4 w-4 text-info" />
-                        <span className="truncate">{loc.email}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
-                      <Clock className="h-4 w-4 text-info" />
-                      <span>{todayHoursByLocation[loc.id] || 'Not set'}</span>
-                    </div>
-                    {loc.latitude && loc.longitude && (
-                      <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
-                        <span className="font-semibold">Lat/Lng:</span>
-                        <span>{loc.latitude}, {loc.longitude}</span>
-                      </div>
-                    )}
-                    {loc.googleplaceid && (
-                      <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
-                        <span className="font-semibold">Place ID:</span>
-                        <span className="truncate">{loc.googleplaceid}</span>
-                      </div>
-                    )}
-                    {loc.maplink && (
-                      <div className="flex items-center gap-2 p-2 rounded bg-muted/30">
-                        <a href={loc.maplink} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline truncate">Map Link</a>
-                      </div>
-                    )}
+                  {/* Today hours pill */}
+                  <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-muted/20 border border-border/30">
+                    <Clock className="h-3.5 w-3.5 text-info shrink-0" />
+                    <span className="text-xs text-muted-foreground truncate">{todayHoursByLocation[loc.id] || 'Hours not set'}</span>
                   </div>
-
-                  {/* Devices Section */}
-                  {devices[loc.id]?.length > 0 && (
-                    <div className="border-t border-border/50 pt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                          <Smartphone className="h-3.5 w-3.5" /> Devices ({devices[loc.id].filter(d => d.is_active).length} active)
-                        </h4>
-                        <Button size="sm" className="h-7 px-2 bg-info text-info-foreground hover:bg-info/90 text-xs" onClick={() => openDeviceDialog(loc.id)}>
-                          <Plus className="h-3 w-3 mr-1" /> Add
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        {devices[loc.id].slice(0, 3).map(dev => (
-                          <div key={dev.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <Smartphone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-foreground">{dev.name}</p>
-                                <p className="text-xs text-muted-foreground capitalize">{dev.device_type}{dev.serial_number ? ` • ${dev.serial_number}` : ''}</p>
-                              </div>
-                            </div>
-                            <Badge variant={dev.is_active ? 'default' : 'secondary'} className="text-xs shrink-0 ml-2">
-                              {dev.is_active ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </div>
-                        ))}
-                        {devices[loc.id].length > 3 && (
-                          <p className="text-xs text-muted-foreground italic text-center py-1">+{devices[loc.id].length - 3} more</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
 
                   {/* Action Buttons */}
-                  <div className="border-t border-border/50 pt-4">
+                  <div className="border-t border-border/50 pt-2">
                     {canManageSchedules ? (
-                      <>
-                        <div className="grid grid-cols-3 gap-2">
-                          <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs h-9 font-medium" onClick={() => openHoursDialog(loc.id)}>
-                            <Clock className="h-3.5 w-3.5 mr-1.5" /> Hours
-                          </Button>
-                          <Button size="sm" className="bg-orange-500 text-white hover:bg-orange-600 text-xs h-9 font-medium" onClick={() => openSpecialPeriodsDialog(loc.id)}>
-                            <CalendarX className="h-3.5 w-3.5 mr-1.5" /> Breaks
-                          </Button>
-                          <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs h-9 font-medium" onClick={() => openScheduleDialog(loc.id)}>
-                            <Calendar className="h-3.5 w-3.5 mr-1.5" /> Schedule
-                          </Button>
-                        </div>
-                        <Button size="sm" className="w-full mt-2 bg-violet-500 text-white hover:bg-violet-600 text-xs h-9 font-medium" onClick={() => openSlotDurationDialog(loc.id)}>
-                          <Clock className="h-3.5 w-3.5 mr-1.5" /> Slot Duration: {slotDurations[loc.id] || 30}m
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-[11px] h-8 font-medium" onClick={() => openHoursDialog(loc.id)}>
+                          <Clock className="h-3 w-3 mr-1" /> Hours
                         </Button>
-                        <Button size="sm" className="w-full mt-2 bg-emerald-600 text-white hover:bg-emerald-700 text-xs h-9 font-medium" onClick={() => openAdvBookingDaysDialog(loc.id)}>
-                          <CalendarDays className="h-3.5 w-3.5 mr-1.5" /> Book Ahead: {advBookingDaysMap[loc.id] ?? 30}d
+                        <Button size="sm" className="bg-orange-500 text-white hover:bg-orange-600 text-[11px] h-8 font-medium" onClick={() => openSpecialPeriodsDialog(loc.id)}>
+                          <CalendarX className="h-3 w-3 mr-1" /> Breaks
                         </Button>
-                      </>
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-[11px] h-8 font-medium" onClick={() => openScheduleDialog(loc.id)}>
+                          <Calendar className="h-3 w-3 mr-1" /> Schedule
+                        </Button>
+                      </div>
                     ) : (
-                      <div className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-muted/50 border border-border/50">
+                      <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border/50">
                         <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-xs text-muted-foreground font-medium">Admin only</span>
                       </div>
@@ -967,7 +1054,7 @@ const LocationsPage = () => {
         {/* Add/Edit Dialog */}
 
         {/* Add/Edit Dialog - Two Step */}
-        <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setStep(1); }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="font-heading">{editingId ? 'Edit' : 'Add'} Location</DialogTitle>
@@ -1031,8 +1118,82 @@ const LocationsPage = () => {
                       {locErrors.state && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.state}</p>}
                     </div>
                   </div>
+                  {/* Hierarchy dropdowns */}
+                  {businessUnits.length > 0 && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label>Business Unit</Label>
+                        <select
+                          className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
+                          value={formData.businessUnitId}
+                          onChange={e => {
+                            const bu = businessUnits.find(b => b.id === e.target.value);
+                            setFormData(p => ({ ...p, businessUnitId: e.target.value, businessUnitName: bu?.name ?? '', salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '' }));
+                          }}
+                        >
+                          <option value="">— None —</option>
+                          {businessUnits.map(bu => <option key={bu.id} value={bu.id}>{bu.name} ({bu.code})</option>)}
+                        </select>
+                      </div>
+                      {formData.businessUnitId && salesOffices.filter(so => so.businessUnitId === formData.businessUnitId).length > 0 && (
+                        <div className="space-y-1.5">
+                          <Label>Sales Office</Label>
+                          <select
+                            className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
+                            value={formData.salesOfficeId}
+                            onChange={e => {
+                              const so = salesOffices.find(s => s.id === e.target.value);
+                              setFormData(p => ({ ...p, salesOfficeId: e.target.value, salesOfficeName: so?.name ?? '', plantId: '', plantName: '' }));
+                            }}
+                          >
+                            <option value="">— None —</option>
+                            {salesOffices.filter(so => so.businessUnitId === formData.businessUnitId).map(so => (
+                              <option key={so.id} value={so.id}>{so.name} ({so.salesOfficeCode})</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {formData.salesOfficeId && plants.filter(p => p.salesOfficeId === formData.salesOfficeId).length > 0 && (
+                        <div className="space-y-1.5">
+                          <Label>Plant</Label>
+                          <select
+                            className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
+                            value={formData.plantId}
+                            onChange={e => {
+                              const pl = plants.find(p => p.id === e.target.value);
+                              setFormData(p => ({ ...p, plantId: e.target.value, plantName: pl?.name ?? '' }));
+                            }}
+                          >
+                            <option value="">— None —</option>
+                            {plants.filter(pl => pl.salesOfficeId === formData.salesOfficeId).map(pl => (
+                              <option key={pl.id} value={pl.id}>{pl.name} ({pl.plantCode})</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {/* Brand assignment */}
+                  {dealerBrands.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label>Brand <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                      <select
+                        className="w-full h-9 px-3 py-2 border border-input rounded-md text-sm bg-background"
+                        value={formData.brandId}
+                        onChange={e => {
+                          const br = dealerBrands.find(b => b.id === e.target.value);
+                          setFormData(p => ({ ...p, brandId: e.target.value, brandName: br?.name ?? '' }));
+                        }}
+                      >
+                        <option value="">— None —</option>
+                        {dealerBrands.map(b => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
+                    <Button variant="outline" onClick={() => { setShowDialog(false); setStep(1); }}>Cancel</Button>
                     <Button onClick={() => { if (validateLocationStep1()) setStep(2); }} className="bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
                   </div>
                 </div>
@@ -1516,6 +1677,230 @@ const LocationsPage = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Location Detail Sheet */}
+      <Sheet open={!!detailLoc} onOpenChange={(open) => { if (!open) setDetailLoc(null); }}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto p-0">
+          {detailLoc && (() => {
+            const loc = detailLoc;
+            const country = COUNTRIES.find(c => c.name === loc.country);
+            const status = getLocationStatus(loc.id);
+            return (
+              <>
+                {/* Header */}
+                <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border/50 p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-primary/25 to-primary/10 flex items-center justify-center shrink-0 shadow">
+                      <MapPin className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <SheetHeader className="p-0 text-left space-y-0">
+                        <SheetTitle className="font-heading text-lg leading-tight">{loc.name}</SheetTitle>
+                      </SheetHeader>
+                      <p className="text-sm text-muted-foreground mt-0.5">{loc.address}</p>
+                      <p className="text-sm text-muted-foreground">{loc.city}{loc.state ? `, ${loc.state}` : ''}</p>
+                      {loc.country && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                          <span>{country?.flag ?? '🌍'}</span>
+                          <span>{loc.country}</span>
+                          {country && <span className="font-mono text-[10px] bg-muted/60 px-1 rounded">{country.dialCode}</span>}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status & badges */}
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    <Badge className={`text-xs font-semibold border ${status.open ? 'bg-success/10 text-success border-success/30' : 'bg-destructive/10 text-destructive border-destructive/30'}`}>
+                      <span className="mr-1">●</span>{status.label}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">{dealerNamesById[loc.dealer_id] || 'Unknown'}</Badge>
+                    {loc.brandName && (
+                      <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                        <Tag className="h-3 w-3" />{loc.brandName}
+                      </Badge>
+                    )}
+                    {loc.currency_type && <Badge variant="outline" className="text-xs">{loc.currency_type}</Badge>}
+                  </div>
+                </div>
+
+                <div className="p-5 space-y-5">
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: 'Total Drives', value: testDriveCounts[loc.id] || 0, icon: '📊' },
+                      { label: 'Today', value: testDriveTodayCounts[loc.id] || 0, icon: '📅' },
+                      { label: 'Next 7 Days', value: testDriveNext7DaysCounts[loc.id] || 0, icon: '📈' },
+                      { label: 'Staff', value: staffCounts[loc.id] || 0, icon: '👥' },
+                      { label: 'Devices', value: (devices[loc.id] || []).filter(d => d.is_active).length, icon: '📱' },
+                      { label: 'Slot', value: `${slotDurations[loc.id] || 30}m`, icon: '⏱️' },
+                    ].map((s, i) => (
+                      <div key={i} className="rounded-lg border border-border/40 bg-muted/20 p-2.5 text-center">
+                        <div className="text-lg mb-0.5">{s.icon}</div>
+                        <div className="text-sm font-bold">{s.value}</div>
+                        <div className="text-[10px] text-muted-foreground leading-tight">{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Contact */}
+                  {(loc.phone || loc.email) && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contact</h4>
+                      <div className="space-y-1.5">
+                        {loc.phone && (
+                          <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                            <Phone className="h-4 w-4 text-info shrink-0" />
+                            <span className="text-sm">{loc.phone}</span>
+                          </div>
+                        )}
+                        {loc.email && (
+                          <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                            <Mail className="h-4 w-4 text-info shrink-0" />
+                            <span className="text-sm truncate">{loc.email}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hierarchy */}
+                  {(loc.businessUnitName || loc.salesOfficeName || loc.plantName || loc.brandName) && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Organisation Hierarchy</h4>
+                      <div className="rounded-lg border border-border/30 overflow-hidden divide-y divide-border/30">
+                        {loc.brandName && (
+                          <div className="flex items-center gap-2.5 p-2.5 bg-muted/10">
+                            <Tag className="h-4 w-4 text-pink-500 shrink-0" />
+                            <span className="text-[10px] font-semibold text-muted-foreground w-16 shrink-0">Brand</span>
+                            <span className="text-sm font-medium">{loc.brandName}</span>
+                          </div>
+                        )}
+                        {loc.businessUnitName && (
+                          <div className="flex items-center gap-2.5 p-2.5 bg-muted/10">
+                            <Building2 className="h-4 w-4 text-blue-500 shrink-0" />
+                            <span className="text-[10px] font-semibold text-muted-foreground w-16 shrink-0">Business Unit</span>
+                            <span className="text-sm font-medium">{loc.businessUnitName}</span>
+                          </div>
+                        )}
+                        {loc.salesOfficeName && (
+                          <div className="flex items-center gap-2.5 p-2.5 bg-muted/10">
+                            <Layers className="h-4 w-4 text-violet-500 shrink-0" />
+                            <span className="text-[10px] font-semibold text-muted-foreground w-16 shrink-0">Sales Office</span>
+                            <span className="text-sm font-medium">{loc.salesOfficeName}</span>
+                          </div>
+                        )}
+                        {loc.plantName && (
+                          <div className="flex items-center gap-2.5 p-2.5 bg-muted/10">
+                            <Factory className="h-4 w-4 text-orange-500 shrink-0" />
+                            <span className="text-[10px] font-semibold text-muted-foreground w-16 shrink-0">Plant</span>
+                            <span className="text-sm font-medium">{loc.plantName}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Location Data */}
+                  {(loc.latitude || loc.longitude || loc.googleplaceid || loc.maplink) && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Location Data</h4>
+                      <div className="space-y-1.5">
+                        {loc.latitude && loc.longitude && (
+                          <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                            <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-xs text-muted-foreground shrink-0">Lat / Lng</span>
+                            <span className="text-sm font-mono">{loc.latitude}, {loc.longitude}</span>
+                          </div>
+                        )}
+                        {loc.googleplaceid && (
+                          <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-xs text-muted-foreground shrink-0">Place ID</span>
+                            <span className="text-sm font-mono truncate">{loc.googleplaceid}</span>
+                          </div>
+                        )}
+                        {loc.maplink && (
+                          <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                            <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <a href={loc.maplink} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 underline truncate">Open Map</a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Operating Hours */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Today's Hours</h4>
+                    <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                      <Clock className="h-4 w-4 text-info shrink-0" />
+                      <span className="text-sm">{todayHoursByLocation[loc.id] || 'Not set'}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Slot: {slotDurations[loc.id] || 30}m</span>
+                      <span>·</span>
+                      <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" /> Book ahead: {advBookingDaysMap[loc.id] ?? 30}d</span>
+                    </div>
+                  </div>
+
+                  {/* Devices */}
+                  {devices[loc.id]?.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                        <Smartphone className="h-3.5 w-3.5" /> Devices ({devices[loc.id].filter(d => d.is_active).length} active / {devices[loc.id].length} total)
+                      </h4>
+                      <div className="space-y-1.5">
+                        {devices[loc.id].map(dev => (
+                          <div key={dev.id} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/30 border border-border/30">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Smartphone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{dev.name}</p>
+                                <p className="text-xs text-muted-foreground capitalize">{dev.device_type}{dev.serial_number ? ` · ${dev.serial_number}` : ''}</p>
+                              </div>
+                            </div>
+                            <Badge variant={dev.is_active ? 'default' : 'secondary'} className="text-xs shrink-0 ml-2">
+                              {dev.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  {canManageSchedules && (
+                    <div className="space-y-2 pt-1">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actions</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs h-9" onClick={() => { setDetailLoc(null); editLocation(loc); }}>
+                          <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit Location
+                        </Button>
+                        <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs h-9" onClick={() => { setDetailLoc(null); openHoursDialog(loc.id); }}>
+                          <Clock className="h-3.5 w-3.5 mr-1.5" /> Hours
+                        </Button>
+                        <Button size="sm" className="bg-orange-500 text-white hover:bg-orange-600 text-xs h-9" onClick={() => { setDetailLoc(null); openSpecialPeriodsDialog(loc.id); }}>
+                          <CalendarX className="h-3.5 w-3.5 mr-1.5" /> Breaks
+                        </Button>
+                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs h-9" onClick={() => { setDetailLoc(null); openScheduleDialog(loc.id); }}>
+                          <Calendar className="h-3.5 w-3.5 mr-1.5" /> Schedule
+                        </Button>
+                        <Button size="sm" className="bg-violet-500 text-white hover:bg-violet-600 text-xs h-9" onClick={() => { setDetailLoc(null); openSlotDurationDialog(loc.id); }}>
+                          <Clock className="h-3.5 w-3.5 mr-1.5" /> Slot: {slotDurations[loc.id] || 30}m
+                        </Button>
+                        <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700 text-xs h-9" onClick={() => { setDetailLoc(null); openAdvBookingDaysDialog(loc.id); }}>
+                          <CalendarDays className="h-3.5 w-3.5 mr-1.5" /> Book Ahead: {advBookingDaysMap[loc.id] ?? 30}d
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
     </DashboardLayout>
   );
 };

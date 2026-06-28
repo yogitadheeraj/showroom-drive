@@ -11,7 +11,7 @@ This document outlines deployment steps for the complete Report Delivery Monitor
 - ✅ Error tracking with error code and message
 - ✅ Superadmin alert email on 3rd failure
 - ✅ Full monitoring dashboard with filters and stats
-- ✅ RLS-protected data (location staff/dealer admins/superadmin)
+- ✅ RLS-protected data (location staff/Organization admins/superadmin)
 
 ## 🗂 Files Modified/Created
 
@@ -267,7 +267,7 @@ GROUP BY status;
 
 - [ ] [ ] **Test 6: RLS Policies**
   - Login as location staff → should see only their location's reports
-  - Login as dealer admin → should see all dealer locations' reports
+  - Login as Organization Admin → should see all dealer locations' reports
   - Login as superadmin → should see all reports globally
 
 - [ ] [ ] **Test 7: Dashboard Filters**

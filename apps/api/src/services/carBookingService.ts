@@ -251,7 +251,7 @@ async function sendCancellationEmails(booking: any, mode: 'cancel' | 'refund') {
     await sendMail({ to: customer.email, subject, html }).catch(() => null);
   }
 
-  // Get dealer admin / sales admin emails from profiles at this location
+  // Get Organization Admin / sales admin emails from profiles at this location
   if (booking.location_id) {
     const adminProfiles = await Profile.find(
       { location_id: booking.location_id },

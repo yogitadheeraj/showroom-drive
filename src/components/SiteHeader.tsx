@@ -39,7 +39,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
                     />
                   )}
                   {dealerName && (
-                    <span className="text-base font-bold text-foreground dark:text-slate-100 truncate max-w-[180px]">
+                    <span className={resolvedTheme === 'dark' ? 'text-sm font-semibold text-white' : 'text-sm font-semibold text-foreground'}>
                       {dealerName}
                     </span>
                   )}
@@ -73,7 +73,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
             <a href="/#features" className="transition hover:text-foreground dark:hover:text-white">Features</a>
             <a href="/#benefits" className="transition hover:text-foreground dark:hover:text-white">Benefits</a>
             <a href="/#contact" className="transition hover:text-foreground dark:hover:text-white">Contact</a>
-            <Link to="/dealer-onboarding" className="transition hover:text-foreground dark:hover:text-white">Dealer Onboarding</Link>
+            <Link to="/dealer-onboarding" className="transition hover:text-foreground dark:hover:text-white">Entity Onboarding</Link>
             <Link to="/compare" className="transition hover:text-foreground dark:hover:text-white">Compare Vehicles</Link>
             <Link to={staffEntryPath} className="transition hover:text-foreground dark:hover:text-white">Staff Login</Link>
           </nav>

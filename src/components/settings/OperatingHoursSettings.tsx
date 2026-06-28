@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { apiGet, apiPost, apiPatch } from '@/lib/apiClient';
 import { useDealerContext } from '@/hooks/useDealerContext';
+import { useAuth } from '@/hooks/useAuth';
+import { APP_ROLE } from '@/constants/roles';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,8 +30,11 @@ interface HoursForm {
   is_closed: boolean;
 }
 
-const OperatingHoursSettings = () => {
-  const { dealerId, loading: dealerLoading } = useDealerContext();
+const OperatingHoursSettings = ({ dealerIdOverride }: { dealerIdOverride?: string } = {}) => {
+  const { dealerId: ctxDealerId, loading: dealerLoading } = useDealerContext();
+  const dealerId = dealerIdOverride || ctxDealerId;
+  const { role } = useAuth();
+  const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [locations, setLocations] = useState<any[]>([]);
@@ -38,10 +43,11 @@ const OperatingHoursSettings = () => {
   const [expandedLocation, setExpandedLocation] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!dealerId || dealerLoading) return;
+    if ((!dealerId && !isSuperAdmin) || dealerLoading) return;
     const fetch = async () => {
       // Fetch locations
-      const locs = await apiGet<any[]>(`/api/locations?dealer_id=${dealerId}`).catch(() => null);
+      const url = dealerId ? `/api/locations?dealer_id=${dealerId}` : '/api/locations';
+      const locs = await apiGet<any[]>(url).catch(() => null);
 
       if (locs && locs.length > 0) {
         setLocations(locs);

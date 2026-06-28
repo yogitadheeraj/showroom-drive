@@ -59,7 +59,7 @@ export async function resendVerificationController(req: Request, res: Response) 
     const link = await getAuth().generateEmailVerificationLink(email, { url: continueUrl });
     const template = staffVerificationTemplate({
       fullName: user.displayName || 'there',
-      roleLabel: 'Dealer Admin',
+      roleLabel: 'Organization Admin',
       verificationLink: link,
       loginUrl: `${env.corsOrigin}/auth`,
     });

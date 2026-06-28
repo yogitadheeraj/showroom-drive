@@ -383,7 +383,7 @@ export default function CarBookingsPage() {
               <p className="text-muted-foreground">
                 {actionDialog.mode === 'cancel'
                   ? 'This will cancel the booking. An email notification will be sent to the customer.'
-                  : 'This will process a refund. The customer and dealer admin will be notified by email.'}
+                  : 'This will process a refund. The customer and Organization Admin will be notified by email.'}
               </p>
             </div>
 

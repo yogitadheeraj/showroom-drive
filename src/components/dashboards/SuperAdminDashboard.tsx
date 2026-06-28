@@ -28,6 +28,7 @@ import { APP_ROLE } from '@/constants/roles';
 import { TestDriveInsightGrid } from './TestDriveInsightGrid';
 import { StaffActivityGrid } from './StaffActivityGrid';
 import TestDriveCalendarMini from './TestDriveCalendarMini';
+import HierarchyOverview from './HierarchyOverview';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
@@ -676,11 +677,11 @@ const SuperAdminDashboard = () => {
     <div className="space-y-4 sm:space-y-6">
 
       {/* ── Header row: title + inline filters ── */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 pt-4 sm:pb-3 border-b border-border">
         <div>
           <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground tracking-tight flex items-center gap-2">
             <LayoutDashboard className="h-5 w-5 text-primary" />
-            {isSuperAdmin ? 'Super Admin Dashboard' : 'Dealer Admin Dashboard'}
+            {isSuperAdmin ? 'Super Admin Dashboard' : 'Organization Admin Dashboard'}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {isSuperAdmin ? 'Overview across all dealerships & test drives' : 'Overview of your dealership test drives'}
@@ -709,7 +710,8 @@ const SuperAdminDashboard = () => {
           );
         })}
       </div>
-
+       <HierarchyOverview />
+    
       <Card className="shadow-card border-primary/20 relative overflow-hidden">
         {/* Gradient accent line at top */}
         <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-primary via-success to-info" />

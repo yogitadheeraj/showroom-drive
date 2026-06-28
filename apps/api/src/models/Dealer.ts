@@ -2,6 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IDealer extends Document {
   id: string;
+  code: string | null;
   name: string;
   slug: string;
   contact_email: string;
@@ -16,6 +17,7 @@ export interface IDealer extends Document {
 const DealerSchema = new Schema<IDealer>(
   {
     id: { type: String, required: true, unique: true, index: true },
+    code: { type: String, default: null, unique: true, sparse: true, index: true },
     name: { type: String, required: true },
     slug: { type: String, required: true, unique: true, index: true },
     contact_email: { type: String, required: true },

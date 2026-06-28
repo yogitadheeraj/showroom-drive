@@ -55,6 +55,10 @@ const VehiclesPage = () => {
   const { role, profile } = useAuth();
   const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
   const isAdmin = isSuperAdmin || role === APP_ROLE.DEALER_ADMIN;
+  // Can manage full vehicle CRUD (add / delete / pricing)
+  const canManageVehicles = isAdmin || role === APP_ROLE.BRAND_ADMIN || role === APP_ROLE.SALES_ADMIN;
+  // Can update available stock count (all operational roles)
+  const canUpdateStock = canManageVehicles || role === APP_ROLE.SALES;
   const canDeactivate = isSuperAdmin || role === APP_ROLE.DEALER_ADMIN || role === APP_ROLE.SALES_ADMIN;
   const [deactivateTarget, setDeactivateTarget] = useState<{ id: string; name: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'unavailable' | 'deactivated'>('all');
@@ -379,7 +383,7 @@ const VehiclesPage = () => {
             <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Vehicle Management</h1>
             <p className="text-sm text-muted-foreground">Manage inventory: new, used, and demo vehicles</p>
           </div>
-          <Button onClick={openNew} className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
+          <Button onClick={openNew} className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto" style={{ display: canManageVehicles ? undefined : 'none' }}>
             <Plus className="h-4 w-4 mr-2" /> Add Vehicle
           </Button>
         </div>
@@ -503,9 +507,16 @@ const VehiclesPage = () => {
                             </Badge>
                           )}
                           <div className="flex items-center gap-1">
-                            <Button size="sm" className="h-6 w-6 p-0 border border-primary/20" onClick={() => openEdit(v)}>
-                              <Edit2 className="h-3 w-3" />
-                            </Button>
+                            {canManageVehicles && (
+                              <Button size="sm" className="h-6 w-6 p-0 border border-primary/20" title="Edit vehicle" onClick={() => openEdit(v)}>
+                                <Edit2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {canUpdateStock && !canManageVehicles && (
+                              <Button size="sm" variant="outline" className="h-6 px-1.5 text-[10px] gap-1 border-primary/20" title="Update stock" onClick={() => openEdit(v)}>
+                                <Edit2 className="h-2.5 w-2.5" /> Stock
+                              </Button>
+                            )}
                             {canDeactivate && v.is_active && (
                               <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:bg-destructive border border-destructive/20" title="Deactivate vehicle"
                                 onClick={() => setDeactivateTarget({ id: v.id, name: `${v.brand} ${v.model}${v.variant ? ' ' + v.variant : ''}` })}>

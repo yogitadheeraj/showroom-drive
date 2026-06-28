@@ -48,7 +48,10 @@ const UsersPage = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [locations, setLocations] = useState<any[]>([]);
-  const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
+  const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
+  const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', brandId: '', can_use_demo_data: false });
+  const [createFormBrandId, setCreateFormBrandId] = useState('');
+  const [editFormBrandId, setEditFormBrandId] = useState('');
   const [showCreatePw, setShowCreatePw] = useState(false);
   const [editForm, setEditForm] = useState({ role: '', locationId: '' });
   const [saving, setSaving] = useState(false);
@@ -98,13 +101,58 @@ const UsersPage = () => {
         locationParams.set('ids', profile.location_id);
       } else if (!isSuperAdmin && dealerId) {
         locationParams.set('dealer_id', dealerId);
+      } else if (!isSuperAdmin) {
+        // No dealer scope resolved — keep dropdowns empty to avoid leaking cross-dealer data
+        setLocations([]);
+        setBrands([]);
       }
-      apiGet<any[]>(`/api/locations?${locationParams}`).then((data) => setLocations(data || []));
+      if (isSuperAdmin || dealerId || (isSalesAdmin && profile?.location_id)) {
+        apiGet<any[]>(`/api/locations?${locationParams}`).then((data) => setLocations(data || []));
+        // Load brands within the same scope
+        const brandParams = new URLSearchParams();
+        if (isSuperAdmin && selectedDealerFilter !== 'all') brandParams.set('dealer_id', selectedDealerFilter);
+        else if (!isSuperAdmin && dealerId) brandParams.set('dealer_id', dealerId);
+        apiGet<any[]>(`/api/brands?${brandParams}`).then((data) => setBrands((data || []).map((b: any) => ({ id: b.id, name: b.name }))));
+      }
     }
   }, [dealerId, dealerLoading, isSuperAdmin, isSalesAdmin, profile?.location_id, selectedDealerFilter]);
 
+  // Auto-select brand when only one option is available
+  useEffect(() => {
+    if (brands.length !== 1) return;
+    if (showCreateDialog && !createFormBrandId) {
+      setCreateFormBrandId(brands[0].id);
+      setCreateForm(p => ({ ...p, brandId: brands[0].id }));
+    }
+    if (editingUser && !editFormBrandId) {
+      setEditFormBrandId(brands[0].id);
+    }
+  }, [brands, showCreateDialog, editingUser]);
+
+  // Auto-select location in create dialog when filtered list has exactly one option
+  useEffect(() => {
+    if (!showCreateDialog) return;
+    const available = createFormBrandId
+      ? locations.filter(l => (l as any).brandId === createFormBrandId)
+      : locations;
+    if (available.length === 1 && !createForm.locationId) {
+      setCreateForm(p => ({ ...p, locationId: available[0].id }));
+    }
+  }, [showCreateDialog, createFormBrandId, locations]);
+
+  // Auto-select location in edit dialog when filtered list has exactly one option
+  useEffect(() => {
+    if (!editingUser) return;
+    const available = editFormBrandId
+      ? locations.filter(l => (l as any).brandId === editFormBrandId)
+      : locations;
+    if (available.length === 1 && !editForm.locationId) {
+      setEditForm(p => ({ ...p, locationId: available[0].id }));
+    }
+  }, [editingUser, editFormBrandId, locations]);
+
   const fetchUsers = async () => {
-    // Scope profiles fetch to dealer's locations so dealer admin only sees their staff
+    // Scope profiles fetch to dealer's locations so Organization Admin only sees their staff
     const profileParams = new URLSearchParams();
     if (!isSuperAdmin && dealerLocationIds && dealerLocationIds.length > 0) {
       profileParams.set('location_ids', dealerLocationIds.join(','));
@@ -115,7 +163,12 @@ const UsersPage = () => {
     const [profiles, roles, allLocations] = await Promise.all([
       apiGet<any[]>(`/api/profiles${profileParams.toString() ? `?${profileParams}` : ''}`),
       apiGet<any[]>('/api/user-roles'),
-      apiGet<any[]>('/api/locations'),
+      // For superadmin we need all locations for the dealer-map; non-superadmin scope to own dealer
+      isSuperAdmin
+        ? apiGet<any[]>('/api/locations')
+        : dealerId
+          ? apiGet<any[]>(`/api/locations?dealer_id=${dealerId}`)
+          : Promise.resolve([]),
     ]);
 
     const locationDealerMap = (allLocations || []).reduce((acc: Record<string, string>, loc: any) => {
@@ -215,8 +268,9 @@ const UsersPage = () => {
     staffDriveMetrics[profileId] || { assigned: 0, active: 0, completed: 0 };
 
   const handleCreateUser = async () => {
-    if (!createForm.email || !createForm.password || !createForm.fullName) {
-      toast({ title: 'Missing fields', variant: 'destructive' });
+    if (!createForm.email || !createForm.password || !createForm.fullName || !createForm.role) {
+      const missing = [!createForm.fullName && 'Full Name', !createForm.email && 'Email', !createForm.password && 'Password', !createForm.role && 'Role'].filter(Boolean).join(', ');
+      toast({ title: 'Missing required fields', description: missing, variant: 'destructive' });
       return;
     }
 
@@ -233,6 +287,7 @@ const UsersPage = () => {
         fullName: createForm.fullName,
         role: createForm.role,
         locationId: createForm.locationId || null,
+        brandId: createForm.brandId || createFormBrandId || null,
         can_use_demo_data: !!createForm.can_use_demo_data,
       });
       if (data?.error) throw new Error(data.error as string);
@@ -251,7 +306,8 @@ const UsersPage = () => {
         });
       }
       setShowCreateDialog(false);
-      setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', can_use_demo_data: false });
+      setCreateFormBrandId('');
+      setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', brandId: '', can_use_demo_data: false });
       fetchUsers();
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -262,7 +318,10 @@ const UsersPage = () => {
 
   const openEditDialog = (u: any) => {
     const currentRole = u.user_roles?.[0]?.role || '';
-    setEditForm({ role: currentRole, locationId: u.location_id || '' });
+    const locId = u.location_id || '';
+    const loc = locations.find(l => l.id === locId);
+    setEditFormBrandId((loc as any)?.brandId || '');
+    setEditForm({ role: currentRole, locationId: locId });
     setEditingUser(u);
   };
 
@@ -279,17 +338,21 @@ const UsersPage = () => {
 
     setSaving(true);
     try {
-      const currentRole = editingUser.user_roles?.[0];
+      const previousRole = editingUser.user_roles?.[0]?.role as string | undefined;
+      const roleChanged = editForm.role !== previousRole;
 
-      if (currentRole) {
-        await apiPost('/api/user-roles', { user_id: editingUser.user_id, role: editForm.role });
-      } else {
-        await apiPost('/api/user-roles', { user_id: editingUser.user_id, role: editForm.role });
-      }
+      await apiPost('/api/user-roles', {
+        user_id: editingUser.user_id,
+        role: editForm.role,
+        notify: roleChanged,
+        userEmail: editingUser.email,
+        userName: editingUser.full_name,
+        previousRole: previousRole ?? null,
+      });
 
       await apiPatch(`/api/profiles/${encodeURIComponent(editingUser.id)}`, { location_id: editForm.locationId || null });
 
-      toast({ title: 'Updated', description: `${editingUser.full_name} is now ${editForm.role}` });
+      toast({ title: 'Updated', description: `${editingUser.full_name} is now ${getAppRoleLabel(editForm.role as AppRole)}${roleChanged ? ' — role change email sent' : ''}` });
       if (profile?.user_id) {
         void logStaffActivity({
           userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
@@ -308,9 +371,29 @@ const UsersPage = () => {
     }
   };
 
+  // Open create dialog — auto-fill location/brand for Sales Admin / Branch Admin
+  const handleOpenCreateDialog = () => {
+    if ((isSalesAdmin || role === APP_ROLE.BRAND_ADMIN) && profile?.location_id) {
+      const creatorLoc = locations.find(l => l.id === profile.location_id);
+      setCreateFormBrandId((creatorLoc as any)?.brandId || '');
+      setCreateForm(p => ({ ...p, locationId: profile.location_id || '', brandId: (creatorLoc as any)?.brandId || '' }));
+    } else {
+      setCreateFormBrandId('');
+    }
+    setShowCreateDialog(true);
+  };
+
   const getLocationName = (locationId: string | null) => {
     if (!locationId) return null;
     return locations.find(l => l.id === locationId)?.name || null;
+  };
+
+  const getBrandName = (locationId: string | null) => {
+    if (!locationId) return null;
+    const loc = locations.find(l => l.id === locationId) as any;
+    if (loc?.brandName) return loc.brandName as string;
+    if (loc?.brandId) return brands.find(b => b.id === loc.brandId)?.name || null;
+    return null;
   };
 
   const getDealerNameByLocation = (locationId: string | null) => {
@@ -519,7 +602,7 @@ const UsersPage = () => {
                 </SelectContent>
               </Select>
             )}
-            <Button onClick={() => setShowCreateDialog(true)} className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
+            <Button onClick={handleOpenCreateDialog} className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
               <UserPlus className="h-4 w-4 mr-2" /> Add Staff
             </Button>
           </div>
@@ -575,6 +658,7 @@ const UsersPage = () => {
                   <th className="text-left p-3 text-muted-foreground font-medium">Email</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Verified</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Role</th>
+                  <th className="text-left p-3 text-muted-foreground font-medium">Brand</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Location</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Dealer</th>
                   <th className="text-left p-3 text-muted-foreground font-medium">Test Drives</th>
@@ -607,6 +691,13 @@ const UsersPage = () => {
                       {(!u.user_roles || u.user_roles.length === 0) && (
                         <Badge variant="outline">No role</Badge>
                       )}
+                    </td>
+                    <td className="p-3 text-muted-foreground text-xs">
+                      {getBrandName(u.location_id) ? (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-400 text-[11px] font-medium">
+                          {getBrandName(u.location_id)}
+                        </span>
+                      ) : '–'}
                     </td>
                     <td className="p-3 text-muted-foreground text-xs">
                       {getLocationName(u.location_id) ? (
@@ -770,6 +861,11 @@ const UsersPage = () => {
                 {getLocationName(u.location_id) && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <MapPin className="h-3 w-3" />
+                    {getBrandName(u.location_id) && (
+                      <span className="inline-flex items-center rounded-full px-1.5 py-0.5 bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-400 text-[10px] font-medium">
+                        {getBrandName(u.location_id)}
+                      </span>
+                    )}
                     {getLocationName(u.location_id)}
                   </div>
                 )}
@@ -855,7 +951,7 @@ const UsersPage = () => {
           ))}
         </div>
 
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <Dialog open={showCreateDialog} onOpenChange={(open) => { setShowCreateDialog(open); if (!open) { setCreateFormBrandId(''); setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', brandId: '', can_use_demo_data: false }); } }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="font-heading">Add Staff Member</DialogTitle>
@@ -899,12 +995,41 @@ const UsersPage = () => {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Brand first */}
+              {brands.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Brand</Label>
+                  <Select
+                    value={createFormBrandId || '__none__'}
+                    onValueChange={v => {
+                      const val = v === '__none__' ? '' : v;
+                      setCreateFormBrandId(val);
+                      setCreateForm(p => ({ ...p, brandId: val, locationId: '' })); // reset location when brand changes
+                    }}
+                    disabled={isSalesAdmin || role === APP_ROLE.BRAND_ADMIN}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Any brand —</SelectItem>
+                      {brands.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {/* Location filtered by brand */}
               <div className="space-y-2">
                 <Label>Location</Label>
-                <Select value={createForm.locationId} onValueChange={v => setCreateForm(p => ({ ...p, locationId: v }))}>
+                <Select
+                  value={createForm.locationId}
+                  onValueChange={v => setCreateForm(p => ({ ...p, locationId: v }))}
+                  disabled={isSalesAdmin || role === APP_ROLE.BRAND_ADMIN}
+                >
                   <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
                   <SelectContent>
-                    {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                    {(createFormBrandId
+                      ? locations.filter(l => (l as any).brandId === createFormBrandId)
+                      : locations
+                    ).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -915,7 +1040,7 @@ const UsersPage = () => {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+        <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) { setEditingUser(null); setEditFormBrandId(''); } }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="font-heading">
@@ -933,12 +1058,35 @@ const UsersPage = () => {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Brand then filtered locations */}
+              {brands.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Brand</Label>
+                  <Select
+                    value={editFormBrandId || '__none__'}
+                    onValueChange={v => {
+                      const val = v === '__none__' ? '' : v;
+                      setEditFormBrandId(val);
+                      setEditForm(p => ({ ...p, locationId: '' }));
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Any brand —</SelectItem>
+                      {brands.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Location</Label>
                 <Select value={editForm.locationId} onValueChange={v => setEditForm(p => ({ ...p, locationId: v }))}>
                   <SelectTrigger><SelectValue placeholder="No location" /></SelectTrigger>
                   <SelectContent>
-                    {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                    {(editFormBrandId
+                      ? locations.filter(l => (l as any).brandId === editFormBrandId)
+                      : locations
+                    ).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

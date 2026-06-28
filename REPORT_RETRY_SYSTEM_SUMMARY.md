@@ -11,7 +11,7 @@ The complete report delivery monitoring, automatic retry, and error tracking sys
 - ✅ Comprehensive error logging (error_message, error_code, timestamps)
 - ✅ Superadmin alerting on 3rd consecutive failure
 - ✅ Full React monitoring dashboard with filters, stats, and controls
-- ✅ RLS-protected queries (location staff/dealer admins/superadmin access)
+- ✅ RLS-protected queries (location staff/Organization Admins/superadmin access)
 - ✅ Two retry paths: automatic batch processor + manual edge function handler
 - ✅ Enhanced three send functions with error tracking integration
 

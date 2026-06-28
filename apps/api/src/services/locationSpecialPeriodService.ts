@@ -62,7 +62,7 @@ async function ensureManagePermission(userId: string, locationId: string) {
     }
 
     if (!actorDealerId || targetLocation.dealer_id !== actorDealerId) {
-      throw new Error('Forbidden: Dealer admin can only manage periods for own dealer locations');
+      throw new Error('Forbidden: Organization Admin can only manage periods for own dealer locations');
     }
     return;
   }

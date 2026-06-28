@@ -2,6 +2,15 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IVehicle extends Omit<Document, 'model'> {
   id: string;
+  orgId: string | null;
+  businessUnitId: string | null;
+  brandId: string | null;
+  salesOfficeId: string | null;
+  plantId: string | null;
+  condition: string | null;
+  status: string | null;
+  vin: string | null;
+  stockNumber: string | null;
   brand: string;
   model: string;
   variant: string | null;
@@ -59,6 +68,15 @@ export interface IVehicle extends Omit<Document, 'model'> {
 const VehicleSchema = new Schema<IVehicle>(
   {
     id: { type: String, required: true, unique: true, index: true },
+    orgId: { type: String, default: null, index: true },
+    businessUnitId: { type: String, default: null, index: true },
+    brandId: { type: String, default: null, index: true },
+    salesOfficeId: { type: String, default: null, index: true },
+    plantId: { type: String, default: null, index: true },
+    condition: { type: String, default: null, index: true },
+    status: { type: String, default: 'available', index: true },
+    vin: { type: String, default: null, unique: true, sparse: true, index: true },
+    stockNumber: { type: String, default: null, unique: true, sparse: true, index: true },
     brand: { type: String, required: true, index: true },
     model: { type: String, required: true, index: true },
     variant: { type: String, default: null },
@@ -107,9 +125,15 @@ const VehicleSchema = new Schema<IVehicle>(
 );
 
 VehicleSchema.pre('save', function (next) {
+  if (!this.condition && this.vehicle_condition) {
+    this.condition = this.vehicle_condition;
+  }
   this.updated_at = new Date().toISOString();
   next();
 });
+
+VehicleSchema.index({ orgId: 1, businessUnitId: 1, brandId: 1, condition: 1 });
+VehicleSchema.index({ salesOfficeId: 1, plantId: 1, location_id: 1 });
 
 export const Vehicle =
   (mongoose.models['Vehicle'] as mongoose.Model<IVehicle>) ||

@@ -66,7 +66,7 @@ async function ensureManagePermission(userId: string, locationId: string) {
 
     const actorDealerId = await resolveActorDealerId(actor);
     if (!actorDealerId || targetLocation.dealer_id !== actorDealerId) {
-      throw new Error('Forbidden: Dealer Admin can only manage config for own dealer locations');
+      throw new Error('Forbidden: Organization Admin can only manage config for own dealer locations');
     }
     return actor;
   }

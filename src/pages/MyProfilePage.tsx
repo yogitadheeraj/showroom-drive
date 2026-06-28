@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { getAppRoleLabel } from '@/lib/roles';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye, EyeOff, KeyRound, PlaneTakeoff, PlaneLanding, UserCircle2, Mail, Phone, MapPin } from 'lucide-react';
@@ -30,7 +31,7 @@ const MyProfilePage = () => {
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
   const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
   const [isSavingPw, setIsSavingPw] = useState(false);
-
+ const displayRole = role ? getAppRoleLabel(role) : 'Staff';
   const [leaveForm, setLeaveForm] = useState({
     startDate: todayIso,
     endDate: todayIso,
@@ -173,7 +174,7 @@ const MyProfilePage = () => {
           <div>
             <p className="text-base font-semibold text-foreground leading-tight">{profile.full_name}</p>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <Badge variant="secondary" className="capitalize">{role}</Badge>
+              <Badge variant="secondary" className="capitalize">{displayRole}</Badge>
               {isCurrentlyOnLeave ? (
                 <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
                   <PlaneTakeoff className="h-3 w-3 mr-1" /> On Leave

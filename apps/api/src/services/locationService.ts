@@ -10,6 +10,10 @@ function toPlain(doc: any) {
 export async function listLocations(filters: Record<string, unknown> = {}) {
   const query: Record<string, unknown> = {};
   if (filters.dealer_id) query.dealer_id = filters.dealer_id;
+  if (filters.brandId) query.brandId = filters.brandId;
+  if (filters.businessUnitId) query.businessUnitId = filters.businessUnitId;
+  if (filters.salesOfficeId) query.salesOfficeId = filters.salesOfficeId;
+  if (filters.plantId) query.plantId = filters.plantId;
   if (typeof filters.is_active === 'boolean') query.is_active = filters.is_active;
   else if (filters.is_active === 'true') query.is_active = true;
   else if (filters.is_active === 'false') query.is_active = false;

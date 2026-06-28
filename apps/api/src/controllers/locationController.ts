@@ -5,6 +5,10 @@ export async function getLocationsController(req: Request, res: Response) {
   try {
     const filters: Record<string, unknown> = {};
     if (req.query.dealer_id) filters.dealer_id = req.query.dealer_id;
+    if (req.query.brandId) filters.brandId = req.query.brandId;
+    if (req.query.businessUnitId) filters.businessUnitId = req.query.businessUnitId;
+    if (req.query.salesOfficeId) filters.salesOfficeId = req.query.salesOfficeId;
+    if (req.query.plantId) filters.plantId = req.query.plantId;
     if (req.query.is_active !== undefined) filters.is_active = req.query.is_active === 'true';
     const data = await listLocations(filters);
     res.status(200).json({ data, error: null });

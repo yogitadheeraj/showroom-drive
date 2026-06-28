@@ -25,8 +25,8 @@ import {
 } from './reportEmailService.js';
 import { EmailUnsubscribeToken } from '../models/EmailUnsubscribeToken.js';
 
-const CREATEABLE_ROLES = ['dealer_admin', 'sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
-const DEALER_ADMIN_CREATEABLE_ROLES = ['sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
+const CREATEABLE_ROLES = ['dealer_admin', 'brand_admin', 'sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
+const DEALER_ADMIN_CREATEABLE_ROLES = ['brand_admin', 'sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
 const SALES_ADMIN_CREATEABLE_ROLES = ['sales'] as const;
 
 type CreateableRole = (typeof CREATEABLE_ROLES)[number];
@@ -88,7 +88,7 @@ async function createStaffUser(payload: Record<string, unknown>, callerUserId?: 
   }
 
   if (isDealerAdmin && !(DEALER_ADMIN_CREATEABLE_ROLES as readonly string[]).includes(role)) {
-    throw new Error('Dealer admin cannot create users with this role');
+    throw new Error('Organization Admin cannot create users with this role');
   }
 
   if (isSalesAdmin && !(SALES_ADMIN_CREATEABLE_ROLES as readonly string[]).includes(role)) {
@@ -96,8 +96,9 @@ async function createStaffUser(payload: Record<string, unknown>, callerUserId?: 
   }
 
   let dealerId: string | null = null;
+  // brand_admin doesn't require a specific location
   if (isDealerAdmin || isSalesAdmin) {
-    if (!locationId) {
+    if (!locationId && role !== 'brand_admin') {
       throw new Error('Location is required');
     }
 
@@ -220,7 +221,7 @@ async function canAccessTargetUser(callerUserId: string, targetUserId: string) {
   const targetRole = String(targetRoleRow?.role || '');
 
   if (!isSuperAdmin && targetRole === 'dealer_admin') {
-    return { allowed: false, reason: 'Only superadmin can manage dealer admin users', callerRole, isSuperAdmin, isDealerAdmin, isSalesAdmin };
+    return { allowed: false, reason: 'Only superadmin can manage Organization Admin users', callerRole, isSuperAdmin, isDealerAdmin, isSalesAdmin };
   }
 
   if (isSalesAdmin && targetRole !== 'sales') {
