@@ -1,7 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
-import { Moon, Sun } from 'lucide-react';
+import { LogOut, Moon, Sun } from 'lucide-react';
 
 interface SiteHeaderProps {
   variant?: 'landing' | 'app';
@@ -14,12 +14,21 @@ interface SiteHeaderProps {
 }
 
 const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightSlot, leftSlot, dealerName, dealerLogoUrl }: SiteHeaderProps) => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const isLoggedIn = !!user;
-  console.log('SiteHeader render', { variant, showNav, isLoggedIn, dealerName, dealerLogoUrl });
+  const navigate = useNavigate();
   const { resolvedTheme, toggleTheme } = useTheme();
 
   const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/auth');
+    } catch (error) {
+      console.error('Failed to sign out', error);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/85 text-foreground backdrop-blur dark:border-white/10 dark:bg-[hsl(220,50%,10%)]/95 dark:text-slate-100">
@@ -81,6 +90,18 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
 
         <div className="flex items-center gap-3">
           {rightSlot}
+          {variant === 'app' && isLoggedIn && (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              aria-label="Sign out"
+              title="Sign out"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-muted px-3 text-sm font-medium text-foreground transition hover:bg-muted/70 dark:border-white/15 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={toggleTheme}

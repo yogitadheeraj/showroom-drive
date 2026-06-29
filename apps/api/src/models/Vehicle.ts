@@ -75,8 +75,8 @@ const VehicleSchema = new Schema<IVehicle>(
     plantId: { type: String, default: null, index: true },
     condition: { type: String, default: null, index: true },
     status: { type: String, default: 'available', index: true },
-    vin: { type: String, default: null, unique: true, sparse: true, index: true },
-    stockNumber: { type: String, default: null, unique: true, sparse: true, index: true },
+    vin: { type: String, sparse: true },
+    stockNumber: { type: String, sparse: true },
     brand: { type: String, required: true, index: true },
     model: { type: String, required: true, index: true },
     variant: { type: String, default: null },
@@ -132,6 +132,7 @@ VehicleSchema.pre('save', function (next) {
   next();
 });
 
+VehicleSchema.index({ vin: 1 }, { unique: false, sparse: true, name: 'vin_sparse_idx' });
 VehicleSchema.index({ orgId: 1, businessUnitId: 1, brandId: 1, condition: 1 });
 VehicleSchema.index({ salesOfficeId: 1, plantId: 1, location_id: 1 });
 

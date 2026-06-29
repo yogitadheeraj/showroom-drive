@@ -559,103 +559,7 @@ const SecurityDashboard = () => {
           );
         })}
       </div>
- <Card className="flex gap-2 bg-transparent border-0 p-0">
-      {/* ── Smart action queue ── */}
-      {metrics.actions.length > 0 && (
-        <Card className="w-1/2 shadow-card border-l-4 border-l-destructive/60">
-          <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="font-heading text-sm flex items-center gap-2">
-              <Zap className="h-4 w-4 text-destructive" />
-              Action Required
-              <Badge className="ml-1 bg-destructive/15 text-destructive text-[10px] border-0">{metrics.actions.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
-            <div className="space-y-2">
-              {metrics.actions.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <div
-                    key={action.id}
-                    className={`flex items-center gap-3 p-2.5 rounded-lg border ${
-                      action.type === 'critical' ? 'bg-destructive/5 border-destructive/20'
-                      : action.type === 'warning' ? 'bg-warning/5 border-warning/20'
-                      : 'bg-info/5 border-info/20'
-                    }`}
-                  >
-                    <div className={`h-7 w-7 rounded-md flex items-center justify-center shrink-0 ${
-                      action.type === 'critical' ? 'bg-destructive/15' : action.type === 'warning' ? 'bg-warning/15' : 'bg-info/15'
-                    }`}>
-                      <Icon className={`h-3.5 w-3.5 ${action.type === 'critical' ? 'text-destructive' : action.type === 'warning' ? 'text-warning' : 'text-info'}`} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-xs font-semibold ${action.type === 'critical' ? 'text-destructive' : action.type === 'warning' ? 'text-warning' : 'text-info'}`}>
-                        {action.title}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">{action.description}</p>
-                    </div>
-                    <Badge className={`shrink-0 text-[11px] font-bold ${
-                      action.type === 'critical' ? 'bg-destructive text-destructive-foreground'
-                      : action.type === 'warning' ? 'bg-warning text-warning-foreground'
-                      : 'bg-info text-white'
-                    }`}>{action.count}</Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Incoming Shared Vehicles ── */}
-      {profile?.location_id && profile?.id && (
-        <div className=" w-1/2  rounded-xl border border-info/25 bg-gradient-to-br from-info/5 via-background to-background shadow-card overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-info/15">
-            <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-lg bg-info/15 flex items-center justify-center shrink-0">
-                <Truck className="h-4 w-4 text-info" />
-              </div>
-              <div>
-                <h3 className="font-heading font-semibold text-sm text-foreground">Incoming Shared Vehicles</h3>
-                <p className="text-[11px] text-muted-foreground">Vehicles dispatched to your location</p>
-              </div>
-            </div>
-            <Button size="sm" variant="outline" className="text-xs h-7 border-info/30 text-info hover:bg-info/10 gap-1.5" onClick={() => navigate('/incoming-vehicles')}>
-              <ArrowRight className="h-3 w-3" /> Full View
-            </Button>
-          </div>
-          <div className="px-4 py-3">
-            <IncomingVehiclesPanel locationId={profile.location_id} profileId={profile.id} />
-          </div>
-        </div>
-      )}
-</Card>
-      {/* ── Activity Insights ── */}
-      <ActivityInsightsMini />
-
-      {/* ── Security SOP ── */}
-      <Card className="shadow-card border-primary/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="font-heading text-sm flex items-center gap-2">
-            <Shield className="h-4 w-4 text-primary" /> Security SOP
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-            {[
-              { n: 1, text: 'Verify License Before Vehicle Movement.' },
-              { n: 2, text: 'Complete Pre-Drive Inspection, Then Start In Progress.' },
-              { n: 3, text: 'Upon Return, Submit Post-Drive Inspection.' },
-              { n: 4, text: 'Return And Handover To Close The Drive.' },
-            ].map((s) => (
-              <div key={s.n} className="flex items-start gap-2 rounded-md bg-muted/40 p-2.5">
-                <span className="h-5 w-5 rounded-full bg-primary/15 text-primary text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{s.n}</span>
-                <span className="text-muted-foreground">{s.text}</span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+   
 
       {/* ── Test Drives ── */}
       <Card className="shadow-card" ref={drivesSectionRef}>
@@ -853,6 +757,78 @@ const SecurityDashboard = () => {
         onClose={() => setDetailSheetDrive(null)}
         securityEvents={detailSheetDrive ? { logs: securityLogsByDrive[detailSheetDrive.id] } : undefined}
       />
+          <Card className="flex gap-2 bg-transparent border-0 p-0">
+          {/* ── Smart action queue ── */}
+          {metrics.actions.length > 0 && (
+            <Card className="w-1/2 shadow-card border-l-4 border-l-destructive/60">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardTitle className="font-heading text-sm flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-destructive" />
+                  Action Required
+                  <Badge className="ml-1 bg-destructive/15 text-destructive text-[10px] border-0">{metrics.actions.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3 pt-0">
+                <div className="space-y-2">
+                  {metrics.actions.map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <div
+                        key={action.id}
+                        className={`flex items-center gap-3 p-2.5 rounded-lg border ${
+                          action.type === 'critical' ? 'bg-destructive/5 border-destructive/20'
+                          : action.type === 'warning' ? 'bg-warning/5 border-warning/20'
+                          : 'bg-info/5 border-info/20'
+                        }`}
+                      >
+                        <div className={`h-7 w-7 rounded-md flex items-center justify-center shrink-0 ${
+                          action.type === 'critical' ? 'bg-destructive/15' : action.type === 'warning' ? 'bg-warning/15' : 'bg-info/15'
+                        }`}>
+                          <Icon className={`h-3.5 w-3.5 ${action.type === 'critical' ? 'text-destructive' : action.type === 'warning' ? 'text-warning' : 'text-info'}`} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-xs font-semibold ${action.type === 'critical' ? 'text-destructive' : action.type === 'warning' ? 'text-warning' : 'text-info'}`}>
+                            {action.title}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">{action.description}</p>
+                        </div>
+                        <Badge className={`shrink-0 text-[11px] font-bold ${
+                          action.type === 'critical' ? 'bg-destructive text-destructive-foreground'
+                          : action.type === 'warning' ? 'bg-warning text-warning-foreground'
+                          : 'bg-info text-white'
+                        }`}>{action.count}</Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── Incoming Shared Vehicles ── */}
+          {profile?.location_id && profile?.id && (
+            <div className=" w-1/2  rounded-xl border border-info/25 bg-gradient-to-br from-info/5 via-background to-background shadow-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-info/15">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-lg bg-info/15 flex items-center justify-center shrink-0">
+                    <Truck className="h-4 w-4 text-info" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-semibold text-sm text-foreground">Incoming Shared Vehicles</h3>
+                    <p className="text-[11px] text-muted-foreground">Vehicles dispatched to your location</p>
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" className="text-xs h-7 border-info/30 text-info hover:bg-info/10 gap-1.5" onClick={() => navigate('/incoming-vehicles')}>
+                  <ArrowRight className="h-3 w-3" /> Full View
+                </Button>
+              </div>
+              <div className="px-4 py-3">
+                <IncomingVehiclesPanel locationId={profile.location_id} profileId={profile.id} />
+              </div>
+            </div>
+          )}
+    </Card>
+   
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-2xl">
@@ -913,6 +889,32 @@ const SecurityDashboard = () => {
         type={inspectionType}
         onComplete={() => void handleInspectionComplete()}
       />
+         {/* ── Activity Insights ── */}
+      <ActivityInsightsMini />
+
+      {/* ── Security SOP ── */}
+      <Card className="shadow-card border-primary/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="font-heading text-sm flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" /> Security SOP
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+            {[
+              { n: 1, text: 'Verify License Before Vehicle Movement.' },
+              { n: 2, text: 'Complete Pre-Drive Inspection, Then Start In Progress.' },
+              { n: 3, text: 'Upon Return, Submit Post-Drive Inspection.' },
+              { n: 4, text: 'Return And Handover To Close The Drive.' },
+            ].map((s) => (
+              <div key={s.n} className="flex items-start gap-2 rounded-md bg-muted/40 p-2.5">
+                <span className="h-5 w-5 rounded-full bg-primary/15 text-primary text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{s.n}</span>
+                <span className="text-muted-foreground">{s.text}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={!!inspectionViewDrive} onOpenChange={() => setInspectionViewDrive(null)}>
         <DialogContent className="max-w-lg">

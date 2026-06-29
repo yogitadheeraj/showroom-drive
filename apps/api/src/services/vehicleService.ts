@@ -36,17 +36,43 @@ export async function getVehicleById(id: string) {
   const o = { ...doc } as any; delete o._id; return o;
 }
 
+function normalizeVehiclePayload(data: Record<string, unknown>) {
+  const payload = { ...data } as Record<string, unknown>;
+
+  if ('vin' in payload) {
+    const vin = typeof payload.vin === 'string' ? payload.vin.trim() : payload.vin;
+    if (vin) {
+      payload.vin = vin;
+    } else {
+      delete payload.vin;
+    }
+  }
+
+  if ('stockNumber' in payload) {
+    const stockNumber = typeof payload.stockNumber === 'string' ? payload.stockNumber.trim() : payload.stockNumber;
+    if (stockNumber) {
+      payload.stockNumber = stockNumber;
+    } else {
+      delete payload.stockNumber;
+    }
+  }
+
+  return payload;
+}
+
 export async function createVehicle(data: Record<string, unknown>) {
   const now = new Date().toISOString();
-  const doc = new Vehicle({ ...data, id: String(data.id || randomUUID()), created_at: now, updated_at: now });
+  const payload = normalizeVehiclePayload(data);
+  const doc = new Vehicle({ ...payload, id: String(payload.id || randomUUID()), created_at: now, updated_at: now });
   await doc.save();
   return lean(doc);
 }
 
 export async function updateVehicle(id: string, data: Record<string, unknown>) {
+  const payload = normalizeVehiclePayload(data);
   const doc = await Vehicle.findOneAndUpdate(
     { id },
-    { $set: { ...data, updated_at: new Date().toISOString() } },
+    { $set: { ...payload, updated_at: new Date().toISOString() } },
     { new: true },
   );
   return doc ? lean(doc) : null;
