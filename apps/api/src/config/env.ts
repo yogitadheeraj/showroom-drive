@@ -6,12 +6,18 @@ dotenv.config();
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
+const parseOrigins = (value?: string) =>
+  (value || 'http://localhost:8080,http://localhost:8081')
+    .split(',')
+    .map((origin) => origin.trim().replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+
 export const env = {
   port: Number(process.env.PORT || 4000),
   nodeEnv: process.env.NODE_ENV || 'development',
   mongoUri: process.env.MONGODB_URI || '',
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:8080',
-  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:8080,http://localhost:8081').split(',').map((origin) => origin.trim()).filter(Boolean),
+  corsOrigin: parseOrigins(process.env.CORS_ORIGIN || process.env.CORS_ORIGINS)[0] || 'http://localhost:8080',
+  corsOrigins: Array.from(new Set(parseOrigins(process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || 'http://localhost:8080,http://localhost:8081'))),
   firebaseProjectId: process.env.FIREBASE_PROJECT_ID || '',
   firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',
   firebasePrivateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),

@@ -12,12 +12,23 @@ import { runTestDriveReminderJobs } from './services/testDriveReminderService.js
 
 const app = express();
 
+const normalizeOrigin = (value?: string) => {
+  if (!value) return '';
+  return value.trim().replace(/^['"]|['"]$/g, '').replace(/\/$/, '').toLowerCase();
+};
+
+const allowedOrigins = new Set(
+  [...env.corsOrigins, env.corsOrigin]
+    .map(normalizeOrigin)
+    .filter(Boolean),
+);
+
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
 
-    const allowedOrigins = new Set([...env.corsOrigins, env.corsOrigin]);
-    if (allowedOrigins.has(origin)) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (allowedOrigins.has(normalizedOrigin) || allowedOrigins.has('*')) {
       return callback(null, true);
     }
 
