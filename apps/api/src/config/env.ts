@@ -7,7 +7,7 @@ dotenv.config();
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 const parseOrigins = (value?: string) =>
-  (value || 'http://localhost:8080,http://localhost:8081')
+  (value || 'http://localhost:8080,http://localhost:8081, https://www.autoadvant.com, https://autoadvant.com, https://autoadvant-staging.web.app, https://autoadvant-staging.firebaseapp.com, https://autoadvant.web.app, https://autoadvant.firebaseapp.com')
     .split(',')
     .map((origin) => origin.trim().replace(/^['"]|['"]$/g, ''))
     .filter(Boolean);
