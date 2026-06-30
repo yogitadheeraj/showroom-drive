@@ -156,8 +156,8 @@ const FollowUpsPage = () => {
               <TrendingUp className="h-4 w-4 text-violet-600" />
             </div>
             <div>
-              <p className="text-xl font-heading font-bold leading-none">{oppCount}</p>
-              <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Opportunities</p>
+              <p className="text-xl font-heading font-bold leading-none text-black">{oppCount}</p>
+              <p className="text-[11px] text-black font-medium mt-0.5">Opportunities</p>
             </div>
           </div>
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex items-center gap-3">
@@ -165,7 +165,7 @@ const FollowUpsPage = () => {
               <ClipboardCheck className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-xl font-heading font-bold leading-none">{taskCount}</p>
+              <p className="text-xl font-heading font-bold leading-none ">{taskCount}</p>
               <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Open Tasks</p>
             </div>
           </div>
@@ -174,8 +174,8 @@ const FollowUpsPage = () => {
               <Zap className="h-4 w-4 text-rose-600" />
             </div>
             <div>
-              <p className="text-xl font-heading font-bold leading-none">{hotCount}</p>
-              <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Hot Leads</p>
+              <p className="text-xl font-heading font-bold leading-none dark:text-black">{hotCount}</p>
+              <p className="text-[11px] dark:text-black font-medium mt-0.5 dark:text-slate-400">Hot Leads</p>
             </div>
           </div>
         </div>
@@ -217,7 +217,7 @@ const FollowUpsPage = () => {
               return (
                 <div
                   key={`opp-${item.id}`}
-                  className={`rounded-xl border ${temp.border} ${temp.bg} flex overflow-hidden`}
+                  className={`rounded-2xl border ${temp.border} ${temp.bg} flex overflow-hidden shadow-sm transition-colors dark:border-slate-700 dark:bg-slate-900/90 dark:shadow-slate-950/30`}
                 >
                   {/* color accent strip */}
                   <div className={`w-1 shrink-0 ${temp.dot}`} />
@@ -230,7 +230,7 @@ const FollowUpsPage = () => {
                         <span className={`h-1.5 w-1.5 rounded-full ${temp.dot}`} />
                         {temp.label}
                       </span>
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${stage.bg} ${stage.text}`}>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${stage.bg} ${stage.text} dark:bg-slate-800/80 dark:text-slate-200`}>
                         {stage.label}
                       </span>
                       {item.updated_at && (
@@ -242,7 +242,7 @@ const FollowUpsPage = () => {
                     </div>
                     {/* row 2: name + contact */}
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-sm text-foreground truncate">
+                      <p className="font-semibold text-sm text-foreground truncate dark:text-slate-100">
                         {customer?.full_name || 'Customer'}
                       </p>
                       <div className="flex items-center gap-1 shrink-0">
@@ -270,12 +270,12 @@ const FollowUpsPage = () => {
                     </div>
                     {/* row 3: contact text + notes */}
                     {(phone || email) && (
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                      <p className="text-[11px] text-muted-foreground mt-0.5 dark:text-slate-400">
                         {[phone, email].filter(Boolean).join(' · ')}
                       </p>
                     )}
                     {item.notes && (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">"{item.notes}"</p>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic dark:text-slate-400">"{item.notes}"</p>
                     )}
                   </div>
                 </div>
@@ -289,7 +289,7 @@ const FollowUpsPage = () => {
             return (
               <div
                 key={`task-${item.id}`}
-                className={`rounded-xl border ${isOverdue ? 'border-rose-200 bg-rose-50' : 'border-primary/20 bg-primary/5'} flex overflow-hidden`}
+                className={`rounded-2xl border ${isOverdue ? 'border-rose-200 bg-rose-50' : 'border-primary/20 bg-primary/5'} flex overflow-hidden shadow-sm transition-colors dark:border-slate-700 dark:bg-slate-900/90 dark:shadow-slate-950/30`}
               >
                 <div className={`w-1 shrink-0 ${prio.accent}`} />
                 <div className="flex-1 p-3 min-w-0">
@@ -297,7 +297,7 @@ const FollowUpsPage = () => {
                   <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                     <ClipboardCheck className="h-3 w-3 text-primary shrink-0" />
                     <span className="text-[10px] font-bold uppercase tracking-wide text-primary">Task</span>
-                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${prio.bg} ${prio.text}`}>
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${prio.bg} ${prio.text} dark:bg-slate-800/80 dark:text-slate-200`}>
                       {prio.label}
                     </span>
                     {dueInfo && (
@@ -308,13 +308,13 @@ const FollowUpsPage = () => {
                     )}
                   </div>
                   {/* row 2: task title */}
-                  <p className="font-semibold text-sm text-foreground truncate mb-1">{item.title}</p>
+                  <p className="font-semibold text-sm text-foreground truncate mb-1 dark:text-slate-100">{item.title}</p>
                   {/* row 3: customer name + contact + action */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground truncate">{customer?.full_name || 'Customer'}</p>
+                      <p className="text-xs text-muted-foreground truncate dark:text-slate-400">{customer?.full_name || 'Customer'}</p>
                       {(phone || email) && (
-                        <p className="text-[11px] text-muted-foreground truncate">{[phone, email].filter(Boolean).join(' · ')}</p>
+                        <p className="text-[11px] text-muted-foreground truncate dark:text-slate-400">{[phone, email].filter(Boolean).join(' · ')}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">

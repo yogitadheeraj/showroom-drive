@@ -29,10 +29,76 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2, MoreHorizontal, PlaneTakeoff, PlaneLanding, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2, MoreHorizontal, PlaneTakeoff, PlaneLanding, Eye, EyeOff, Check, ChevronDown, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, DEALER_ASSIGNABLE_ROLES, type AppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
+
+type BrandMultiSelectProps = {
+  brands: { id: string; name: string }[];
+  selectedBrandIds: string[];
+  onChange: (next: string[]) => void;
+  disabled?: boolean;
+  placeholder?: string;
+};
+
+const BrandMultiSelect = ({ brands, selectedBrandIds, onChange, disabled = false, placeholder = 'Select brands' }: BrandMultiSelectProps) => {
+  const selectedBrands = brands.filter((brand) => selectedBrandIds.includes(brand.id));
+
+  return (
+    <div className="space-y-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" className="w-full justify-between" disabled={disabled}>
+            <span className="truncate">{selectedBrands.length > 0 ? `${selectedBrands.length} selected` : placeholder}</span>
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-64">
+          {brands.map((brand) => {
+            const checked = selectedBrandIds.includes(brand.id);
+            return (
+              <DropdownMenuItem
+                key={brand.id}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  const next = checked
+                    ? selectedBrandIds.filter((id) => id !== brand.id)
+                    : Array.from(new Set([...selectedBrandIds, brand.id]));
+                  onChange(next);
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`flex h-4 w-4 items-center justify-center rounded-sm border ${checked ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>
+                    {checked && <Check className="h-3 w-3" />}
+                  </div>
+                  <span>{brand.name}</span>
+                </div>
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {selectedBrands.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedBrands.map((brand) => (
+            <span key={brand.id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+              {brand.name}
+              <button
+                type="button"
+                onClick={() => onChange(selectedBrandIds.filter((id) => id !== brand.id))}
+                className="rounded-full p-0.5 hover:bg-primary/20"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const UsersPage = () => {
   const [users, setUsers] = useState<any[]>([]);
@@ -50,8 +116,8 @@ const UsersPage = () => {
   const [locations, setLocations] = useState<any[]>([]);
   const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
   const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', brandId: '', can_use_demo_data: false });
-  const [createFormBrandId, setCreateFormBrandId] = useState('');
-  const [editFormBrandId, setEditFormBrandId] = useState('');
+  const [createFormBrandIds, setCreateFormBrandIds] = useState<string[]>([]);
+  const [editFormBrandIds, setEditFormBrandIds] = useState<string[]>([]);
   const [showCreatePw, setShowCreatePw] = useState(false);
   const [editForm, setEditForm] = useState({ role: '', locationId: '' });
   const [saving, setSaving] = useState(false);
@@ -120,36 +186,44 @@ const UsersPage = () => {
   // Auto-select brand when only one option is available
   useEffect(() => {
     if (brands.length !== 1) return;
-    if (showCreateDialog && !createFormBrandId) {
-      setCreateFormBrandId(brands[0].id);
+    if (showCreateDialog && createFormBrandIds.length === 0) {
+      setCreateFormBrandIds([brands[0].id]);
       setCreateForm(p => ({ ...p, brandId: brands[0].id }));
     }
-    if (editingUser && !editFormBrandId) {
-      setEditFormBrandId(brands[0].id);
+    if (editingUser && editFormBrandIds.length === 0) {
+      setEditFormBrandIds([brands[0].id]);
     }
-  }, [brands, showCreateDialog, editingUser]);
+  }, [brands, showCreateDialog, editingUser, createFormBrandIds.length, editFormBrandIds.length]);
 
   // Auto-select location in create dialog when filtered list has exactly one option
   useEffect(() => {
     if (!showCreateDialog) return;
-    const available = createFormBrandId
-      ? locations.filter(l => (l as any).brandId === createFormBrandId)
+    const selectedBrandIds = createFormBrandIds.filter(Boolean);
+    const available = selectedBrandIds.length > 0
+      ? locations.filter(l => selectedBrandIds.includes((l as any).brandId))
       : locations;
     if (available.length === 1 && !createForm.locationId) {
       setCreateForm(p => ({ ...p, locationId: available[0].id }));
     }
-  }, [showCreateDialog, createFormBrandId, locations]);
+    if (createForm.locationId && !available.some((l: any) => l.id === createForm.locationId)) {
+      setCreateForm(p => ({ ...p, locationId: '' }));
+    }
+  }, [showCreateDialog, createFormBrandIds, locations, createForm.locationId]);
 
   // Auto-select location in edit dialog when filtered list has exactly one option
   useEffect(() => {
     if (!editingUser) return;
-    const available = editFormBrandId
-      ? locations.filter(l => (l as any).brandId === editFormBrandId)
+    const selectedBrandIds = editFormBrandIds.filter(Boolean);
+    const available = selectedBrandIds.length > 0
+      ? locations.filter(l => selectedBrandIds.includes((l as any).brandId))
       : locations;
     if (available.length === 1 && !editForm.locationId) {
       setEditForm(p => ({ ...p, locationId: available[0].id }));
     }
-  }, [editingUser, editFormBrandId, locations]);
+    if (editForm.locationId && !available.some((l: any) => l.id === editForm.locationId)) {
+      setEditForm(p => ({ ...p, locationId: '' }));
+    }
+  }, [editingUser, editFormBrandIds, locations, editForm.locationId]);
 
   const fetchUsers = async () => {
     // Scope profiles fetch to dealer's locations so Organization Admin only sees their staff
@@ -281,13 +355,14 @@ const UsersPage = () => {
 
     setSaving(true);
     try {
+      const brandIds = createFormBrandIds.filter(Boolean);
       const data = await apiInvokeFunction<any>('create-staff-user', {
         email: createForm.email,
         password: createForm.password,
         fullName: createForm.fullName,
         role: createForm.role,
         locationId: createForm.locationId || null,
-        brandId: createForm.brandId || createFormBrandId || null,
+        brandIds: brandIds.length > 0 ? brandIds : (createForm.brandId ? [createForm.brandId] : []),
         can_use_demo_data: !!createForm.can_use_demo_data,
       });
       if (data?.error) throw new Error(data.error as string);
@@ -306,7 +381,7 @@ const UsersPage = () => {
         });
       }
       setShowCreateDialog(false);
-      setCreateFormBrandId('');
+      setCreateFormBrandIds([]);
       setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', brandId: '', can_use_demo_data: false });
       fetchUsers();
     } catch (err: any) {
@@ -320,7 +395,9 @@ const UsersPage = () => {
     const currentRole = u.user_roles?.[0]?.role || '';
     const locId = u.location_id || '';
     const loc = locations.find(l => l.id === locId);
-    setEditFormBrandId((loc as any)?.brandId || '');
+    const storedBrandIds = Array.isArray(u.brand_ids) ? u.brand_ids.filter(Boolean) : [];
+    const fallbackBrandId = (u.brandId || u.brand_id || (loc as any)?.brandId || '').toString();
+    setEditFormBrandIds(storedBrandIds.length > 0 ? storedBrandIds : (fallbackBrandId ? [fallbackBrandId] : []));
     setEditForm({ role: currentRole, locationId: locId });
     setEditingUser(u);
   };
@@ -350,7 +427,10 @@ const UsersPage = () => {
         previousRole: previousRole ?? null,
       });
 
-      await apiPatch(`/api/profiles/${encodeURIComponent(editingUser.id)}`, { location_id: editForm.locationId || null });
+      await apiPatch(`/api/profiles/${encodeURIComponent(editingUser.id)}`, {
+        location_id: editForm.locationId || null,
+        brand_ids: editFormBrandIds.filter(Boolean),
+      });
 
       toast({ title: 'Updated', description: `${editingUser.full_name} is now ${getAppRoleLabel(editForm.role as AppRole)}${roleChanged ? ' — role change email sent' : ''}` });
       if (profile?.user_id) {
@@ -375,10 +455,12 @@ const UsersPage = () => {
   const handleOpenCreateDialog = () => {
     if ((isSalesAdmin || role === APP_ROLE.BRAND_ADMIN) && profile?.location_id) {
       const creatorLoc = locations.find(l => l.id === profile.location_id);
-      setCreateFormBrandId((creatorLoc as any)?.brandId || '');
-      setCreateForm(p => ({ ...p, locationId: profile.location_id || '', brandId: (creatorLoc as any)?.brandId || '' }));
+      const creatorBrandIds = Array.isArray(profile?.brand_ids) ? profile.brand_ids.filter(Boolean) : [];
+      const fallbackBrandId = (creatorLoc as any)?.brandId || '';
+      setCreateFormBrandIds(creatorBrandIds.length > 0 ? creatorBrandIds : (fallbackBrandId ? [fallbackBrandId] : []));
+      setCreateForm(p => ({ ...p, locationId: profile.location_id || '', brandId: fallbackBrandId }));
     } else {
-      setCreateFormBrandId('');
+      setCreateFormBrandIds([]);
     }
     setShowCreateDialog(true);
   };
@@ -388,7 +470,16 @@ const UsersPage = () => {
     return locations.find(l => l.id === locationId)?.name || null;
   };
 
-  const getBrandName = (locationId: string | null) => {
+  const getBrandName = (u: any) => {
+    const assignedBrandIds = Array.isArray(u?.brand_ids) ? u.brand_ids.filter(Boolean) : [];
+    if (assignedBrandIds.length > 0) {
+      const names = assignedBrandIds
+        .map((brandId: string) => brands.find((b: any) => b.id === brandId)?.name)
+        .filter(Boolean) as string[];
+      if (names.length > 0) return names.join(', ');
+    }
+
+    const locationId = u?.location_id || null;
     if (!locationId) return null;
     const loc = locations.find(l => l.id === locationId) as any;
     if (loc?.brandName) return loc.brandName as string;
@@ -693,9 +784,9 @@ const UsersPage = () => {
                       )}
                     </td>
                     <td className="p-3 text-muted-foreground text-xs">
-                      {getBrandName(u.location_id) ? (
+                      {getBrandName(u) ? (
                         <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-400 text-[11px] font-medium">
-                          {getBrandName(u.location_id)}
+                          {getBrandName(u)}
                         </span>
                       ) : '–'}
                     </td>
@@ -861,9 +952,9 @@ const UsersPage = () => {
                 {getLocationName(u.location_id) && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <MapPin className="h-3 w-3" />
-                    {getBrandName(u.location_id) && (
+                    {getBrandName(u) && (
                       <span className="inline-flex items-center rounded-full px-1.5 py-0.5 bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-400 text-[10px] font-medium">
-                        {getBrandName(u.location_id)}
+                        {getBrandName(u)}
                       </span>
                     )}
                     {getLocationName(u.location_id)}
@@ -951,7 +1042,7 @@ const UsersPage = () => {
           ))}
         </div>
 
-        <Dialog open={showCreateDialog} onOpenChange={(open) => { setShowCreateDialog(open); if (!open) { setCreateFormBrandId(''); setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', brandId: '', can_use_demo_data: false }); } }}>
+        <Dialog open={showCreateDialog} onOpenChange={(open) => { setShowCreateDialog(open); if (!open) { setCreateFormBrandIds([]); setCreateForm({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', brandId: '', can_use_demo_data: false }); } }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="font-heading">Add Staff Member</DialogTitle>
@@ -995,25 +1086,19 @@ const UsersPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              {/* Brand first */}
+              {/* Brand selection */}
               {brands.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Brand</Label>
-                  <Select
-                    value={createFormBrandId || '__none__'}
-                    onValueChange={v => {
-                      const val = v === '__none__' ? '' : v;
-                      setCreateFormBrandId(val);
-                      setCreateForm(p => ({ ...p, brandId: val, locationId: '' })); // reset location when brand changes
-                    }}
+                  <Label>Brands</Label>
+                  <BrandMultiSelect
+                    brands={brands}
+                    selectedBrandIds={createFormBrandIds}
                     disabled={isSalesAdmin || role === APP_ROLE.BRAND_ADMIN}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Any brand —</SelectItem>
-                      {brands.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                    onChange={(next) => {
+                      setCreateFormBrandIds(next);
+                      setCreateForm((p) => ({ ...p, brandId: next[0] || '', locationId: '' }));
+                    }}
+                  />
                 </div>
               )}
               {/* Location filtered by brand */}
@@ -1026,8 +1111,8 @@ const UsersPage = () => {
                 >
                   <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
                   <SelectContent>
-                    {(createFormBrandId
-                      ? locations.filter(l => (l as any).brandId === createFormBrandId)
+                    {(createFormBrandIds.filter(Boolean).length > 0
+                      ? locations.filter(l => createFormBrandIds.includes((l as any).brandId))
                       : locations
                     ).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                   </SelectContent>
@@ -1040,7 +1125,7 @@ const UsersPage = () => {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) { setEditingUser(null); setEditFormBrandId(''); } }}>
+        <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) { setEditingUser(null); setEditFormBrandIds([]); } }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="font-heading">
@@ -1058,24 +1143,18 @@ const UsersPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              {/* Brand then filtered locations */}
+              {/* Brand selection */}
               {brands.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Brand</Label>
-                  <Select
-                    value={editFormBrandId || '__none__'}
-                    onValueChange={v => {
-                      const val = v === '__none__' ? '' : v;
-                      setEditFormBrandId(val);
-                      setEditForm(p => ({ ...p, locationId: '' }));
+                  <Label>Brands</Label>
+                  <BrandMultiSelect
+                    brands={brands}
+                    selectedBrandIds={editFormBrandIds}
+                    onChange={(next) => {
+                      setEditFormBrandIds(next);
+                      setEditForm((p) => ({ ...p, locationId: '' }));
                     }}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Any brand —</SelectItem>
-                      {brands.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
               )}
               <div className="space-y-2">
@@ -1083,8 +1162,8 @@ const UsersPage = () => {
                 <Select value={editForm.locationId} onValueChange={v => setEditForm(p => ({ ...p, locationId: v }))}>
                   <SelectTrigger><SelectValue placeholder="No location" /></SelectTrigger>
                   <SelectContent>
-                    {(editFormBrandId
-                      ? locations.filter(l => (l as any).brandId === editFormBrandId)
+                    {(editFormBrandIds.filter(Boolean).length > 0
+                      ? locations.filter(l => editFormBrandIds.includes((l as any).brandId))
                       : locations
                     ).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                   </SelectContent>

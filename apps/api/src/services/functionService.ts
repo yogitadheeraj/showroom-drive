@@ -82,6 +82,11 @@ async function createStaffUser(payload: Record<string, unknown>, callerUserId?: 
   const fullName = String(payload.fullName ?? '').trim();
   const role = normalizeRole(payload.role);
   const locationId = payload.locationId ? String(payload.locationId) : null;
+  const brandIds = Array.isArray(payload.brandIds)
+    ? payload.brandIds.map((brandId) => String(brandId || '').trim()).filter(Boolean)
+    : payload.brandId
+      ? [String(payload.brandId).trim()].filter(Boolean)
+      : [];
 
   if (!email || !password || !fullName || !role) {
     throw new Error('Missing required fields');
@@ -146,6 +151,7 @@ async function createStaffUser(payload: Record<string, unknown>, callerUserId?: 
       full_name: fullName,
       email,
       location_id: locationId,
+      brand_ids: brandIds,
       is_active: true,
     });
 
@@ -178,6 +184,7 @@ async function createStaffUser(payload: Record<string, unknown>, callerUserId?: 
       email,
       role,
       locationId,
+      brandIds,
       verificationEmailSent: mailStatus.sent,
       verificationEmailSkipped: mailStatus.skipped,
       verificationLink: mailStatus.sent ? null : verificationLink,
