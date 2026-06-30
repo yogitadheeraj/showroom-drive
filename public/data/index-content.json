@@ -1,0 +1,355 @@
+{
+  "heroSlides": [
+    {
+      "title": "Admin Dashboard",
+      "subtitle": "Complete operational command center with live KPIs",
+      "image": "/images/hero-1.png"
+    },
+    {
+      "title": "Test Drive Management",
+      "subtitle": "Track every booking from schedule to completion",
+      "image": "/images/hero-2.png"
+    },
+    {
+      "title": "GRO Assignment Flow",
+      "subtitle": "One-click handover from GRO to Sales team",
+      "image": "/images/hero-3.png"
+    },
+    {
+      "title": "Vehicle Tracking",
+      "subtitle": "Real-time vehicle availability across locations",
+      "image": "/images/hero-4.png"
+    },
+    {
+      "title": "Security Gate",
+      "subtitle": "Check-in, license verification, and exit logging",
+      "image": "/images/hero-5.png"
+    },
+    {
+      "title": "Data Center",
+      "subtitle": "AI-powered analytics with conversion insights",
+      "image": "/images/hero-6.png"
+    },
+    {
+      "title": "Communications",
+      "subtitle": "Automated WhatsApp, Email & SMS workflows",
+      "image": "/images/hero-7.png"
+    },
+    {
+      "title": "Multi-Location Ops",
+      "subtitle": "Branch-level controls with unified reporting",
+      "image": "/images/hero-8.png"
+    },
+    {
+      "title": "Enquiry Pipeline",
+      "subtitle": "Lead scoring and action-oriented follow-ups",
+      "image": "/images/hero-9.png"
+    }
+  ],
+  "staticStats": [
+    {
+      "value": "3x",
+      "label": "Faster lead follow-up"
+    },
+    {
+      "value": "40%",
+      "label": "Better booking efficiency"
+    },
+    {
+      "value": "24/7",
+      "label": "Centralized platform access"
+    }
+  ],
+  "dashboardMetrics": {
+    "defaultLeadsThisWeek": 248,
+    "defaultLeadsGrowth": "+18% from last week",
+    "defaultTestDrivesBooked": 96,
+    "defaultTestDrivesNote": "Smooth scheduling flow",
+    "pipelineStatus": [
+      {
+        "label": "New Leads",
+        "defaultValue": "82%"
+      },
+      {
+        "label": "Assigned Follow-ups",
+        "defaultValue": "67%"
+      },
+      {
+        "label": "Test Drive Completion",
+        "defaultValue": "74%"
+      }
+    ]
+  },
+  "aiModules": [
+    {
+      "title": "Vehicle Management",
+      "desc": "Complete vehicle lifecycle management — inventory, availability, location tracking."
+    },
+    {
+      "title": "Dealer CRM",
+      "desc": "Unified customer relationship management with lead scoring and conversion tracking."
+    },
+    {
+      "title": "Test Drive Management",
+      "desc": "End-to-end booking lifecycle — assignment, key handover, inspection, completion."
+    },
+    {
+      "title": "Vehicle Inventory",
+      "desc": "Real-time inventory visibility across locations with stock levels."
+    },
+    {
+      "title": "CPQ – Configure, Price, Quote",
+      "desc": "Configure vehicles, apply pricing rules, and generate accurate quotes."
+    },
+    {
+      "title": "Vehicle Reservation",
+      "desc": "Allow customers to reserve vehicles with deposit management."
+    },
+    {
+      "title": "Order Management",
+      "desc": "Track orders from placement to delivery with status updates."
+    },
+    {
+      "title": "Communication Module",
+      "desc": "Multi-channel communication via WhatsApp, Email, and SMS."
+    },
+    {
+      "title": "Deal File Management",
+      "desc": "AI-powered document management with auto-classification."
+    },
+    {
+      "title": "Role Based Reports",
+      "desc": "Pre-built reports tailored for each role with actionable KPIs."
+    },
+    {
+      "title": "Realtime Analytics & BI",
+      "desc": "Live dashboards with AI-assisted insights for all operations."
+    },
+    {
+      "title": "Showroom Sales App",
+      "desc": "Mobile-first app for sales teams on the floor."
+    },
+    {
+      "title": "AutoAdvant ERP",
+      "desc": "Enterprise resource planning connecting all dealership operations."
+    },
+    {
+      "title": "Accessories",
+      "desc": "Manage accessory catalog, pricing, and fitment scheduling."
+    },
+    {
+      "title": "Insurance Products",
+      "desc": "Integrated insurance offerings with comparison and tracking."
+    },
+    {
+      "title": "Integrated PIM",
+      "desc": "Centralized vehicle specs, media assets, and content management."
+    },
+    {
+      "title": "Pricing Rules",
+      "desc": "Configurable pricing engine with discount rules and approvals."
+    }
+  ],
+  "painPoints": [
+    {
+      "icon": "📋",
+      "title": "Scheduling Chaos",
+      "desc": "Test drive bookings managed over WhatsApp, phone calls, and sticky notes — with zero centralization or visibility."
+    },
+    {
+      "icon": "🔄",
+      "title": "Lead Leakage",
+      "desc": "Leads from walk-ins, websites, and campaigns fall through the cracks with no unified pipeline or assignment workflow."
+    },
+    {
+      "icon": "👁️",
+      "title": "Zero Real-Time Visibility",
+      "desc": "Management has no live view of which vehicles are out, who is assigned, or what stage each lead is in right now."
+    },
+    {
+      "icon": "📞",
+      "title": "Manual Follow-Ups",
+      "desc": "Sales teams manually call and message customers for every reminder — burning time on low-value, repetitive tasks."
+    },
+    {
+      "icon": "📊",
+      "title": "Fragmented Reporting",
+      "desc": "Reports compiled manually from Excel sheets, riddled with errors, and always several days out of date."
+    },
+    {
+      "icon": "🏢",
+      "title": "Multi-Branch Blind Spots",
+      "desc": "Group operations across locations have no unified command view, leading to duplicated effort and missed revenue opportunities."
+    }
+  ],
+  "roiStats": [
+    {
+      "value": "3x",
+      "label": "Faster Lead Follow-Up",
+      "detail": "Automated workflows replace manual calling"
+    },
+    {
+      "value": "62%",
+      "label": "Reduction in No-Shows",
+      "detail": "Smart reminders via WhatsApp & SMS"
+    },
+    {
+      "value": "40%",
+      "label": "More Test Drive Completions",
+      "detail": "Structured assignment and real-time tracking"
+    },
+    {
+      "value": "100%",
+      "label": "Digital Audit Trail",
+      "detail": "Every action logged with timestamp and user"
+    },
+    {
+      "value": "5 min",
+      "label": "Team Onboarding Time",
+      "detail": "GROs and sales reps ready instantly"
+    },
+    {
+      "value": "2x",
+      "label": "Conversion Rate Lift",
+      "detail": "From first lead to completed test drive"
+    }
+  ],
+  "journeySteps": [
+    {
+      "step": "01",
+      "title": "Lead Generated",
+      "desc": "Walk-in, web form, or campaign capture"
+    },
+    {
+      "step": "02",
+      "title": "Auto Assignment",
+      "desc": "GRO assigned based on availability & location"
+    },
+    {
+      "step": "03",
+      "title": "Customer Confirmation",
+      "desc": "Automated WhatsApp / SMS sent instantly"
+    },
+    {
+      "step": "04",
+      "title": "Test Drive Scheduled",
+      "desc": "Slot booked, vehicle reserved, team notified"
+    },
+    {
+      "step": "05",
+      "title": "Reminder Sent",
+      "desc": "24h and 1h automated pre-drive reminders"
+    },
+    {
+      "step": "06",
+      "title": "Vehicle Tracked",
+      "desc": "Key handover logged, route tracking optional"
+    },
+    {
+      "step": "07",
+      "title": "Feedback Collected",
+      "desc": "Post-drive survey triggered automatically"
+    },
+    {
+      "step": "08",
+      "title": "Lead Converted",
+      "desc": "Sales team notified with full journey context"
+    }
+  ],
+  "integrations": [
+    {
+      "name": "WhatsApp Business",
+      "icon": "💬",
+      "category": "Messaging"
+    },
+    {
+      "name": "Twilio SMS",
+      "icon": "📱",
+      "category": "SMS"
+    },
+    {
+      "name": "Mailgun / SendGrid",
+      "icon": "📧",
+      "category": "Email"
+    },
+    {
+      "name": "Google Maps",
+      "icon": "🗺️",
+      "category": "Location"
+    },
+    {
+      "name": "Salesforce CRM",
+      "icon": "☁️",
+      "category": "CRM"
+    },
+    {
+      "name": "HubSpot",
+      "icon": "🔶",
+      "category": "CRM"
+    },
+    {
+      "name": "Zapier",
+      "icon": "⚡",
+      "category": "Automation"
+    },
+    {
+      "name": "Stripe",
+      "icon": "💳",
+      "category": "Payments"
+    },
+    {
+      "name": "Power BI",
+      "icon": "📊",
+      "category": "Analytics"
+    },
+    {
+      "name": "No SQL Database",
+      "icon": "🔋",
+      "category": "Database"
+    },
+    {
+      "name": "AWS / Azure",
+      "icon": "☁️",
+      "category": "Infrastructure"
+    },
+    {
+      "name": "Open API",
+      "icon": "🔌",
+      "category": "Custom Integration"
+    }
+  ],
+  "testimonials": [
+    {
+      "name": "Khalid Al-Rashidi",
+      "role": "Sales Manager",
+      "region": "UAE",
+      "quote": "AutoAdvant transformed how we manage test drives across 6 branches. Lead leakage dropped to near zero within the first month of going live.",
+      "avatar": "KA"
+    },
+    {
+      "name": "Fatima Al-Mansouri",
+      "role": "Head of Operations",
+      "region": "UAE",
+      "quote": "The real-time dashboard gives our management team instant visibility we never had before. We completely stopped relying on end-of-day WhatsApp update groups.",
+      "avatar": "FA"
+    },
+    {
+      "name": "Omar Yousef",
+      "role": "GM",
+      "region": "KSA",
+      "quote": "The customer journey automation alone recovered leads we were losing to slow follow-ups. The ROI within 90 days was undeniable and measurable.",
+      "avatar": "OY"
+    }
+  ],
+  "caseStudy": {
+    "dealer": "Premium Auto Group",
+    "region": "Dubai, UAE",
+    "challenge": "Managing 200+ test drives per month across 4 showrooms using WhatsApp groups and Excel spreadsheets — with no visibility, no automation, and persistently high no-show rates.",
+    "results": [
+      "3x increase in booked test drives within 60 days of going live",
+      "68% reduction in no-shows via automated WhatsApp & SMS reminders",
+      "Full real-time pipeline visibility for senior management — live, not next-day",
+      "Sales team NPS improved by 40 points post-rollout"
+    ]
+  }
+}

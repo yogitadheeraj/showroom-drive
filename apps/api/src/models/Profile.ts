@@ -8,6 +8,7 @@ export interface IProfile extends Document {
   phone: string | null;
   avatar_url: string | null;
   location_id: string | null;
+  brand_ids: string[];
   is_active: boolean;
   on_leave: boolean;
   leave_start_date: string | null;
@@ -26,6 +27,7 @@ const ProfileSchema = new Schema<IProfile>(
     phone: { type: String, default: null },
     avatar_url: { type: String, default: null },
     location_id: { type: String, default: null, index: true },
+    brand_ids: { type: [String], default: [] },
     is_active: { type: Boolean, default: true },
     on_leave: { type: Boolean, default: false },
     leave_start_date: { type: String, default: null },

@@ -31,6 +31,15 @@ export default function AutoAdvantLandingPage() {
     const [demoForm, setDemoForm] = useState({ name: '', email: '', company: '', phone: '', message: '' });
     const [demoLoading, setDemoLoading] = useState(false);
     const [demoSubmitted, setDemoSubmitted] = useState(false);
+    const [content, setContent] = useState<any>(null);
+    const [dynamicStats, setDynamicStats] = useState<any>({
+        availableVehicles: 0,
+        testDrivesScheduled: 0,
+        testDrivesCompleted: 0,
+        totalBrands: 0,
+        salesToday: 0,
+        totalLeads: 0,
+    });
 
     const handleDemoRequest = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -88,7 +97,42 @@ export default function AutoAdvantLandingPage() {
             setDemoLoading(false);
         }
     };
-    const heroSlides = [
+
+    // Load content from JSON
+    const loadContent = async () => {
+        try {
+            const res = await fetch('/data/index-content.json');
+            const data = await res.json();
+            setContent(data);
+        } catch (err) {
+            console.error('Failed to load index content:', err);
+        }
+    };
+
+    // Fetch dynamic stats from API
+    const fetchDynamicStats = async () => {
+        try {
+            const [vehicles, testDrives, brands, customers] = await Promise.all([
+                apiGet<any>('/api/vehicles?limit=1&select=id').catch(() => null),
+                apiGet<any>('/api/test-drives?limit=1&select=id').catch(() => null),
+                apiGet<any>('/api/brands?limit=1&select=id').catch(() => null),
+                apiGet<any>('/api/customers?limit=1&select=id').catch(() => null),
+            ]);
+
+            setDynamicStats({
+                availableVehicles: vehicles?.count || 0,
+                testDrivesScheduled: testDrives?.count || 0,
+                testDrivesCompleted: 0,
+                totalBrands: brands?.count || 0,
+                salesToday: 0,
+                totalLeads: customers?.count || 0,
+            });
+        } catch (err) {
+            console.error('Failed to fetch dynamic stats:', err);
+        }
+    };
+
+    const heroSlides = content?.heroSlides || [
         { title: 'Admin Dashboard', subtitle: 'Complete operational command center with live KPIs', image: '/images/hero-1.png' },
         { title: 'Test Drive Management', subtitle: 'Track every booking from schedule to completion', image: '/images/hero-2.png' },
         { title: 'GRO Assignment Flow', subtitle: 'One-click handover from GRO to Sales team', image: '/images/hero-3.png' },
@@ -99,6 +143,14 @@ export default function AutoAdvantLandingPage() {
         { title: 'Multi-Location Ops', subtitle: 'Branch-level controls with unified reporting', image: '/images/hero-8.png' },
         { title: 'Enquiry Pipeline', subtitle: 'Lead scoring and action-oriented follow-ups', image: '/images/hero-9.png' },
     ];
+
+    useEffect(() => {
+        loadContent();
+        fetchDynamicStats();
+        const statsInterval = setInterval(fetchDynamicStats, 30000); // Refresh every 30 seconds
+        return () => clearInterval(statsInterval);
+    }, []);
+
     useEffect(() => {
         const slideInterval = setInterval(() => {
             setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
@@ -120,26 +172,31 @@ export default function AutoAdvantLandingPage() {
 
     const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
 
-    const aiModules = [
-        { icon: Car, title: 'Vehicle Management', desc: 'Complete vehicle lifecycle management — inventory, availability, location tracking.' },
-        { icon: Users, title: 'Dealer CRM', desc: 'Unified customer relationship management with lead scoring and conversion tracking.' },
-        { icon: CalendarCheck, title: 'Test Drive Management', desc: 'End-to-end booking lifecycle — assignment, key handover, inspection, completion.' },
-        { icon: Warehouse, title: 'Vehicle Inventory', desc: 'Real-time inventory visibility across locations with stock levels.' },
-        { icon: CreditCard, title: 'CPQ – Configure, Price, Quote', desc: 'Configure vehicles, apply pricing rules, and generate accurate quotes.' },
-        { icon: Tag, title: 'Vehicle Reservation', desc: 'Allow customers to reserve vehicles with deposit management.' },
-        { icon: ClipboardList, title: 'Order Management', desc: 'Track orders from placement to delivery with status updates.' },
-        { icon: MessageCircle, title: 'Communication Module', desc: 'Multi-channel communication via WhatsApp, Email, and SMS.' },
-        { icon: FolderOpen, title: 'Deal File Management', desc: 'AI-powered document management with auto-classification.' },
-        { icon: BarChart3, title: 'Role Based Reports', desc: 'Pre-built reports tailored for each role with actionable KPIs.' },
-        { icon: PieChart, title: 'Realtime Analytics & BI', desc: 'Live dashboards with AI-assisted insights for all operations.' },
-        { icon: Smartphone, title: 'Showroom Sales App', desc: 'Mobile-first app for sales teams on the floor.' },
-        { icon: Building2, title: 'AutoAdvant ERP', desc: 'Enterprise resource planning connecting all dealership operations.' },
-        { icon: Package, title: 'Accessories', desc: 'Manage accessory catalog, pricing, and fitment scheduling.' },
-        { icon: ShieldCheck, title: 'Insurance Products', desc: 'Integrated insurance offerings with comparison and tracking.' },
-        { icon: Layers, title: 'Integrated PIM', desc: 'Centralized vehicle specs, media assets, and content management.' },
-        { icon: FileText, title: 'Pricing Rules', desc: 'Configurable pricing engine with discount rules and approvals.' },
-    ];
+    const iconMap: Record<string, any> = {
+        'Vehicle Management': Car,
+        'Dealer CRM': Users,
+        'Test Drive Management': CalendarCheck,
+        'Vehicle Inventory': Warehouse,
+        'CPQ – Configure, Price, Quote': CreditCard,
+        'Vehicle Reservation': Tag,
+        'Order Management': ClipboardList,
+        'Communication Module': MessageCircle,
+        'Deal File Management': FolderOpen,
+        'Role Based Reports': BarChart3,
+        'Realtime Analytics & BI': PieChart,
+        'Showroom Sales App': Smartphone,
+        'AutoAdvant ERP': Building2,
+        'Accessories': Package,
+        'Insurance Products': ShieldCheck,
+        'Integrated PIM': Layers,
+        'Pricing Rules': FileText,
+    };
 
+    const aiModules = (content?.aiModules || []).map((mod: any) => ({
+        icon: iconMap[mod.title] || Car,
+        title: mod.title,
+        desc: mod.desc,
+    }));
 
     const features = [
         {
@@ -164,13 +221,13 @@ export default function AutoAdvantLandingPage() {
         },
     ];
 
-    const stats = [
+    const stats = content?.staticStats || [
         { value: '3x', label: 'Faster lead follow-up' },
         { value: '40%', label: 'Better booking efficiency' },
         { value: '24/7', label: 'Centralized platform access' },
     ];
 
-    const painPoints = [
+    const painPoints = content?.painPoints || [
         { icon: '📋', title: 'Scheduling Chaos', desc: 'Test drive bookings managed over WhatsApp, phone calls, and sticky notes — with zero centralization or visibility.' },
         { icon: '🔄', title: 'Lead Leakage', desc: 'Leads from walk-ins, websites, and campaigns fall through the cracks with no unified pipeline or assignment workflow.' },
         { icon: '👁️', title: 'Zero Real-Time Visibility', desc: 'Management has no live view of which vehicles are out, who is assigned, or what stage each lead is in right now.' },
@@ -179,7 +236,7 @@ export default function AutoAdvantLandingPage() {
         { icon: '🏢', title: 'Multi-Branch Blind Spots', desc: 'Group operations across locations have no unified command view, leading to duplicated effort and missed revenue opportunities.' },
     ];
 
-    const roiStats = [
+    const roiStats = content?.roiStats || [
         { value: '3x', label: 'Faster Lead Follow-Up', detail: 'Automated workflows replace manual calling' },
         { value: '62%', label: 'Reduction in No-Shows', detail: 'Smart reminders via WhatsApp & SMS' },
         { value: '40%', label: 'More Test Drive Completions', detail: 'Structured assignment and real-time tracking' },
@@ -188,7 +245,7 @@ export default function AutoAdvantLandingPage() {
         { value: '2x', label: 'Conversion Rate Lift', detail: 'From first lead to completed test drive' },
     ];
 
-    const journeySteps = [
+    const journeySteps = content?.journeySteps || [
         { step: '01', title: 'Lead Generated', desc: 'Walk-in, web form, or campaign capture' },
         { step: '02', title: 'Auto Assignment', desc: 'GRO assigned based on availability & location' },
         { step: '03', title: 'Customer Confirmation', desc: 'Automated WhatsApp / SMS sent instantly' },
@@ -199,7 +256,7 @@ export default function AutoAdvantLandingPage() {
         { step: '08', title: 'Lead Converted', desc: 'Sales team notified with full journey context' },
     ];
 
-    const integrations = [
+    const integrations = content?.integrations || [
         { name: 'WhatsApp Business', icon: '💬', category: 'Messaging' },
         { name: 'Twilio SMS', icon: '📱', category: 'SMS' },
         { name: 'Mailgun / SendGrid', icon: '📧', category: 'Email' },
@@ -214,11 +271,11 @@ export default function AutoAdvantLandingPage() {
         { name: 'Open API', icon: '🔌', category: 'Custom Integration' },
     ];
 
-    const testimonials = [
+    const testimonials = content?.testimonials || [
         {
             name: 'Khalid Al-Rashidi',
-            role: 'Role',
-            region: 'region',
+            role: 'Sales Manager',
+            region: 'UAE',
             quote: 'AutoAdvant transformed how we manage test drives across 6 branches. Lead leakage dropped to near zero within the first month of going live.',
             avatar: 'KA',
         },
@@ -231,14 +288,14 @@ export default function AutoAdvantLandingPage() {
         },
         {
             name: 'Omar Yousef',
-            role: 'GM ',
+            role: 'GM',
             region: 'KSA',
             quote: 'The customer journey automation alone recovered leads we were losing to slow follow-ups. The ROI within 90 days was undeniable and measurable.',
             avatar: 'OY',
         },
     ];
 
-    const caseStudy = {
+    const caseStudy = content?.caseStudy || {
         dealer: 'Premium Auto Group',
         region: 'Dubai, UAE',
         challenge: 'Managing 200+ test drives per month across 4 showrooms using WhatsApp groups and Excel spreadsheets — with no visibility, no automation, and persistently high no-show rates.',
@@ -307,38 +364,54 @@ export default function AutoAdvantLandingPage() {
 
                                     <div className="mt-5 grid gap-4 sm:grid-cols-2">
                                         <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
-                                            <p className="text-sm text-slate-400">Leads This Week</p>
-                                            <p className="mt-2 text-3xl font-semibold">248</p>
-                                            <p className="mt-2 text-sm text-emerald-300">+18% from last week</p>
+                                            <p className="text-sm text-slate-400">Available Vehicles</p>
+                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.availableVehicles || 0}</p>
+                                            <p className="mt-2 text-sm text-emerald-300">Ready for test drive</p>
                                         </div>
                                         <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
                                             <p className="text-sm text-slate-400">Test Drives Booked</p>
-                                            <p className="mt-2 text-3xl font-semibold">96</p>
+                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.testDrivesScheduled || 0}</p>
                                             <p className="mt-2 text-sm text-sky-300">Smooth scheduling flow</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
+                                            <p className="text-sm text-slate-400">Total Brands</p>
+                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.totalBrands || 0}</p>
+                                            <p className="mt-2 text-sm text-violet-300">Multi-brand inventory</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
+                                            <p className="text-sm text-slate-400">Total Leads</p>
+                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.totalLeads || 0}</p>
+                                            <p className="mt-2 text-sm text-rose-300">All-time customer base</p>
                                         </div>
                                     </div>
 
                                     <div className="mt-4 rounded-2xl border border-white/10 bg-slate-800/70 p-4">
                                         <div className="flex items-center justify-between">
-                                            <p className="text-sm text-slate-400">Pipeline Status</p>
-                                            <p className="text-xs text-slate-500">Updated now</p>
+                                            <p className="text-sm text-slate-400">Key Metrics</p>
+                                            <p className="text-xs text-slate-500">Updated live</p>
                                         </div>
                                         <div className="mt-4 space-y-3">
                                             {[
-                                                ['New Leads', '82%', 'w-[82%]'],
-                                                ['Assigned Follow-ups', '67%', 'w-[67%]'],
-                                                ['Test Drive Completion', '74%', 'w-[74%]'],
-                                            ].map(([label, value, width]) => (
-                                                <div key={label}>
-                                                    <div className="mb-1 flex items-center justify-between text-sm">
-                                                        <span className="text-slate-300">{label}</span>
-                                                        <span className="text-slate-400">{value}</span>
+                                                { label: 'Available Inventory', value: Math.min(dynamicStats.availableVehicles || 0, 100), max: 100 },
+                                                { label: 'Test Drive Volume', value: Math.min(dynamicStats.testDrivesScheduled || 0, 100), max: 100 },
+                                                { label: 'Lead Conversion', value: 74, max: 100 },
+                                            ].map(({ label, value, max }) => {
+                                                const widthPercent = (value / max) * 100;
+                                                return (
+                                                    <div key={label}>
+                                                        <div className="mb-1 flex items-center justify-between text-sm">
+                                                            <span className="text-slate-300">{label}</span>
+                                                            <span className="text-slate-400">{value}%</span>
+                                                        </div>
+                                                        <div className="h-2 rounded-full bg-slate-700">
+                                                            <div className="h-2 rounded-full bg-gradient-to-r from-sky-400 to-blue-600" style={{ width: `${widthPercent}%` }} />
+                                                        </div>
                                                     </div>
-                                                    <div className="h-2 rounded-full bg-slate-700">
-                                                        <div className={`h-2 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 ${width}`} />
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 </div>

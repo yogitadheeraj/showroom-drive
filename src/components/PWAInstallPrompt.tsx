@@ -46,7 +46,7 @@ export default function PWAInstallPrompt() {
       <img src="/images/auth_logo.png" alt="AutoAdvant" className="h-9 w-9 rounded-lg shrink-0" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold">Install AutoAdvant</p>
-        <p className="text-xs text-black/60">Add to your home screen for quick access</p>
+        <p className="text-xs text-black/60 dark:text-slate-100">Add to your home screen for quick access</p>
       </div>
       <Button size="sm" className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 text-xs gap-1" onClick={handleInstall}>
         <Download className="h-3.5 w-3.5" /> Install
