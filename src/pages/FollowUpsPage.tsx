@@ -136,7 +136,8 @@ const FollowUpsPage = () => {
     if (diffH < 24) return { label: `Due in ${diffH}h`, cls: 'text-amber-600 font-semibold' };
     return { label: d.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }), cls: 'text-muted-foreground' };
   };
-
+   console.log('Rendering task card:', mergedItems);
+         
   return (
     <DashboardLayout>
       <div className="space-y-5">
@@ -309,6 +310,9 @@ const FollowUpsPage = () => {
                   </div>
                   {/* row 2: task title */}
                   <p className="font-semibold text-sm text-foreground truncate mb-1 dark:text-slate-100">{item.title}</p>
+                  {item.notes && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic dark:text-slate-400">"{item.notes}"</p>
+                  )}
                   {/* row 3: customer name + contact + action */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">

@@ -434,9 +434,9 @@ const SecurityDashboard = () => {
   // ── AI-derived smart metrics ──────────────────────────────────────────────
   const metrics = useMemo(() => {
     const now = new Date();
-    const active   = testDrives.filter((d) => !['completed','cancelled'].includes(d.status));
-    const inProgress = testDrives.filter((d) => d.status === 'in_progress');
-    const noLicense  = testDrives.filter((d) => !d.customers?.driving_license_url && !['completed','cancelled'].includes(d.status));
+    const active   = testDrives.filter((d) => d.status !== 'completed' && d.status !== 'cancelled');
+    const inProgress = testDrives.filter((d) => d.status === 'in_progress' && d.status !== 'cancelled');
+    const noLicense  = testDrives.filter((d) => !d.customers?.driving_license_url && d.status !== 'completed' && d.status !== 'cancelled');
     const pendingInspection = testDrives.filter(
       (d) => d.key_handed_at && !(d as any).pre_drive_km && !d.security_checked_in_at && !['completed','cancelled'].includes(d.status)
     );
@@ -466,6 +466,9 @@ const SecurityDashboard = () => {
   }, [testDrives, pendingCount]);
 
   const filteredDrives = testDrives.filter((drive) => {
+    // Always exclude cancelled test drives
+    if (drive.status === 'cancelled') return false;
+    
     if (viewFilter === 'completed') return drive.status === 'completed';
     if (viewFilter === 'active') return drive.status !== 'completed' && drive.status !== 'cancelled';
     if (viewFilter === 'total') return true;
@@ -609,7 +612,7 @@ const SecurityDashboard = () => {
                   <div className="min-w-0">
                     <p className="font-semibold text-sm text-foreground truncate">{testDrive.customers?.full_name}</p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <User className="h-3 w-3" /> {testDrive.profiles?.full_name || 'Unassigned'}
+                      <User className="h-3 w-3" /> {testDrive.assigned_sales_person?.full_name || 'Unassigned'}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">

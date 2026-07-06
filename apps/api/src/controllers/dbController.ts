@@ -45,7 +45,6 @@ const LOCATION_SCOPED_TABLES = new Set([
   'location_blocked_slots',
   'location_operating_hours',
   'location_special_periods',
-  'sales_tasks'
 ]);
 
 /** Tables scoped to a dealer group via `dealer_id`. */
@@ -60,7 +59,7 @@ const LOCATION_SCOPED_ROLES = new Set([
  * Injects location / dealer scope filters into the query body for `select`
  * actions, overriding any conflicting filters supplied by the client.
  */
-function enforceScope(body: ParsedQuery, req: Request): void {
+export function enforceScope(body: ParsedQuery, req: Request): void {
   if (body.action !== 'select') return;
 
   const role = req.authUser?.role;

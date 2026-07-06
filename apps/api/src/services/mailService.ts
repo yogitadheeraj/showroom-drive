@@ -41,7 +41,7 @@ export async function sendMail(input: MailInput) {
 
   try {
     const info = await tx.sendMail({
-      from: `"${input._dealerName || 'Auto Dealer'}" <${env.mailFrom}>`,
+      from: `${input._dealerName || 'Auto Dealer'}`,
       to: input.to,
       subject: input.subject,
       html: input.html,

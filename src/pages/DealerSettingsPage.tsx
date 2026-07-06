@@ -10,12 +10,12 @@ import BookingSettings from '@/components/settings/BookingSettings';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import EmailTemplateSettings from '@/components/settings/EmailTemplateSettings';
 import HierarchySettings from '@/components/settings/HierarchySettings';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { Building2, Palette, Mail, SunMoon, BellRing, Key, CalendarClock, Plug, GitBranch, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiDbQuery } from '@/lib/apiClient';
 
 const DealerSettingsPage = () => {
@@ -37,6 +37,23 @@ const DealerSettingsPage = () => {
   }, [isSuperAdmin]);
 
   const dealerOverride = isSuperAdmin ? selectedDealer || undefined : undefined;
+  const [selectedSection, setSelectedSection] = useState('profile');
+
+  const settingMenuItems = useMemo(() => [
+    { key: 'profile', label: 'Dealership Profile', icon: Building2, content: <DealerProfileSettings dealerIdOverride={dealerOverride} /> },
+    { key: 'brands', label: 'Brand Settings', icon: Palette, content: <BrandSettings dealerIdOverride={dealerOverride} /> },
+    { key: 'reports', label: 'Report Settings', icon: Mail, content: <ReportSettingsConfig /> },
+    { key: 'followup-reminders', label: 'Follow-up Reminders', icon: BellRing, content: <FollowUpReminderSettings /> },
+    { key: 'appearance', label: 'Appearance', icon: SunMoon, content: <AppearanceSettings /> },
+    { key: 'handover', label: 'Key Handover', icon: Key, content: <HandoverQuestionsSettings /> },
+    { key: 'booking', label: 'Booking', icon: CalendarClock, content: <BookingSettings dealerIdOverride={dealerOverride} /> },
+    { key: 'integrations', label: 'Integrations', icon: Plug, content: <IntegrationSettings /> },
+    { key: 'hierarchy', label: 'Entity Hierarchy', icon: GitBranch, content: <HierarchySettings /> },
+    ...(showEmailTemplates ? [{ key: 'email-templates', label: 'Email Templates', icon: Mail, content: <EmailTemplateSettings /> }] : []),
+    { key: 'hours', label: 'Operating Hours', icon: CalendarClock, content: <OperatingHoursSettings dealerIdOverride={dealerOverride} /> },
+  ], [dealerOverride, showEmailTemplates]);
+
+  const selectedMenuItem = settingMenuItems.find((item) => item.key === selectedSection) ?? settingMenuItems[0];
 
   return (
     <DashboardLayout>
@@ -65,90 +82,42 @@ const DealerSettingsPage = () => {
           <div className="text-xs text-muted-foreground px-1">Showing data for all dealers. Select a dealer above to scope to one.</div>
         ) : null}
 
-        <Tabs defaultValue="profile" className="space-y-6">
-          <div className="w-full overflow-x-auto pb-1 -mb-1">
-            <TabsList className="w-max min-w-full flex justify-start">
-            <TabsTrigger value="profile" className="gap-2 shrink-0">
-              <Building2 className="h-4 w-4" /> Dealership Profile
-            </TabsTrigger>
-            <TabsTrigger value="brands" className="gap-2 shrink-0">
-              <Palette className="h-4 w-4" /> Brand Settings
-            </TabsTrigger>
-            <TabsTrigger value="reports" className="gap-2 shrink-0">
-              <Mail className="h-4 w-4" /> Report Settings
-            </TabsTrigger>
-            <TabsTrigger value="followup-reminders" className="gap-2 shrink-0">
-              <BellRing className="h-4 w-4" /> Follow-up Reminders
-            </TabsTrigger>
-            <TabsTrigger value="appearance" className="gap-2 shrink-0">
-              <SunMoon className="h-4 w-4" /> Appearance
-            </TabsTrigger>
-            <TabsTrigger value="handover" className="gap-2 shrink-0">
-              <Key className="h-4 w-4" /> Key Handover
-            </TabsTrigger>
-            <TabsTrigger value="booking" className="gap-2 shrink-0">
-              <CalendarClock className="h-4 w-4" /> Booking
-            </TabsTrigger>
-            <TabsTrigger value="integrations" className="gap-2 shrink-0">
-              <Plug className="h-4 w-4" /> Integrations
-            </TabsTrigger>
-            <TabsTrigger value="hierarchy" className="gap-2 shrink-0">
-              <GitBranch className="h-4 w-4" /> Entity Hierarchy
-            </TabsTrigger>
-            {showEmailTemplates && (
-              <TabsTrigger value="email-templates" className="gap-2 shrink-0">
-                <Mail className="h-4 w-4" /> Email Templates
-              </TabsTrigger>
-            )}
-          </TabsList>
+        <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
+          <Card className="border border-border bg-background">
+            <CardContent className="space-y-4 p-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Settings menu</p>
+                <h2 className="text-lg font-semibold text-foreground mt-1">Choose a section</h2>
+              </div>
+              <div className="space-y-1">
+                {settingMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = item.key === selectedSection;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setSelectedSection(item.key)}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium transition',
+                        active
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-foreground hover:bg-muted dark:hover:bg-slate-800',
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-6">
+            {selectedMenuItem.content}
           </div>
-
-          <TabsContent value="profile">
-            <DealerProfileSettings dealerIdOverride={dealerOverride} />
-          </TabsContent>
-
-          <TabsContent value="brands">
-            <BrandSettings dealerIdOverride={dealerOverride} />
-          </TabsContent>
-
-          <TabsContent value="reports">
-            <ReportSettingsConfig />
-          </TabsContent>
-
-          <TabsContent value="followup-reminders">
-            <FollowUpReminderSettings />
-          </TabsContent>
-
-          <TabsContent value="appearance">
-            <AppearanceSettings />
-          </TabsContent>
-
-          <TabsContent value="handover">
-            <HandoverQuestionsSettings />
-          </TabsContent>
-
-          <TabsContent value="booking">
-            <BookingSettings dealerIdOverride={dealerOverride} />
-          </TabsContent>
-
-          <TabsContent value="integrations">
-            <IntegrationSettings />
-          </TabsContent>
-
-          {showEmailTemplates && (
-            <TabsContent value="email-templates">
-              <EmailTemplateSettings />
-            </TabsContent>
-          )}
-
-          <TabsContent value="hours">
-            <OperatingHoursSettings dealerIdOverride={dealerOverride} />
-          </TabsContent>
-
-          <TabsContent value="hierarchy">
-            <HierarchySettings dealerIdOverride={dealerOverride} />
-          </TabsContent>
-        </Tabs>
+        </div>
       </div>
     </DashboardLayout>
   );
