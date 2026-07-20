@@ -24,6 +24,13 @@ import {
   YAxis,
   Cell,
 } from 'recharts';
+import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye, MailCheck, AlertTriangle, RefreshCw, LayoutDashboard, ShieldCheck, Zap, CheckCheck, TrendingDown } from 'lucide-react';
+import { APP_ROLE } from '@/constants/roles';
+import { TestDriveInsightGrid } from './TestDriveInsightGrid';
+import { StaffActivityGrid } from './StaffActivityGrid';
+import TestDriveCalendarMini from './TestDriveCalendarMini';
+import HierarchyOverview from './HierarchyOverview';
+
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
 const ROLE_COLORS: Record<string, string> = {
