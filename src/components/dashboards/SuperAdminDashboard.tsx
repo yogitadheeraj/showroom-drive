@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getDatabase, ref, onValue } from 'firebase/database';
 import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,13 +24,6 @@ import {
   YAxis,
   Cell,
 } from 'recharts';
-import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye, MailCheck, AlertTriangle, RefreshCw, LayoutDashboard, ShieldCheck, Zap, CheckCheck, TrendingDown } from 'lucide-react';
-import { APP_ROLE } from '@/constants/roles';
-import { TestDriveInsightGrid } from './TestDriveInsightGrid';
-import { StaffActivityGrid } from './StaffActivityGrid';
-import TestDriveCalendarMini from './TestDriveCalendarMini';
-import HierarchyOverview from './HierarchyOverview';
-
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
 const ROLE_COLORS: Record<string, string> = {
@@ -121,6 +115,7 @@ const SuperAdminDashboard = () => {
   const activeDealerId = isSuperAdmin
     ? (selectedDealer === 'all' ? null : selectedDealer)
     : contextDealerId;
+  const navigate = useNavigate();
 
   useEffect(() => {
     localStorage.setItem(
@@ -696,7 +691,23 @@ const SuperAdminDashboard = () => {
         {statCards.map(stat => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className={`shadow-card min-w-0 border ${stat.bg.replace('bg-', 'border-').replace('/10', '/30')}`}>
+            <Card
+              key={stat.label}
+              className={`shadow-card min-w-0 border cursor-pointer ${stat.bg.replace('bg-', 'border-').replace('/10', '/30')}`}
+              onClick={() => {
+                if (stat.label === 'Locations') navigate('/locations');
+                else if (stat.label === 'Brands') navigate('/settings?tab=brands');
+                else if (stat.label === 'Users') navigate('/users');
+                else if (stat.label === 'Dealers') navigate('/users?role=dealer_admin');
+                else if (stat.label === 'Total Drives') navigate('/test-drives');
+                else if (stat.label === 'Scheduled') navigate('/test-drives');
+                else if (stat.label === 'Completed') navigate('/test-drives');
+                else if (stat.label === 'No Show') navigate('/test-drives');
+                else if (stat.label === 'Cancelled') navigate('/test-drives');
+                else if (stat.label === 'Repeat') navigate('/test-drives');
+                else if (stat.label === 'Active Sales Executive') navigate('/users');
+              }}
+            >
               <CardContent className="p-3 sm:p-4 min-w-0 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">
                 <div className={`h-10 w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
                   <Icon className={`h-5 w-5 ${stat.color}`} />

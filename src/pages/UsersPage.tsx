@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { demoAutofillData } from '@/lib/demoAutofillData';
 import { apiGet, apiPost, apiPatch, apiInvokeFunction } from '@/lib/apiClient';
 import { logStaffActivity } from '@/lib/activityLogger';
@@ -101,16 +102,23 @@ const BrandMultiSelect = ({ brands, selectedBrandIds, onChange, disabled = false
 };
 
 const UsersPage = () => {
+  const [searchParams] = useSearchParams();
   const [users, setUsers] = useState<any[]>([]);
   const [verificationByUserId, setVerificationByUserId] = useState<Record<string, boolean>>({});
   const [resendingVerificationByUserId, setResendingVerificationByUserId] = useState<Record<string, boolean>>({});
   const [staffDriveMetrics, setStaffDriveMetrics] = useState<Record<string, { assigned: number; active: number; completed: number }>>({});
   const [dealers, setDealers] = useState<any[]>([]);
-  const [selectedDealerFilter, setSelectedDealerFilter] = useState<string>('all');
+  const [selectedDealerFilter, setSelectedDealerFilter] = useState<string>(searchParams.get('dealer_id') || 'all');
   // Search + filter
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [locationFilter, setLocationFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState(searchParams.get('role') || 'all');
+  const [locationFilter, setLocationFilter] = useState(searchParams.get('location') || 'all');
+  
+  useEffect(() => {
+    setSelectedDealerFilter(searchParams.get('dealer_id') || 'all');
+    setRoleFilter(searchParams.get('role') || 'all');
+    setLocationFilter(searchParams.get('location') || 'all');
+  }, [searchParams]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [locations, setLocations] = useState<any[]>([]);

@@ -912,8 +912,19 @@ const SalesDashboard = () => {
           { label: 'Pending License', value: testDrives.filter(t => !t.customers?.driving_license_url).length, icon: Upload, color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/20' },
         ].map(stat => {
           const Icon = stat.icon;
+          const handleCardClick = () => {
+            if (stat.label === 'Total Assigned') {
+              navigate('/test-drives');
+            } else if (stat.label === 'In Progress') {
+              navigate('/test-drives?status=in_progress');
+            } else if (stat.label === 'Completed') {
+              navigate('/test-drives?status=completed');
+            } else if (stat.label === 'Pending License') {
+              navigate('/test-drives?status=pending_license');
+            }
+          };
           return (
-            <Card key={stat.label} className={`shadow-card min-w-0 border ${stat.border}`}>
+            <Card key={stat.label} className={`shadow-card min-w-0 border ${stat.border} cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md`} onClick={handleCardClick}>
               <CardContent className="p-3 sm:p-5 flex items-center gap-3 sm:gap-4">
                 <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
                   <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${stat.color}`} />

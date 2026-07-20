@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,6 +53,7 @@ import {
 type Location = { id: string; name: string; city: string | null; businessUnitId?: string | null };
 
 const BrandsPage = () => {
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { dealerId, dealerLocations, loading: dealerLoading } = useDealerContext();
   const { role } = useAuth();
@@ -63,6 +65,7 @@ const BrandsPage = () => {
 
   // ── state ──────────────────────────────────────────────────────────────────
   const [brands, setBrands] = useState<BrandWithLocations[]>([]);
+  const [highlightBrandId, setHighlightBrandId] = useState<string | null>(null);
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [allSalesOffices, setAllSalesOffices] = useState<SalesOffice[]>([]);
   const [allPlants, setAllPlants] = useState<Plant[]>([]);
@@ -89,9 +92,11 @@ const BrandsPage = () => {
   const [linkSaving, setLinkSaving] = useState(false);
 
   // ── fetch data ─────────────────────────────────────────────────────────────
+  const brandQueryId = searchParams.get('brandId');
   const load = async () => {
     if (!dealerId) return;
     setLoading(true);
+    if (brandQueryId) setHighlightBrandId(brandQueryId);
     try {
       const [brandsData, busData, soData, plantData] = await Promise.all([
         listBrandsWithLocations({ dealer_id: dealerId }),
@@ -261,7 +266,13 @@ const BrandsPage = () => {
             {brands.map(brand => {
               const buName = getBuName(brand.businessUnitId);
               return (
-                <Card key={brand.id} className="group relative overflow-hidden">
+                <Card
+                  key={brand.id}
+                  className={cn(
+                    'group relative overflow-hidden',
+                    brand.id === highlightBrandId ? 'border-primary/60 ring-2 ring-primary/10' : ''
+                  )}
+                >
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3 min-w-0">

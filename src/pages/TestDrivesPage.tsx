@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiGet, apiPost, apiPatch, apiDbQuery } from '@/lib/apiClient';
 import { logStaffActivity } from '@/lib/activityLogger';
@@ -59,8 +60,9 @@ type LeadTemperature = 'hot' | 'cold';
 
 const TestDrivesPage = () => {
   const { role, profile } = useAuth();
+  const [searchParams] = useSearchParams();
   const [testDrives, setTestDrives] = useState<any[]>([]);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'all');
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [noShowId, setNoShowId] = useState<string | null>(null);
@@ -87,8 +89,13 @@ const TestDrivesPage = () => {
   const [calendarInsight, setCalendarInsight] = useState<{ type: 'day' | 'week' | 'month' | 'year'; date: Date } | null>(null);
 
   useEffect(() => {
-    if (!dealerLoading) fetchTestDrives();
-  }, [statusFilter, dealerLocationIds, dealerLoading]);
+    const requestedStatus = searchParams.get('status') || 'all';
+    if (statusFilter !== requestedStatus) {
+      setStatusFilter(requestedStatus);
+      return;
+    }
+    if (!dealerLoading) void fetchTestDrives();
+  }, [searchParams, statusFilter, dealerLocationIds, dealerLoading]);
 
   // Real-time: auto-refresh + toast when any test drive status changes at this location
   useTestDriveRealtime(profile?.location_id, (event) => {
@@ -102,8 +109,20 @@ const TestDrivesPage = () => {
     fetchTestDrives();
   });
 
+  const applyStatusFilter = (drives: any[], filter: string) => {
+    if (filter === 'all') return drives;
+    if (filter === 'active') {
+      return drives.filter((d) => !['completed', 'cancelled', 'no_show'].includes(d.status));
+    }
+    if (filter === 'pending_license') {
+      return drives.filter((d) => !d.customers?.driving_license_url);
+    }
+    return drives.filter((d) => d.status === filter);
+  };
+
   const fetchTestDrives = async () => {
     const params = new URLSearchParams();
+    const activeFilter = statusFilter || 'all';
 
     if (role === APP_ROLE.SALES) {
       if (!profile?.id) {
@@ -114,7 +133,9 @@ const TestDrivesPage = () => {
       params.set('sales_person_id', profile.id);
     }
 
-    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (activeFilter !== 'all' && activeFilter !== 'active' && activeFilter !== 'pending_license') {
+      params.set('status', activeFilter);
+    }
 
     // Location scoping per role
     if (role === APP_ROLE.GRO || role === APP_ROLE.SECURITY || role === APP_ROLE.SALES_ADMIN) {
@@ -125,7 +146,7 @@ const TestDrivesPage = () => {
     }
 
     const drives = await apiGet<any[]>(`/api/test-drives?${params}`);
-    setTestDrives(drives || []);
+    setTestDrives(applyStatusFilter(drives || [], activeFilter));
   };
 
   // Group drives by assigned sales person (for Branch Admin)

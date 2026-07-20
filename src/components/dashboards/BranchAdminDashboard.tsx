@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiGet } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useAuth } from '@/hooks/useAuth';
@@ -42,6 +43,7 @@ const formatStatus = (s: string) =>
 
 const BranchAdminDashboard = () => {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const locationId = profile?.location_id;
 
   const [locationInfo, setLocationInfo] = useState<any>(null);
@@ -260,6 +262,34 @@ const BranchAdminDashboard = () => {
   ].sort((a, b) => a.label.localeCompare(b.label));
 
   // Filtered drives for the drives table
+  const handleStatClick = (label: string) => {
+    const params = new URLSearchParams();
+    if (locationId) params.set('location', locationId);
+
+    switch (label) {
+      case 'Total Staff':
+        navigate(`/users${params.toString() ? `?${params.toString()}` : ''}`);
+        break;
+      case 'GRO':
+        navigate(`/users?role=gro${locationId ? `&location=${locationId}` : ''}`);
+        break;
+      case 'Sales':
+        navigate(`/users?role=sales${locationId ? `&location=${locationId}` : ''}`);
+        break;
+      case 'Security':
+        navigate(`/users?role=security${locationId ? `&location=${locationId}` : ''}`);
+        break;
+      case 'Active Drives':
+        navigate('/test-drives?status=in_progress');
+        break;
+      case 'Completed':
+        navigate('/test-drives?status=completed');
+        break;
+      default:
+        break;
+    }
+  };
+
   const filteredDrives = allDrives.filter(d => {
     const roleMatch = selectedRole === 'all'
       || (selectedRole === 'sales' && d.assigned_sales_person?.id)
@@ -323,7 +353,11 @@ const BranchAdminDashboard = () => {
         ].map(stat => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className={`shadow-card min-w-0 border ${stat.border}`}>
+            <Card
+              key={stat.label}
+              className={`shadow-card min-w-0 border ${stat.border} cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md`}
+              onClick={() => handleStatClick(stat.label)}
+            >
               <CardContent className="p-3 sm:p-4 flex items-center gap-2.5">
                 <div className={`h-10 w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
                   <Icon className={`h-5 w-5 ${stat.color}`} />

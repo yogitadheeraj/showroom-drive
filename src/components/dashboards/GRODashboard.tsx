@@ -189,8 +189,17 @@ const GRODashboard = () => {
             { label: 'Completion Rate', value: `${stats.completionRate}%`, icon: CheckCircle2, color: 'text-accent-foreground', bg: 'bg-accent/10' },
           ].map(stat => {
             const Icon = stat.icon;
+            const handleCardClick = () => {
+              if (stat.label === "Today's Drives" || stat.label === 'Upcoming') {
+                navigate('/test-drives?status=scheduled');
+              } else if (stat.label === 'Completed') {
+                navigate('/test-drives?status=completed');
+              } else {
+                navigate('/test-drives');
+              }
+            };
             return (
-              <Card key={stat.label} className="shadow-card h-full min-w-0">
+              <Card key={stat.label} className="shadow-card h-full min-w-0 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md" onClick={handleCardClick}>
                 <CardContent className="p-3 sm:p-4 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">
                   <div className={`h-9 w-9 sm:h-10 sm:w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
                     <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
