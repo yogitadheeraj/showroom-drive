@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useWhitelabel } from '@/hooks/useWhitelabel';
 import { toast } from 'sonner';
 import showcaseAdminDashboard from '@/assets/showcase-admin-dashboard.jpg';
+import { fetchDealerGrowthStats } from '@/lib/landingPageStats';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
 import showcaseGroAssign from '@/assets/showcase-gro-assign.jpg';
 const fadeUp: Variants = {
@@ -109,24 +110,11 @@ export default function AutoAdvantLandingPage() {
         }
     };
 
-    // Fetch dynamic stats from API
+    // Fetch dynamic stats from the database-backed API endpoints
     const fetchDynamicStats = async () => {
         try {
-            const [vehicles, testDrives, brands, customers] = await Promise.all([
-                apiGet<any>('/api/vehicles?limit=1&select=id').catch(() => null),
-                apiGet<any>('/api/test-drives?limit=1&select=id').catch(() => null),
-                apiGet<any>('/api/brands?limit=1&select=id').catch(() => null),
-                apiGet<any>('/api/customers?limit=1&select=id').catch(() => null),
-            ]);
-
-            setDynamicStats({
-                availableVehicles: vehicles?.count || 0,
-                testDrivesScheduled: testDrives?.count || 0,
-                testDrivesCompleted: 0,
-                totalBrands: brands?.count || 0,
-                salesToday: 0,
-                totalLeads: customers?.count || 0,
-            });
+            const stats = await fetchDealerGrowthStats(apiGet);
+            setDynamicStats(stats);
         } catch (err) {
             console.error('Failed to fetch dynamic stats:', err);
         }

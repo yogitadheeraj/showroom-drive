@@ -74,6 +74,7 @@ import {
   updateTestDriveController,
 } from '../controllers/testDriveController.js';
 import { publicBookTestDriveController } from '../controllers/publicBookingController.js';
+import { publicLandingStatsController } from '../controllers/publicLandingStatsController.js';
 import { submitTestDriveFeedbackController } from '../controllers/feedbackController.js';
 import { previewEmailTemplateController } from '../controllers/emailTemplateController.js';
 import {
@@ -235,6 +236,9 @@ apiRouter.get('/storage/:bucket/list', listController);
 apiRouter.post('/storage/:bucket/public-url', publicUrlController);
 apiRouter.post('/storage/:bucket/signed-url', signedUrlController);
 apiRouter.post('/storage/:bucket/remove', removeController);
+
+// Public landing stats (guest-safe)
+apiRouter.get('/public/landing-stats', publicLandingStatsController);
 
 // Auth
 apiRouter.get('/auth/me', requireAuth, meController);
