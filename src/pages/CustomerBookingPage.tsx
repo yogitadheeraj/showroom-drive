@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://lend-backend-wx22.onrender.com';
 
 type BookingData = {
   test_drive: {
