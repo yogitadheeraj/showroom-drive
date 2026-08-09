@@ -11,6 +11,9 @@ import { processEmailQueues } from './services/emailProcessorService.js';
 import { runTestDriveReminderJobs } from './services/testDriveReminderService.js';
 
 const app = express();
+let startupReady = false;
+let emailInterval: NodeJS.Timeout | null = null;
+let reminderInterval: NodeJS.Timeout | null = null;
 
 const normalizeOrigin = (value?: string) => {
   if (!value) return '';
@@ -42,7 +45,12 @@ app.use(attachAuthUser);
 app.use('/uploads', express.static(env.storageRoot));
 
 app.get('/health', (_req, res) => {
-  res.status(200).json({ ok: true, service: 'api' });
+  res.status(200).json({
+    ok: true,
+    service: 'api',
+    ready: startupReady,
+    mongoState: mongoose.connection.readyState,
+  });
 });
 
 app.use('/api', apiRouter);
@@ -51,6 +59,28 @@ async function start() {
   if (!env.mongoUri) {
     throw new Error('MONGODB_URI is required. Copy apps/api/.env.example to apps/api/.env');
   }
+
+  const server = app.listen(env.port, env.host, () => {
+    console.log(`API listening on http://${env.host}:${env.port}`);
+  });
+
+  const shutdown = async (signal: string) => {
+    console.log(`[shutdown] ${signal} received — closing gracefully`);
+    if (emailInterval) clearInterval(emailInterval);
+    if (reminderInterval) clearInterval(reminderInterval);
+    server.close();
+    await mongoose.disconnect();
+    const apps = getApps();
+    if (apps.length) await deleteApp(apps[0]);
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => {
+    void shutdown('SIGTERM');
+  });
+  process.on('SIGINT', () => {
+    void shutdown('SIGINT');
+  });
 
   initFirebaseAdmin();
   await mongoose.connect(env.mongoUri);
@@ -65,7 +95,7 @@ async function start() {
 
   // Background email queue processor — runs every 30 seconds
   const EMAIL_PROCESSOR_INTERVAL_MS = 30_000;
-  const emailInterval = setInterval(async () => {
+  emailInterval = setInterval(async () => {
     try {
       const result = await processEmailQueues();
       if (result.processed > 0) {
@@ -80,27 +110,11 @@ async function start() {
   const REMINDER_INTERVAL_MS = 15 * 60_000;
   // Run once immediately on startup to catch any missed reminders
   void runTestDriveReminderJobs();
-  const reminderInterval = setInterval(() => {
+  reminderInterval = setInterval(() => {
     void runTestDriveReminderJobs();
   }, REMINDER_INTERVAL_MS);
 
-  const server = app.listen(env.port, () => {
-    console.log(`API listening on http://localhost:${env.port}`);
-  });
-
-  async function shutdown(signal: string) {
-    console.log(`[shutdown] ${signal} received — closing gracefully`);
-    clearInterval(emailInterval);
-    clearInterval(reminderInterval);
-    server.close();
-    await mongoose.disconnect();
-    const apps = getApps();
-    if (apps.length) await deleteApp(apps[0]);
-    process.exit(0);
-  }
-
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT',  () => shutdown('SIGINT'));
+  startupReady = true;
 }
 
 start().catch((error) => {

@@ -28,9 +28,10 @@ export async function listBrands(filters: Record<string, unknown> = {}) {
   }
 
   if (filters.brandIds && Array.isArray(filters.brandIds) && filters.brandIds.length > 0) {
+    const allowedBrandIds = filters.brandIds as string[];
     query.id = query.id
-      ? { $in: (query.id as { $in: string[] }).$in.filter((id) => filters.brandIds.includes(id)) }
-      : { $in: filters.brandIds };
+      ? { $in: (query.id as { $in: string[] }).$in.filter((id) => allowedBrandIds.includes(id)) }
+      : { $in: allowedBrandIds };
     if ((query.id as { $in: string[] }).$in.length === 0) return [];
   }
 

@@ -1,5 +1,6 @@
 import express from 'express';
 import multer from 'multer';
+import type { RequestHandler } from 'express-serve-static-core';
 import { dbQueryController } from '../controllers/dbController.js';
 import { invokeFunctionController } from '../controllers/functionsController.js';
 import { rpcController } from '../controllers/rpcController.js';
@@ -203,6 +204,7 @@ import {
 } from '../controllers/vehicleFleetController.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
+const uploadSingleFile = upload.single('file') as unknown as RequestHandler;
 
 export const apiRouter = express.Router();
 
@@ -232,7 +234,7 @@ apiRouter.patch('/fleet/transit-requests/:id/reject', requireAuth, rejectTransit
 apiRouter.patch('/fleet/transit-requests/:id/cancel', requireAuth, cancelTransitRequestController);
 
 // Storage
-apiRouter.post('/storage/:bucket/upload', upload.single('file'), uploadController);
+apiRouter.post('/storage/:bucket/upload', uploadSingleFile, uploadController);
 apiRouter.get('/storage/:bucket/list', listController);
 apiRouter.post('/storage/:bucket/public-url', publicUrlController);
 apiRouter.post('/storage/:bucket/signed-url', signedUrlController);
@@ -285,7 +287,7 @@ apiRouter.get('/email-templates/preview', requireAuth, previewEmailTemplateContr
 apiRouter.get('/customer/booking/:testDriveId', getCustomerBookingController);
 apiRouter.post('/customer/booking/:testDriveId/cancel', cancelCustomerBookingController);
 apiRouter.post('/customer/booking/:testDriveId/reschedule', rescheduleCustomerBookingController);
-apiRouter.post('/customer/booking/:testDriveId/documents', upload.single('file'), uploadCustomerDocumentController);
+apiRouter.post('/customer/booking/:testDriveId/documents', uploadSingleFile, uploadCustomerDocumentController);
 apiRouter.post('/customer/booking/:testDriveId/rebook', rebookCustomerController);
 
 // Test Drives

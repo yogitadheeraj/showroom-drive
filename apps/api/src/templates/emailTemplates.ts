@@ -158,6 +158,7 @@ export function bookingConfirmationTemplate(data: Record<string, unknown>) {
   return {
     subject: `Test drive confirmed — ${scheduledDate || 'upcoming'}`,
     html: base(
+      `Your test drive is confirmed for ${scheduledDate || 'your selected date'}${scheduledTime ? ` at ${scheduledTime}` : ''}`,
       `<div class="body">
         <p>Hi ${customerName || 'there'},</p>
         <p>Great news — your test drive is confirmed ✅. We look forward to seeing you!</p>
