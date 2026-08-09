@@ -17,6 +17,18 @@ import { fetchDealerGrowthStats } from '@/lib/landingPageStats';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
 import showcaseGroAssign from '@/assets/showcase-gro-assign.jpg';
 import SeoMeta from '@/components/SeoMeta';
+
+declare global {
+    interface Window {
+        __INDEX_CONTENT__?: any;
+    }
+}
+
+const getHydratedIndexContent = () => {
+    if (typeof window === 'undefined') return null;
+    return window.__INDEX_CONTENT__ ?? null;
+};
+
 const fadeUp: Variants = {
     hidden: { opacity: 0, y: 30 },
     visible: (i: number) => ({
@@ -24,7 +36,11 @@ const fadeUp: Variants = {
         transition: { duration: 0.5, delay: i * 0.1 },
     }),
 };
-export default function AutoAdvantLandingPage() {
+type AutoAdvantLandingPageProps = {
+    initialContent?: any;
+};
+
+export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdvantLandingPageProps) {
     const { resolvedTheme } = useTheme();
     const brand = useWhitelabel();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -33,7 +49,8 @@ export default function AutoAdvantLandingPage() {
     const [demoForm, setDemoForm] = useState({ name: '', email: '', company: '', phone: '', message: '' });
     const [demoLoading, setDemoLoading] = useState(false);
     const [demoSubmitted, setDemoSubmitted] = useState(false);
-    const [content, setContent] = useState<any>(null);
+    const initialResolvedContent = initialContent ?? getHydratedIndexContent();
+    const [content, setContent] = useState<any>(initialResolvedContent);
     const [dynamicStats, setDynamicStats] = useState<any>({
         availableVehicles: 0,
         testDrivesScheduled: 0,
@@ -134,11 +151,13 @@ export default function AutoAdvantLandingPage() {
     ];
 
     useEffect(() => {
-        loadContent();
+        if (!initialResolvedContent) {
+            loadContent();
+        }
         fetchDynamicStats();
         const statsInterval = setInterval(fetchDynamicStats, 30000); // Refresh every 30 seconds
         return () => clearInterval(statsInterval);
-    }, []);
+    }, [initialResolvedContent]);
 
     useEffect(() => {
         const slideInterval = setInterval(() => {

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuthOptional } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { LogOut, Moon, Sun } from 'lucide-react';
 
@@ -14,16 +14,17 @@ interface SiteHeaderProps {
 }
 
 const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightSlot, leftSlot, dealerName, dealerLogoUrl }: SiteHeaderProps) => {
-  const { user, signOut } = useAuth();
-  const isLoggedIn = !!user;
+  const auth = useAuthOptional();
+  const isLoggedIn = !!auth?.user;
   const navigate = useNavigate();
   const { resolvedTheme, toggleTheme } = useTheme();
 
   const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
 
   const handleSignOut = async () => {
+    if (!auth?.signOut) return;
     try {
-      await signOut();
+      await auth.signOut();
       navigate('/auth');
     } catch (error) {
       console.error('Failed to sign out', error);

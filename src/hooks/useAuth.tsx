@@ -34,6 +34,8 @@ export const useAuth = () => {
   return ctx;
 };
 
+export const useAuthOptional = () => useContext(AuthContext);
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);

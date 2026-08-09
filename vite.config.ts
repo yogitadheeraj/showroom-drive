@@ -46,8 +46,13 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MB
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
+        // Keep HTML out of precache so SSR pages are always fetched fresh.
+        globPatterns: ["**/*.{js,css,ico,png,svg,webp,woff2}"],
         runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkOnly",
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: "CacheFirst",
