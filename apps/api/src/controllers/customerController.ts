@@ -2,9 +2,12 @@ import { Request, Response } from 'express';
 import * as customerService from '../services/customerService.js';
 import { TestDrive } from '../models/TestDrive.js';
 import { notifyLicenseUploaded } from './customerBookingController.js';
+import { applyLocationScope } from '../middleware/locationFilter.js';
 
 export async function listCustomersController(req: Request, res: Response) {
-  const data = await customerService.listCustomers(req.query as Record<string, unknown>);
+  const filters = { ...(req.query as Record<string, unknown>) };
+  applyLocationScope(req, filters);
+  const data = await customerService.listCustomers(filters);
   res.json({ data });
 }
 

@@ -75,7 +75,7 @@ const VehicleSchema = new Schema<IVehicle>(
     plantId: { type: String, default: null, index: true },
     condition: { type: String, default: null, index: true },
     status: { type: String, default: 'available', index: true },
-    vin: { type: String, sparse: true },
+    vin: { type: String },
     stockNumber: { type: String, sparse: true },
     brand: { type: String, required: true, index: true },
     model: { type: String, required: true, index: true },

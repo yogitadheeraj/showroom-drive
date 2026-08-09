@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { apiDbQuery } from '@/lib/apiClient';
-import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Activity, Shield, Car, TrendingUp, Clock, Users, Search,
@@ -107,7 +106,7 @@ function ActivityRow({ event, profileMap }: { event: any; profileMap: Map<string
 // ── Main Page ────────────────────────────────────────────────
 const ActivityLogsPage = () => {
   const { role, profile } = useAuth();
-  const { dealerLocationIds, loading: dealerLoading } = useDealerContext();
+  const isSelfScopedLogs = ([APP_ROLE.SALES, APP_ROLE.SECURITY, APP_ROLE.GRO] as string[]).includes(role ?? '');
 
   // data
   const [staffEvents, setStaffEvents] = useState<any[]>([]);
@@ -123,16 +122,13 @@ const ActivityLogsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    if (!dealerLoading) void fetchAll();
-  }, [dealerLocationIds, dealerLoading, dateWindow]);
+    void fetchAll();
+  }, [dateWindow, role, profile?.id]);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const locationFilters: Array<{ field: string; op: 'in' | 'eq'; value: any }> =
-        dealerLocationIds?.length
-          ? [{ field: 'location_id', op: 'in', value: dealerLocationIds }]
-          : [];
+      const locationFilters: Array<{ field: string; op: 'in' | 'eq'; value: any }> = [];
 
       const cutoff = dateWindow === 'today'
         ? new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
@@ -146,12 +142,18 @@ const ActivityLogsPage = () => {
         ? [{ field: 'happened_at', op: 'gte', value: cutoff }]
         : [];
 
+      const ownProfileFilter: Array<{ field: string; op: 'eq'; value: string }> =
+        isSelfScopedLogs && profile?.id ? [{ field: 'profile_id', op: 'eq', value: profile.id }] : [];
+
+      const ownTaskFilter: Array<{ field: string; op: 'eq'; value: string }> =
+        isSelfScopedLogs && profile?.id ? [{ field: 'assigned_to_profile_id', op: 'eq', value: profile.id }] : [];
+
       const [allEvents, taskRows, sessionRows] = await Promise.all([
         apiDbQuery<any[]>({
           table: 'staff_activity_events',
           action: 'select',
           select: 'id, event_type, event_label, happened_at, role, profile_id, location_id, metadata',
-          filters: [...locationFilters, ...dateFilter] as any[],
+          filters: [...locationFilters, ...ownProfileFilter, ...dateFilter] as any[],
           order: [{ field: 'happened_at', ascending: false }],
           limit: 500,
         }),
@@ -159,9 +161,7 @@ const ActivityLogsPage = () => {
           table: 'sales_tasks',
           action: 'select',
           select: 'id, title, status, priority, due_at, created_at, customer_id, assigned_to_profile_id, opportunity_id, test_drive_id',
-          filters: dealerLocationIds?.length
-            ? [] // sales_tasks has no location_id — fetch all for this owner
-            : [],
+          filters: ownTaskFilter as any[],
           order: [{ field: 'created_at', ascending: false }],
           limit: 200,
         }),
@@ -169,7 +169,7 @@ const ActivityLogsPage = () => {
           table: 'staff_activity_sessions',
           action: 'select',
           select: 'id, profile_id, role, login_at, logout_at, active_seconds, idle_seconds, is_online, location_id',
-          filters: locationFilters as any[],
+          filters: [...locationFilters, ...ownProfileFilter] as any[],
           order: [{ field: 'login_at', ascending: false }],
           limit: 200,
         }),

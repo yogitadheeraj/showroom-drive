@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { RefreshCw, AlertCircle, CheckCircle, Clock, Mail, RotateCcw, Send } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
-import { useDealerContext } from '@/hooks/useDealerContext';
 
 interface SendAttempt {
   id: string;
@@ -37,7 +36,6 @@ interface ReportSchedule {
 }
 
 const ReportMonitoringDashboard = () => {
-  const { dealerLocationIds } = useDealerContext();
   const [attempts, setAttempts] = useState<SendAttempt[]>([]);
   const [schedules, setSchedules] = useState<ReportSchedule[]>([]);
   const [locationNames, setLocationNames] = useState<Record<string, string>>({});
@@ -49,24 +47,17 @@ const ReportMonitoringDashboard = () => {
   const [sendingNow, setSendingNow] = useState<string | null>(null);
 
   useEffect(() => {
-    if (dealerLocationIds && dealerLocationIds.length > 0) {
-      fetchAttempts();
-      fetchSchedules();
-    }
-  }, [dealerLocationIds]);
+    fetchAttempts();
+    fetchSchedules();
+  }, []);
 
   const fetchAttempts = async () => {
     try {
       setLoading(true);
-      const filters = dealerLocationIds && dealerLocationIds.length > 0
-        ? [{ field: 'location_id', op: 'in' as const, value: dealerLocationIds }]
-        : [];
-
       const data = await apiDbQuery<SendAttempt[]>({
         table: 'report_send_attempts',
         action: 'select',
         select: '*',
-        filters,
         order: [{ field: 'created_at', ascending: false }],
         limit: 500,
       });
@@ -81,8 +72,6 @@ const ReportMonitoringDashboard = () => {
   };
 
   const fetchSchedules = async () => {
-    if (!dealerLocationIds || dealerLocationIds.length === 0) return;
-
     try {
       setScheduleLoading(true);
 
@@ -91,14 +80,12 @@ const ReportMonitoringDashboard = () => {
           table: 'report_schedule_config',
           action: 'select',
           select: 'id, location_id, report_type, schedule_time, days_of_week, timezone, is_enabled, created_at',
-          filters: [{ field: 'location_id', op: 'in', value: dealerLocationIds }],
           order: [{ field: 'created_at', ascending: false }],
         }),
         apiDbQuery<Array<{ id: string; name: string }>>({
           table: 'locations',
           action: 'select',
           select: 'id, name',
-          filters: [{ field: 'id', op: 'in', value: dealerLocationIds }],
         }),
       ]);
 

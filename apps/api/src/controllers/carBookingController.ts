@@ -7,6 +7,7 @@ import {
   refundCarBooking,
   countCarBookings,
 } from '../services/carBookingService.js';
+import { applyLocationScope } from '../middleware/locationFilter.js';
 
 export async function listCarBookingsController(req: Request, res: Response) {
   try {
@@ -26,6 +27,8 @@ export async function listCarBookingsController(req: Request, res: Response) {
       const parsed = Number(req.query.limit);
       if (Number.isFinite(parsed) && parsed > 0) filters.limit = parsed;
     }
+
+    applyLocationScope(req, filters);
 
     const [data, count] = await Promise.all([
       listCarBookings(filters),

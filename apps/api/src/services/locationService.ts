@@ -20,6 +20,8 @@ export async function listLocations(filters: Record<string, unknown> = {}) {
   if (filters.location_id) {
     // location_id used by location-scoped roles to restrict to their own location
     query.id = filters.location_id;
+  } else if (filters.location_ids && Array.isArray(filters.location_ids) && filters.location_ids.length > 0) {
+    query.id = { $in: filters.location_ids };
   } else if (filters.ids) {
     const ids = String(filters.ids).split(',').map((s) => s.trim()).filter(Boolean);
     if (ids.length > 0) query.id = { $in: ids };

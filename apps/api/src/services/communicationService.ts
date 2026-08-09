@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Communication } from '../models/Communication.js';
+import { TestDrive } from '../models/TestDrive.js';
 
 function lean(doc: any) {
   const o = doc.toObject ? doc.toObject() : { ...doc };
@@ -21,6 +22,25 @@ export async function listCommunications(filters: Record<string, unknown> = {}, 
     const purposes = String(filters.purpose).split(',').map((x) => x.trim()).filter(Boolean);
     q.purpose = purposes.length === 1 ? purposes[0] : { $in: purposes };
   }
+
+  const scopedLocationIds = Array.isArray(filters.location_ids)
+    ? filters.location_ids.map((id) => String(id)).filter(Boolean)
+    : (typeof filters.location_id === 'string' && filters.location_id ? [filters.location_id] : []);
+  if (scopedLocationIds.length > 0) {
+    const drivesInScope = await TestDrive.find({
+      location_id: scopedLocationIds.length === 1
+        ? scopedLocationIds[0]
+        : { $in: scopedLocationIds },
+    }, { id: 1, customer_id: 1 }).lean();
+    const testDriveIds = drivesInScope.map((d: any) => d.id).filter(Boolean);
+    const customerIds = Array.from(new Set(drivesInScope.map((d: any) => d.customer_id).filter(Boolean)));
+    if (testDriveIds.length === 0 && customerIds.length === 0) return [];
+    q.$or = [
+      { test_drive_id: { $in: testDriveIds } },
+      { customer_id: { $in: customerIds } },
+    ];
+  }
+
   const sortDir = filters.order === 'asc' ? 1 : -1;
   const docs = await Communication.find(q).sort({ created_at: sortDir }).limit(limit).lean();
   return docs.map((d) => { const o = { ...d } as any; delete o._id; return o; });

@@ -8,6 +8,7 @@ import {
   listTestDrives,
   updateTestDrive,
 } from '../services/testDriveService.js';
+import { applyLocationScope } from '../middleware/locationFilter.js';
 
 export async function getTestDrivesController(req: Request, res: Response) {
   try {
@@ -40,6 +41,9 @@ export async function getTestDrivesController(req: Request, res: Response) {
     if (req.query.created_at_gte) filters.created_at_gte = req.query.created_at_gte;
     if (req.query.date_gte) filters.date_gte = req.query.date_gte;
     if (req.query.date_lte) filters.date_lte = req.query.date_lte;
+
+    applyLocationScope(req, filters);
+
     const [data, count] = await Promise.all([listTestDrives(filters), countTestDrives(filters)]);
     res.status(200).json({ data, count, error: null });
   } catch (error) {

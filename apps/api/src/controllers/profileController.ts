@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as profileService from '../services/profileService.js';
+import { applyLocationScope } from '../middleware/locationFilter.js';
 
 export async function getProfileController(req: Request, res: Response) {
   const { id } = req.params;
@@ -17,7 +18,9 @@ export async function getMyProfileController(req: Request, res: Response) {
 }
 
 export async function listProfilesController(req: Request, res: Response) {
-  const data = await profileService.listProfiles(req.query as Record<string, unknown>);
+  const filters = { ...(req.query as Record<string, unknown>) };
+  applyLocationScope(req, filters);
+  const data = await profileService.listProfiles(filters);
   res.json({ data });
 }
 

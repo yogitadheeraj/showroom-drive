@@ -7,6 +7,25 @@ export async function listBrandsWithLocationsController(req: Request, res: Respo
     if (req.query.orgId) filters.orgId = req.query.orgId;
     if (req.query.dealer_id) filters.dealer_id = req.query.dealer_id;
     if (req.query.businessUnitId) filters.businessUnitId = req.query.businessUnitId;
+console.log('filters', filters, 'authUser', req.authUser);
+    const role = req.authUser?.role;
+    const isSuperAdmin = role === 'superadmin' || role === 'super_admin';
+    const isOrgOrEntityAdmin = role === 'dealer_admin' || role === 'sales_admin';
+    if (!isSuperAdmin && isOrgOrEntityAdmin && !filters.dealer_id && req.authUser?.dealer_id) {
+      filters.dealer_id = req.authUser.dealer_id;
+    }
+
+    if (req.authUser?.uid && !isSuperAdmin) {
+      if (!isOrgOrEntityAdmin) {
+        if (Array.isArray(req.authUser.brand_ids) && req.authUser.brand_ids.length > 0) {
+          filters.brandIds = req.authUser.brand_ids;
+        }
+        if (Array.isArray(req.authUser.location_ids) && req.authUser.location_ids.length > 0) {
+          filters.locationIds = req.authUser.location_ids;
+        }
+      }
+    }
+
     const data = await brandLocationService.listBrandsWithLocations(filters);
     res.json({ data });
   } catch (err) {
@@ -33,6 +52,23 @@ export async function listBrandLocationsController(req: Request, res: Response) 
     if (req.query.orgId) filters.orgId = req.query.orgId;
     if (req.query.brandId) filters.brandId = req.query.brandId;
     if (req.query.locationId) filters.locationId = req.query.locationId;
+
+    const role = req.authUser?.role;
+    const isSuperAdmin = role === 'superadmin' || role === 'super_admin';
+    const isOrgOrEntityAdmin = role === 'dealer_admin' || role === 'sales_admin';
+    if (req.authUser?.uid && !isSuperAdmin) {
+      if (!isOrgOrEntityAdmin) {
+        if (Array.isArray(req.authUser.brand_ids) && req.authUser.brand_ids.length > 0) {
+          filters.brandIds = req.authUser.brand_ids;
+        }
+        if (Array.isArray(req.authUser.location_ids) && req.authUser.location_ids.length > 0) {
+          filters.locationIds = req.authUser.location_ids;
+        }
+      } else if (req.authUser?.dealer_id) {
+        filters.dealer_id = req.authUser.dealer_id;
+      }
+    }
+
     const data = await brandLocationService.listBrandLocations(filters);
     res.json({ data });
   } catch (err) {

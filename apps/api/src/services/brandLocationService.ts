@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Brand } from '../models/Brand.js';
 import { BrandLocation } from '../models/BrandLocation.js';
+import { Location } from '../models/Location.js';
 
 function toPlain(doc: any) {
   const obj = doc.toObject ? doc.toObject() : { ...doc };
@@ -16,6 +17,25 @@ export async function listBrandsWithLocations(filters: Record<string, unknown> =
   if (filters.dealer_id) query.dealer_id = filters.dealer_id;
   if (filters.businessUnitId) query.businessUnitId = filters.businessUnitId;
   if (typeof filters.is_active === 'boolean') query.is_active = filters.is_active;
+  let scopedBrandIds: string[] | null = null;
+  if (filters.brandIds && Array.isArray(filters.brandIds) && filters.brandIds.length > 0) {
+    scopedBrandIds = filters.brandIds as string[];
+  }
+  if (filters.locationIds && Array.isArray(filters.locationIds) && filters.locationIds.length > 0) {
+    const linksForLocations = await BrandLocation.find(
+      { locationId: { $in: filters.locationIds as string[] }, isActive: true },
+      { brandId: 1 },
+    ).lean();
+    const brandsFromLocations = Array.from(new Set(linksForLocations.map((l: any) => l.brandId).filter(Boolean)));
+    if (brandsFromLocations.length === 0) return [];
+    scopedBrandIds = scopedBrandIds
+      ? scopedBrandIds.filter((id) => brandsFromLocations.includes(id))
+      : brandsFromLocations;
+    if (scopedBrandIds.length === 0) return [];
+  }
+  if (scopedBrandIds && scopedBrandIds.length > 0) {
+    query.id = { $in: scopedBrandIds };
+  }
 
   const brands = await Brand.find(query).sort({ name: 1 }).lean();
   const plainBrands = brands.map(b => { const o = { ...b } as any; delete o._id; return o; });
@@ -56,6 +76,35 @@ export async function listBrandLocations(filters: Record<string, unknown> = {}) 
   if (filters.brandId) query.brandId = filters.brandId;
   if (filters.locationId) query.locationId = filters.locationId;
   if (filters.businessUnitId) query.businessUnitId = filters.businessUnitId;
+  if (filters.dealer_id) {
+    const dealerLocations = await Location.find(
+      { dealer_id: filters.dealer_id },
+      { id: 1 },
+    ).lean();
+    const dealerLocationIds = dealerLocations.map((location: any) => location.id).filter(Boolean);
+    if (dealerLocationIds.length === 0) return [];
+    if (query.locationId) {
+      if (!dealerLocationIds.includes(String(query.locationId))) return [];
+    } else {
+      query.locationId = { $in: dealerLocationIds };
+    }
+  }
+  if (filters.brandIds && Array.isArray(filters.brandIds) && filters.brandIds.length > 0) {
+    const allowed = filters.brandIds as string[];
+    if (query.brandId) {
+      if (!allowed.includes(String(query.brandId))) return [];
+    } else {
+      query.brandId = { $in: allowed };
+    }
+  }
+  if (filters.locationIds && Array.isArray(filters.locationIds) && filters.locationIds.length > 0) {
+    const allowed = filters.locationIds as string[];
+    if (query.locationId) {
+      if (!allowed.includes(String(query.locationId))) return [];
+    } else {
+      query.locationId = { $in: allowed };
+    }
+  }
   const docs = await BrandLocation.find(query).lean();
   return docs.map(d => { const o = { ...d } as any; delete o._id; return o; });
 }

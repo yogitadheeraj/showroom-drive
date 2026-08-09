@@ -43,6 +43,37 @@ type BrandMultiSelectProps = {
   placeholder?: string;
 };
 
+type LocationOption = {
+  id: string;
+  name: string;
+  dealer_id?: string | null;
+  brandId?: string | null;
+  brand_id?: string | null;
+  brand_ids?: string[] | null;
+};
+
+const getLocationBrandIds = (location: LocationOption) => {
+  const brandIds = new Set<string>();
+
+  if (location.brandId) brandIds.add(location.brandId);
+  if (location.brand_id) brandIds.add(location.brand_id);
+  if (Array.isArray(location.brand_ids)) {
+    location.brand_ids.filter(Boolean).forEach((brandId) => brandIds.add(brandId));
+  }
+
+  return Array.from(brandIds);
+};
+
+const filterLocationsByBrandIds = (locations: LocationOption[], selectedBrandIds: string[]) => {
+  if (selectedBrandIds.length === 0) return locations;
+
+  const filtered = locations.filter((location) =>
+    getLocationBrandIds(location).some((brandId) => selectedBrandIds.includes(brandId))
+  );
+
+  return filtered.length > 0 ? filtered : locations;
+};
+
 const BrandMultiSelect = ({ brands, selectedBrandIds, onChange, disabled = false, placeholder = 'Select brands' }: BrandMultiSelectProps) => {
   const selectedBrands = brands.filter((brand) => selectedBrandIds.includes(brand.id));
 
@@ -121,7 +152,7 @@ const UsersPage = () => {
   }, [searchParams]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
-  const [locations, setLocations] = useState<any[]>([]);
+  const [locations, setLocations] = useState<LocationOption[]>([]);
   const [brands, setBrands] = useState<{ id: string; name: string }[]>([]);
   const [createForm, setCreateForm] = useState({ email: '', password: '', fullName: '', role: DEFAULT_APP_ROLE, locationId: '', brandId: '', can_use_demo_data: false });
   const [createFormBrandIds, setCreateFormBrandIds] = useState<string[]>([]);
@@ -207,13 +238,11 @@ const UsersPage = () => {
   useEffect(() => {
     if (!showCreateDialog) return;
     const selectedBrandIds = createFormBrandIds.filter(Boolean);
-    const available = selectedBrandIds.length > 0
-      ? locations.filter(l => selectedBrandIds.includes((l as any).brandId))
-      : locations;
+    const available = filterLocationsByBrandIds(locations, selectedBrandIds);
     if (available.length === 1 && !createForm.locationId) {
       setCreateForm(p => ({ ...p, locationId: available[0].id }));
     }
-    if (createForm.locationId && !available.some((l: any) => l.id === createForm.locationId)) {
+    if (createForm.locationId && !available.some((location) => location.id === createForm.locationId)) {
       setCreateForm(p => ({ ...p, locationId: '' }));
     }
   }, [showCreateDialog, createFormBrandIds, locations, createForm.locationId]);
@@ -222,61 +251,30 @@ const UsersPage = () => {
   useEffect(() => {
     if (!editingUser) return;
     const selectedBrandIds = editFormBrandIds.filter(Boolean);
-    const available = selectedBrandIds.length > 0
-      ? locations.filter(l => selectedBrandIds.includes((l as any).brandId))
-      : locations;
+    const available = filterLocationsByBrandIds(locations, selectedBrandIds);
     if (available.length === 1 && !editForm.locationId) {
       setEditForm(p => ({ ...p, locationId: available[0].id }));
     }
-    if (editForm.locationId && !available.some((l: any) => l.id === editForm.locationId)) {
+    if (editForm.locationId && !available.some((location) => location.id === editForm.locationId)) {
       setEditForm(p => ({ ...p, locationId: '' }));
     }
   }, [editingUser, editFormBrandIds, locations, editForm.locationId]);
 
   const fetchUsers = async () => {
-    // Scope profiles fetch to dealer's locations so Organization Admin only sees their staff
     const profileParams = new URLSearchParams();
-    if (!isSuperAdmin && dealerLocationIds && dealerLocationIds.length > 0) {
-      profileParams.set('location_ids', dealerLocationIds.join(','));
-    } else if (isSalesAdmin && profile?.location_id) {
-      profileParams.set('location_id', profile.location_id);
+    if (isSuperAdmin && selectedDealerFilter !== 'all') {
+      profileParams.set('dealer_id', selectedDealerFilter);
     }
 
-    const [profiles, roles, allLocations] = await Promise.all([
-      apiGet<any[]>(`/api/profiles${profileParams.toString() ? `?${profileParams}` : ''}`),
-      apiGet<any[]>('/api/user-roles'),
-      // For superadmin we need all locations for the dealer-map; non-superadmin scope to own dealer
-      isSuperAdmin
-        ? apiGet<any[]>('/api/locations')
-        : dealerId
-          ? apiGet<any[]>(`/api/locations?dealer_id=${dealerId}`)
-          : Promise.resolve([]),
-    ]);
+    const profiles = await apiGet<any[]>(`/api/profiles${profileParams.toString() ? `?${profileParams}` : ''}`);
+    const profileUserIds = (profiles || []).map((p) => p.user_id).filter(Boolean);
+    const roleParams = new URLSearchParams();
+    if (profileUserIds.length > 0) roleParams.set('user_ids', profileUserIds.join(','));
+    const roles = profileUserIds.length > 0
+      ? await apiGet<any[]>(`/api/user-roles?${roleParams.toString()}`)
+      : [];
 
-    const locationDealerMap = (allLocations || []).reduce((acc: Record<string, string>, loc: any) => {
-      acc[loc.id] = loc.dealer_id;
-      return acc;
-    }, {});
-    
     const merged = (profiles || [])
-      .filter(p => {
-        if (isSuperAdmin) {
-          if (selectedDealerFilter === 'all') return true;
-          if (!p.location_id) return p.user_id === user?.id;
-          return locationDealerMap[p.location_id] === selectedDealerFilter;
-        }
-
-        if (isSalesAdmin) {
-          if (profile?.location_id && p.location_id === profile.location_id) return true;
-          if (p.user_id === user?.id) return true;
-          return false;
-        }
-
-        if (!dealerLocationIds || dealerLocationIds.length === 0) return p.user_id === user?.id;
-        if (p.location_id && dealerLocationIds.includes(p.location_id)) return true;
-        if (p.user_id === user?.id) return true;
-        return false;
-      })
       .map(p => ({
         ...p,
         user_roles: (roles || []).filter(r => r.user_id === p.user_id),
@@ -1119,10 +1117,9 @@ const UsersPage = () => {
                 >
                   <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
                   <SelectContent>
-                    {(createFormBrandIds.filter(Boolean).length > 0
-                      ? locations.filter(l => createFormBrandIds.includes((l as any).brandId))
-                      : locations
-                    ).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                    {filterLocationsByBrandIds(locations, createFormBrandIds.filter(Boolean)).map((location) => (
+                      <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1170,10 +1167,9 @@ const UsersPage = () => {
                 <Select value={editForm.locationId} onValueChange={v => setEditForm(p => ({ ...p, locationId: v }))}>
                   <SelectTrigger><SelectValue placeholder="No location" /></SelectTrigger>
                   <SelectContent>
-                    {(editFormBrandIds.filter(Boolean).length > 0
-                      ? locations.filter(l => editFormBrandIds.includes((l as any).brandId))
-                      : locations
-                    ).map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                    {filterLocationsByBrandIds(locations, editFormBrandIds.filter(Boolean)).map((location) => (
+                      <SelectItem key={location.id} value={location.id}>{location.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

@@ -22,7 +22,6 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { useDealerContext } from '@/hooks/useDealerContext';
 import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Users, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle, MoreHorizontal, PlusCircle, CalendarClock, Shield, LayoutGrid, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveJourneyDialog } from '@/components/TestDriveJourneyDialog';
@@ -75,7 +74,6 @@ const TestDrivesPage = () => {
   const [followUpTaskTitle, setFollowUpTaskTitle] = useState('');
   const [followUpTaskDueAt, setFollowUpTaskDueAt] = useState('');
   const { toast } = useToast();
-  const { dealerLocationIds, loading: dealerLoading } = useDealerContext();
   const canCreateOpportunity = role === APP_ROLE.SALES || role === APP_ROLE.SUPERADMIN || role === APP_ROLE.DEALER_ADMIN;
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const [assigningKey, setAssigningKey] = useState<string | null>(null);
@@ -94,8 +92,8 @@ const TestDrivesPage = () => {
       setStatusFilter(requestedStatus);
       return;
     }
-    if (!dealerLoading) void fetchTestDrives();
-  }, [searchParams, statusFilter, dealerLocationIds, dealerLoading]);
+    void fetchTestDrives();
+  }, [searchParams, statusFilter, role, profile?.id]);
 
   // Real-time: auto-refresh + toast when any test drive status changes at this location
   useTestDriveRealtime(profile?.location_id, (event) => {
@@ -135,14 +133,6 @@ const TestDrivesPage = () => {
 
     if (activeFilter !== 'all' && activeFilter !== 'active' && activeFilter !== 'pending_license') {
       params.set('status', activeFilter);
-    }
-
-    // Location scoping per role
-    if (role === APP_ROLE.GRO || role === APP_ROLE.SECURITY || role === APP_ROLE.SALES_ADMIN) {
-      // Strictly scoped to their own location
-      if (profile?.location_id) params.set('location_id', profile.location_id);
-    } else if (role !== APP_ROLE.SUPERADMIN && dealerLocationIds && dealerLocationIds.length > 0) {
-      params.set('location_ids', dealerLocationIds.join(','));
     }
 
     const drives = await apiGet<any[]>(`/api/test-drives?${params}`);

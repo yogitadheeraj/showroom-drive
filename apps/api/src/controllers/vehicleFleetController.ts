@@ -1,12 +1,29 @@
 import { Request, Response } from 'express';
 import * as fleetService from '../services/vehicleFleetService.js';
+import { applyLocationScope } from '../middleware/locationFilter.js';
+
+function resolveScopedLocationIds(filters: Record<string, unknown>): string[] {
+  if (Array.isArray(filters.location_ids)) {
+    return filters.location_ids.map((id) => String(id)).filter(Boolean);
+  }
+  if (typeof filters.location_id === 'string' && filters.location_id) {
+    return [filters.location_id];
+  }
+  return [];
+}
 
 /** GET /api/fleet/overview — list all shared vehicles with status */
 export async function fleetOverviewController(req: Request, res: Response) {
   try {
+    const scopedFilters: Record<string, unknown> = { ...req.query };
+    applyLocationScope(req, scopedFilters);
+    const scopedLocationIds = resolveScopedLocationIds(scopedFilters);
+
     const dealerId = req.query.dealer_id ? String(req.query.dealer_id) : undefined;
-    const locationId = req.query.location_id ? String(req.query.location_id) : undefined;
-    const data = await fleetService.getFleetOverview(dealerId, locationId);
+    const locationId =
+      scopedLocationIds[0]
+      || (req.query.location_id ? String(req.query.location_id) : undefined);
+    const data = await fleetService.getFleetOverview(dealerId, locationId, scopedLocationIds);
     res.json({ data, error: null });
   } catch (err: any) {
     res.status(500).json({ data: null, error: { message: err.message } });
@@ -33,6 +50,9 @@ export async function vehicleAvailabilityController(req: Request, res: Response)
 /** GET /api/fleet/transits — list transit history */
 export async function listTransitsController(req: Request, res: Response) {
   try {
+    const scopedFilters: Record<string, unknown> = { ...req.query };
+    applyLocationScope(req, scopedFilters);
+
     const filters: any = {};
     if (req.query.vehicle_id) filters.vehicle_id = String(req.query.vehicle_id);
     if (req.query.status) filters.status = String(req.query.status);
@@ -40,6 +60,9 @@ export async function listTransitsController(req: Request, res: Response) {
     if (req.query.to_date) filters.to_date = String(req.query.to_date);
     if (req.query.to_location_id) filters.to_location_id = String(req.query.to_location_id);
     if (req.query.receiver_profile_id) filters.receiver_profile_id = String(req.query.receiver_profile_id);
+    const scopedLocationIds = resolveScopedLocationIds(scopedFilters);
+    if (scopedLocationIds.length > 0) filters.location_ids = scopedLocationIds;
+
     const data = await fleetService.listTransits(filters);
     res.json({ data, error: null });
   } catch (err: any) {
@@ -213,13 +236,19 @@ export async function createTransitRequestController(req: Request, res: Response
  */
 export async function listTransitRequestsController(req: Request, res: Response) {
   try {
+    const scopedFilters: Record<string, unknown> = { ...req.query };
+    applyLocationScope(req, scopedFilters);
+
     const filters: Record<string, string | undefined> = {};
     if (req.query.from_location_id) filters.from_location_id = String(req.query.from_location_id);
     if (req.query.to_location_id) filters.to_location_id = String(req.query.to_location_id);
     if (req.query.requested_by_profile_id) filters.requested_by_profile_id = String(req.query.requested_by_profile_id);
     if (req.query.status) filters.status = String(req.query.status);
     if (req.query.dealer_id) filters.dealer_id = String(req.query.dealer_id);
-    const data = await fleetService.listTransitRequests(filters);
+    const scopedLocationIds = resolveScopedLocationIds(scopedFilters);
+    const scopedRequestFilters: Record<string, unknown> = { ...filters };
+    if (scopedLocationIds.length > 0) scopedRequestFilters.location_ids = scopedLocationIds;
+    const data = await fleetService.listTransitRequests(scopedRequestFilters as any);
     res.json({ data, error: null });
   } catch (err: any) {
     res.status(500).json({ data: null, error: { message: err.message } });

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { createLocation, deleteLocation, getLocationById, listLocations, updateLocation } from '../services/locationService.js';
+import { applyLocationScope } from '../middleware/locationFilter.js';
 
 export async function getLocationsController(req: Request, res: Response) {
   try {
@@ -10,6 +11,7 @@ export async function getLocationsController(req: Request, res: Response) {
     if (req.query.salesOfficeId) filters.salesOfficeId = req.query.salesOfficeId;
     if (req.query.plantId) filters.plantId = req.query.plantId;
     if (req.query.is_active !== undefined) filters.is_active = req.query.is_active === 'true';
+    applyLocationScope(req, filters);
     const data = await listLocations(filters);
     res.status(200).json({ data, error: null });
   } catch (error) {

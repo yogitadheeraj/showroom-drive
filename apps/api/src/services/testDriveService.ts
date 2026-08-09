@@ -67,6 +67,17 @@ export async function listTestDrives(filters: Record<string, unknown> = {}) {
     if (filters.date_lte) dateQ.$lte = String(filters.date_lte);
     query.scheduled_date = dateQ;
   }
+
+  if (filters.brand_ids && Array.isArray(filters.brand_ids) && filters.brand_ids.length > 0) {
+    const allowedVehicles = await Vehicle.find(
+      { brandId: { $in: filters.brand_ids } },
+      { id: 1 },
+    ).lean();
+    const allowedVehicleIds = allowedVehicles.map((v: any) => v.id).filter(Boolean);
+    if (allowedVehicleIds.length === 0) return [];
+    query.vehicle_id = { $in: allowedVehicleIds };
+  }
+
   const limit = typeof filters.limit === 'number' && filters.limit > 0 ? filters.limit : undefined;
   const includeRelated = filters.include_related !== false;
 
@@ -465,6 +476,17 @@ export async function countTestDrives(filters: Record<string, unknown> = {}) {
     query.status = { $in: filters.statuses };
   }
   if (filters.scheduled_date) query.scheduled_date = filters.scheduled_date;
+
+  if (filters.brand_ids && Array.isArray(filters.brand_ids) && filters.brand_ids.length > 0) {
+    const allowedVehicles = await Vehicle.find(
+      { brandId: { $in: filters.brand_ids } },
+      { id: 1 },
+    ).lean();
+    const allowedVehicleIds = allowedVehicles.map((v: any) => v.id).filter(Boolean);
+    if (allowedVehicleIds.length === 0) return 0;
+    query.vehicle_id = { $in: allowedVehicleIds };
+  }
+
   return TestDrive.countDocuments(query);
 }
 

@@ -328,7 +328,7 @@ const BrandsPage = () => {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> Locations ({brand.locationIds.length})
+                          <MapPin className="w-3 h-3" /> Locations ({brand?.locationIds?.length})
                         </p>
                         {isAdmin && (
                           <Button
@@ -344,11 +344,11 @@ const BrandsPage = () => {
                           </Button>
                         )}
                       </div>
-                      {brand.locationIds.length === 0 ? (
+                      {brand?.locationIds?.length === 0 ? (
                         <p className="text-xs text-muted-foreground italic">No locations linked</p>
                       ) : (
                         <div className="flex flex-wrap gap-1">
-                          {brand.locationIds.map(locId => (
+                          {brand?.locationIds?.map(locId => (
                             <Badge
                               key={locId}
                               variant="secondary"

@@ -433,7 +433,7 @@ export async function autoTransitAfterDrive(
 // Fleet overview
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function getFleetOverview(dealerId?: string, locationId?: string) {
+export async function getFleetOverview(dealerId?: string, locationId?: string, locationIds: string[] = []) {
   // Get all shared vehicles
   const vehicleQuery: Record<string, unknown> = { is_shared: true, is_active: true };
   if (dealerId) {
@@ -442,8 +442,16 @@ export async function getFleetOverview(dealerId?: string, locationId?: string) {
     const locIds = locations.map((l: any) => l.id);
     vehicleQuery.location_id = { $in: locIds };
   }
-  // Filter by shared_location_ids: empty = all locations, non-empty = specific
-  if (locationId) {
+  // Filter by assigned locations first, otherwise by a single location.
+  if (locationIds.length > 0) {
+    vehicleQuery.location_id = locationIds.length === 1 ? locationIds[0] : { $in: locationIds };
+    vehicleQuery.$or = [
+      { shared_location_ids: { $exists: false } },
+      { shared_location_ids: { $size: 0 } },
+      { shared_location_ids: { $in: locationIds } },
+    ] as any;
+  } else if (locationId) {
+    // Filter by shared_location_ids: empty = all locations, non-empty = specific
     vehicleQuery.$or = [
       { shared_location_ids: { $exists: false } },
       { shared_location_ids: { $size: 0 } },
@@ -530,6 +538,7 @@ export async function listTransits(filters: {
   to_date?: string;
   receiver_profile_id?: string;
   to_location_id?: string;
+  location_ids?: string[];
 }) {
   const q: Record<string, unknown> = {};
   if (filters.vehicle_id) q.vehicle_id = filters.vehicle_id;
@@ -543,6 +552,12 @@ export async function listTransits(filters: {
     if (filters.from_date) range.$gte = filters.from_date;
     if (filters.to_date) range.$lte = filters.to_date;
     q.depart_time = range;
+  }
+  if (filters.location_ids && filters.location_ids.length > 0) {
+    q.$or = [
+      { from_location_id: { $in: filters.location_ids } },
+      { to_location_id: { $in: filters.location_ids } },
+    ];
   }
   const docs = await VehicleTransit.find(q).sort({ depart_time: -1 }).lean();
   return docs.map((d: any) => { const o = { ...d }; delete (o as any)._id; return o; });
@@ -1007,6 +1022,7 @@ export async function listTransitRequests(filters: {
   requested_by_profile_id?: string;
   status?: string | string[];
   dealer_id?: string;
+  location_ids?: string[];
   limit?: number;
 }) {
   const q: Record<string, unknown> = {};
@@ -1016,6 +1032,12 @@ export async function listTransitRequests(filters: {
   if (filters.dealer_id) q.dealer_id = filters.dealer_id;
   if (filters.status) {
     q.status = Array.isArray(filters.status) ? { $in: filters.status } : filters.status;
+  }
+  if (filters.location_ids && filters.location_ids.length > 0) {
+    q.$or = [
+      { from_location_id: { $in: filters.location_ids } },
+      { to_location_id: { $in: filters.location_ids } },
+    ];
   }
 
   const docs = await VehicleTransitRequest.find(q)

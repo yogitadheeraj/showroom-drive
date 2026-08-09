@@ -37,6 +37,12 @@ export interface ILocation extends Document {
   updated_at: string;
 }
 
+const normalizeOptionalUniqueString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+};
+
 const LocationSchema = new Schema<ILocation>(
   {
     id: { type: String, required: true, unique: true, index: true },
@@ -50,8 +56,22 @@ const LocationSchema = new Schema<ILocation>(
     plantName: { type: String, default: null },
     brandId: { type: String, default: null, index: true },
     brandName: { type: String, default: null },
-    locationCode: { type: String, default: null, unique: true, sparse: true, index: true },
-    externalLocationId: { type: String, default: null, unique: true, sparse: true, index: true },
+    locationCode: {
+      type: String,
+      default: undefined,
+      unique: true,
+      sparse: true,
+      index: true,
+      set: normalizeOptionalUniqueString,
+    },
+    externalLocationId: {
+      type: String,
+      default: undefined,
+      unique: true,
+      sparse: true,
+      index: true,
+      set: normalizeOptionalUniqueString,
+    },
     name: { type: String, required: true },
     city: { type: String, default: null },
     state: { type: String, default: null },

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Customer } from '../models/Customer.js';
+import { TestDrive } from '../models/TestDrive.js';
 
 function escapeRegex(input: string) {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -58,6 +59,30 @@ export async function listCustomers(filters: Record<string, unknown> = {}) {
       { phone: { $regex: String(filters.search), $options: 'i' } },
     ];
   }
+
+  const scopedLocationIds = Array.isArray(filters.location_ids)
+    ? filters.location_ids.map((id) => String(id)).filter(Boolean)
+    : (typeof filters.location_id === 'string' && filters.location_id ? [filters.location_id] : []);
+  if (scopedLocationIds.length > 0) {
+    const customerIds = await TestDrive.distinct('customer_id', {
+      location_id: scopedLocationIds.length === 1
+        ? scopedLocationIds[0]
+        : { $in: scopedLocationIds },
+    });
+    if (customerIds.length === 0) return [];
+    const existingIdFilter = q.id;
+    if (existingIdFilter && typeof existingIdFilter === 'object' && existingIdFilter !== null && '$in' in existingIdFilter) {
+      const allowed = new Set(customerIds.map(String));
+      const intersected = (existingIdFilter as { $in: string[] }).$in.filter((id) => allowed.has(String(id)));
+      if (intersected.length === 0) return [];
+      q.id = { $in: intersected };
+    } else if (typeof existingIdFilter === 'string') {
+      if (!customerIds.includes(existingIdFilter)) return [];
+    } else {
+      q.id = { $in: customerIds };
+    }
+  }
+
   const limit = Number(filters.limit);
   const resolvedLimit = Number.isFinite(limit) && limit > 0 ? limit : 200;
   const docs = await Customer.find(q).sort({ full_name: 1 }).limit(resolvedLimit).lean();

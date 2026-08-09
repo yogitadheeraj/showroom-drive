@@ -40,8 +40,11 @@ export async function sendMail(input: MailInput) {
   }
 
   try {
+    const fromLabel = input._dealerName || env.mailFrom || 'Auto Dealer';
+    const from = env.smtpUser ? `${fromLabel} <${env.smtpUser}>` : fromLabel;
+
     const info = await tx.sendMail({
-      from: `${input._dealerName || 'Auto Dealer'}`,
+      from,
       to: input.to,
       subject: input.subject,
       html: input.html,
@@ -51,6 +54,9 @@ export async function sendMail(input: MailInput) {
     return { sent: true, skipped: false };
   } catch (err: any) {
     console.error(`[mail] ❌ FAILED → ${input.to} | subject: "${input.subject}" | error: ${err?.message}`);
+    if (err?.responseCode === 535) {
+      console.error('[mail] SMTP auth failed (535). For Gmail, use a valid App Password and ensure 2-Step Verification is enabled.');
+    }
     throw err;
   }
 }

@@ -20,6 +20,9 @@ export async function listVehicles(filters: Record<string, unknown> = {}) {
   }
   if (typeof filters.is_active === 'boolean') q.is_active = filters.is_active;
   if (typeof filters.is_available === 'boolean') q.is_available = filters.is_available;
+  if (filters.brand_ids && Array.isArray(filters.brand_ids) && filters.brand_ids.length > 0) {
+    q.brandId = { $in: filters.brand_ids };
+  }
   if (filters.brand) q.brand = filters.brand;
   if (filters.model) q.model = filters.model;
   if (filters.ids) {
@@ -63,6 +66,16 @@ function normalizeVehiclePayload(data: Record<string, unknown>) {
 export async function createVehicle(data: Record<string, unknown>) {
   const now = new Date().toISOString();
   const payload = normalizeVehiclePayload(data);
+
+  // For demo vehicles, ensure brand linkage is persisted even if client omitted brandId.
+  const isDemo = payload.vehicle_condition === 'demo' || payload.is_demo === true;
+  const parentVehicleId = typeof payload.demo_for_vehicle_id === 'string' ? payload.demo_for_vehicle_id : null;
+  if (isDemo && parentVehicleId && !payload.brandId) {
+    const parent = await Vehicle.findOne({ id: parentVehicleId }, { brandId: 1, brand: 1 }).lean();
+    if (parent?.brandId) payload.brandId = parent.brandId;
+    if (!payload.brand && parent?.brand) payload.brand = parent.brand;
+  }
+
   const doc = new Vehicle({ ...payload, id: String(payload.id || randomUUID()), created_at: now, updated_at: now });
   await doc.save();
   return lean(doc);

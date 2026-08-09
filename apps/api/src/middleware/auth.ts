@@ -3,6 +3,7 @@ import { verifyIdToken } from '../config/firebaseAdmin.js';
 import { UserRole } from '../models/UserRole.js';
 import { Profile } from '../models/Profile.js';
 import { Location } from '../models/Location.js';
+import { BrandLocation } from '../models/BrandLocation.js';
 import { applyLocationScope } from '../middleware/locationFilter.js';
 
 import { z } from 'zod';
@@ -43,7 +44,10 @@ declare global {
         uid: string;
         email?: string;
         role?: string;
+        profile_id?: string | null;
         location_id?: string | null;
+        location_ids?: string[];
+        brand_ids?: string[];
         dealer_id?: string | null;
         /** All location IDs belonging to the dealer — populated for dealer_admin only */
         dealer_location_ids?: string[];
@@ -73,10 +77,40 @@ export async function attachAuthUser(req: Request, _res: Response, next: NextFun
     try {
       const [roleDoc, profileDoc] = await Promise.all([
         UserRole.findOne({ user_id: decoded.uid }, { role: 1 }).lean(),
-        Profile.findOne({ user_id: decoded.uid }, { location_id: 1 }).lean(),
+        Profile.findOne({ user_id: decoded.uid }, { id: 1, location_id: 1, location_ids: 1, brand_ids: 1 }).lean(),
       ]);
       req.authUser.role = (roleDoc?.role as string | undefined) ?? undefined;
+      req.authUser.profile_id = (profileDoc as any)?.id ?? null;
       req.authUser.location_id = (profileDoc as any)?.location_id ?? null;
+      const profileLocationIds = Array.isArray((profileDoc as any)?.location_ids)
+        ? (profileDoc as any).location_ids.filter(Boolean)
+        : [];
+      req.authUser.location_ids = profileLocationIds.length > 0
+        ? profileLocationIds
+        : (req.authUser.location_id ? [req.authUser.location_id] : []);
+      req.authUser.brand_ids = Array.isArray((profileDoc as any)?.brand_ids)
+        ? (profileDoc as any).brand_ids.filter(Boolean)
+        : [];
+
+      // Brand admins can be mapped to multiple branches through assigned brands.
+      const assignedBrandIds = req.authUser.brand_ids ?? [];
+      if (assignedBrandIds.length > 0) {
+        const links = await BrandLocation.find(
+          { brandId: { $in: assignedBrandIds }, isActive: true },
+          { locationId: 1 },
+        ).lean();
+        const branchIdsFromBrands = Array.from(
+          new Set(
+            links
+              .map((link: any) => link.locationId)
+              .filter(Boolean),
+          ),
+        );
+        if (branchIdsFromBrands.length > 0) {
+          req.authUser.location_ids = branchIdsFromBrands;
+          req.authUser.location_id = branchIdsFromBrands[0] ?? req.authUser.location_id;
+        }
+      }
 
       // Resolve dealer_id via the user's assigned location
       if (req.authUser.location_id) {

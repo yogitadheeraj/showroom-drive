@@ -49,6 +49,7 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
       select: 'user_id',
       filters: [{ field: 'role', op: 'eq', value: 'sales' }],
     });
+    console.log('rolesData', rolesData, 'profile', profile);
     if (!rolesData?.length) return;
     const userIds = rolesData.map(r => r.user_id);
     const data = await apiDbQuery<any[]>({
@@ -59,6 +60,7 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
         { field: 'location_id', op: 'eq', value: profile.location_id },
         { field: 'is_active', op: 'eq', value: true },
         { field: 'user_id', op: 'in', value: userIds },
+        {field: 'brandId', op: 'neq', value: profile.brandId }, // Exclude current user
       ],
     });
 

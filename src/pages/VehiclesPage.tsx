@@ -45,6 +45,23 @@ const getWorkflowStatus = (value?: string | null): VehicleWorkflowStatus => {
   return 'shipped';
 };
 
+const normalizeIdList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .map((id) => String(id || '').trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -78,6 +95,7 @@ const VehiclesPage = () => {
   // Can update available stock count (all operational roles)
   const canUpdateStock = canManageVehicles || role === APP_ROLE.SALES;
   const canDeactivate = isSuperAdmin || role === APP_ROLE.DEALER_ADMIN || role === APP_ROLE.SALES_ADMIN;
+  const shouldRestrictToAssignments = !isSuperAdmin;
   const [deactivateTarget, setDeactivateTarget] = useState<{ id: string; name: string } | null>(null);
   const [workflowActionTarget, setWorkflowActionTarget] = useState<{ vehicle: any; nextStatus: VehicleWorkflowStatus } | null>(null);
   const [workflowActionQuantity, setWorkflowActionQuantity] = useState('1');
@@ -107,6 +125,51 @@ const VehiclesPage = () => {
   const isVehicleUnavailable = (vehicle: any) => false;
   const isVehicleDeactivated = (vehicle: any) => !vehicle.is_active;
 
+  const assignedBrandIds = useMemo(() => {
+    return normalizeIdList(profile?.brand_ids);
+  }, [profile?.brand_ids]);
+
+  const assignedLocationIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (profile?.location_id) ids.add(String(profile.location_id));
+    normalizeIdList(profile?.location_ids).forEach((id) => ids.add(id));
+    return Array.from(ids);
+  }, [profile?.location_id, profile?.location_ids]);
+
+  const assignableBrands = useMemo(() => {
+    if (!shouldRestrictToAssignments) return brands;
+    if (assignedBrandIds.length === 0) return [];
+    const allowed = new Set(assignedBrandIds);
+    return brands.filter((brand: any) => allowed.has(String(brand.id)));
+  }, [brands, shouldRestrictToAssignments, assignedBrandIds]);
+
+  const assignableLocations = useMemo(() => {
+    if (!shouldRestrictToAssignments) return locations;
+    if (assignedLocationIds.length === 0) return [];
+    const allowed = new Set(assignedLocationIds);
+    return locations.filter((location: any) => allowed.has(String(location.id)));
+  }, [locations, shouldRestrictToAssignments, assignedLocationIds]);
+
+  // In Add Vehicle dialog, auto-select defaults when there is exactly one allowed option.
+  useEffect(() => {
+    if (!showDialog || !!editingId) return;
+
+    setFormData((prev) => {
+      let next = { ...prev };
+
+      if (!next.location_id && assignableLocations.length === 1) {
+        next.location_id = assignableLocations[0].id;
+      }
+
+      if (!next.brand_id && assignableBrands.length === 1) {
+        next.brand_id = assignableBrands[0].id;
+        next.brand = assignableBrands[0].name || next.brand;
+      }
+
+      return next;
+    });
+  }, [showDialog, editingId, assignableLocations, assignableBrands]);
+
   // Map: new vehicle id → demo vehicles linked to it
   const demosForVehicle = useMemo(() => {
     const map = new Map<string, any[]>();
@@ -129,13 +192,10 @@ const VehiclesPage = () => {
     }
 
     const locationParams = new URLSearchParams({ is_active: 'true' });
-    if (dealerId) locationParams.set('dealer_id', dealerId);
     apiGet<any[]>(`/api/locations?${locationParams}`)
       .then((data) => setLocations(data || []));
 
-    const brandParams = new URLSearchParams();
-    if (dealerId) brandParams.set('dealer_id', dealerId);
-    apiGet<any[]>(`/api/brands?${brandParams}`)
+    apiGet<any[]>('/api/brands')
       .then((data) => setBrands((data || []).sort((a: any, b: any) => a.name.localeCompare(b.name))));
 
     fetchVehicles();
@@ -152,6 +212,7 @@ const VehiclesPage = () => {
     if (!parent) return;
     setFormData((p) => ({
       ...p,
+      brand_id: parent.brandId || p.brand_id,
       brand: parent.brand,
       model: parent.model,
       grade: parent.grade || '',
@@ -167,7 +228,7 @@ const VehiclesPage = () => {
       if (profile?.user_id) {
         const v = vehicles.find(x => x.id === vehicleId);
         void logStaffActivity({
-          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          userId: profile.user_id, profileId: profile.id, locationId: profile?.location_id, role: role as any,
           eventType: 'vehicle_deactivated',
           label: `Deactivated vehicle: ${v?.brand ?? ''} ${v?.model ?? ''} ${v?.registration_number ? `(${v.registration_number})` : ''}`.trim(),
           route: '/vehicles',
@@ -188,7 +249,7 @@ const VehiclesPage = () => {
       if (profile?.user_id) {
         const v = vehicles.find(x => x.id === vehicleId);
         void logStaffActivity({
-          userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
+          userId: profile.user_id, profileId: profile.id, locationId: profile?.location_id, role: role as any,
           eventType: 'vehicle_reactivated',
           label: `Reactivated vehicle: ${v?.brand ?? ''} ${v?.model ?? ''} ${v?.registration_number ? `(${v.registration_number})` : ''}`.trim(),
           route: '/vehicles',
@@ -229,8 +290,6 @@ const VehiclesPage = () => {
       let filtered = hydrated;
       if (isSuperAdmin && selectedDealer !== 'all') {
         filtered = filtered.filter((v: any) => v.locations?.dealer_id === selectedDealer);
-      } else if (!isSuperAdmin && dealerId) {
-        filtered = filtered.filter((v: any) => v.locations?.dealer_id === dealerId);
       }
 
       filtered.sort((a: any, b: any) => String(a.brand || '').localeCompare(String(b.brand || '')));
@@ -358,6 +417,7 @@ const VehiclesPage = () => {
         if (showDemoSetupStep && createdId) {
           const demoPayload: Record<string, unknown> = {
             brand: formData.brand,
+            brandId: formData.brand_id || null,
             model: formData.model,
             grade: formData.grade || null,
             trim: formData.trim || null,
@@ -520,7 +580,7 @@ const VehiclesPage = () => {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[240px_240px]">
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground">Inventory status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'sold' | 'unavailable' | 'deactivated')}>
                   <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All ({vehicles.length})</SelectItem>
@@ -533,7 +593,7 @@ const VehiclesPage = () => {
               </div>
               <div className="space-y-2">
                 <Label className="text-sm text-muted-foreground">Condition</Label>
-                <Select value={conditionFilter} onValueChange={setConditionFilter}>
+                <Select value={conditionFilter} onValueChange={(value) => setConditionFilter(value as 'all' | 'new' | 'used' | 'demo')}>
                   <SelectTrigger><SelectValue placeholder="All conditions" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All ({vehicles.length})</SelectItem>
@@ -834,7 +894,7 @@ const VehiclesPage = () => {
                         <Select value={formData.location_id} onValueChange={(v) => setFormData((p) => ({ ...p, location_id: v, demo_for_vehicle_id: '' }))}>
                           <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
                           <SelectContent>
-                            {locations.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                            {assignableLocations.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                         <Label>Associated New Vehicle *</Label>
@@ -873,10 +933,7 @@ const VehiclesPage = () => {
                         >
                           <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
                           <SelectContent>
-                            {brands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
-                            {formData.brand_id && !brands.some((b: any) => b.id === formData.brand_id) && (
-                              <SelectItem value={formData.brand_id}>{formData.brand}</SelectItem>
-                            )}
+                            {assignableBrands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1001,7 +1058,7 @@ const VehiclesPage = () => {
                         <Select value={formData.location_id} onValueChange={(v) => setFormData((p) => ({ ...p, location_id: v }))}>
                           <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
                           <SelectContent>
-                            {locations.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                            {assignableLocations.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                         <p className="text-[11px] text-muted-foreground">This branch will receive the vehicle and track the ship-to-sale journey.</p>
@@ -1068,7 +1125,7 @@ const VehiclesPage = () => {
                         </div>
 
                         {/* Location scope selector (only when shared is on) */}
-                        {formData.is_shared && locations.length > 0 && (
+                        {formData.is_shared && assignableLocations.length > 0 && (
                           <div className="rounded-lg border border-info/20 bg-info/3 p-3 space-y-2">
                             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Available At</p>
                             {/* "All Locations" pill */}
@@ -1087,10 +1144,10 @@ const VehiclesPage = () => {
                                 {formData.shared_location_ids.length === 0 && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
                               </div>
                               All Locations
-                              <span className="ml-auto text-[10px] text-muted-foreground">{locations.length} locations</span>
+                              <span className="ml-auto text-[10px] text-muted-foreground">{assignableLocations.length} locations</span>
                             </button>
                             {/* Individual location checkboxes */}
-                            {locations
+                            {assignableLocations
                               .filter((loc) => loc.id !== formData.location_id) // home location is always implicit
                               .map((loc) => {
                                 const checked = formData.shared_location_ids.includes(loc.id);

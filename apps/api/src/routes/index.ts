@@ -128,6 +128,7 @@ import {
 } from '../controllers/vehicleController.js';
 import {
   endSessionController,
+  getInsightsController,
   listEventsController,
   listOnlineSessionsController,
   logEventController,
@@ -351,6 +352,7 @@ apiRouter.patch('/vehicles/:id', requireAuth, updateVehicleController);
 apiRouter.delete('/vehicles/:id', requireAuth, deleteVehicleController);
 
 // Activity Events
+apiRouter.get('/activity/insights', requireAuth, getInsightsController);
 apiRouter.get('/activity/events', requireAuth, listEventsController);
 apiRouter.post('/activity/events', requireAuth, logEventController);
 

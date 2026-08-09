@@ -6,7 +6,6 @@ import { logStaffActivity } from '@/lib/activityLogger';
 import { createCustomer, findCustomerByPhone, updateCustomer } from '@/lib/customerService';
 import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
-import { useDealerContext } from '@/hooks/useDealerContext';
 import { isLocationCurrentlyOpen, getAvailableTimeSlots } from '@/lib/slotAvailability';
 import { APP_ROLE } from '@/constants/roles';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -32,7 +31,6 @@ type Step = 'customer' | 'license' | 'confirm';
 const WalkinPage = () => {
   const { profile, role } = useAuth();
   const isDealerLevel = [APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN].includes(role as any);
-  const { dealerId, loading: dealerLoading } = useDealerContext();
   const [locations, setLocations] = useState<any[]>([]);
   const [locationStatus, setLocationStatus] = useState<Record<string, { isOpen: boolean; openTime: string | null; closeTime: string | null }>>({});
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -80,26 +78,16 @@ const WalkinPage = () => {
 
 
   useEffect(() => {
-    if (dealerLoading) return;
-
     if (isDealerLevel) {
-      // SUPERADMIN and DEALER_ADMIN see all locations
-      const params = new URLSearchParams({ is_active: 'true' });
-      if (dealerId) params.set('dealer_id', dealerId);
-      apiGet<any[]>(`/api/locations?${params}`).then((data) => {
-        let locs = data || [];
-        if (role === APP_ROLE.DEALER_ADMIN) {
-          locs = locs.filter((l: any) => !l.disabled_for_dealer_admin);
-        }
-        setLocations(locs);
+      apiGet<any[]>('/api/locations?is_active=true').then((data) => {
+        setLocations(data || []);
       });
     } else if (profile?.location_id) {
-      // Branch roles: only fetch their own location
       apiGet<any[]>(`/api/locations?ids=${encodeURIComponent(profile.location_id)}&is_active=true`).then((data) => {
         setLocations(data || []);
       });
     }
-  }, [dealerId, dealerLoading, role, isDealerLevel, profile?.location_id]);
+  }, [role, isDealerLevel, profile?.location_id]);
 
   useEffect(() => {
     if (locations.length === 0) return;
@@ -146,8 +134,6 @@ const WalkinPage = () => {
   }, [formData.locationId, formData.scheduledDate, formData.scheduledTime]);
 
   useEffect(() => {
-    if (dealerLoading) return;
-
     if (profile?.location_id && locations.some((l) => l.id === profile.location_id)) {
       const status = locationStatus[profile.location_id];
       // Only set profile location if it's open
@@ -167,7 +153,7 @@ const WalkinPage = () => {
       }
       return p;
     });
-  }, [profile, locations, dealerLoading, locationStatus]);
+  }, [profile, locations, locationStatus]);
 
   useEffect(() => {
     return () => {
@@ -293,15 +279,27 @@ const WalkinPage = () => {
   }, [formData.locationId, locations]);
 
   const filteredVehicles = useMemo(() => {
-    return vehicles.filter((v) => v.is_demo && v.total_units > 0 && v.available_units > 0);
+    return vehicles.filter((v) => v.is_demo && v.total_units > 0);
   }, [vehicles]);
 
   const filteredSharedVehicles = useMemo(() => {
     const localIds = new Set(filteredVehicles.map((v) => v.id));
     return sharedVehicles.filter(
-      (v) => v.is_demo && v.total_units > 0 && v.available_units > 0 && !localIds.has(v.id)
+      (v) => v.is_demo && v.total_units > 0 && !localIds.has(v.id)
     );
   }, [sharedVehicles, filteredVehicles]);
+
+  const getVehicleAvailabilityLabel = (vehicle: any) => {
+    const availableUnits = Number(vehicle?.available_units ?? 0);
+    const totalUnits = Number(vehicle?.total_units ?? 0);
+    if (availableUnits > 0) {
+      return `${availableUnits}/${totalUnits || availableUnits} avail`;
+    }
+    return 'Booked';
+  };
+
+  const selectedVehicleAvailableUnits = Number(selectedVehicle?.available_units ?? 0);
+  const selectedVehicleIsFree = selectedVehicleAvailableUnits > 0;
 
   // Only allow booking if required fields are filled and location is open for today
   const isBookingToday = formData.scheduledDate === todayStr;
@@ -582,8 +580,6 @@ const WalkinPage = () => {
                 <Label className="text-sm font-medium">Demo Vehicle <span className="text-destructive">*</span></Label>
                 {!formData.locationId ? (
                   <p className="text-xs text-muted-foreground py-3 text-center border border-dashed border-border rounded-lg">Select a location first</p>
-                ) : filteredVehicles.length === 0 && filteredSharedVehicles.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-3 text-center border border-dashed border-border rounded-lg">No demo vehicles available at this location</p>
                 ) : (
                   <div className="grid grid-cols-2 gap-1.5 max-h-56 overflow-y-auto pr-0.5">
                     {[...filteredVehicles, ...filteredSharedVehicles].map(v => (
@@ -613,6 +609,12 @@ const WalkinPage = () => {
                 )}
                 {formErrors.vehicleId && <p className="text-xs text-destructive flex items-center gap-1 mt-1"><AlertCircle className="h-3 w-3 shrink-0" />{formErrors.vehicleId}</p>}
               </div>
+
+                {selectedVehicle && !selectedVehicleIsFree && (
+                  <div className="rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+                    This demo car is not free right now. You can still create the booking here, and it will be released after the current customer finishes.
+                  </div>
+                )}
 
               {/* Date — defaults to today, toggle for advance booking */}
               <div className="border-t border-border/50 pt-3 flex items-center justify-between">

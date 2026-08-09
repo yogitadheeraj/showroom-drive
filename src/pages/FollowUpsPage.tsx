@@ -152,7 +152,7 @@ const FollowUpsPage = () => {
 
         {/* ── KPI chips ────────────────────────────── */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 flex items-center gap-3">
+          <div className="rounded-xl border border-violet-200 bg-violet-100 p-3 flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
               <TrendingUp className="h-4 w-4 text-violet-600" />
             </div>
@@ -161,7 +161,7 @@ const FollowUpsPage = () => {
               <p className="text-[11px] text-black font-medium mt-0.5">Opportunities</p>
             </div>
           </div>
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex items-center gap-3">
+          <div className="rounded-xl border border-primary/20 bg-secondary/20 p-3 flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <ClipboardCheck className="h-4 w-4 text-primary" />
             </div>
@@ -170,13 +170,13 @@ const FollowUpsPage = () => {
               <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Open Tasks</p>
             </div>
           </div>
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 flex items-center gap-3">
+          <div className="rounded-xl border border-rose-200 bg-rose-100 p-3 flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
               <Zap className="h-4 w-4 text-rose-600" />
             </div>
             <div>
               <p className="text-xl font-heading font-bold leading-none dark:text-black">{hotCount}</p>
-              <p className="text-[11px] dark:text-black font-medium mt-0.5 dark:text-slate-400">Hot Leads</p>
+              <p className="text-[11px] dark:text-black font-medium mt-0.5 dark:text-black">Hot Leads</p>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Profile } from '../models/Profile.js';
 import { UserRole } from '../models/UserRole.js';
+import { Location } from '../models/Location.js';
 
 function lean(doc: any) {
   const o = doc.toObject ? doc.toObject() : { ...doc };
@@ -24,7 +25,10 @@ export async function listProfiles(filters: Record<string, unknown> = {}) {
   const q: Record<string, unknown> = {};
   if (filters.location_id) q.location_id = filters.location_id;
   if (filters.location_ids) {
-    const ids = String(filters.location_ids).split(',').map((s) => s.trim()).filter(Boolean);
+    const rawLocationIds = Array.isArray(filters.location_ids)
+      ? filters.location_ids
+      : String(filters.location_ids).split(',');
+    const ids = rawLocationIds.map((s) => String(s).trim()).filter(Boolean);
     if (ids.length > 0) q.location_id = { $in: ids };
   }
   if (typeof filters.is_active === 'boolean') q.is_active = filters.is_active;
@@ -35,8 +39,34 @@ export async function listProfiles(filters: Record<string, unknown> = {}) {
     if (ids.length > 0) q.id = { $in: ids };
   }
   if (filters.user_ids) {
-    const ids = String(filters.user_ids).split(',').map((s) => s.trim()).filter(Boolean);
+    const rawUserIds = Array.isArray(filters.user_ids)
+      ? filters.user_ids
+      : String(filters.user_ids).split(',');
+    const ids = rawUserIds.map((s) => String(s).trim()).filter(Boolean);
     if (ids.length > 0) q.user_id = { $in: ids };
+  }
+
+  if (filters.dealer_id) {
+    const dealerLocations = await Location.find(
+      { dealer_id: filters.dealer_id },
+      { id: 1 },
+    ).lean();
+    const dealerLocationIds = dealerLocations.map((location: any) => location.id).filter(Boolean);
+    if (dealerLocationIds.length === 0) return [];
+
+    if (q.location_id && typeof q.location_id === 'object' && q.location_id !== null && '$in' in q.location_id) {
+      const scoped = (q.location_id as { $in: string[] }).$in.filter((id) => dealerLocationIds.includes(id));
+      if (scoped.length === 0) return [];
+      q.location_id = { $in: scoped };
+    } else if (typeof q.location_id === 'string') {
+      if (!dealerLocationIds.includes(q.location_id)) return [];
+    } else {
+      q.location_id = { $in: dealerLocationIds };
+    }
+  }
+
+  if (filters.brand_ids && Array.isArray(filters.brand_ids) && filters.brand_ids.length > 0) {
+    q.brand_ids = { $in: filters.brand_ids };
   }
   // Filter by role — resolve user_ids from user_roles then scope the profile query
   if (filters.role) {
@@ -46,6 +76,7 @@ export async function listProfiles(filters: Record<string, unknown> = {}) {
     if (userIds.length === 0) return [];
     q.user_id = { $in: userIds };
   }
+  console.log('listProfiles query:', q);
   const docs = await Profile.find(q).sort({ full_name: 1 }).lean();
   return docs.map((d) => { const o = { ...d } as any; delete o._id; return o; });
 }

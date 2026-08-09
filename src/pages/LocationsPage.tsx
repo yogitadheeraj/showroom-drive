@@ -200,10 +200,11 @@ const LocationsPage = () => {
   const fetchLocations = async () => {
     const filters: { field: string; op: 'eq' | 'ilike'; value: any }[] = [];
     if (dealerId) filters.push({ field: 'dealer_id', op: 'eq', value: dealerId });
-    if (isSuperAdmin && filterDealerId) filters.push({ field: 'dealer_id', op: 'eq', value: filterDealerId });
-    if (isSuperAdmin && filterBrandId) filters.push({ field: 'brandId', op: 'eq', value: filterBrandId });
-    if (isSuperAdmin && filterBUId) filters.push({ field: 'businessUnitId', op: 'eq', value: filterBUId });
-    if (isSuperAdmin && filterCity.trim()) filters.push({ field: 'city', op: 'ilike', value: `%${filterCity.trim()}%` });
+    if (profile?.brand_ids && role!=='dealer_admin') filters.push({ field: 'brandId', op: 'eq', value: profile?.brand_ids?.join(',') });
+    if (filterDealerId) filters.push({ field: 'dealer_id', op: 'eq', value: filterDealerId });
+    if (filterBrandId) filters.push({ field: 'brandId', op: 'eq', value: filterBrandId });
+    if (filterBUId) filters.push({ field: 'businessUnitId', op: 'eq', value: filterBUId });
+    if (filterCity.trim()) filters.push({ field: 'city', op: 'ilike', value: `%${filterCity.trim()}%` });
     const data = await apiDbQuery<any[]>({
       table: 'locations',
       action: 'select',

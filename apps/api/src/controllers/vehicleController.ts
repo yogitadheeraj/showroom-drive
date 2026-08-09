@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import * as vehicleService from '../services/vehicleService.js';
+import { applyLocationScope } from '../middleware/locationFilter.js';
 
 export async function listVehiclesController(req: Request, res: Response) {
   const filters = { ...req.query } as Record<string, unknown>;
+  applyLocationScope(req, filters);
 
   const data = await vehicleService.listVehicles(filters);
   res.json({ data });
@@ -36,7 +38,15 @@ export async function deleteVehicleController(req: Request, res: Response) {
  * Each shared vehicle includes transit_minutes, distance_km, available_from.
  */
 export async function availableVehiclesController(req: Request, res: Response) {
-  const { location_id, date, time } = req.query as Record<string, string>;
+  const scopedFilters: Record<string, unknown> = { ...req.query };
+  applyLocationScope(req, scopedFilters);
+
+  const location_id = typeof scopedFilters.location_id === 'string'
+    ? scopedFilters.location_id
+    : Array.isArray(scopedFilters.location_ids) && scopedFilters.location_ids.length > 0
+      ? String(scopedFilters.location_ids[0])
+      : undefined;
+  const { date, time } = req.query as Record<string, string>;
   console.log(req.query, '[availableVehicles] location_id:', location_id, 'date:', date, 'time:', time);
   if (!location_id) {
     return res.status(400).json({ error: 'location_id is required' });

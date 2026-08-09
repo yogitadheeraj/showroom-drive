@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useDealerContext } from '@/hooks/useDealerContext';
 import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 
@@ -15,28 +14,21 @@ const DataCenterPage = () => {
   const [dailyData, setDailyData] = useState<any[]>([]);
   const [vehicleData, setVehicleData] = useState<any[]>([]);
   const [sourceData, setSourceData] = useState<any[]>([]);
-  const { dealerId, dealerLocationIds, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
-    if (!dealerLoading) {
-      const params = new URLSearchParams();
-      if (dealerId) params.set('dealer_id', dealerId);
-      apiGet<any[]>(`/api/locations${params.toString() ? `?${params.toString()}` : ''}`)
-        .then((data) => setLocations(data || []))
-        .catch(() => setLocations([]));
-    }
-  }, [dealerId, dealerLoading]);
+    apiGet<any[]>('/api/locations')
+      .then((data) => setLocations(data || []))
+      .catch(() => setLocations([]));
+  }, []);
 
   useEffect(() => {
-    if (!dealerLoading) fetchAnalytics();
-  }, [selectedLocation, dealerLocationIds, dealerLoading]);
+    fetchAnalytics();
+  }, [selectedLocation]);
 
   const fetchAnalytics = async () => {
     const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [];
     if (selectedLocation !== 'all') {
       filters.push({ field: 'location_id', op: 'eq', value: selectedLocation });
-    } else if (dealerLocationIds && dealerLocationIds.length > 0) {
-      filters.push({ field: 'location_id', op: 'in', value: dealerLocationIds });
     }
 
     const testDrives = await apiDbQuery<any[]>({

@@ -15,7 +15,7 @@ export interface BrandWithLocations {
 
 export async function listBrandsWithLocations(filters: Record<string, string> = {}): Promise<BrandWithLocations[]> {
   const params = new URLSearchParams(filters).toString();
-  const res = await apiGet<BrandWithLocations[]>(`/api/brands-with-locations${params ? `?${params}` : ''}`);
+  const res = await apiGet<BrandWithLocations[]>(`/api/brands${params ? `?${params}` : ''}`);
   return res ?? [];
 }
 

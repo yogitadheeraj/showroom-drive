@@ -117,7 +117,7 @@ export async function runRpc(name: string, args: Record<string, unknown>) {
       externalLocationId:
         typeof location.externalLocationId === 'string' && location.externalLocationId.trim()
           ? location.externalLocationId.trim()
-          : null,
+          : undefined,
       city,
       address,
       state: typeof location.state === 'string' && location.state.trim() ? location.state.trim() : null,

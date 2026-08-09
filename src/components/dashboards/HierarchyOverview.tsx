@@ -9,16 +9,20 @@ import { Badge } from '@/components/ui/badge';
 import {
   Building2, Briefcase, Factory, MapPin, Tag,
   ChevronDown, ChevronRight, Settings, LayoutGrid,
-  TrendingUp,
+  TrendingUp, Layers3, Workflow, Sparkles,
 } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
+import type { AppRole } from '@/constants/roles';
 import { cn } from '@/lib/utils';
 
-interface BU   { id: string; name: string; code: string; isActive: boolean }
-interface SO   { id: string; name: string; salesOfficeCode: string; businessUnitId: string; isActive: boolean }
-interface Pl   { id: string; name: string; plantCode: string; salesOfficeId: string; businessUnitId: string; isActive: boolean }
-interface Loc  { id: string; name: string; city: string | null; is_active: boolean; businessUnitId?: string | null }
-interface Br   { id: string; name: string; code: string | null; is_active: boolean }
+interface BU   { id: string; name: string; code: string; isActive: boolean; orgId?: string | null }
+interface SO   { id: string; name: string; salesOfficeCode: string; businessUnitId: string; isActive: boolean; orgId?: string | null }
+interface Pl   { id: string; name: string; plantCode: string; salesOfficeId: string; businessUnitId: string; isActive: boolean; orgId?: string | null }
+interface Loc  { id: string; name: string; city: string | null; is_active: boolean; businessUnitId?: string | null; dealer_id?: string | null }
+interface Br   { id: string; name: string; code: string | null; is_active: boolean; dealer_id?: string | null }
+interface DealerRow { id: string; name: string }
+type LocationRow = Pick<Loc, 'id' | 'name' | 'city' | 'is_active' | 'businessUnitId' | 'dealer_id'>;
+type BrandRow = Pick<Br, 'id' | 'name' | 'code' | 'is_active' | 'dealer_id'>;
 
 /* ─── Stat pill ─────────────────────────────────────────────────────────── */
 function StatPill({
@@ -28,13 +32,13 @@ function StatPill({
   colorClass: string; bgClass: string;
 }) {
   return (
-    <div className={cn('flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 border', bgClass)}>
-      <span className="flex items-center justify-center h-8 w-8 rounded-lg bg-background/70 shadow-sm shrink-0">
+    <div className={cn('flex items-center gap-3 rounded-2xl px-4 py-3 border shadow-sm backdrop-blur-sm', bgClass)}>
+      <span className="flex items-center justify-center h-10 w-10 rounded-xl bg-background/80 shadow-sm ring-1 ring-border/60 shrink-0">
         <Icon className={cn('h-4 w-4', colorClass)} />
       </span>
       <div className="min-w-0">
-        <p className={cn('text-lg font-bold leading-none', colorClass)}>{count}</p>
-        <p className="text-[11px] text-muted-foreground font-medium mt-0.5 truncate">{label}</p>
+        <p className={cn('text-xl font-bold leading-none tracking-tight', colorClass)}>{count}</p>
+        <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold mt-1 truncate">{label}</p>
       </div>
     </div>
   );
@@ -51,67 +55,67 @@ function TreeNode({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const hasChildren = !!children;
+  const depthIndent = depth * 22;
 
   return (
     <div className="relative">
-      {/* Vertical connector line for depth > 0 */}
       {depth > 0 && (
         <span
-          className="absolute left-0 top-0 bottom-0 w-px bg-border/60"
-          style={{ left: `${(depth - 1) * 20 + 10}px` }}
+          className="absolute top-0 bottom-0 w-px bg-gradient-to-b from-border/80 via-border/40 to-transparent"
+          style={{ left: `${Math.max(depthIndent - 12, 10)}px` }}
         />
       )}
 
       <div
         className={cn(
-          'flex items-center gap-2.5 rounded-lg px-3 py-2 group transition-colors',
-          hasChildren ? 'cursor-pointer hover:bg-muted/50' : 'hover:bg-muted/30',
+          'group flex items-center gap-2.5 rounded-xl border px-3 py-2.5 shadow-sm transition-all duration-200',
+          hasChildren ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : 'hover:shadow-md',
           bgClass,
         )}
-        style={{ marginLeft: `${depth * 20}px` }}
+        style={{ marginLeft: `${depthIndent}px` }}
         onClick={() => hasChildren && setOpen(o => !o)}
       >
-        {/* Expand toggle */}
         {hasChildren ? (
           open
-            ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" />
+            : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" />
         ) : (
           <span className="w-3.5 shrink-0" />
         )}
 
-        {/* Icon */}
-        <span className={cn('flex items-center justify-center h-6 w-6 rounded-md border shrink-0', borderClass, bgClass)}>
+        <span className={cn('flex items-center justify-center h-7 w-7 rounded-lg border shrink-0 ring-1 ring-inset', borderClass, bgClass)}>
           <Icon className={cn('h-3.5 w-3.5', colorClass)} />
         </span>
 
-        {/* Name + code */}
-        <span className="flex-1 min-w-0 flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground truncate">{name}</span>
+        <span className="flex-1 min-w-0 flex items-center gap-2.5">
+          <span className="text-sm font-semibold text-foreground truncate">{name}</span>
           {code && (
-            <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+            <span className="font-mono text-[10px] text-muted-foreground bg-background/80 border border-border/60 px-1.5 py-0.5 rounded-md shrink-0">
               {code}
             </span>
           )}
         </span>
 
-        {/* Type label (hidden on small screens) */}
-        <span className={cn('hidden sm:block text-[10px] font-semibold uppercase tracking-wide shrink-0', colorClass)}>
+        <span className={cn('hidden md:block text-[10px] font-semibold uppercase tracking-[0.18em] shrink-0', colorClass)}>
           {label}
         </span>
 
-        {/* Status */}
         <Badge
           variant={isActive ? 'default' : 'secondary'}
-          className="text-[10px] px-1.5 py-0 shrink-0"
+          className={cn(
+            'text-[10px] px-2 py-0.5 shrink-0 border',
+            isActive
+              ? 'bg-success/10 text-success border-success/20 hover:bg-success/10'
+              : 'bg-muted text-muted-foreground border-border/70 hover:bg-muted',
+          )}
         >
-          {isActive ? '● Active' : '● Off'}
+          <span className={cn('mr-1 inline-block h-1.5 w-1.5 rounded-full', isActive ? 'bg-success' : 'bg-muted-foreground/60')} />
+          {isActive ? 'Active' : 'Inactive'}
         </Badge>
       </div>
 
-      {/* Children */}
       {hasChildren && open && (
-        <div className="mt-0.5 space-y-0.5">{children}</div>
+        <div className="mt-1.5 space-y-1">{children}</div>
       )}
     </div>
   );
@@ -129,12 +133,13 @@ const HierarchyOverview = () => {
   const [locations,    setLocations]    = useState<Loc[]>([]);
   const [brands,       setBrands]       = useState<Br[]>([]);
   const [loading,      setLoading]      = useState(true);
-  const [allDealers,   setAllDealers]   = useState<{ id: string; name: string }[]>([]);
+  const [allDealers,   setAllDealers]   = useState<DealerRow[]>([]);
   const [filterDealer, setFilterDealer] = useState('');
 
-  const canView = [
-    APP_ROLE.SUPERADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.BRAND_ADMIN, APP_ROLE.SALES_ADMIN,
-  ].includes(role as any);
+  const currentRole = role as AppRole | null;
+  const canView = currentRole
+    ? [APP_ROLE.SUPERADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.BRAND_ADMIN, APP_ROLE.SALES_ADMIN].includes(currentRole)
+    : false;
 
   useEffect(() => {
     if (!canView) { setLoading(false); return; }
@@ -147,17 +152,17 @@ const HierarchyOverview = () => {
           listBusinessUnits().catch(() => []),
           listSalesOffices().catch(() => []),
           listPlants().catch(() => []),
-          apiDbQuery<any[]>({
+          apiDbQuery<LocationRow[]>({
             table: 'locations', action: 'select',
             select: 'id, name, city, is_active, businessUnitId, dealer_id',
             order: [{ field: 'name', ascending: true }],
           }).catch(() => []),
-          apiDbQuery<any[]>({
+          apiDbQuery<BrandRow[]>({
             table: 'brands', action: 'select',
             select: 'id, name, code, is_active, dealer_id',
             order: [{ field: 'name', ascending: true }],
           }).catch(() => []),
-          apiDbQuery<any[]>({
+          apiDbQuery<DealerRow[]>({
             table: 'dealers', action: 'select',
             select: 'id, name',
             order: [{ field: 'name', ascending: true }],
@@ -168,19 +173,19 @@ const HierarchyOverview = () => {
         setPlants(pl ?? []);
         setLocations(locs ?? []);
         setBrands(brs ?? []);
-        setAllDealers((dealers ?? []).map((d: any) => ({ id: d.id, name: d.name })));
+        setAllDealers(dealers ?? []);
       } else {
         const [bu, so, pl, locs, brs] = await Promise.all([
           listBusinessUnits(dealerId!).catch(() => []),
           listSalesOffices({ orgId: dealerId! }).catch(() => []),
           listPlants({ orgId: dealerId! }).catch(() => []),
-          apiDbQuery<any[]>({
+          apiDbQuery<LocationRow[]>({
             table: 'locations', action: 'select',
             select: 'id, name, city, is_active, businessUnitId',
             filters: [{ field: 'dealer_id', op: 'eq', value: dealerId }],
             order: [{ field: 'name', ascending: true }],
           }).catch(() => []),
-          apiDbQuery<any[]>({
+          apiDbQuery<BrandRow[]>({
             table: 'brands', action: 'select',
             select: 'id, name, code, is_active',
             filters: [{ field: 'dealer_id', op: 'eq', value: dealerId }],
@@ -202,11 +207,11 @@ const HierarchyOverview = () => {
 
   // For superadmin: scope tree data by selected dealer filter
   const scopedDealerId = isSuperAdmin ? filterDealer : dealerId;
-  const scopedBUs        = scopedDealerId ? busUnits.filter((b: any) => b.orgId === scopedDealerId) : busUnits;
-  const scopedSOs        = scopedDealerId ? salesOffices.filter((s: any) => s.orgId === scopedDealerId) : salesOffices;
-  const scopedPlants     = scopedDealerId ? plants.filter((p: any) => p.orgId === scopedDealerId) : plants;
-  const scopedLocations  = scopedDealerId ? locations.filter((l: any) => (l as any).dealer_id === scopedDealerId) : locations;
-  const scopedBrands     = scopedDealerId ? brands.filter((b: any) => (b as any).dealer_id === scopedDealerId) : brands;
+  const scopedBUs       = scopedDealerId ? busUnits.filter((b) => b.orgId === scopedDealerId) : busUnits;
+  const scopedSOs       = scopedDealerId ? salesOffices.filter((s) => s.orgId === scopedDealerId) : salesOffices;
+  const scopedPlants    = scopedDealerId ? plants.filter((p) => p.orgId === scopedDealerId) : plants;
+  const scopedLocations = scopedDealerId ? locations.filter((l) => l.dealer_id === scopedDealerId) : locations;
+  const scopedBrands    = scopedDealerId ? brands.filter((b) => b.dealer_id === scopedDealerId) : brands;
 
   const displayName = isSuperAdmin
     ? (filterDealer ? (allDealers.find(d => d.id === filterDealer)?.name ?? 'All Dealers') : 'All Dealers')
@@ -214,23 +219,41 @@ const HierarchyOverview = () => {
 
   const isEmpty = scopedBUs.length === 0 && scopedLocations.length === 0 && scopedBrands.length === 0;
 
+  const summaryCards = [
+    { icon: Building2, label: 'Business Units', value: scopedBUs.length, tone: 'violet' },
+    { icon: Briefcase, label: 'Sales Offices', value: scopedSOs.length, tone: 'emerald' },
+    { icon: Factory, label: 'Plants', value: scopedPlants.length, tone: 'amber' },
+    { icon: MapPin, label: 'Locations', value: scopedLocations.length, tone: 'rose' },
+    { icon: Tag, label: 'Brands', value: scopedBrands.length, tone: 'pink' },
+  ] as const;
+
   return (
-    <div className="rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 bg-muted/30">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center justify-center h-9 w-9 rounded-xl bg-primary/10">
-            <LayoutGrid className="h-5 w-5 text-primary" />
+    <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card shadow-[0_16px_50px_rgba(15,23,42,0.08)]">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-cyan-500 to-emerald-500" />
+      <div className="pointer-events-none absolute -right-20 top-0 h-40 w-40 rounded-full bg-primary/5 blur-3xl" />
+      <div className="pointer-events-none absolute -left-24 bottom-0 h-44 w-44 rounded-full bg-emerald-500/5 blur-3xl" />
+
+      <div className="flex items-start justify-between gap-4 border-b border-border/60 bg-gradient-to-b from-muted/50 to-background/20 px-5 py-5 sm:px-6">
+        <div className="min-w-0 flex items-start gap-3.5">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/15">
+            <Layers3 className="h-5 w-5 text-primary" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-foreground font-heading">Entity Hierarchy</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{displayName}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-foreground font-heading tracking-wide">Entity Hierarchy</h2>
+              <span className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
+                <Sparkles className="h-3 w-3" /> Structured view
+              </span>
+            </div>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+              {displayName} organization structure across business units, sales offices, plants, locations, and brands.
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {isSuperAdmin && (
             <select
-              className="h-7 px-2 border border-input rounded-md text-xs bg-background"
+              className="h-9 rounded-xl border border-input bg-background px-3 text-xs shadow-sm outline-none ring-0 transition focus:border-primary/40"
               value={filterDealer}
               onChange={e => setFilterDealer(e.target.value)}
             >
@@ -239,63 +262,76 @@ const HierarchyOverview = () => {
             </select>
           )}
           <Link to="/settings?tab=hierarchy">
-            <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs">
-              <Settings className="h-3 w-3" /> Configure
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-xl border-border/70 px-3 text-xs shadow-sm">
+              <Settings className="h-3.5 w-3.5" /> Configure
             </Button>
           </Link>
         </div>
       </div>
 
-      <div className="p-5 space-y-5">
-        {/* Stat pills */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <StatPill icon={Building2} label="Business Units"  count={scopedBUs.length}        colorClass="text-violet-600 dark:text-violet-400" bgClass="bg-violet-50/60 dark:bg-violet-950/30 border-violet-200 dark:border-violet-800" />
-          <StatPill icon={Briefcase} label="Sales Offices"   count={scopedSOs.length}        colorClass="text-emerald-600 dark:text-emerald-400" bgClass="bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800" />
-          <StatPill icon={Factory}   label="Plants"          count={scopedPlants.length}     colorClass="text-orange-600 dark:text-orange-400" bgClass="bg-orange-50/60 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800" />
-          <StatPill icon={MapPin}    label="Locations"       count={scopedLocations.length}  colorClass="text-rose-600 dark:text-rose-400"   bgClass="bg-rose-50/60 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800" />
-          <StatPill icon={Tag}       label="Brands"          count={scopedBrands.length}     colorClass="text-pink-600 dark:text-pink-400"   bgClass="bg-pink-50/60 dark:bg-pink-950/30 border-pink-200 dark:border-pink-800" />
+      <div className="space-y-6 p-5 sm:p-6">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+          {summaryCards.map(({ icon, label, value, tone }) => {
+            const toneClasses = {
+              violet: 'text-violet-600 dark:text-violet-400 bg-violet-50/80 dark:bg-violet-950/30 border-violet-200/80 dark:border-violet-800/60',
+              emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200/80 dark:border-emerald-800/60',
+              amber: 'text-orange-600 dark:text-orange-400 bg-orange-50/80 dark:bg-orange-950/30 border-orange-200/80 dark:border-orange-800/60',
+              rose: 'text-rose-600 dark:text-rose-400 bg-rose-50/80 dark:bg-rose-950/30 border-rose-200/80 dark:border-rose-800/60',
+              pink: 'text-pink-600 dark:text-pink-400 bg-pink-50/80 dark:bg-pink-950/30 border-pink-200/80 dark:border-pink-800/60',
+            } as const;
+
+            const [colorClass, ...bgParts] = toneClasses[tone].split(' ');
+
+            return (
+              <StatPill
+                key={label}
+                icon={icon}
+                label={label}
+                count={value}
+                colorClass={colorClass}
+                bgClass={bgParts.join(' ')}
+              />
+            );
+          })}
         </div>
 
-        {/* Tree */}
         {loading ? (
-          <div className="space-y-2">
+          <div className="space-y-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4">
             {[1, 2, 3, 4].map(i => (
               <div
                 key={i}
-                className="h-10 rounded-lg bg-muted animate-pulse"
-                style={{ marginLeft: `${(i % 3) * 20}px`, opacity: 1 - i * 0.15 }}
+                className="h-11 rounded-xl bg-muted/80 animate-pulse"
+                style={{ marginLeft: `${(i % 3) * 22}px`, opacity: 1 - i * 0.12 }}
               />
             ))}
           </div>
         ) : isEmpty ? (
-          <div className="flex flex-col items-center justify-center py-10 gap-3 border border-dashed rounded-xl text-center">
-            <span className="flex items-center justify-center h-12 w-12 rounded-full bg-muted">
-              <TrendingUp className="h-6 w-6 text-muted-foreground/50" />
+          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 px-6 py-12 text-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-background shadow-sm ring-1 ring-border/60">
+              <Workflow className="h-7 w-7 text-muted-foreground/60" />
             </span>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">No hierarchy set up yet</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-sm font-semibold text-foreground">No hierarchy set up yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Go to <strong>Settings → Entity Hierarchy</strong> to add Business Units, Sales Offices &amp; Plants.
               </p>
             </div>
             <Link to="/settings?tab=hierarchy">
-              <Button size="sm" variant="outline" className="gap-1.5 mt-1">
+              <Button size="sm" variant="outline" className="mt-1 h-9 gap-1.5 rounded-xl border-border/70 px-4 shadow-sm">
                 <Settings className="h-3.5 w-3.5" /> Set up now
               </Button>
             </Link>
           </div>
         ) : (
-          <div className="space-y-1">
-            {/* Organization root node */}
+          <div className="space-y-3 rounded-2xl border border-border/70 bg-gradient-to-b from-background to-muted/10 p-3 sm:p-4">
             <TreeNode
               icon={Building2} label="Organization"
               name={displayName} isActive
-              colorClass="text-blue-600 dark:text-blue-400"
-              bgClass="bg-blue-50/60 dark:bg-blue-950/20"
-              borderClass="border-blue-200 dark:border-blue-800"
+              colorClass="text-primary"
+              bgClass="bg-primary/5 dark:bg-primary/10"
+              borderClass="border-primary/15"
               depth={0} defaultOpen
             >
-              {/* Business Units */}
               {scopedBUs.map(bu => {
                 const buSOs = scopedSOs.filter(so => so.businessUnitId === bu.id);
                 const buLocs = scopedLocations.filter(l => l.businessUnitId === bu.id);
@@ -306,11 +342,10 @@ const HierarchyOverview = () => {
                     icon={Building2} label="Business Unit"
                     name={bu.name} code={bu.code} isActive={bu.isActive}
                     colorClass="text-violet-600 dark:text-violet-400"
-                    bgClass="bg-violet-50/40 dark:bg-violet-950/10"
-                    borderClass="border-violet-200 dark:border-violet-800"
+                    bgClass="bg-violet-50/70 dark:bg-violet-950/20"
+                    borderClass="border-violet-200/80 dark:border-violet-800/70"
                     depth={1} defaultOpen
                   >
-                    {/* Sales Offices under this BU */}
                     {buSOs.map(so => {
                       const soPlants = scopedPlants.filter(p => p.salesOfficeId === so.id);
                       return (
@@ -319,8 +354,8 @@ const HierarchyOverview = () => {
                           icon={Briefcase} label="Sales Office"
                           name={so.name} code={so.salesOfficeCode} isActive={so.isActive}
                           colorClass="text-emerald-600 dark:text-emerald-400"
-                          bgClass="bg-emerald-50/40 dark:bg-emerald-950/10"
-                          borderClass="border-emerald-200 dark:border-emerald-800"
+                          bgClass="bg-emerald-50/70 dark:bg-emerald-950/20"
+                          borderClass="border-emerald-200/80 dark:border-emerald-800/70"
                           depth={2} defaultOpen
                         >
                           {soPlants.map(pl => (
@@ -329,8 +364,8 @@ const HierarchyOverview = () => {
                               icon={Factory} label="Plant"
                               name={pl.name} code={pl.plantCode} isActive={pl.isActive}
                               colorClass="text-orange-600 dark:text-orange-400"
-                              bgClass="bg-orange-50/40 dark:bg-orange-950/10"
-                              borderClass="border-orange-200 dark:border-orange-800"
+                              bgClass="bg-orange-50/70 dark:bg-orange-950/20"
+                              borderClass="border-orange-200/80 dark:border-orange-800/70"
                               depth={3} defaultOpen={false}
                             />
                           ))}
@@ -338,7 +373,6 @@ const HierarchyOverview = () => {
                       );
                     })}
 
-                    {/* Locations under this BU */}
                     {buLocs.map(loc => (
                       <TreeNode
                         key={loc.id}
@@ -346,8 +380,8 @@ const HierarchyOverview = () => {
                         name={loc.city ? `${loc.name} · ${loc.city}` : loc.name}
                         isActive={loc.is_active}
                         colorClass="text-rose-600 dark:text-rose-400"
-                        bgClass="bg-rose-50/40 dark:bg-rose-950/10"
-                        borderClass="border-rose-200 dark:border-rose-800"
+                        bgClass="bg-rose-50/70 dark:bg-rose-950/20"
+                        borderClass="border-rose-200/80 dark:border-rose-800/70"
                         depth={2}
                       />
                     ))}
@@ -355,21 +389,19 @@ const HierarchyOverview = () => {
                 );
               })}
 
-              {/* Locations not linked to any BU */}
-              {scopedLocations.filter(l => !l.businessUnitId).map(loc => (
+              {scopedLocations.filter((l) => !l.businessUnitId).map(loc => (
                 <TreeNode
                   key={loc.id}
                   icon={MapPin} label="Location"
                   name={loc.city ? `${loc.name} · ${loc.city}` : loc.name}
                   isActive={loc.is_active}
                   colorClass="text-rose-600 dark:text-rose-400"
-                  bgClass="bg-rose-50/40 dark:bg-rose-950/10"
-                  borderClass="border-rose-200 dark:border-rose-800"
+                  bgClass="bg-rose-50/70 dark:bg-rose-950/20"
+                  borderClass="border-rose-200/80 dark:border-rose-800/70"
                   depth={1}
                 />
               ))}
 
-              {/* Brands */}
               {scopedBrands.map(b => (
                 <TreeNode
                   key={b.id}
@@ -377,8 +409,8 @@ const HierarchyOverview = () => {
                   name={b.name} code={b.code ?? undefined}
                   isActive={b.is_active}
                   colorClass="text-pink-600 dark:text-pink-400"
-                  bgClass="bg-pink-50/40 dark:bg-pink-950/10"
-                  borderClass="border-pink-200 dark:border-pink-800"
+                  bgClass="bg-pink-50/70 dark:bg-pink-950/20"
+                  borderClass="border-pink-200/80 dark:border-pink-800/70"
                   depth={1}
                 />
               ))}

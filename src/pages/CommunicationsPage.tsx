@@ -3,18 +3,16 @@ import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useDealerContext } from '@/hooks/useDealerContext';
 import { MessageSquare, User, Clock, Send, Mail, Phone } from 'lucide-react';
 import { apiGet } from '@/lib/apiClient';
 
 const CommunicationsPage = () => {
   const [communications, setCommunications] = useState<any[]>([]);
   const [typeFilter, setTypeFilter] = useState('all');
-  const { dealerLocationIds, loading: dealerLoading } = useDealerContext();
 
   useEffect(() => {
-    if (!dealerLoading) fetchCommunications();
-  }, [typeFilter, dealerLocationIds, dealerLoading]);
+    fetchCommunications();
+  }, [typeFilter]);
 
   const fetchCommunications = async () => {
     try {
@@ -41,20 +39,11 @@ const CommunicationsPage = () => {
       const customerMap = new Map((customers || []).map((c: any) => [c.id, c]));
       const testDriveMap = new Map((testDrives || []).map((td: any) => [td.id, td]));
 
-      let enriched = (baseComms || []).map((c: any) => ({
+      const enriched = (baseComms || []).map((c: any) => ({
         ...c,
         customers: c.customer_id ? customerMap.get(c.customer_id) || null : null,
         test_drives: c.test_drive_id ? testDriveMap.get(c.test_drive_id) || null : null,
       }));
-
-      if (dealerLocationIds && dealerLocationIds.length > 0) {
-        enriched = enriched.filter((c: any) => {
-          if (c.test_drive_id && c.test_drives?.location_id) {
-            return dealerLocationIds.includes(c.test_drives.location_id);
-          }
-          return !c.test_drive_id;
-        });
-      }
       setCommunications(enriched);
     } catch {
       setCommunications([]);

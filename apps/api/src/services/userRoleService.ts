@@ -16,6 +16,13 @@ export async function getRoleByUserId(userId: string) {
 export async function listUserRoles(filters: Record<string, unknown> = {}) {
   const q: Record<string, unknown> = {};
   if (filters.role) q.role = filters.role;
+  if (filters.user_ids) {
+    const rawIds = Array.isArray(filters.user_ids)
+      ? filters.user_ids
+      : String(filters.user_ids).split(',');
+    const userIds = rawIds.map((id) => String(id).trim()).filter(Boolean);
+    if (userIds.length > 0) q.user_id = { $in: userIds };
+  }
   const docs = await UserRole.find(q).lean();
   return docs.map((d) => { const o = { ...d } as any; delete o._id; return o; });
 }

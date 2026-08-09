@@ -52,15 +52,37 @@ async function getCallerRole(userId: string): Promise<string | null> {
   return roleRow?.role ? String(roleRow.role) : null;
 }
 
+function getProfileLocationIds(profile: any): string[] {
+  const ids = new Set<string>();
+  if (profile?.location_id) ids.add(String(profile.location_id));
+  if (Array.isArray(profile?.location_ids)) {
+    profile.location_ids
+      .map((id: unknown) => String(id || '').trim())
+      .filter(Boolean)
+      .forEach((id: string) => ids.add(id));
+  }
+  return Array.from(ids);
+}
+
+async function resolveDealerIdFromProfile(profile: any): Promise<string | null> {
+  const locationIds = getProfileLocationIds(profile);
+  if (locationIds.length === 0) return null;
+
+  const locations = await Location.find({ id: { $in: locationIds } }).lean();
+  const dealerIds = Array.from(
+    new Set(locations.map((location: any) => String(location?.dealer_id || '')).filter(Boolean)),
+  );
+
+  // Staff profiles should map to one dealership; if data is mixed, use first non-empty dealer id.
+  return dealerIds[0] || null;
+}
+
 async function resolveDealerIdForUser(userId: string): Promise<string | null> {
   const dealerByAdmin = await Dealer.findOne({ admin_user_id: userId }).lean();
   if (dealerByAdmin?.id) return String(dealerByAdmin.id);
 
   const profile = await Profile.findOne({ user_id: userId }).lean();
-  if (!profile?.location_id) return null;
-
-  const location = await Location.findOne({ id: profile.location_id }).lean();
-  return location?.dealer_id ? String(location.dealer_id) : null;
+  return resolveDealerIdFromProfile(profile);
 }
 
 async function createStaffUser(payload: Record<string, unknown>, callerUserId?: string) {
@@ -200,10 +222,7 @@ async function resolveDealerIdForTargetUser(targetUserId: string): Promise<strin
   if (directDealer?.id) return String(directDealer.id);
 
   const profile = await Profile.findOne({ user_id: targetUserId }).lean();
-  if (!profile?.location_id) return null;
-
-  const location = await Location.findOne({ id: profile.location_id }).lean();
-  return location?.dealer_id ? String(location.dealer_id) : null;
+  return resolveDealerIdFromProfile(profile);
 }
 
 async function canAccessTargetUser(callerUserId: string, targetUserId: string) {

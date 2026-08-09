@@ -209,12 +209,22 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
   const selectedVehicle = [...vehicles, ...sharedVehicles].find(v => v.id === formData.vehicleId);
   const selectedLocation = locations.find(l => l.id === formData.locationId);
   const selectedLocationStatus = formData.locationId ? locationStatus[formData.locationId] : null;
-  const filteredVehicles = useMemo(() => vehicles.filter(v => v.is_demo && v.total_units > 0 && v.available_units > 0), [vehicles]);
+  const filteredVehicles = useMemo(() => vehicles.filter(v => v.is_demo && v.total_units > 0), [vehicles]);
   const filteredSharedVehicles = useMemo(() => {
     const localIds = new Set(filteredVehicles.map(v => v.id));
-    return sharedVehicles.filter(v => v.is_demo && v.total_units > 0 && v.available_units > 0 && !localIds.has(v.id));
+    return sharedVehicles.filter(v => v.is_demo && v.total_units > 0 && !localIds.has(v.id));
   }, [sharedVehicles, filteredVehicles]);
   const isBookingToday = formData.scheduledDate === todayStr;
+  const getVehicleAvailabilityLabel = (vehicle: any) => {
+    const availableUnits = Number(vehicle?.available_units ?? 0);
+    const totalUnits = Number(vehicle?.total_units ?? 0);
+    if (availableUnits > 0) {
+      return `${availableUnits}/${totalUnits || availableUnits} avail`;
+    }
+    return 'Booked';
+  };
+  const selectedVehicleAvailableUnits = Number(selectedVehicle?.available_units ?? 0);
+  const selectedVehicleIsFree = selectedVehicleAvailableUnits > 0;
 
   const canProceedFromCustomer = (() => {
     if (!(formData.fullName && formData.phone && formData.vehicleId && formData.locationId)) return false;
@@ -463,9 +473,8 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
 
             <div className="space-y-2">
               <Label>Demo Vehicle <span className="text-destructive">*</span></Label>
-              {(filteredVehicles.length > 0 || filteredSharedVehicles.length > 0) ? (
+              {formData.locationId && formData.scheduledDate ? (
                 <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto">
-                  {/* Local vehicles */}
                   {filteredVehicles.length > 0 && (
                     <>
                       {filteredSharedVehicles.length > 0 && (
@@ -473,8 +482,14 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
                       )}
                       {filteredVehicles.map((v) => (
                         <div key={v.id} onClick={() => setFormData(p => ({ ...p, vehicleId: v.id }))}
-                          className={`p-3 rounded-lg border cursor-pointer transition-all ${formData.vehicleId === v.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:border-primary/50 hover:bg-muted/50'}`}>
-                          <div className="flex items-center justify-between">
+                          className={`relative p-3 rounded-lg border cursor-pointer transition-all ${formData.vehicleId === v.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:border-primary/50 hover:bg-muted/50'}`}>
+                          <Badge
+                            variant="secondary"
+                            className={`absolute top-2 left-2 text-[9px] px-1.5 py-0.5 ${Number(v.available_units ?? 0) > 0 ? 'bg-success/10 text-success border-success/20' : 'bg-destructive/10 text-destructive border-destructive/20'}`}
+                          >
+                            {getVehicleAvailabilityLabel(v)}
+                          </Badge>
+                          <div className="flex items-center justify-between pt-4">
                             <div>
                               <p className="font-medium text-foreground text-sm">{v.brand} {v.model}</p>
                               <p className="text-xs text-muted-foreground">{v.variant && `${v.variant} · `}{v.color && `${v.color} · `}{v.year}</p>
@@ -485,7 +500,6 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
                       ))}
                     </>
                   )}
-                  {/* Shared vehicles from other locations */}
                   {filteredSharedVehicles.length > 0 && (
                     <>
                       <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pt-1 flex items-center gap-1">
@@ -495,8 +509,14 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
                         const isAtLocation = v.vehicle_state === 'at_location' || v.is_local;
                         return (
                           <div key={v.id} onClick={() => setFormData(p => ({ ...p, vehicleId: v.id }))}
-                            className={`p-3 rounded-lg border cursor-pointer transition-all ${formData.vehicleId === v.id ? 'border-info bg-info/5 ring-1 ring-info' : 'border-info/20 bg-info/3 hover:border-info/50 hover:bg-info/8'}`}>
-                            <div className="flex items-start justify-between gap-2">
+                            className={`relative p-3 rounded-lg border cursor-pointer transition-all ${formData.vehicleId === v.id ? 'border-info bg-info/5 ring-1 ring-info' : 'border-info/20 bg-info/3 hover:border-info/50 hover:bg-info/8'}`}>
+                            <Badge
+                              variant="secondary"
+                              className={`absolute top-2 left-2 text-[9px] px-1.5 py-0.5 ${Number(v.available_units ?? 0) > 0 ? 'bg-success/10 text-success border-success/20' : 'bg-destructive/10 text-destructive border-destructive/20'}`}
+                            >
+                              {getVehicleAvailabilityLabel(v)}
+                            </Badge>
+                            <div className="flex items-start justify-between gap-2 pt-4">
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   <p className="font-medium text-foreground text-sm">{v.brand} {v.model}</p>
@@ -538,13 +558,21 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
                       })}
                     </>
                   )}
+                  {filteredVehicles.length === 0 && filteredSharedVehicles.length === 0 && (
+                    <p className="text-sm text-muted-foreground py-3 text-center border border-dashed border-border rounded-lg">
+                      No demo vehicles available at this location
+                    </p>
+                  )}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground py-3 text-center">
-                  {formData.locationId && formData.scheduledDate
-                    ? 'No vehicles available for selected date/location'
-                    : 'Select a location and date to load vehicles'}
+                  Select a location and date to load vehicles
                 </p>
+              )}
+              {selectedVehicle && !selectedVehicleIsFree && (
+                <div className="rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+                  This demo car is not free right now. You can still create the booking here, and it will be released after the current customer finishes.
+                </div>
               )}
             </div>
 

@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import * as userRoleService from '../services/userRoleService.js';
+import * as profileService from '../services/profileService.js';
 import { sendMail } from '../services/mailService.js';
 import type { AppRole } from '../models/UserRole.js';
+import { applyLocationScope } from '../middleware/locationFilter.js';
 
 const ROLE_LABELS: Record<string, string> = {
   superadmin: 'Super Admin',
@@ -21,7 +23,45 @@ export async function getRoleController(req: Request, res: Response) {
 }
 
 export async function listRolesController(req: Request, res: Response) {
-  const data = await userRoleService.listUserRoles(req.query as Record<string, unknown>);
+  const role = req.authUser?.role;
+  const isSuperAdmin = role === 'superadmin' || role === 'super_admin';
+  const filters = { ...(req.query as Record<string, unknown>) };
+
+  if (!isSuperAdmin) {
+    const profileFilters: Record<string, unknown> = {};
+    applyLocationScope(req, profileFilters);
+
+    if (Array.isArray(req.authUser?.brand_ids) && req.authUser.brand_ids.length > 0) {
+      profileFilters.brand_ids = req.authUser.brand_ids;
+    }
+
+    const scopedProfiles = await profileService.listProfiles(profileFilters);
+    const scopedUserIds = scopedProfiles
+      .map((profile: any) => profile.user_id)
+      .filter(Boolean);
+
+    if (scopedUserIds.length === 0) {
+      res.json({ data: [] });
+      return;
+    }
+
+    if (filters.user_ids) {
+      const requestedUserIds = String(filters.user_ids)
+        .split(',')
+        .map((userId) => userId.trim())
+        .filter(Boolean);
+      const allowed = new Set(scopedUserIds.map(String));
+      filters.user_ids = requestedUserIds.filter((userId) => allowed.has(userId));
+      if ((filters.user_ids as string[]).length === 0) {
+        res.json({ data: [] });
+        return;
+      }
+    } else {
+      filters.user_ids = scopedUserIds;
+    }
+  }
+
+  const data = await userRoleService.listUserRoles(filters);
   res.json({ data });
 }
 

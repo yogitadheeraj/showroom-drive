@@ -52,7 +52,7 @@ const DEALER_SCOPED_TABLES = new Set(['locations']);
 
 /** Staff roles that are restricted to their single assigned location. */
 const LOCATION_SCOPED_ROLES = new Set([
-  'gro', 'sales', 'sales_admin', 'branch_admin', 'security',
+  'gro', 'sales', 'sales_admin', 'branch_admin', 'security', 'brand_admin',
 ]);
 
 /**
@@ -66,27 +66,6 @@ export function enforceScope(body: ParsedQuery, req: Request): void {
   if (!role) return;
 
   const existing = body.filters ?? [];
-
-  if (LOCATION_SCOPED_ROLES.has(role)) {
-    const locationId = req.authUser?.location_id;
-    if (!locationId) return;
-
-    if (LOCATION_SCOPED_TABLES.has(body.table)) {
-      const scoped: FilterEntry[] = [
-        ...existing.filter((f) => f.field !== 'location_id'),
-        { field: 'location_id', op: 'eq', value: locationId },
-      ];
-      (body as any).filters = scoped;
-    } else if (DEALER_SCOPED_TABLES.has(body.table)) {
-      // For locations table: scope to just their own location row
-      const scoped: FilterEntry[] = [
-        ...existing.filter((f) => f.field !== 'id'),
-        { field: 'id', op: 'eq', value: locationId },
-      ];
-      (body as any).filters = scoped;
-    }
-    return;
-  }
 
   if (role === 'dealer_admin') {
     const dealerLocationIds = req.authUser?.dealer_location_ids;

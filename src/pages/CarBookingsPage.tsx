@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiGet, apiPatch } from '@/lib/apiClient';
 import { useAuth } from '@/hooks/useAuth';
-import { useDealerContext } from '@/hooks/useDealerContext';
 import { APP_ROLE } from '@/constants/roles';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,7 +33,6 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
 
 export default function CarBookingsPage() {
   const { user, profile, role } = useAuth();
-  const { dealerLocationIds } = useDealerContext();
   const { toast } = useToast();
 
   const [bookings, setBookings] = useState<any[]>([]);
@@ -55,7 +53,7 @@ export default function CarBookingsPage() {
   const canManage = role === APP_ROLE.DEALER_ADMIN || role === APP_ROLE.SALES_ADMIN || role === APP_ROLE.SUPERADMIN;
   const isSales = role === APP_ROLE.SALES;
 
-  useEffect(() => { fetchBookings(); }, [dealerLocationIds, role, profile?.id]);
+  useEffect(() => { fetchBookings(); }, [role, profile?.id]);
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -63,8 +61,6 @@ export default function CarBookingsPage() {
       const params = new URLSearchParams();
       if (isSales && profile?.id) {
         params.set('sales_person_profile_id', profile.id);
-      } else if (dealerLocationIds?.length) {
-        params.set('location_ids', dealerLocationIds.join(','));
       }
 
       const rows = await apiGet<any[]>(`/api/car-bookings?${params.toString()}`);
