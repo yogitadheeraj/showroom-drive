@@ -16,6 +16,7 @@ import showcaseAdminDashboard from '@/assets/showcase-admin-dashboard.jpg';
 import { fetchDealerGrowthStats } from '@/lib/landingPageStats';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
 import showcaseGroAssign from '@/assets/showcase-gro-assign.jpg';
+import SeoMeta from '@/components/SeoMeta';
 const fadeUp: Variants = {
     hidden: { opacity: 0, y: 30 },
     visible: (i: number) => ({
@@ -295,8 +296,47 @@ export default function AutoAdvantLandingPage() {
         ],
     };
 
+        const homeTitle = 'AutoAdvant - Automotive Dealership CRM & Test Drive Management Platform';
+        const homeDescription =
+            'AutoAdvant helps automotive dealerships manage leads, schedule test drives, optimize showroom operations, and improve conversions with real-time dashboards and automation.';
+        const homeCanonicalUrl = 'https://www.autoadvant.com/';
+        const homeOgImage = 'https://www.autoadvant.com/images/autoadvant-logo.png';
+
+        const homeSchema = [
+            {
+                '@context': 'https://schema.org',
+                '@type': 'Organization',
+                name: 'AutoAdvant',
+                url: homeCanonicalUrl,
+                logo: homeOgImage,
+            },
+            {
+                '@context': 'https://schema.org',
+                '@type': 'WebSite',
+                name: 'AutoAdvant',
+                url: homeCanonicalUrl,
+            },
+            {
+                '@context': 'https://schema.org',
+                '@type': 'SoftwareApplication',
+                name: 'AutoAdvant',
+                applicationCategory: 'BusinessApplication',
+                operatingSystem: 'Web',
+                url: homeCanonicalUrl,
+                description: homeDescription,
+            },
+        ];
+
     return (
         <div className="min-h-screen bg-background text-foreground dark:text-white">
+                        <SeoMeta
+                            title={homeTitle}
+                            description={homeDescription}
+                            canonicalUrl={homeCanonicalUrl}
+                            ogImageUrl={homeOgImage}
+                            ogType="website"
+                            jsonLd={homeSchema}
+                        />
             <SiteHeader variant="landing" dealerName={brand.dealerName} dealerLogoUrl={brand.dealerLogoUrl} />
 
             <main className={`landing-main bg-background text-foreground${resolvedTheme === 'dark' ? ' dark' : ''}`}>
@@ -1019,21 +1059,24 @@ export default function AutoAdvantLandingPage() {
                 </section>
             </main>
             {/* Footer */}
-            <footer className="bg-background/80 backdrop-blur border-t border-border dark:bg-slate-950/80 dark:border-white/10">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center gap-4 sm:gap-6 md:flex-row md:justify-between">
-                    <a href="/" >
-
-                        <div className="flex items-center justify-center py-1">
-                            <img src="/images/autoadvant-logo.png" alt="Logo" className="h-[50px] w-full" />
+            <footer className="border-t border-border bg-background/90 backdrop-blur dark:border-white/10 dark:bg-slate-950/90">
+                <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 md:grid-cols-[auto,1fr,auto] md:items-center">
+                    <a href="/" className="mx-auto md:mx-0">
+                        <div className="flex items-center justify-center md:justify-start">
+                            <img src="/images/autoadvant-logo.png" alt="AutoAdvant logo" className="h-11 w-auto" />
                         </div>
                     </a>
 
-                    <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-                        <Link to="/dealer-onboarding" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Entity Onboarding</Link>
-                        <Link to="/compare" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
-                        <Link to={staffEntryPath} className="text-sm text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
+                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:gap-x-5">
+                        <Link to="/dealer-onboarding" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Entity Onboarding</Link>
+                        <Link to="/compare" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
+                        <Link to={staffEntryPath} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
+                        <a href="/privacy-policy.html" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</a>
+                        <a href="/terms-and-conditions.html" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Terms & Conditions</a>
+                        <a href="/sitemap.html" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Sitemap</a>
                     </div>
-                    <p className="text-xs sm:text-sm text-muted-foreground text-center">© {new Date().getFullYear()} AutoAdvant — Smart Test Drive & Lead Platform</p>
+
+                    <p className="text-center text-xs text-muted-foreground md:text-right">© {new Date().getFullYear()} AutoAdvant</p>
                 </div>
             </footer>
             <EnquiryWidget />

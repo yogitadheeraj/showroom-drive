@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -38,8 +39,20 @@ import MyProfilePage from "./pages/MyProfilePage.tsx";
 import { ROUTE_ALLOWED_ROLES } from "@/constants/roles";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { WhitelabelProvider } from "@/hooks/useWhitelabel";
+import { trackPageView } from "@/lib/analytics";
 
 const queryClient = new QueryClient();
+
+const RouteAnalyticsTracker = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    const path = `${location.pathname}${location.search || ''}`;
+    trackPageView(path, document.title);
+  }, [location.pathname, location.search]);
+
+  return null;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -50,6 +63,7 @@ const App = () => (
       <Sonner />
       <PWAInstallPrompt />
       <BrowserRouter>
+        <RouteAnalyticsTracker />
         <AuthProvider>
           <DealerContextProvider>
           <Routes>

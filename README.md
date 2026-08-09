@@ -34,9 +34,10 @@ npm run dev:web
 
 1. Copy `.env.example` to `.env`
 2. Fill Firebase web config values for frontend login
-3. Copy `apps/api/.env.example` to `apps/api/.env`
-4. Set `MONGODB_URI`
-5. Add Firebase Admin credentials (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`) in `apps/api/.env`
+3. Optional for analytics: set `VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX` in `.env`
+4. Copy `apps/api/.env.example` to `apps/api/.env`
+5. Set `MONGODB_URI`
+6. Add Firebase Admin credentials (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`) in `apps/api/.env`
 
 ## Conversion Status
 

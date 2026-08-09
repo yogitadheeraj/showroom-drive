@@ -268,7 +268,7 @@ async function dispatchGoogleCalendar(cfg: Record<string, unknown>, p: Integrati
     start: { dateTime: start, timeZone: 'UTC' },
     end: { dateTime: end, timeZone: 'UTC' },
     ...{
-      attendees: [{ email: 'omnitracely@gmail.com', displayName: 'dheeraj varshney' }],
+      attendees: [{ email: 'autoadvantplatform@gmail.com', displayName: 'Auto Advant' }],
       guestsCanSeeOtherGuests: false,
       sendUpdates: 'all',
     }})

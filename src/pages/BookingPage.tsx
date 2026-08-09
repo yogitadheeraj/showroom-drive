@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
 import VehicleSpecCard from '@/components/booking/VehicleSpecCard';
+import SeoMeta from '@/components/SeoMeta';
 import { Car, CheckCircle, Zap, ArrowRight, MapPin, Clock, User, ChevronRight, Shield, GitCompareArrows, Map as MapIcon, ExternalLink, Mail, ShieldCheck, KeyRound, ClipboardCheck, MessageSquare, Building2, Menu, X , ArrowLeft} from 'lucide-react';
 import { z } from 'zod';
 import { format, isBefore, startOfDay } from 'date-fns';
@@ -139,6 +140,11 @@ const BookingPage = () => {
   const [vehicleSegmentFilter, setVehicleSegmentFilter] = useState<'all' | 'four_wheeler' | 'two_wheeler'>('all');
   const [quickLocationPage, setQuickLocationPage] = useState(0);
   const { toast } = useToast();
+
+  const bookingTitle = 'Book a Test Drive | AutoAdvant';
+  const bookingDescription =
+    'Book your dealership test drive online with AutoAdvant. Choose vehicle, location, date, and time in minutes.';
+  const bookingCanonicalUrl = 'https://www.autoadvant.com/book';
 
   // Auto-select vehicle from URL (coming from compare page)
   useEffect(() => {
@@ -716,6 +722,12 @@ const BookingPage = () => {
   if (success) {
     return (
       <div className="min-h-screen bg-background">
+        <SeoMeta
+          title={bookingTitle}
+          description={bookingDescription}
+          canonicalUrl={bookingCanonicalUrl}
+          ogType="website"
+        />
         {renderHomeStyleHeader()}
         <div className="mx-auto max-w-4xl space-y-4 p-4 md:p-6">
           <Card className="w-full shadow-elevated animate-fade-in text-center">
@@ -775,7 +787,13 @@ const BookingPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background">
+      <SeoMeta
+        title={bookingTitle}
+        description={bookingDescription}
+        canonicalUrl={bookingCanonicalUrl}
+        ogType="website"
+      />
       {/* Header */}
       {renderHomeStyleHeader()}
 
@@ -882,6 +900,7 @@ const BookingPage = () => {
                 {modelGroups.ev.length > 0 && (
                   <div>
                     <div className="flex items-center gap-1.5 mb-3">
+         
                       <Zap className="h-4 w-4 text-success" />
                       <span className="text-sm font-semibold text-success">Electric Vehicles</span>
                     </div>

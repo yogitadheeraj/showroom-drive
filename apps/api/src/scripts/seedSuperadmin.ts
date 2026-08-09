@@ -2,7 +2,7 @@
  * Seed script: creates (or updates) a superadmin UserRole + Profile for a given email.
  *
  * Usage:
- *   npx tsx src/scripts/seedSuperadmin.ts yogitadheerajvarshney@gmail.com
+ *   npx tsx src/scripts/seedSuperadmin.ts autoadvantplatform@gmail.com
  *
  * The Firebase user must already exist (signed up at least once).
  * Run from inside apps/api/.
@@ -17,7 +17,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { UserRole } from '../models/UserRole.js';
 import { Profile } from '../models/Profile.js';
 
-const email = process.argv[2] || 'yogitadheerajvarshney@gmail.com';
+const email = process.argv[2] || 'autoadvantplatform@gmail.com';
 
 async function main() {
   console.log(`Seeding superadmin for: ${email}`);
