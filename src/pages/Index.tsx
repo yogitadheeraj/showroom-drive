@@ -937,9 +937,9 @@ export default function AutoAdvantLandingPage() {
                                 </p>
                                 <div className="mt-8 space-y-4">
                                     {[
-                                        { icon: Mail, text: 'info@autoadvant.com' },
+                                        { icon: Mail, text: 'autoadvantplatform@gmail.com' },
                                         { icon: Phone, text: '+91 8*********' },
-                                        { icon: MapPin, text: 'Noida, India' },
+                                        { icon: MapPin, text: 'Global Head office' },
                                     ].map((item) => (
                                         <div key={item.text} className="flex items-center gap-3 text-slate-300">
                                             <item.icon className="h-5 w-5 text-sky-400" />

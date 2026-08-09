@@ -111,18 +111,18 @@
     },
     {
       "title": "Communication Module",
-      "desc": "Multi-channel communication via WhatsApp, Email, and SMS."
+      "desc": "Multi-channel communication via WhatsApp, Email, and SMS. - Coming soon"
     },
     {
       "title": "Deal File Management",
-      "desc": "AI-powered document management with auto-classification."
+      "desc": "AI-powered document management with auto-classification. - Coming soon"
     },
     {
       "title": "Role Based Reports",
-      "desc": "Pre-built reports tailored for each role with actionable KPIs."
+      "desc": "Pre-built reports tailored for each role with actionable KPIs. - Coming soon"
     },
     {
-      "title": "Realtime Analytics & BI",
+      "title": "Realtime Analytics",
       "desc": "Live dashboards with AI-assisted insights for all operations."
     },
     {
@@ -131,23 +131,7 @@
     },
     {
       "title": "AutoAdvant ERP",
-      "desc": "Enterprise resource planning connecting all dealership operations."
-    },
-    {
-      "title": "Accessories",
-      "desc": "Manage accessory catalog, pricing, and fitment scheduling."
-    },
-    {
-      "title": "Insurance Products",
-      "desc": "Integrated insurance offerings with comparison and tracking."
-    },
-    {
-      "title": "Integrated PIM",
-      "desc": "Centralized vehicle specs, media assets, and content management."
-    },
-    {
-      "title": "Pricing Rules",
-      "desc": "Configurable pricing engine with discount rules and approvals."
+      "desc": "Enterprise resource planning connecting all dealership operations. - Coming soon"
     }
   ],
   "painPoints": [
@@ -320,25 +304,25 @@
   ],
   "testimonials": [
     {
-      "name": "Khalid Al-Rashidi",
+      "name": "Automotive Group",
       "role": "Sales Manager",
       "region": "UAE",
       "quote": "AutoAdvant transformed how we manage test drives across 6 branches. Lead leakage dropped to near zero within the first month of going live.",
-      "avatar": "KA"
+      "avatar": "AG"
     },
     {
-      "name": "Fatima Al-Mansouri",
+      "name": "Automotive Group",
       "role": "Head of Operations",
       "region": "UAE",
       "quote": "The real-time dashboard gives our management team instant visibility we never had before. We completely stopped relying on end-of-day WhatsApp update groups.",
-      "avatar": "FA"
+      "avatar": "AG"
     },
     {
-      "name": "Omar Yousef",
+      "name": "Automotive Group",
       "role": "GM",
       "region": "KSA",
       "quote": "The customer journey automation alone recovered leads we were losing to slow follow-ups. The ROI within 90 days was undeniable and measurable.",
-      "avatar": "OY"
+      "avatar": "AG"
     }
   ],
   "caseStudy": {
