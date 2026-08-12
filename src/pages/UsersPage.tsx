@@ -4,6 +4,7 @@ import { demoAutofillData } from '@/lib/demoAutofillData';
 import { apiGet, apiPost, apiPatch, apiInvokeFunction } from '@/lib/apiClient';
 import { logStaffActivity } from '@/lib/activityLogger';
 import DashboardLayout from '@/components/DashboardLayout';
+import LoadingState from '@/components/common/LoadingState';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -675,7 +676,7 @@ const UsersPage = () => {
   if (dealerLoading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center py-16 text-muted-foreground">Loading...</div>
+        <LoadingState message="Loading staff list..." className="py-16" />
       </DashboardLayout>
     );
   }

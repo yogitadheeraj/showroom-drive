@@ -3,6 +3,7 @@ import { demoAutofillData } from '@/lib/demoAutofillData';
 import { apiGet, apiPost, apiPatch } from '@/lib/apiClient';
 import { logStaffActivity } from '@/lib/activityLogger';
 import DashboardLayout from '@/components/DashboardLayout';
+import LoadingState from '@/components/common/LoadingState';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -524,7 +525,7 @@ const VehiclesPage = () => {
   if (dealerLoading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center py-16 text-muted-foreground">Loading...</div>
+        <LoadingState message="Loading vehicles..." className="py-16" />
       </DashboardLayout>
     );
   }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
+import LoadingState from '@/components/common/LoadingState';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -366,7 +367,7 @@ const ActivityLogsPage = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <p className="text-sm text-muted-foreground py-6">Loading…</p>
+                  <LoadingState message="Loading activities..." className="justify-start py-6" />
                 ) : filteredMyEvents.length === 0 ? (
                   <Empty label="No activities recorded for your account in this period." />
                 ) : (
@@ -404,7 +405,7 @@ const ActivityLogsPage = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <p className="text-sm text-muted-foreground py-6">Loading…</p>
+                  <LoadingState message="Loading activities..." className="justify-start py-6" />
                 ) : filteredStaff.length === 0 ? (
                   <Empty label="No staff activities found for the selected period." />
                 ) : (
@@ -426,7 +427,7 @@ const ActivityLogsPage = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <p className="text-sm text-muted-foreground py-6">Loading…</p>
+                  <LoadingState message="Loading activities..." className="justify-start py-6" />
                 ) : filteredTd.length === 0 ? (
                   <Empty label="No test drive events found." />
                 ) : (
@@ -477,7 +478,7 @@ const ActivityLogsPage = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <p className="text-sm text-muted-foreground py-6">Loading…</p>
+                  <LoadingState message="Loading activities..." className="justify-start py-6" />
                 ) : filteredFollowUps.length === 0 ? (
                   <Empty label="No follow-up tasks found." />
                 ) : (
@@ -536,7 +537,7 @@ const ActivityLogsPage = () => {
               </CardHeader>
               <CardContent>
                 {loading ? (
-                  <p className="text-sm text-muted-foreground py-6">Loading…</p>
+                  <LoadingState message="Loading sessions..." className="justify-start py-6" />
                 ) : filteredSessions.length === 0 ? (
                   <Empty label="No sessions found." />
                 ) : (

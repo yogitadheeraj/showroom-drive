@@ -210,9 +210,9 @@ const AuthPage = () => {
                                 className="h-12 rounded-xl"
                               />
                             </div>
-                            <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 text-white font-semibold" disabled={isSendingReset}>
+                            <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 text-white font-semibold" loading={isSendingReset} loadingText="Sending..." disabled={isSendingReset}>
                               <KeyRound className="mr-2 h-4 w-4" />
-                              {isSendingReset ? 'Sending...' : 'Send Reset Link'}
+                              Send Reset Link
                             </Button>
                             <Button type="button" variant="ghost" className="h-11 w-full text-sm" onClick={() => { setForgotMode(false); setForgotEmail(''); }}>
                               ← Back to Sign In
@@ -279,9 +279,9 @@ const AuthPage = () => {
                             </div>
                           </div>
 
-                          <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] text-primary-foreground hover:bg-primary/90 px-4 py-2 h-12 w-full text-base font-semibold" disabled={isLoading}>
-                            {isLoading ? 'Signing in...' : 'Access Auto Advant'}
-                            {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
+                          <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] text-primary-foreground hover:bg-primary/90 px-4 py-2 h-12 w-full text-base font-semibold" loading={isLoading} loadingText="Signing in..." disabled={isLoading}>
+                            Access Auto Advant
+                            <ArrowRight className="ml-2 h-4 w-4" />
                           </Button>
                         </form>
 
@@ -290,8 +290,8 @@ const AuthPage = () => {
                           <p className="mt-1 text-sm text-muted-foreground">
                             Enter your account email above and request another verification message.
                           </p>
-                          <Button type="button" variant="outline" className="mt-3 h-11 w-full rounded-xl" onClick={handleResendVerification} disabled={isResending}>
-                            {isResending ? 'Sending...' : 'Resend Verification Email'}
+                          <Button type="button" variant="outline" className="mt-3 h-11 w-full rounded-xl" onClick={handleResendVerification} loading={isResending} loadingText="Sending..." disabled={isResending}>
+                            Resend Verification Email
                           </Button>
                         </div>
 

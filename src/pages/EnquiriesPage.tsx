@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import LoadingState from '@/components/common/LoadingState';
 import { Inbox, Search, MessageSquare, Phone, Mail, Clock, User, Send, Reply, Link2, ImagePlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -391,7 +392,7 @@ const EnquiriesPage = () => {
 
         {/* Enquiry Cards */}
         {loading ? (
-          <div className="text-center py-16 text-muted-foreground">Loading enquiries…</div>
+          <LoadingState message="Loading enquiries..." className="py-16" />
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 space-y-3">
             <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mx-auto">
@@ -492,8 +493,8 @@ const EnquiriesPage = () => {
                             maxLength={2000}
                           />
                           <div className="flex items-center gap-2">
-                            <Button size="sm" onClick={saveEditedMessage} disabled={savingEdit || !editText.trim()}>
-                              {savingEdit ? 'Saving...' : 'Save'}
+                            <Button size="sm" onClick={saveEditedMessage} loading={savingEdit} loadingText="Saving..." disabled={savingEdit || !editText.trim()}>
+                              Save
                             </Button>
                             <Button size="sm" variant="outline" onClick={cancelEditMessage}>
                               Cancel
@@ -604,10 +605,12 @@ const EnquiriesPage = () => {
                 )}
                 <Button
                   onClick={handleReply}
+                  loading={replying || uploadingImage}
+                  loadingText={replying ? 'Sending...' : 'Uploading image...'}
                   disabled={replying || uploadingImage || (!replyText.trim() && !linkToShare.trim() && !imageUrlToShare.trim())}
                   className="gradient-primary border-0 text-primary-foreground rounded-xl"
                 >
-                  {replying ? 'Sending…' : <><Send className="h-4 w-4 mr-2" />Reply</>}
+                  <Send className="h-4 w-4 mr-2" />Reply
                 </Button>
               </div>
             </div>
