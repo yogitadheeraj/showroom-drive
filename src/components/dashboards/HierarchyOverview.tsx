@@ -18,11 +18,11 @@ import { cn } from '@/lib/utils';
 interface BU   { id: string; name: string; code: string; isActive: boolean; orgId?: string | null }
 interface SO   { id: string; name: string; salesOfficeCode: string; businessUnitId: string; isActive: boolean; orgId?: string | null }
 interface Pl   { id: string; name: string; plantCode: string; salesOfficeId: string; businessUnitId: string; isActive: boolean; orgId?: string | null }
-interface Loc  { id: string; name: string; city: string | null; is_active: boolean; businessUnitId?: string | null; dealer_id?: string | null }
-interface Br   { id: string; name: string; code: string | null; is_active: boolean; dealer_id?: string | null }
+interface Loc  { id: string; name: string; city: string | null; is_active: boolean; businessUnitId?: string | null; dealer_id?: string | null; orgId?: string | null }
+interface Br   { id: string; name: string; code: string | null; is_active: boolean; dealer_id?: string | null; orgId?: string | null }
 interface DealerRow { id: string; name: string }
-type LocationRow = Pick<Loc, 'id' | 'name' | 'city' | 'is_active' | 'businessUnitId' | 'dealer_id'>;
-type BrandRow = Pick<Br, 'id' | 'name' | 'code' | 'is_active' | 'dealer_id'>;
+type LocationRow = Pick<Loc, 'id' | 'name' | 'city' | 'is_active' | 'businessUnitId' | 'dealer_id' | 'orgId'>;
+type BrandRow = Pick<Br, 'id' | 'name' | 'code' | 'is_active' | 'dealer_id' | 'orgId'>;
 
 /* ─── Stat pill ─────────────────────────────────────────────────────────── */
 function StatPill({
@@ -136,9 +136,16 @@ const HierarchyOverview = () => {
   const [allDealers,   setAllDealers]   = useState<DealerRow[]>([]);
   const [filterDealer, setFilterDealer] = useState('');
 
+  const hierarchyAllowedRoles: AppRole[] = [
+    APP_ROLE.SUPERADMIN,
+    APP_ROLE.DEALER_ADMIN,
+    APP_ROLE.BRAND_ADMIN,
+    APP_ROLE.SALES_ADMIN,
+  ];
+
   const currentRole = role as AppRole | null;
   const canView = currentRole
-    ? [APP_ROLE.SUPERADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.BRAND_ADMIN, APP_ROLE.SALES_ADMIN].includes(currentRole)
+    ? hierarchyAllowedRoles.includes(currentRole)
     : false;
 
   useEffect(() => {
@@ -154,12 +161,12 @@ const HierarchyOverview = () => {
           listPlants().catch(() => []),
           apiDbQuery<LocationRow[]>({
             table: 'locations', action: 'select',
-            select: 'id, name, city, is_active, businessUnitId, dealer_id',
+            select: 'id, name, city, is_active, businessUnitId, dealer_id, orgId',
             order: [{ field: 'name', ascending: true }],
           }).catch(() => []),
           apiDbQuery<BrandRow[]>({
             table: 'brands', action: 'select',
-            select: 'id, name, code, is_active, dealer_id',
+            select: 'id, name, code, is_active, dealer_id, orgId',
             order: [{ field: 'name', ascending: true }],
           }).catch(() => []),
           apiDbQuery<DealerRow[]>({
@@ -181,13 +188,13 @@ const HierarchyOverview = () => {
           listPlants({ orgId: dealerId! }).catch(() => []),
           apiDbQuery<LocationRow[]>({
             table: 'locations', action: 'select',
-            select: 'id, name, city, is_active, businessUnitId',
+            select: 'id, name, city, is_active, businessUnitId, dealer_id, orgId',
             filters: [{ field: 'dealer_id', op: 'eq', value: dealerId }],
             order: [{ field: 'name', ascending: true }],
           }).catch(() => []),
           apiDbQuery<BrandRow[]>({
             table: 'brands', action: 'select',
-            select: 'id, name, code, is_active',
+            select: 'id, name, code, is_active, dealer_id, orgId',
             filters: [{ field: 'dealer_id', op: 'eq', value: dealerId }],
             order: [{ field: 'name', ascending: true }],
           }).catch(() => []),
@@ -206,12 +213,15 @@ const HierarchyOverview = () => {
   if (!canView) return null;
 
   // For superadmin: scope tree data by selected dealer filter
-  const scopedDealerId = isSuperAdmin ? filterDealer : dealerId;
+  const scopedDealerId = isSuperAdmin ? filterDealer : null;
+  const belongsToDealer = (row: { dealer_id?: string | null; orgId?: string | null }, dealer: string) =>
+    row.dealer_id === dealer || row.orgId === dealer;
+
   const scopedBUs       = scopedDealerId ? busUnits.filter((b) => b.orgId === scopedDealerId) : busUnits;
   const scopedSOs       = scopedDealerId ? salesOffices.filter((s) => s.orgId === scopedDealerId) : salesOffices;
   const scopedPlants    = scopedDealerId ? plants.filter((p) => p.orgId === scopedDealerId) : plants;
-  const scopedLocations = scopedDealerId ? locations.filter((l) => l.dealer_id === scopedDealerId) : locations;
-  const scopedBrands    = scopedDealerId ? brands.filter((b) => b.dealer_id === scopedDealerId) : brands;
+  const scopedLocations = scopedDealerId ? locations.filter((l) => belongsToDealer(l, scopedDealerId)) : locations;
+  const scopedBrands    = scopedDealerId ? brands.filter((b) => belongsToDealer(b, scopedDealerId)) : brands;
 
   const displayName = isSuperAdmin
     ? (filterDealer ? (allDealers.find(d => d.id === filterDealer)?.name ?? 'All Dealers') : 'All Dealers')

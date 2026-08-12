@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import RouteCalculator from '@/components/RouteCalculator';
+import { getApiBaseUrl } from '@/lib/getApiBaseUrl';
 import {
   AlertTriangle,
   Calendar,
@@ -22,7 +23,7 @@ import {
   X,
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE = getApiBaseUrl();
 
 type BookingData = {
   test_drive: {

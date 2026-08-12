@@ -1,5 +1,6 @@
 import { getFirebaseIdToken } from '@/integrations/supabase/client';
 import { SELECTED_LOCATION_KEY } from '@/hooks/useDealerContext';
+import { getApiBaseUrl } from '@/lib/getApiBaseUrl';
 
 type DbFilterOp = 'eq' | 'neq' | 'in' | 'not_in' | 'gt' | 'gte' | 'lt' | 'lte' | 'like' | 'ilike' | 'is';
 
@@ -15,7 +16,7 @@ type DbQueryPayload = {
   options?: Record<string, unknown>;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE_URL = getApiBaseUrl();
 
 async function buildHeaders(init?: HeadersInit, includeJson = true) {
   const headers = new Headers(init || {});

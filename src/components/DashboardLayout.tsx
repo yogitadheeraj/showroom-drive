@@ -23,7 +23,7 @@ import {
 import {
   type LucideIcon,
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
-  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText, PlaneLanding, Truck, ChevronLeft, ChevronRight, Tag
+  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText, PlaneLanding, Truck, ChevronLeft, ChevronRight, Tag, Sparkles,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
@@ -53,10 +53,11 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
     { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
+    { label: 'AI Insights', path: '/reports/ai-insights', icon: Sparkles },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.DEALER_ADMIN]: [
-    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'Dashboards', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
@@ -71,6 +72,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
     { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
+    { label: 'AI Insights', path: '/reports/ai-insights', icon: Sparkles },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.SALES_ADMIN]: [
@@ -89,6 +91,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Data Center', path: '/data-center', icon: BarChart3 },
     { label: 'Settings', path: '/settings', icon: Settings },
     { label: 'Report Monitor', path: '/reports/monitoring', icon: BarChart3 },
+    { label: 'AI Insights', path: '/reports/ai-insights', icon: Sparkles },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.BRAND_ADMIN]: [
@@ -99,6 +102,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
+     { label: 'AI Insights', path: '/reports/ai-insights', icon: Sparkles },
   ],
   [APP_ROLE.GRO]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -110,6 +114,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
     { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
+    { label: 'AI Insights', path: '/reports/ai-insights', icon: Sparkles },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.SALES]: [
@@ -121,6 +126,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
+    { label: 'AI Insights', path: '/reports/ai-insights', icon: Sparkles },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
   [APP_ROLE.SECURITY]: [
@@ -129,6 +135,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
     { label: 'Fleet', path: '/fleet', icon: Car },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
+    { label: 'AI Insights', path: '/reports/ai-insights', icon: Sparkles },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
   ],
 };

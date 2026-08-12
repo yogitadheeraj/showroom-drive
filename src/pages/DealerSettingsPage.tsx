@@ -5,6 +5,7 @@ import OperatingHoursSettings from '@/components/settings/OperatingHoursSettings
 import ReportSettingsConfig from '@/components/settings/ReportSettingsConfig';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import FollowUpReminderSettings from '@/components/settings/FollowUpReminderSettings';
+import TimesheetReminderSettings from '@/components/settings/TimesheetReminderSettings';
 import HandoverQuestionsSettings from '@/components/settings/HandoverQuestionsSettings';
 import BookingSettings from '@/components/settings/BookingSettings';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
@@ -12,7 +13,7 @@ import EmailTemplateSettings from '@/components/settings/EmailTemplateSettings';
 import HierarchySettings from '@/components/settings/HierarchySettings';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Building2, Palette, Mail, SunMoon, BellRing, Key, CalendarClock, Plug, GitBranch, ChevronDown } from 'lucide-react';
+import { Building2, Palette, Mail, SunMoon, BellRing, Key, CalendarClock, Plug, GitBranch, ChevronDown, Clock3 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
 import { useEffect, useMemo, useState } from 'react';
@@ -44,6 +45,7 @@ const DealerSettingsPage = () => {
     { key: 'brands', label: 'Brand Settings', icon: Palette, content: <BrandSettings dealerIdOverride={dealerOverride} /> },
     { key: 'reports', label: 'Report Settings', icon: Mail, content: <ReportSettingsConfig /> },
     { key: 'followup-reminders', label: 'Follow-up Reminders', icon: BellRing, content: <FollowUpReminderSettings /> },
+    { key: 'timesheet-reminders', label: 'Timesheet Reminders', icon: Clock3, content: <TimesheetReminderSettings dealerIdOverride={dealerOverride} /> },
     { key: 'appearance', label: 'Appearance', icon: SunMoon, content: <AppearanceSettings /> },
     { key: 'handover', label: 'Key Handover', icon: Key, content: <HandoverQuestionsSettings /> },
     { key: 'booking', label: 'Booking', icon: CalendarClock, content: <BookingSettings dealerIdOverride={dealerOverride} /> },

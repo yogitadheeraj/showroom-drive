@@ -36,6 +36,7 @@ import BrandsPage from './pages/BrandsPage.tsx';
 import ReportMonitoringPage from "./pages/ReportMonitoringPage.tsx";
 import ActivityLogsPage from "./pages/ActivityLogsPage.tsx";
 import MyProfilePage from "./pages/MyProfilePage.tsx";
+import AIReportsPage from './pages/AIReportsPage.tsx';
 import { ROUTE_ALLOWED_ROLES } from "@/constants/roles";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { WhitelabelProvider } from "@/hooks/useWhitelabel";
@@ -93,6 +94,7 @@ const App = () => (
             <Route path="/incoming-vehicles" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.INCOMING_VEHICLES]}><IncomingVehiclesPage /></ProtectedRoute>} />
             <Route path="/waiting-board" element={<WaitingBoardPage />} />
             <Route path="/reports/monitoring" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.REPORTS_MONITORING]}><ReportMonitoringPage /></ProtectedRoute>} />
+            <Route path="/reports/ai-insights" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.REPORTS_MONITORING]}><AIReportsPage /></ProtectedRoute>} />
             <Route path="/activity-logs" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.ACTIVITY_LOGS]}><ActivityLogsPage /></ProtectedRoute>} />
             <Route path="/my-profile" element={<ProtectedRoute><MyProfilePage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

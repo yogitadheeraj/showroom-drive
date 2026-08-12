@@ -13,6 +13,7 @@
  * Falls back gracefully to AutoAdvant defaults if no dealer is detected.
  */
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { getApiBaseUrl } from '@/lib/getApiBaseUrl';
 
 const BASE_DOMAINS = ['autoadvant.com', 'localhost', '127.0.0.1'];
 
@@ -69,7 +70,7 @@ function detectSlug(): string | null {
 
 async function fetchBranding(slug: string): Promise<Omit<WhitelabelBranding, 'loading' | 'isBranded'> | null> {
   try {
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+    const apiBase = getApiBaseUrl();
     const res = await fetch(`${apiBase}/api/dealers/branding/${encodeURIComponent(slug)}`);
     if (!res.ok) return null;
     const json = await res.json();

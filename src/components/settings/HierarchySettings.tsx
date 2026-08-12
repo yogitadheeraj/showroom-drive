@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Plus, Trash2, Building2, Briefcase, Factory, ChevronRight,
-  ChevronDown, Loader2,
+  ChevronDown, Loader2, MapPin, Tag,
 } from 'lucide-react';
 import {
   listBusinessUnits, createBusinessUnit, deleteBusinessUnit,
@@ -20,6 +20,7 @@ import {
   listPlants, createPlant, deletePlant,
   type BusinessUnit, type SalesOffice, type Plant,
 } from '@/lib/hierarchyService';
+import { apiDbQuery } from '@/lib/apiClient';
 
 type DialogMode =
   | { type: 'add-bu' }
@@ -37,6 +38,8 @@ const HierarchySettings = ({ dealerIdOverride }: { dealerIdOverride?: string } =
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
   const [salesOffices, setSalesOffices] = useState<SalesOffice[]>([]);
   const [plants, setPlants] = useState<Plant[]>([]);
+  const [brandCount, setBrandCount] = useState(0);
+  const [locationCount, setLocationCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [expandedBUs, setExpandedBUs] = useState<Set<string>>(new Set());
   const [expandedSOs, setExpandedSOs] = useState<Set<string>>(new Set());
@@ -49,15 +52,30 @@ const HierarchySettings = ({ dealerIdOverride }: { dealerIdOverride?: string } =
   const load = useCallback(async () => {
     if (!dealerId && !isSuperAdmin) return;
     setLoading(true);
-    const [buData, soData, plantData] = await Promise.all([
+    const dealerFilter = dealerId ? [{ field: 'dealer_id', op: 'eq' as const, value: dealerId }] : undefined;
+    const [buData, soData, plantData, brandRows, locationRows] = await Promise.all([
       listBusinessUnits(dealerId || undefined),
       listSalesOffices({ orgId: dealerId || undefined }),
       listPlants({ orgId: dealerId || undefined }),
+      apiDbQuery<any[]>({
+        table: 'brands',
+        action: 'select',
+        select: 'id',
+        filters: dealerFilter,
+      }).catch(() => []),
+      apiDbQuery<any[]>({
+        table: 'locations',
+        action: 'select',
+        select: 'id',
+        filters: dealerFilter,
+      }).catch(() => []),
     ]);
     const bus = buData ?? [];
     setBusinessUnits(bus);
     setSalesOffices(soData ?? []);
     setPlants(plantData ?? []);
+    setBrandCount((brandRows ?? []).length);
+    setLocationCount((locationRows ?? []).length);
     // Auto-expand all BUs and SOs so tree is visible
     setExpandedBUs(new Set(bus.map(b => b.id)));
     setExpandedSOs(new Set((soData ?? []).map(s => s.id)));
@@ -189,6 +207,20 @@ const HierarchySettings = ({ dealerIdOverride }: { dealerIdOverride?: string } =
             <Button size="sm" onClick={() => openDialog({ type: 'add-bu' })} className="gap-1.5 shrink-0">
               <Plus className="h-4 w-4" /> Add Business Unit
             </Button>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:w-[360px]">
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Tag className="h-3.5 w-3.5" /> Brands
+              </div>
+              <p className="mt-1 text-lg font-semibold text-foreground">{brandCount}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5" /> Locations
+              </div>
+              <p className="mt-1 text-lg font-semibold text-foreground">{locationCount}</p>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-5">

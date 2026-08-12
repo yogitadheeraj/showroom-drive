@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiGet, apiPut, apiDelete, apiPost } from '@/lib/apiClient';
+import { getApiBaseUrl } from '@/lib/getApiBaseUrl';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -148,7 +149,7 @@ function CalendarConfig({ config, onChange, onOAuthSuccess }: { config: Record<s
   const isConnected = !!config.refresh_token;
 
   const handleConnect = () => {
-    const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+    const apiBase = getApiBaseUrl();
     const w = window.open(`${apiBase}/api/integrations/oauth/google/start`, '_blank', 'width=600,height=700,left=200,top=100');
     const listener = (e: MessageEvent) => {
       if (e.data?.type !== 'oauth_callback') return;
@@ -198,7 +199,7 @@ function OutlookConfig({ config, onChange, onOAuthSuccess }: { config: Record<st
   const isConnected = !!config.refresh_token;
 
   const handleConnect = () => {
-    const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+    const apiBase = getApiBaseUrl();
     const w = window.open(`${apiBase}/api/integrations/oauth/outlook/start`, '_blank', 'width=600,height=700,left=200,top=100');
     const listener = (e: MessageEvent) => {
       if (e.data?.type !== 'oauth_callback') return;

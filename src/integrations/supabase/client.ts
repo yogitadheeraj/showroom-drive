@@ -9,6 +9,7 @@ import {
   updateProfile,
   type User as FirebaseUser,
 } from 'firebase/auth';
+import { getApiBaseUrl } from '@/lib/getApiBaseUrl';
 
 type DbFilterOp = 'eq' | 'neq' | 'in' | 'not_in' | 'gt' | 'gte' | 'lt' | 'lte' | 'like' | 'ilike' | 'is';
 type DbAction = 'select' | 'insert' | 'update' | 'delete' | 'upsert';
@@ -31,7 +32,7 @@ type SupaResult<T> = Promise<
 
 type SupportedLocale = 'en' | 'hi';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE_URL = getApiBaseUrl();
 
 
 const firebaseConfig = {

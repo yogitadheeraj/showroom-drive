@@ -150,7 +150,6 @@ const WaitingBoardPage = () => {
 
   const fetchData = async () => {
     const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [
-      { field: 'scheduled_date', op: 'eq', value: format(new Date(), 'yyyy-MM-dd') },
       { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
     ];
     if (locationId) {
@@ -234,6 +233,10 @@ const WaitingBoardPage = () => {
     if (hydrated?.[0]?.locations?.name) setLocationName(hydrated[0].locations.name);
   };
 
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const todaysDrives = testDrives.filter((drive) => drive.scheduled_date === today);
+  const upcomingDrives = testDrives.filter((drive) => drive.scheduled_date !== today);
+
   const getETA = (td: any) => {
     if (td.status === 'in_progress' && td.started_at) {
       const elapsed = differenceInMinutes(now, parseISO(td.started_at));
@@ -292,14 +295,105 @@ const WaitingBoardPage = () => {
         {testDrives.length === 0 ? (
           <div className="text-center py-16 sm:py-24">
             <Car className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground/30 mx-auto mb-4" />
-            <p className="text-base sm:text-xl text-muted-foreground">No test drives scheduled right now</p>
+            <p className="text-base sm:text-xl text-muted-foreground">No active test drives found</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
-            {testDrives.map((td, index) => {
+          <div className="space-y-8">
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base sm:text-lg font-semibold text-foreground">Today&apos;s board</h2>
+                <Badge variant="secondary">{todaysDrives.length} drives</Badge>
+              </div>
+              {todaysDrives.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No test drives scheduled today. Showing upcoming active drives below.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+                  {todaysDrives.map((td, index) => {
+                    const cfg = statusConfig[td.status] || statusConfig.scheduled;
+                    const isOnDrive = td.status === 'in_progress';
+
+                    return (
+                      <div
+                        key={td.id}
+                        className={`rounded-lg border-2 p-6 transition-all ${cfg.bgColor}`}
+                        style={{
+                          borderColor: isOnDrive ? '#ff7f00' : 'inherit',
+                          borderWidth: isOnDrive ? '3px' : '2px',
+                        }}
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-lg bg-background flex items-center justify-center text-lg font-heading font-bold text-foreground">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="font-heading font-semibold text-lg text-foreground">{td.customers?.full_name}</p>
+                              <div className={`${cfg.color} mt-1 font-heading font-bold text-2xl sm:text-3xl`}>
+                                {cfg.label}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3 text-sm">
+                            {(() => {
+                              const carColor = getCarColor(td.status);
+                              return (
+                                <div className={`h-14 w-14 rounded-full flex items-center justify-center transition-all border-2 ${carColor.bg} border-current ${
+                                  isOnDrive
+                                    ? `${carColor.color} animate-spin-slow`
+                                    : carColor.color
+                                }`}>
+                                  <Car className={`h-8 w-8 ${carColor.color}`} />
+                                </div>
+                              );
+                            })()}
+                            <span className="text-foreground font-medium">{td.vehicles?.brand} {td.vehicles?.model}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <User className={`h-4 w-4 ${td.profiles?.full_name ? 'text-blue-600' : 'text-muted-foreground'}`} />
+                            <div className="flex items-center gap-2 flex-1">
+                              <span className={`font-medium ${td.profiles?.full_name ? 'text-blue-600 font-bold' : 'text-foreground'}`}>
+                                {td.profiles?.full_name || 'Assigning...'}
+                              </span>
+                              {td.profiles?.full_name && (
+                                <div className="flex items-center gap-1 bg-blue-100 px-2 py-0.5 rounded-full">
+                                  <span className="h-2 w-2 bg-blue-600 rounded-full animate-pulse"></span>
+                                  <span className="text-xs font-semibold text-blue-600">Driving</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground font-medium">{td.scheduled_time}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-lg sm:text-2xl font-heading font-bold">
+                            <Timer className={`h-6 w-6 ${isOnDrive ? 'text-orange-600 animate-spin-slow' : cfg.color}`} />
+                            <span className={`${isOnDrive ? 'text-orange-600 animate-pulse' : cfg.color}`}>
+                              {getETA(td)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {upcomingDrives.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-base sm:text-lg font-semibold text-foreground">Upcoming active drives</h2>
+                  <Badge variant="outline">{upcomingDrives.length} drives</Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+                  {upcomingDrives.map((td, index) => {
               const cfg = statusConfig[td.status] || statusConfig.scheduled;
               const isOnDrive = td.status === 'in_progress';
-              
+
               return (
                 <div
                   key={td.id}
@@ -366,7 +460,10 @@ const WaitingBoardPage = () => {
                   </div>
                 </div>
               );
-            })}
+                  })}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </main>
