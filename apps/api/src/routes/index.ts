@@ -155,6 +155,10 @@ import {
   upsertFollowUpReminderConfigController,
 } from '../controllers/followUpReminderConfigController.js';
 import {
+  generateAIInsightsController,
+  listAIInsightsController,
+} from '../controllers/aiInsightsController.js';
+import {
   cancelConflictingBookingsController,
   createBlockedSlotController,
   deleteBlockedSlotController,
@@ -388,6 +392,10 @@ apiRouter.get('/follow-up-reminder-config', requireAuth, listFollowUpReminderCon
 apiRouter.get('/follow-up-reminder-config/:locationId', requireAuth, getFollowUpReminderConfigController);
 apiRouter.put('/follow-up-reminder-config', requireAuth, upsertFollowUpReminderConfigController);
 apiRouter.delete('/follow-up-reminder-config/:locationId', requireAuth, deleteFollowUpReminderConfigController);
+
+// AI Insights
+apiRouter.get('/ai/reports', requireAuth, listAIInsightsController);
+apiRouter.post('/ai/reports/generate', requireAuth, generateAIInsightsController);
 
 // Firebase Admin – User Management
 apiRouter.post('/firebase/users', requireAuth, createUserController);

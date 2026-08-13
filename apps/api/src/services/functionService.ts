@@ -24,6 +24,8 @@ import {
   retryFailedReports,
 } from './reportEmailService.js';
 import { EmailUnsubscribeToken } from '../models/EmailUnsubscribeToken.js';
+import { generateDailyAIInsights } from './aiInsightsService.js';
+import { runTimesheetReminderJobs } from './timesheetReminderService.js';
 
 const CREATEABLE_ROLES = ['dealer_admin', 'brand_admin', 'sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
 const DEALER_ADMIN_CREATEABLE_ROLES = ['brand_admin', 'sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
@@ -419,6 +421,18 @@ export async function invokeFunction(name: string, payload: unknown, userId?: st
 
   if (name === 'handle-report-retry' || name === 'process-report-retries') {
     return retryFailedReports();
+  }
+
+  if (name === 'generate-ai-report-insights') {
+    return generateDailyAIInsights({
+      reportDate: body.reportDate as string | undefined,
+      locationIds: Array.isArray(body.locationIds) ? (body.locationIds as string[]) : undefined,
+      forceRegenerate: Boolean(body.forceRegenerate),
+    });
+  }
+
+  if (name === 'run-timesheet-reminder-jobs') {
+    return runTimesheetReminderJobs();
   }
 
   if (name === 'log-report-send-attempt') {
