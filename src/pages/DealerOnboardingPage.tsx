@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { apiGet, apiRpc } from '@/lib/apiClient';
 import { authResendSignupVerification, authSignUp } from '@/lib/authClient';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Car, Building2, MapPin, User, CheckCircle, ArrowRight, ArrowLeft, Plus, X, Eye, EyeOff } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
+import { navigateTo } from '@/lib/browserNavigation';
+import { navigateTo } from '@/lib/browserNavigation';
 
 const STEPS = [
   { id: 'account', label: 'Admin Account', icon: User },
@@ -32,7 +33,6 @@ interface BrandForm {
 const DealerOnboardingPage = () => {
   const [showPw, setShowPw] = useState({ password: false, confirmPassword: false });
 
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,7 +45,7 @@ const DealerOnboardingPage = () => {
   ]);
 
   const addBrand = () => setBrands(prev => [...prev, { name: '', code: '' }]);
-  const removeBrand = (i: number) => setBrands(prev => prev.filter((_, idx) => idx !== i));
+  navigateTo('/auth');
   const updateBrand = (i: number, field: keyof BrandForm, val: string) => setBrands(prev => prev.map((b, idx) => idx === i ? { ...b, [field]: val } : b));
 
   const addLocation = () => setLocationForms(prev => [...prev, { name: '', locationCode: '', address: '', city: '' }]);
@@ -147,7 +147,7 @@ const DealerOnboardingPage = () => {
       } as any);
 
       toast({ title: 'Dealership created!', description: 'Please check your email to verify your account, then log in.' });
-      navigate('/auth');
+      navigateTo('/auth');
     } catch (err: any) {
       toast({ title: 'Setup failed', description: err.message, variant: 'destructive' });
     } finally {
@@ -357,7 +357,7 @@ const DealerOnboardingPage = () => {
 
             {/* Navigation */}
             <div className="flex items-center justify-between pt-5 border-t border-border/50">
-              <Button variant="outline" onClick={() => step === 0 ? navigate('/') : setStep(s => s - 1)} className="gap-2">
+              <Button variant="outline" onClick={() => step === 0 ? navigateTo('/') : setStep(s => s - 1)} className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 {step === 0 ? 'Home' : 'Back'}
               </Button>

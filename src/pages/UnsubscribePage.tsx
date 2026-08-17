@@ -9,10 +9,16 @@ type Status = 'loading' | 'valid' | 'already_unsubscribed' | 'invalid' | 'succes
 const UnsubscribePage = () => {
   const [status, setStatus] = useState<Status>('loading');
   const [processing, setProcessing] = useState(false);
-
-  const token = new URLSearchParams(window.location.search).get('token');
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const tokenFromUrl = new URLSearchParams(window.location.search).get('token');
+    setToken(tokenFromUrl);
+  }, []);
+
+  useEffect(() => {
+    if (token === null) return;
     if (!token) {
       setStatus('invalid');
       return;

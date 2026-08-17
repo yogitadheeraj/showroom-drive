@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,6 +36,7 @@ import {
 import { createBrand, updateBrand as saveBrand } from '@/lib/locationBrandService';
 import { apiDbQuery } from '@/lib/apiClient';
 import { cn } from '@/lib/utils';
+import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
 import {
   Tag,
   Plus,
@@ -53,7 +53,7 @@ import {
 type Location = { id: string; name: string; city: string | null; businessUnitId?: string | null };
 
 const BrandsPage = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams] = useBrowserSearchParams();
   const { toast } = useToast();
   const { dealerId, dealerLocations, loading: dealerLoading } = useDealerContext();
   const { role } = useAuth();

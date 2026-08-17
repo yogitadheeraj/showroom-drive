@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
 import { apiDbQuery } from '@/lib/apiClient';
@@ -271,11 +270,11 @@ const HierarchyOverview = () => {
               {allDealers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           )}
-          <Link to="/settings?tab=hierarchy">
+          <a href="/settings?tab=hierarchy">
             <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-xl border-border/70 px-3 text-xs shadow-sm">
               <Settings className="h-3.5 w-3.5" /> Configure
             </Button>
-          </Link>
+          </a>
         </div>
       </div>
 
@@ -326,11 +325,11 @@ const HierarchyOverview = () => {
                 Go to <strong>Settings → Entity Hierarchy</strong> to add Business Units, Sales Offices &amp; Plants.
               </p>
             </div>
-            <Link to="/settings?tab=hierarchy">
+            <a href="/settings?tab=hierarchy">
               <Button size="sm" variant="outline" className="mt-1 h-9 gap-1.5 rounded-xl border-border/70 px-4 shadow-sm">
                 <Settings className="h-3.5 w-3.5" /> Set up now
               </Button>
-            </Link>
+            </a>
           </div>
         ) : (
           <div className="space-y-3 rounded-2xl border border-border/70 bg-gradient-to-b from-background to-muted/10 p-3 sm:p-4">

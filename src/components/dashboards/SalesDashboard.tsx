@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { apiGet, apiDbQuery, apiPatch, apiPost } from '@/lib/apiClient';
 import { sendTransactionalEmail } from '@/lib/functionService';
 import { getStorageSignedUrl, listStorageFiles, uploadToStorage } from '@/lib/storageClient';
@@ -23,6 +22,7 @@ import { logStaffActivity } from '@/lib/activityLogger';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
+import { navigateTo } from '@/lib/browserNavigation';
 
 type LeadTemperature = 'hot' | 'cold';
 
@@ -66,7 +66,6 @@ const SalesDashboard = () => {
   const notifiedHandoverIdsRef = useRef<Set<string>>(new Set());
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   const formatStatusLabel = (status: string) =>
     status
@@ -1184,7 +1183,7 @@ const SalesDashboard = () => {
             </div>
             {filteredDrives.length > 5 && (
               <div className="flex justify-center pt-3">
-                <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigate('/test-drives')}>
+                    <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigateTo('/test-drives')}>
                   View All {filteredDrives.length} Test Drives →
                 </Button>
               </div>

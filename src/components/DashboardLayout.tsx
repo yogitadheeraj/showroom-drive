@@ -1,4 +1,3 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { apiGet, apiDbQuery, apiPatch } from '@/lib/apiClient';
@@ -30,6 +29,8 @@ import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
 import { getAppRoleLabel } from '@/lib/roles';
 import { logStaffActivity, updateActivitySession } from '@/lib/activityLogger';
 import SiteHeader from '@/components/SiteHeader';
+import useBrowserPath from '@/hooks/useBrowserPath';
+import { navigateTo } from '@/lib/browserNavigation';
 
 interface NavItem {
   label: string;
@@ -147,8 +148,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   // Whitelabel branding takes precedence; fall back to DealerContext values
   const dealerName    = wl.dealerName    ?? ctxDealerName;
   const dealerLogoUrl = wl.dealerLogoUrl ?? ctxDealerLogoUrl;
-  const location = useLocation();
-  const navigate = useNavigate();
+  const location = useBrowserPath();
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -232,12 +232,12 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate('/auth');
+    navigateTo('/auth');
   };
 
   const handleOpenLeadNotifications = () => {
     setNewLeadCount(0);
-    navigate('/test-drives');
+    navigateTo('/test-drives');
   };
 
   useEffect(() => {
@@ -249,10 +249,10 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
       locationId: profile.location_id,
       role,
       eventType: 'page_view',
-      label: `Visited ${location.pathname}`,
-      route: location.pathname,
+      label: `Visited ${location}`,
+      route: location,
     });
-  }, [location.pathname, profile?.id, profile?.location_id, role, user]);
+  }, [location, profile?.id, profile?.location_id, role, user]);
 
   useEffect(() => {
     if (!profile?.location_id) return;
@@ -435,7 +435,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           role,
           eventType: 'active_resume',
           label: 'Returned from idle',
-          route: location.pathname,
+          route: location,
         });
       }
     };
@@ -454,7 +454,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           role,
           eventType: shouldBeIdle ? 'idle_start' : 'active_resume',
           label: shouldBeIdle ? 'Went idle' : 'Returned from idle',
-          route: location.pathname,
+          route: location,
         });
       }
 
@@ -483,7 +483,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
       events.forEach((eventName) => window.removeEventListener(eventName, markInteraction));
       document.removeEventListener('visibilitychange', markInteraction);
     };
-  }, [location.pathname, profile?.id, profile?.location_id, role, user]);
+  }, [location, profile?.id, profile?.location_id, role, user]);
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -495,7 +495,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           {/* Header */}
           <div className={`bg-[hsl(220,50%,10%)] flex items-center dark:bg-[hsl(220,50%,10%)] px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
            
-           <Link to="/" className="flex items-center shrink-0">
+           <a href="/" className="flex items-center shrink-0">
             {(dealerLogoUrl || dealerName) ? (
               <div className="flex flex-col leading-none">
                 <div className="flex items-center gap-2">
@@ -523,7 +523,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
               <img src="/images/auth_logo.png" alt="AutoAdvant" className="h-8 w-8 object-contain rounded" />
             )}</>
             )}
-          </Link>
+          </a>
             <div className="flex items-center gap-1">
               {/* Desktop collapse toggle */}
               <button
@@ -544,11 +544,11 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
             <nav className="flex-1 p-2 space-y-0.5 overflow-y-hidden">
               {navItems.map(item => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path;
+                const isActive = location === item.path;
                 const linkEl = (
-                  <Link
+                  <a
                     key={item.path}
-                    to={item.path}
+                    href={item.path}
                     onClick={() => setSidebarOpen(false)}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                       sidebarCollapsed ? 'justify-center px-0' : ''
@@ -560,7 +560,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     {!sidebarCollapsed && item.label}
-                  </Link>
+                  </a>
                 );
 
                 if (sidebarCollapsed) {
@@ -595,9 +595,9 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Link to="/my-profile" className="h-9 w-9 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 flex items-center justify-center text-sm font-semibold text-white ring-2 ring-sidebar-border/50">
+                    <a href="/my-profile" className="h-9 w-9 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 flex items-center justify-center text-sm font-semibold text-white ring-2 ring-sidebar-border/50">
                       {displayName?.[0]?.toUpperCase() || 'U'}
-                    </Link>
+                    </a>
                   </TooltipTrigger>
                   <TooltipContent side="right" className="text-xs">
                     <p className="font-semibold">{displayName}</p>
@@ -693,8 +693,8 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                   </span>
                 )}
               </Button>
-              <Link
-                to="/my-profile"
+              <a
+                href="/my-profile"
                 className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5 hover:bg-muted/80 transition-colors dark:border-white/10 dark:bg-white/5"
               >
                 <UserCircle2 className="h-4 w-4 text-muted-foreground dark:text-slate-300" />
@@ -702,7 +702,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                   <p className="text-xs font-semibold text-foreground max-w-[180px] truncate dark:text-slate-100">{displayName}</p>
                   <p className="text-[11px] text-muted-foreground dark:text-slate-400">{displayRole}</p>
                 </div>
-              </Link>
+              </a>
              
               
             </>
@@ -741,9 +741,9 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                     <PlaneLanding className="h-3.5 w-3.5 mr-1.5" />
                     {endingLeave ? 'Updating...' : "I'm Available Now"}
                   </Button>
-                  <Link to="/my-profile" className="text-xs text-amber-700 dark:text-amber-400 underline hover:no-underline">
+                  <a href="/my-profile" className="text-xs text-amber-700 dark:text-amber-400 underline hover:no-underline">
                     Manage in My Profile
-                  </Link>
+                  </a>
                 </div>
               </div>
             </div>

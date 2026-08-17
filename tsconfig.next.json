@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "target": "es2017",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "strict": false,
+    "skipLibCheck": true,
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "incremental": true,
+    "esModuleInterop": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/vite-env.d.ts",
+    "pages/**/*.js",
+    "pages/**/*.jsx",
+    "pages/**/*.ts",
+    "pages/**/*.tsx",
+    "next.config.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

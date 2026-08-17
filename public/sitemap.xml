@@ -31,17 +31,17 @@
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://www.autoadvant.com/privacy-policy.html</loc>
+    <loc>https://www.autoadvant.com/privacy-policy</loc>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://www.autoadvant.com/terms-and-conditions.html</loc>
+    <loc>https://www.autoadvant.com/terms-and-conditions</loc>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://www.autoadvant.com/sitemap.html</loc>
+    <loc>https://www.autoadvant.com/sitemap</loc>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>
   </url>

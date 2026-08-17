@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { apiGet, apiPatch } from '@/lib/apiClient';
 import { getStorageSignedUrl, listStorageFiles, removeStorageFiles, uploadToStorage } from '@/lib/storageClient';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,12 +19,12 @@ import { logStaffActivity } from '@/lib/activityLogger';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import IncomingVehiclesPanel from '@/components/IncomingVehiclesPanel';
+import { navigateTo } from '@/lib/browserNavigation';
 
 const SecurityDashboard = () => {
   const { profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const { toast } = useToast();
-  const navigate = useNavigate();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const [pendingVerifyId, setPendingVerifyId] = useState<string | null>(null);
@@ -743,7 +742,7 @@ const SecurityDashboard = () => {
             </div>
             {filteredDrives.length > 5 && (
               <div className="flex justify-center pt-3">
-                <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigate('/test-drives')}>
+                <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigateTo('/test-drives')}>
                   View All {filteredDrives.length} Test Drives <ArrowRight className="h-3 w-3" />
                 </Button>
               </div>
@@ -821,7 +820,7 @@ const SecurityDashboard = () => {
                     <p className="text-[11px] text-muted-foreground">Vehicles dispatched to your location</p>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" className="text-xs h-7 border-info/30 text-info hover:bg-info/10 gap-1.5" onClick={() => navigate('/incoming-vehicles')}>
+                <Button size="sm" variant="outline" className="text-xs h-7 border-info/30 text-info hover:bg-info/10 gap-1.5" onClick={() => navigateTo('/incoming-vehicles')}>
                   <ArrowRight className="h-3 w-3" /> Full View
                 </Button>
               </div>

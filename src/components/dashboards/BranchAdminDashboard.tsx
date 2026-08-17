@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { apiGet } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,6 +13,7 @@ import {
   LayoutGrid, LayoutList, Activity,
 } from 'lucide-react';
 import { APP_ROLE, APP_ROLE_LABELS, APP_ROLE_BADGE_CLASS } from '@/constants/roles';
+import { navigateTo } from '@/lib/browserNavigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -43,7 +43,6 @@ const formatStatus = (s: string) =>
 
 const BranchAdminDashboard = () => {
   const { profile } = useAuth();
-  const navigate = useNavigate();
   const locationId = profile?.location_id;
 
   const [locationInfo, setLocationInfo] = useState<any>(null);
@@ -268,22 +267,22 @@ const BranchAdminDashboard = () => {
 
     switch (label) {
       case 'Total Staff':
-        navigate(`/users${params.toString() ? `?${params.toString()}` : ''}`);
+        navigateTo(`/users${params.toString() ? `?${params.toString()}` : ''}`);
         break;
       case 'GRO':
-        navigate(`/users?role=gro${locationId ? `&location=${locationId}` : ''}`);
+        navigateTo(`/users?role=gro${locationId ? `&location=${locationId}` : ''}`);
         break;
       case 'Sales':
-        navigate(`/users?role=sales${locationId ? `&location=${locationId}` : ''}`);
+        navigateTo(`/users?role=sales${locationId ? `&location=${locationId}` : ''}`);
         break;
       case 'Security':
-        navigate(`/users?role=security${locationId ? `&location=${locationId}` : ''}`);
+        navigateTo(`/users?role=security${locationId ? `&location=${locationId}` : ''}`);
         break;
       case 'Active Drives':
-        navigate('/test-drives?status=in_progress');
+        navigateTo('/test-drives?status=in_progress');
         break;
       case 'Completed':
-        navigate('/test-drives?status=completed');
+        navigateTo('/test-drives?status=completed');
         break;
       default:
         break;

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { demoAutofillData } from '@/lib/demoAutofillData';
 import { apiGet, apiPost, apiPatch, apiInvokeFunction } from '@/lib/apiClient';
 import { logStaffActivity } from '@/lib/activityLogger';
@@ -35,6 +34,7 @@ import { UserPlus, Pencil, MapPin, Mail, Shield, Lock, Unlock, Trash2, MoreHoriz
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, DEALER_ASSIGNABLE_ROLES, type AppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
+import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
 
 type BrandMultiSelectProps = {
   brands: { id: string; name: string }[];
@@ -134,7 +134,7 @@ const BrandMultiSelect = ({ brands, selectedBrandIds, onChange, disabled = false
 };
 
 const UsersPage = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams] = useBrowserSearchParams();
   const [users, setUsers] = useState<any[]>([]);
   const [verificationByUserId, setVerificationByUserId] = useState<Record<string, boolean>>({});
   const [resendingVerificationByUserId, setResendingVerificationByUserId] = useState<Record<string, boolean>>({});

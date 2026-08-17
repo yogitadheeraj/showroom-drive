@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiDbQuery } from '@/lib/apiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -138,9 +137,9 @@ const FollowUpOverview = () => {
       </CardContent>
       {totalCount > 0 && (
         <CardFooter className="pt-0">
-          <Link to="/follow-ups" className="text-xs text-primary flex items-center gap-1 hover:underline">
+          <a href="/follow-ups" className="text-xs text-primary flex items-center gap-1 hover:underline">
             View all follow-ups <ArrowRight className="h-3 w-3" />
-          </Link>
+          </a>
         </CardFooter>
       )}
     </Card>

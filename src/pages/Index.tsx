@@ -1090,9 +1090,9 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                         <Link to="/dealer-onboarding" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Entity Onboarding</Link>
                         <Link to="/compare" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
                         <Link to={staffEntryPath} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
-                        <a href="/privacy-policy.html" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</a>
-                        <a href="/terms-and-conditions.html" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Terms & Conditions</a>
-                        <a href="/sitemap.html" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Sitemap</a>
+                        <a href="/privacy-policy" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</a>
+                        <a href="/terms-and-conditions" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Terms & Conditions</a>
+                        <a href="/sitemap" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Sitemap</a>
                     </div>
 
                     <p className="text-center text-xs text-muted-foreground md:text-right">© {new Date().getFullYear()} AutoAdvant</p>

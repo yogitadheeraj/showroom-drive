@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiDbQuery, apiPost } from '@/lib/apiClient';
 import { Car, Clock3, Star, CheckCircle2 } from 'lucide-react';
+import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
 
 type FeedbackBadge = 'Lightning Fast' | 'Smooth Experience' | 'Detailed Guidance' | 'Premium Attention';
 
@@ -50,7 +50,7 @@ const getDurationMinutes = (td: any): number | null => {
 };
 
 const TestDriveFeedbackPage = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams] = useBrowserSearchParams();
   const tdId = searchParams.get('td');
   const queryEnquiryId = searchParams.get('enquiry_id');
 

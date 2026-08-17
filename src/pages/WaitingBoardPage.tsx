@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { apiDbQuery } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
-import { useSearchParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Car, Clock, User, Timer } from 'lucide-react';
 import { format, differenceInMinutes, parseISO } from 'date-fns';
+import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
 
 const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
   scheduled: { label: 'Waiting', color: 'text-info', bgColor: 'bg-info/10 border-info/20' },
@@ -127,13 +127,14 @@ const animationStyles = `
 `;
 
 const WaitingBoardPage = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams] = useBrowserSearchParams();
   const locationId = searchParams.get('location');
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [locationName, setLocationName] = useState('');
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
+    setNow(new Date());
     fetchData();
 
     // Update clock every second for real-time timer
@@ -233,11 +234,17 @@ const WaitingBoardPage = () => {
     if (hydrated?.[0]?.locations?.name) setLocationName(hydrated[0].locations.name);
   };
 
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const todaysDrives = testDrives.filter((drive) => drive.scheduled_date === today);
-  const upcomingDrives = testDrives.filter((drive) => drive.scheduled_date !== today);
+  const today = now ? format(now, 'yyyy-MM-dd') : null;
+  const todaysDrives = today
+    ? testDrives.filter((drive) => drive.scheduled_date === today)
+    : [];
+  const upcomingDrives = today
+    ? testDrives.filter((drive) => drive.scheduled_date !== today)
+    : testDrives;
 
   const getETA = (td: any) => {
+    if (!now) return 'Calculating...';
+
     if (td.status === 'in_progress' && td.started_at) {
       const elapsed = differenceInMinutes(now, parseISO(td.started_at));
       const remaining = Math.max(0, 30 - elapsed); // assume 30min drive
@@ -266,6 +273,9 @@ const WaitingBoardPage = () => {
     }
   };
 
+  const currentTimeLabel = now ? format(now, 'HH:mm') : '--:--';
+  const currentDateLabel = now ? format(now, 'EEEE, MMM d') : 'Loading date';
+
   return (
     <div className="min-h-screen bg-background">
       <style>{animationStyles}</style>
@@ -283,9 +293,9 @@ const WaitingBoardPage = () => {
           </div>
           <div className="text-right">
             <p className="text-4xl sm:text-6xl font-heading font-bold text-primary" style={{ letterSpacing: '0.05em' }}>
-              {format(now, 'HH:mm')}
+              {currentTimeLabel}
             </p>
-            <p className="text-xs sm:text-sm text-muted-foreground">{format(now, 'EEEE, MMM d')}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{currentDateLabel}</p>
           </div>
         </div>
       </header>

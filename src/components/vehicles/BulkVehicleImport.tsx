@@ -106,7 +106,7 @@ const BulkVehicleImport = ({ locations, onImportComplete }: BulkVehicleImportPro
       return;
     }
     setImporting(true);
-    const payload = validRows.map(r => ({
+    const values = validRows.map(r => ({
       brand: r.brand,
       model: r.model,
       variant: r.variant || null,
@@ -120,20 +120,21 @@ const BulkVehicleImport = ({ locations, onImportComplete }: BulkVehicleImportPro
       transmission: r.transmission || null,
     }));
 
-    const { error } = await apiDbQuery({
-      table: 'vehicles',
-      action: 'insert',
-      payload,
-    });
-    setImporting(false);
+    try {
+      await apiDbQuery({
+        table: 'vehicles',
+        action: 'insert',
+        values,
+      });
 
-    if (error) {
-      toast({ title: 'Import failed', description: error.message, variant: 'destructive' });
-    } else {
       toast({ title: `${validRows.length} vehicles imported successfully` });
       setParsedData([]);
       setFileName('');
       onImportComplete();
+    } catch (err: any) {
+      toast({ title: 'Import failed', description: err?.message || 'Unable to import vehicles', variant: 'destructive' });
+    } finally {
+      setImporting(false);
     }
   };
 

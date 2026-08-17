@@ -34,14 +34,13 @@ type SupportedLocale = 'en' | 'hi';
 
 const API_BASE_URL = getApiBaseUrl();
 
-
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || process.env.VITE_FIREBASE_DATABASE_URL,
 };
 
 const FIREBASE_ERROR_MESSAGES: Record<SupportedLocale, Record<string, string>> = {
@@ -132,7 +131,7 @@ function normalizeLocale(value: string | undefined | null): SupportedLocale {
 }
 
 function resolveInitialLocale(): SupportedLocale {
-  const envLocale = normalizeLocale(import.meta.env.VITE_APP_LOCALE);
+  const envLocale = normalizeLocale(process.env.NEXT_PUBLIC_APP_LOCALE || process.env.VITE_APP_LOCALE);
   if (envLocale !== 'en') return envLocale;
 
   if (typeof window !== 'undefined') {

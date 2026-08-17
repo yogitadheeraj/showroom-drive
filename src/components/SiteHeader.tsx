@@ -1,7 +1,7 @@
-import { Link, useNavigate } from 'react-router-dom';
 import { useAuthOptional } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { LogOut, Moon, Sun } from 'lucide-react';
+import { navigateTo } from '@/lib/browserNavigation';
 
 interface SiteHeaderProps {
   variant?: 'landing' | 'app';
@@ -16,7 +16,6 @@ interface SiteHeaderProps {
 const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightSlot, leftSlot, dealerName, dealerLogoUrl }: SiteHeaderProps) => {
   const auth = useAuthOptional();
   const isLoggedIn = !!auth?.user;
-  const navigate = useNavigate();
   const { resolvedTheme, toggleTheme } = useTheme();
 
   const staffEntryPath = isLoggedIn ? '/dashboard' : '/auth';
@@ -25,7 +24,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
     if (!auth?.signOut) return;
     try {
       await auth.signOut();
-      navigate('/auth');
+      navigateTo('/auth');
     } catch (error) {
       console.error('Failed to sign out', error);
     }
@@ -37,7 +36,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
         <div className="flex items-center gap-3">
           {leftSlot}
          {showLogo && (
-            <Link to="/" className="flex items-center shrink-0">
+            <a href="/" className="flex items-center shrink-0">
             {(dealerLogoUrl || dealerName) ? (
               <div className="flex flex-col leading-none">
                 <div className="flex items-center gap-2">
@@ -74,7 +73,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
                 className="h-9 w-auto object-contain"
               />
             )}
-          </Link>
+          </a>
           )}
         </div>
 
@@ -83,9 +82,9 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
             <a href="/#features" className="transition hover:text-foreground dark:hover:text-white">Features</a>
             <a href="/#benefits" className="transition hover:text-foreground dark:hover:text-white">Benefits</a>
             <a href="/#contact" className="transition hover:text-foreground dark:hover:text-white">Contact</a>
-            <Link to="/dealer-onboarding" className="transition hover:text-foreground dark:hover:text-white">Entity Onboarding</Link>
-            <Link to="/compare" className="transition hover:text-foreground dark:hover:text-white">Compare Vehicles</Link>
-            <Link to={staffEntryPath} className="transition hover:text-foreground dark:hover:text-white">Staff Login</Link>
+            <a href="/dealer-onboarding" className="transition hover:text-foreground dark:hover:text-white">Entity Onboarding</a>
+            <a href="/compare" className="transition hover:text-foreground dark:hover:text-white">Compare Vehicles</a>
+            <a href={staffEntryPath} className="transition hover:text-foreground dark:hover:text-white">Staff Login</a>
           </nav>
         )}
 

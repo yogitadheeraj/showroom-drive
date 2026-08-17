@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
 import { apiGet, apiPost, apiPatch, apiDbQuery } from '@/lib/apiClient';
 import { logStaffActivity } from '@/lib/activityLogger';
@@ -27,6 +26,7 @@ import { APP_ROLE } from '@/constants/roles';
 import { TestDriveJourneyDialog } from '@/components/TestDriveJourneyDialog';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import WalkinDialog from '@/components/WalkinDialog';
+import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
 
 type DurationBadge = 'Lightning Fast' | 'Smooth Experience' | 'Detailed Guidance' | 'Premium Attention';
 
@@ -59,7 +59,7 @@ type LeadTemperature = 'hot' | 'cold';
 
 const TestDrivesPage = () => {
   const { role, profile } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams] = useBrowserSearchParams();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'all');
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);

@@ -3,7 +3,12 @@ const LOCALHOST_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const normalize = (value?: string | null) => (value || '').trim().replace(/\/$/, '');
 
 export function getApiBaseUrl() {
-  const envBase = normalize(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL);
+  const envBase = normalize(
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      process.env.VITE_API_BASE_URL ||
+      process.env.VITE_API_URL
+  );
 
   if (typeof window === 'undefined') {
     return envBase || 'http://localhost:4000';

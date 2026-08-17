@@ -29,6 +29,7 @@ export type StaffActivityEventType =
   | 'customer_updated'
   | 'customer_deleted'
   | 'booking_created'
+  | 'car_booking_created'
   | 'booking_updated'
   | 'booking_cancelled'
   | 'booking_refunded'

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { apiDbQuery } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
@@ -18,11 +17,11 @@ import BlockedSlotsManager from './BlockedSlotsManager';
 import { TestDriveInsightGrid } from './TestDriveInsightGrid';
 import { StaffActivityGrid } from './StaffActivityGrid';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import { navigateTo } from '@/lib/browserNavigation';
 
 const GRODashboard = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
-  const navigate = useNavigate();
   const [showInsights, setShowInsights] = useState(false);
   const [stats, setStats] = useState({ today: 0, upcoming: 0, completed: 0, completionRate: 0 });
   const [testDrives, setTestDrives] = useState<any[]>([]);
@@ -191,11 +190,11 @@ const GRODashboard = () => {
             const Icon = stat.icon;
             const handleCardClick = () => {
               if (stat.label === "Today's Drives" || stat.label === 'Upcoming') {
-                navigate('/test-drives?status=scheduled');
+                navigateTo('/test-drives?status=scheduled');
               } else if (stat.label === 'Completed') {
-                navigate('/test-drives?status=completed');
+                navigateTo('/test-drives?status=completed');
               } else {
-                navigate('/test-drives');
+                navigateTo('/test-drives');
               }
             };
             return (
@@ -292,7 +291,7 @@ const GRODashboard = () => {
                 ))}
                 {testDrives.length > 5 && (
                   <div className="flex justify-center pt-2">
-                    <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigate('/test-drives')}>
+                    <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigateTo('/test-drives')}>
                       View All {testDrives.length} Test Drives →
                     </Button>
                   </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Link, useNavigate } from 'react-router-dom';
+import { goBack, goForward } from '@/lib/browserNavigation';
 import { apiGet, apiPatch, apiPost } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useToast } from '@/hooks/use-toast';
@@ -69,7 +69,6 @@ const extractHour = (time?: string | null) => {
 
 const GROCalendarView = () => {
   const { profile } = useAuth();
-  const navigateTo = useNavigate();
   const { toast } = useToast();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [locationVehicles, setLocationVehicles] = useState<any[]>([]);
@@ -642,7 +641,7 @@ const GROCalendarView = () => {
         <div className="rounded-2xl border border-border bg-card/80 shadow-card p-3 sm:p-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+              <Button variant="outline" size="sm" onClick={goBack}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <h2 className="text-lg font-heading font-semibold text-foreground min-w-[200px] text-center">
@@ -651,7 +650,7 @@ const GROCalendarView = () => {
                   : `${format(weekDays[0], 'MMM d')} — ${format(weekDays[6], 'MMM d, yyyy')}`
                 }
               </h2>
-              <Button variant="outline" size="sm" onClick={() => navigate(1)}>
+              <Button variant="outline" size="sm" onClick={goForward}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>Today</Button>
@@ -1135,7 +1134,6 @@ const GROCalendarView = () => {
       <WalkinDialog
         open={walkinDialog.open}
         defaultDate={walkinDialog.date}
-        rebookDrive={true}
         defaultTime={walkinDialog.time}
         defaultLocationId={profile?.location_id}
         onClose={(submitted) => {

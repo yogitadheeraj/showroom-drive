@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import RouteCalculator from '@/components/RouteCalculator';
 import { getApiBaseUrl } from '@/lib/getApiBaseUrl';
+import useBrowserPath from '@/hooks/useBrowserPath';
+import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
 import {
   AlertTriangle,
   Calendar,
@@ -69,8 +70,9 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 type View = 'details' | 'reschedule' | 'upload' | 'cancel' | 'rebook';
 
 export default function CustomerBookingPage() {
-  const { testDriveId } = useParams<{ testDriveId: string }>();
-  const [searchParams] = useSearchParams();
+  const path = useBrowserPath();
+  const [searchParams] = useBrowserSearchParams();
+  const testDriveId = useMemo(() => path.match(/^\/customer\/booking\/([^/?#]+)/)?.[1] ?? '', [path]);
   const token = searchParams.get('token') || '';
   const { toast } = useToast();
 

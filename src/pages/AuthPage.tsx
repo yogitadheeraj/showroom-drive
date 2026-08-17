@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { apiGet } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { ArrowRight, BadgeCheck, Bell, Building2, CheckCircle2, Eye, EyeOff, Key
 import SiteHeader from '@/components/SiteHeader';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import { useWhitelabel } from '@/hooks/useWhitelabel';
+import { navigateTo } from '@/lib/browserNavigation';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
@@ -26,7 +27,6 @@ const AuthPage = () => {
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const { signIn, resendVerificationEmail, user } = useAuth();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const brand = useWhitelabel();
@@ -51,7 +51,7 @@ const AuthPage = () => {
     setIsLoading(true);
     try {
       await signIn(email, password);
-      navigate('/dashboard');
+      navigateTo('/dashboard');
     } catch (err: any) {
       toast({ title: 'Sign in failed', description: err.message, variant: 'destructive' });
     } finally {
@@ -126,7 +126,7 @@ const AuthPage = () => {
     }
 
     setNewLeadCount(0);
-    navigate('/test-drives');
+    navigateTo('/test-drives');
   };
 
   return (
@@ -306,7 +306,7 @@ const AuthPage = () => {
                             )}
                           </Button>
                           <Button asChild variant="link" className="h-11 w-full text-sm text-primary">
-                            <Link to="/dealer-onboarding">New dealer? Start onboarding</Link>
+                            <a href="/dealer-onboarding">New dealer? Start onboarding</a>
                           </Button>
                         </div>
                       </>

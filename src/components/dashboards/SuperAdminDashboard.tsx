@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { getDatabase, ref, onValue } from 'firebase/database';
 import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +29,7 @@ import { TestDriveInsightGrid } from './TestDriveInsightGrid';
 import { StaffActivityGrid } from './StaffActivityGrid';
 import TestDriveCalendarMini from './TestDriveCalendarMini';
 import HierarchyOverview from './HierarchyOverview';
+import { navigateTo } from '@/lib/browserNavigation';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
@@ -122,7 +122,6 @@ const SuperAdminDashboard = () => {
   const activeDealerId = isSuperAdmin
     ? (selectedDealer === 'all' ? null : selectedDealer)
     : contextDealerId;
-  const navigate = useNavigate();
 
   useEffect(() => {
     localStorage.setItem(
@@ -702,17 +701,17 @@ const SuperAdminDashboard = () => {
               key={stat.label}
               className={`shadow-card min-w-0 border cursor-pointer ${stat.bg.replace('bg-', 'border-').replace('/10', '/30')}`}
               onClick={() => {
-                if (stat.label === 'Locations') navigate('/locations');
-                else if (stat.label === 'Brands') navigate('/settings?tab=brands');
-                else if (stat.label === 'Users') navigate('/users');
-                else if (stat.label === 'Dealers') navigate('/users?role=dealer_admin');
-                else if (stat.label === 'Total Drives') navigate('/test-drives');
-                else if (stat.label === 'Scheduled') navigate('/test-drives');
-                else if (stat.label === 'Completed') navigate('/test-drives');
-                else if (stat.label === 'No Show') navigate('/test-drives');
-                else if (stat.label === 'Cancelled') navigate('/test-drives');
-                else if (stat.label === 'Repeat') navigate('/test-drives');
-                else if (stat.label === 'Active Sales Executive') navigate('/users');
+                if (stat.label === 'Locations') navigateTo('/locations');
+                else if (stat.label === 'Brands') navigateTo('/settings?tab=brands');
+                else if (stat.label === 'Users') navigateTo('/users');
+                else if (stat.label === 'Dealers') navigateTo('/users?role=dealer_admin');
+                else if (stat.label === 'Total Drives') navigateTo('/test-drives');
+                else if (stat.label === 'Scheduled') navigateTo('/test-drives');
+                else if (stat.label === 'Completed') navigateTo('/test-drives');
+                else if (stat.label === 'No Show') navigateTo('/test-drives');
+                else if (stat.label === 'Cancelled') navigateTo('/test-drives');
+                else if (stat.label === 'Repeat') navigateTo('/test-drives');
+                else if (stat.label === 'Active Sales Executive') navigateTo('/users');
               }}
             >
               <CardContent className="p-3 sm:p-4 min-w-0 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">

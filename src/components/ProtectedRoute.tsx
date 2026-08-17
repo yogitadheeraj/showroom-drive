@@ -1,8 +1,9 @@
-import { ReactNode } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { ReactNode, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import LoadingState from '@/components/common/LoadingState';
 import { AppRole } from '@/constants/roles';
+import useBrowserPath from '@/hooks/useBrowserPath';
+import { navigateTo } from '@/lib/browserNavigation';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -11,7 +12,20 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const { user, role, loading } = useAuth();
-  const location = useLocation();
+  const location = useBrowserPath();
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (!user) {
+      navigateTo(`/auth?from=${encodeURIComponent(location)}`, true);
+      return;
+    }
+
+    if (allowedRoles && role && !allowedRoles.includes(role)) {
+      navigateTo('/dashboard', true);
+    }
+  }, [allowedRoles, loading, location, role, user]);
 
   if (loading) {
     return (
@@ -22,11 +36,11 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   }
 
   if (!user) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
+    return null;
   }
 
   if (allowedRoles && role && !allowedRoles.includes(role)) {
-    return <Navigate to="/dashboard" replace />;
+    return null;
   }
 
   return <>{children}</>;

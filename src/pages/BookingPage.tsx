@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
 import { apiDbQuery, apiPost } from '@/lib/apiClient';
 
 import { Button } from '@/components/ui/button';
@@ -17,6 +16,7 @@ import { Car, CheckCircle, Zap, ArrowRight, MapPin, Clock, User, ChevronRight, S
 import { z } from 'zod';
 import { format, isBefore, startOfDay } from 'date-fns';
 import { checkAndReleaseNoShowBookings, getAvailableTimeSlots, getAvailableVehicles } from '@/lib/slotAvailability';
+import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
 
 const STEPS = [
   { id: 'vehicle', label: 'Vehicle', icon: Car },
@@ -111,8 +111,12 @@ const normalizeModelToken = (value: string) =>
 
 const QUICK_LOCATION_PAGE_SIZE = 4;
 
-const BookingPage = () => {
-  const [searchParams] = useSearchParams();
+type BookingPageProps = {
+  hideStandaloneHeader?: boolean;
+};
+
+const BookingPage = ({ hideStandaloneHeader = false }: BookingPageProps) => {
+  const [searchParams] = useBrowserSearchParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
@@ -672,16 +676,16 @@ const BookingPage = () => {
         </a>
 
         <div className="hidden lg:flex items-center gap-3">
-          <Link to="/compare">
+          <a href="/compare">
             <Button size="lg" className="bg-info text-info-foreground rounded-xl font-semibold hover:bg-info/90 transition-all px-5">
               <Car className="mr-2 h-4 w-4" /> Compare
             </Button>
-          </Link>
-          <Link to="/auth">
+          </a>
+          <a href="/auth">
             <Button size="lg" className="primary text-white rounded-xl font-semibold shadow-lg hover:bg-primary-foreground/90 hover:text-black transition-all px-5">
               Staff Login →
             </Button>
-          </Link>
+          </a>
         </div>
 
         <button
@@ -694,26 +698,26 @@ const BookingPage = () => {
 
       {mobileMenuOpen && (
         <div className="relative z-20 lg:hidden px-4 pb-4 space-y-2">
-          <Link to="/compare" onClick={() => setMobileMenuOpen(false)}>
+          <a href="/compare" onClick={() => setMobileMenuOpen(false)}>
             <Button className="w-full bg-info text-info-foreground rounded-xl font-semibold hover:bg-info/90 justify-start gap-2 h-11">
               <Car className="h-4 w-4" /> Compare Vehicles
             </Button>
-          </Link>
-          <Link to="/book" onClick={() => setMobileMenuOpen(false)}>
+          </a>
+          <a href="/book" onClick={() => setMobileMenuOpen(false)}>
             <Button className="w-full gradient-accent border-0 text-accent-foreground rounded-xl font-semibold justify-start gap-2 h-11 mt-2">
               🚗 Book Test Drive
             </Button>
-          </Link>
-          <Link to="/dealer-onboarding" onClick={() => setMobileMenuOpen(false)}>
+          </a>
+          <a href="/dealer-onboarding" onClick={() => setMobileMenuOpen(false)}>
             <Button className="w-full bg-success text-success-foreground rounded-xl font-semibold hover:bg-success/90 justify-start gap-2 h-11 mt-2">
               <Building2 className="h-4 w-4" /> For Dealers
             </Button>
-          </Link>
-          <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+          </a>
+          <a href="/auth" onClick={() => setMobileMenuOpen(false)}>
             <Button className="w-full bg-primary-foreground text-foreground rounded-xl font-semibold justify-start gap-2 h-11 mt-2">
               Staff Login →
             </Button>
-          </Link>
+          </a>
         </div>
       )}
     </div>
@@ -728,7 +732,7 @@ const BookingPage = () => {
           canonicalUrl={bookingCanonicalUrl}
           ogType="website"
         />
-        {renderHomeStyleHeader()}
+        {!hideStandaloneHeader && renderHomeStyleHeader()}
         <div className="mx-auto max-w-4xl space-y-4 p-4 md:p-6">
           <Card className="w-full shadow-elevated animate-fade-in text-center">
             <CardContent className="p-8">
@@ -742,9 +746,9 @@ const BookingPage = () => {
                 <Button onClick={() => { setSuccess(false); setStep(0); setFormData({ fullName: '', email: '', phone: '', preferredContact: 'phone', locationId: '', vehicleId: '', scheduledDate: '', scheduledTime: '', selectedModel: '', selectedVariantVehicleId: '' }); }}>
                   Book Another
                 </Button>
-                <Link to="/">
+                <a href="/">
                   <Button variant="outline" className="w-full sm:w-auto">Back to Home</Button>
-                </Link>
+                </a>
               </div>
             </CardContent>
           </Card>
@@ -795,7 +799,7 @@ const BookingPage = () => {
         ogType="website"
       />
       {/* Header */}
-      {renderHomeStyleHeader()}
+      {!hideStandaloneHeader && renderHomeStyleHeader()}
 
       {/* Step Indicator */}
       <div className="max-w-2xl mx-auto px-4 pt-6">
@@ -890,11 +894,11 @@ const BookingPage = () => {
                       <GitCompareArrows className="h-4 w-4 inline mr-1.5" />
                       {compareIds.length} vehicles selected for comparison
                     </span>
-                    <Link to={`/compare?ids=${compareIds.join(',')}`}>
+                    <a href={`/compare?ids=${compareIds.join(',')}`}>
                       <Button size="sm" className="gradient-primary border-0 text-primary-foreground text-xs">
                         Compare Now
                       </Button>
-                    </Link>
+                    </a>
                   </div>
                 )}
                 {modelGroups.ev.length > 0 && (

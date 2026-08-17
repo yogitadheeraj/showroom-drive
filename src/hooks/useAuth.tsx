@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    if (user) {
+      if (user) {
       await endActivitySession({
         userId: user.id,
         profileId: profile?.id,

@@ -1056,15 +1056,43 @@ const LocationsPage = () => {
 
         {/* Add/Edit Dialog - Two Step */}
         <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setStep(1); }}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-heading">{editingId ? 'Edit' : 'Add'} Location</DialogTitle>
             </DialogHeader>
             {(() => {
               // Step 1: Basic Info
-              // Step 2: Geo/Contact/Map/Currency
+              // Step 2: Hierarchy & Brand
+              // Step 3: Contact, Currency & Map
+              const steps = [
+                { id: 1, label: 'Basic Info' },
+                { id: 2, label: 'Hierarchy' },
+                { id: 3, label: 'Contact & Map' },
+              ];
+
+              const stepper = (
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Step {step} of {steps.length}</span>
+                    <span>{steps[step - 1]?.label}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {steps.map((s) => (
+                      <div
+                        key={s.id}
+                        className={cn(
+                          'h-1.5 flex-1 rounded-full transition-colors',
+                          step >= s.id ? 'bg-primary' : 'bg-muted',
+                        )}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+
               const step1Fields = (
                 <div className="space-y-3">
+                  {stepper}
                   <div className="space-y-1.5">
                     <Label>Country <span className="text-destructive">*</span></Label>
                     <select
@@ -1119,6 +1147,16 @@ const LocationsPage = () => {
                       {locErrors.state && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.state}</p>}
                     </div>
                   </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={() => { setShowDialog(false); setStep(1); }}>Cancel</Button>
+                    <Button onClick={() => { if (validateLocationStep1()) setStep(2); }} className="bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
+                  </div>
+                </div>
+              );
+
+              const step2Fields = (
+                <div className="space-y-3">
+                  {stepper}
                   {/* Hierarchy dropdowns */}
                   {businessUnits.length > 0 && (
                     <>
@@ -1174,6 +1212,7 @@ const LocationsPage = () => {
                       )}
                     </>
                   )}
+
                   {/* Brand assignment */}
                   {dealerBrands.length > 0 && (
                     <div className="space-y-1.5">
@@ -1193,15 +1232,18 @@ const LocationsPage = () => {
                       </select>
                     </div>
                   )}
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" onClick={() => { setShowDialog(false); setStep(1); }}>Cancel</Button>
-                    <Button onClick={() => { if (validateLocationStep1()) setStep(2); }} className="bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
+
+                  <div className="flex justify-between gap-2 pt-2">
+                    <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+                    <Button onClick={() => setStep(3)} className="bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
                   </div>
                 </div>
               );
+
               const selectedCountry = COUNTRIES.find(c => c.name === formData.country);
-              const step2Fields = (
+              const step3Fields = (
                 <div className="space-y-3">
+                  {stepper}
                   <div className="space-y-1.5">
                     <Label>Phone <span className="text-destructive">*</span></Label>
                     {selectedCountry && (
@@ -1252,12 +1294,15 @@ const LocationsPage = () => {
                     <Input value={formData.maplink} onChange={e => setFormData(p => ({ ...p, maplink: e.target.value }))} placeholder="Paste Google Maps link (optional)" />
                   </div>
                   <div className="flex justify-between gap-2 pt-2">
-                    <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+                    <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
                     <Button onClick={handleSubmit} className="bg-primary text-primary-foreground hover:bg-primary/90">{editingId ? 'Update' : 'Add'} Location</Button>
                   </div>
                 </div>
               );
-              return step === 1 ? step1Fields : step2Fields;
+
+              if (step === 1) return step1Fields;
+              if (step === 2) return step2Fields;
+              return step3Fields;
             })()}
           </DialogContent>
         </Dialog>

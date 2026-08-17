@@ -1,9 +1,9 @@
-import { getAuth, createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { apiPost } from '@/lib/apiClient';
+import { firebaseAuth } from '@/integrations/supabase/client';
 
 export async function authSignUp(email: string, password: string, fullName: string) {
-  const auth = getAuth();
-  const result = await createUserWithEmailAndPassword(auth, email, password);
+  const result = await createUserWithEmailAndPassword(firebaseAuth, email, password);
   if (fullName) {
     await updateProfile(result.user, { displayName: fullName });
   }
