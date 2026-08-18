@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { apiPost, apiGet } from '@/lib/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import { fetchDealerGrowthStats } from '@/lib/landingPageStats';
 import showcaseBooking from '@/assets/showcase-booking.jpg';
 import showcaseGroAssign from '@/assets/showcase-gro-assign.jpg';
 import SeoMeta from '@/components/SeoMeta';
+import { firebaseAuth, isFirebaseClientConfigured } from '@/integrations/supabase/client';
 
 declare global {
     interface Window {
@@ -170,8 +171,12 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
     const goToSlide = (index: number) => setActiveHeroSlide(index);
 
     useEffect(() => {
-        const auth = getAuth();
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (!firebaseAuth || !isFirebaseClientConfigured) {
+            setIsLoggedIn(false);
+            return;
+        }
+
+        const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
             setIsLoggedIn(!!user);
         });
 

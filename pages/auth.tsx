@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ArrowRight, BadgeCheck, Bell, Building2, CheckCircle2, Eye, EyeOff, KeyRound, MailCheck, ShieldCheck, Sparkles } from 'lucide-react';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { useWhitelabel } from '@/hooks/useWhitelabel';
-import { firebaseAuth } from '@/integrations/supabase/client';
+import { firebaseAuth, isFirebaseClientConfigured } from '@/integrations/supabase/client';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
@@ -70,6 +70,10 @@ const AuthPage = () => {
     }
     setIsSendingReset(true);
     try {
+      if (!firebaseAuth || !isFirebaseClientConfigured) {
+        toast({ title: 'Configuration issue', description: 'Authentication is not configured for this environment.', variant: 'destructive' });
+        return;
+      }
       await sendPasswordResetEmail(firebaseAuth, normalizedEmail);
       setResetSent(true);
     } catch (err: any) {

@@ -17,8 +17,8 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
-  getAuth,
 } from 'firebase/auth';
+import { firebaseAuth, isFirebaseClientConfigured } from '@/integrations/supabase/client';
 
 const MyProfilePage = () => {
   const { profile, role, refreshProfile } = useAuth();
@@ -120,7 +120,11 @@ const MyProfilePage = () => {
       toast({ title: 'Password too short', description: 'New password must be at least 8 characters.', variant: 'destructive' });
       return;
     }
-    const firebaseUser = getAuth().currentUser;
+    if (!firebaseAuth || !isFirebaseClientConfigured) {
+      toast({ title: 'Configuration issue', description: 'Authentication is not configured for this environment.', variant: 'destructive' });
+      return;
+    }
+    const firebaseUser = firebaseAuth.currentUser;
     if (!firebaseUser || !firebaseUser.email) {
       toast({ title: 'Not authenticated', description: 'Please sign in again.', variant: 'destructive' });
       return;

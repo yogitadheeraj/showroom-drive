@@ -7,7 +7,7 @@ import {
   updateProfile,
   onIdTokenChanged,
 } from 'firebase/auth';
-import { firebaseAuth, type Session, type User } from '@/integrations/supabase/client';
+import { firebaseAuth, isFirebaseClientConfigured, type Session, type User } from '@/integrations/supabase/client';
 import { apiGet, apiPatch, apiPost } from '@/lib/apiClient';
 import { AppRole } from '@/constants/roles';
 import { isAppRole } from '@/lib/roles';
@@ -67,6 +67,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    if (!firebaseAuth || !isFirebaseClientConfigured) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onIdTokenChanged(firebaseAuth, async (firebaseUser) => {
       if (firebaseUser) {
         const mappedUser: User = { id: firebaseUser.uid, email: firebaseUser.email, user_metadata: { full_name: firebaseUser.displayName } };
@@ -88,6 +93,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    if (!firebaseAuth || !isFirebaseClientConfigured) {
+      throw new Error('Authentication is not configured for this environment.');
+    }
+
     const credentials = await signInWithEmailAndPassword(firebaseAuth, email, password);
     if (!credentials.user.emailVerified) {
       await firebaseSignOut(firebaseAuth);
@@ -106,6 +115,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
+    if (!firebaseAuth || !isFirebaseClientConfigured) {
+      throw new Error('Authentication is not configured for this environment.');
+    }
+
     const credentials = await createUserWithEmailAndPassword(firebaseAuth, email, password);
     if (fullName && credentials.user) {
       await updateProfile(credentials.user, { displayName: fullName });
@@ -131,7 +144,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
     }
 
-    await firebaseSignOut(firebaseAuth);
+    if (firebaseAuth && isFirebaseClientConfigured) {
+      await firebaseSignOut(firebaseAuth);
+    }
     setUser(null);
     setSession(null);
     setRole(null);

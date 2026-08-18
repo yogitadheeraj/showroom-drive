@@ -9,9 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { ArrowRight, BadgeCheck, Bell, Building2, CheckCircle2, Eye, EyeOff, KeyRound, MailCheck, ShieldCheck, Sparkles } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
-import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { useWhitelabel } from '@/hooks/useWhitelabel';
 import { navigateTo } from '@/lib/browserNavigation';
+import { firebaseAuth, isFirebaseClientConfigured } from '@/integrations/supabase/client';
 
 const AuthPage = () => {
   const [email, setEmail] = useState('');
@@ -68,7 +69,11 @@ const AuthPage = () => {
     }
     setIsSendingReset(true);
     try {
-      await sendPasswordResetEmail(getAuth(), normalizedEmail);
+      if (!firebaseAuth || !isFirebaseClientConfigured) {
+        toast({ title: 'Configuration issue', description: 'Authentication is not configured for this environment.', variant: 'destructive' });
+        return;
+      }
+      await sendPasswordResetEmail(firebaseAuth, normalizedEmail);
       setResetSent(true);
     } catch (err: any) {
       // Always show a generic success message to prevent email enumeration

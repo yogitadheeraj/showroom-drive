@@ -43,6 +43,13 @@ const firebaseConfig = {
   databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || process.env.VITE_FIREBASE_DATABASE_URL,
 };
 
+export const isFirebaseClientConfigured = Boolean(
+  firebaseConfig.apiKey &&
+  firebaseConfig.authDomain &&
+  firebaseConfig.projectId &&
+  firebaseConfig.appId
+);
+
 const FIREBASE_ERROR_MESSAGES: Record<SupportedLocale, Record<string, string>> = {
   en: {
     EMAIL_EXISTS: 'This email is already registered. Please sign in instead.',
@@ -211,14 +218,33 @@ function toFriendlyFirebaseMessage(input: unknown, fallback?: string) {
   );
 }
 
-const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-const auth = getAuth(app);
+let auth: ReturnType<typeof getAuth> | null = null;
 
-/** Firebase auth instance — exported for direct use without the supabase shim */
-export { auth as firebaseAuth };
+if (isFirebaseClientConfigured) {
+  try {
+    const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    auth = getAuth(app);
+  } catch (error) {
+    console.error('Firebase client initialization failed', error);
+  }
+} else {
+  console.warn(
+    'Firebase client config is missing. Set NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, and NEXT_PUBLIC_FIREBASE_APP_ID.'
+  );
+}
+
+/** Firebase auth instance — may be null when Firebase env vars are missing */
+export const firebaseAuth = auth;
+
+function ensureFirebaseAuth() {
+  if (!auth) {
+    throw new Error('Firebase authentication is not configured. Please set NEXT_PUBLIC_FIREBASE_* environment variables.');
+  }
+  return auth;
+}
 
 async function getAccessToken() {
-  if (!auth.currentUser) return null;
+  if (!auth?.currentUser) return null;
   return auth.currentUser.getIdToken();
 }
 
@@ -495,10 +521,22 @@ export const supabase = {
   },
   auth: {
     async getSession() {
+      if (!auth) return { data: { session: null } };
       const session = await mapSession(auth.currentUser);
       return { data: { session } };
     },
     onAuthStateChange(callback: (event: string, session: Session | null) => void) {
+      if (!auth) {
+        callback('SIGNED_OUT', null);
+        return {
+          data: {
+            subscription: {
+              unsubscribe: () => {},
+            },
+          },
+        };
+      }
+
       const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
         const session = await mapSession(firebaseUser);
         callback(firebaseUser ? 'SIGNED_IN' : 'SIGNED_OUT', session);
@@ -514,9 +552,10 @@ export const supabase = {
     },
     async signInWithPassword({ email, password }: { email: string; password: string }) {
       try {
-        const credentials = await signInWithEmailAndPassword(auth, email, password);
+        const resolvedAuth = ensureFirebaseAuth();
+        const credentials = await signInWithEmailAndPassword(resolvedAuth, email, password);
         if (!credentials.user.emailVerified) {
-          await firebaseSignOut(auth);
+          await firebaseSignOut(resolvedAuth);
           return {
             data: { user: null, session: null },
             error: {
@@ -545,14 +584,15 @@ export const supabase = {
         (typeof window !== 'undefined' ? `${window.location.origin}/auth?verified=true` : `${API_BASE_URL}/auth?verified=true`);
 
       try {
-        const credentials = await createUserWithEmailAndPassword(auth, email, password);
+        const resolvedAuth = ensureFirebaseAuth();
+        const credentials = await createUserWithEmailAndPassword(resolvedAuth, email, password);
         if (options?.data?.full_name && credentials.user) {
           await updateProfile(credentials.user, { displayName: options.data.full_name });
         }
         if (credentials.user) {
           await sendEmailVerification(credentials.user, { url: continueUrl });
           // Sign out so user can only access the app after email verification
-          await firebaseSignOut(auth);
+          await firebaseSignOut(resolvedAuth);
         }
         return { data: { user: mapUser(credentials.user) }, error: null };
       } catch (error) {
@@ -564,10 +604,11 @@ export const supabase = {
 
         if (isAlreadyInUse) {
           try {
-            const existing = await signInWithEmailAndPassword(auth, email, password);
+            const resolvedAuth = ensureFirebaseAuth();
+            const existing = await signInWithEmailAndPassword(resolvedAuth, email, password);
 
             if (existing.user.emailVerified) {
-              await firebaseSignOut(auth);
+              await firebaseSignOut(resolvedAuth);
               return {
                 data: { user: null },
                 error: {
@@ -576,7 +617,7 @@ export const supabase = {
               };
             }
 
-            await firebaseSignOut(auth);
+            await firebaseSignOut(resolvedAuth);
 
             return {
               data: { user: null },
@@ -602,13 +643,14 @@ export const supabase = {
     },
     async resend({ email, options }: { email: string; type?: string; options?: { emailRedirectTo?: string } }) {
       try {
+        const resolvedAuth = ensureFirebaseAuth();
         const continueUrl =
           options?.emailRedirectTo ||
           (typeof window !== 'undefined' ? `${window.location.origin}/auth?verified=true` : `${API_BASE_URL}/auth?verified=true`);
 
         // If the user is currently signed in and matches, use client SDK
-        if (auth.currentUser && auth.currentUser.email?.toLowerCase() === email.toLowerCase()) {
-          await sendEmailVerification(auth.currentUser, { url: continueUrl });
+        if (resolvedAuth.currentUser && resolvedAuth.currentUser.email?.toLowerCase() === email.toLowerCase()) {
+          await sendEmailVerification(resolvedAuth.currentUser, { url: continueUrl });
           return { data: { message: 'Verification email sent' }, error: null };
         }
 
@@ -624,7 +666,8 @@ export const supabase = {
       }
     },
     async signOut() {
-      await firebaseSignOut(auth);
+      const resolvedAuth = ensureFirebaseAuth();
+      await firebaseSignOut(resolvedAuth);
       return { error: null };
     },
   },
