@@ -52,7 +52,7 @@ const firebaseConfig = {
 };
 console.log('Firebase config:', {
   firebaseConfig,
-  process:process.env
+  process:process.env.VITE_FIREBASE_API_KEY
 });
 export const isFirebaseClientConfigured = Boolean(
   firebaseConfig.apiKey &&
