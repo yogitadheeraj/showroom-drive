@@ -50,7 +50,9 @@ const firebaseConfig = {
   ),
   databaseURL: normalizePublicEnv(process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || process.env.VITE_FIREBASE_DATABASE_URL),
 };
-
+console.log('Firebase config:', {
+  firebaseConfig,
+});
 export const isFirebaseClientConfigured = Boolean(
   firebaseConfig.apiKey &&
   firebaseConfig.authDomain &&
