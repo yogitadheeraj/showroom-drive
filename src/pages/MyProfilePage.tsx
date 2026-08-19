@@ -121,7 +121,7 @@ const MyProfilePage = () => {
       return;
     }
     if (!firebaseAuth || !isFirebaseClientConfigured) {
-      toast({ title: 'Configuration issue', description: 'Authentication is not configured for this environment.', variant: 'destructive' });
+      toast({ title: 'Configuration issue', description: 'Authentication is not configured for this environment My Profile.', variant: 'destructive' });
       return;
     }
     const firebaseUser = firebaseAuth.currentUser;

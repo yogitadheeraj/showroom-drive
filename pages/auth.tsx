@@ -71,7 +71,7 @@ const AuthPage = () => {
     setIsSendingReset(true);
     try {
       if (!firebaseAuth || !isFirebaseClientConfigured) {
-        toast({ title: 'Configuration issue', description: 'Authentication is not configured for this environment.', variant: 'destructive' });
+        toast({ title: 'Configuration issue', description: 'Authentication is not configured for this environment AUTH.', variant: 'destructive' });
         return;
       }
       await sendPasswordResetEmail(firebaseAuth, normalizedEmail);

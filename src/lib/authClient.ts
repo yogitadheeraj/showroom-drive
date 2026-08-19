@@ -4,7 +4,7 @@ import { firebaseAuth, isFirebaseClientConfigured } from '@/integrations/supabas
 
 export async function authSignUp(email: string, password: string, fullName: string) {
   if (!firebaseAuth || !isFirebaseClientConfigured) {
-    return { data: null, error: { message: 'Authentication is not configured for this environment.' } };
+    return { data: null, error: { message: 'Authentication is not configured for this environment AUTH CL.' } };
   }
 
   const result = await createUserWithEmailAndPassword(firebaseAuth, email, password);

@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     if (!firebaseAuth || !isFirebaseClientConfigured) {
-      throw new Error('Authentication is not configured for this environment.');
+      throw new Error('Authentication is not configured for this environment USE AUTH.');
     }
 
     const credentials = await signInWithEmailAndPassword(firebaseAuth, email, password);
@@ -116,7 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName: string) => {
     if (!firebaseAuth || !isFirebaseClientConfigured) {
-      throw new Error('Authentication is not configured for this environment.');
+      throw new Error('Authentication is not configured for this environment USE AUTH 2.');
     }
 
     const credentials = await createUserWithEmailAndPassword(firebaseAuth, email, password);
