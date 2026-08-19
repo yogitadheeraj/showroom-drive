@@ -40,20 +40,23 @@ const normalizePublicEnv = (value?: string) => {
   return trimmed.replace(/^['\"]+|['\"]+$/g, '');
 };
 
+const getPublicEnv = (key: string) => normalizePublicEnv(process.env[key]);
+
 const firebaseConfig = {
-  apiKey: normalizePublicEnv(process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY),
-  authDomain: normalizePublicEnv(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN),
-  projectId: normalizePublicEnv(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID),
-  appId: normalizePublicEnv(process.env.NEXT_PUBLIC_FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID),
-  messagingSenderId: normalizePublicEnv(
-    process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  ),
-  databaseURL: normalizePublicEnv(process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || process.env.VITE_FIREBASE_DATABASE_URL),
+  apiKey: getPublicEnv('NEXT_PUBLIC_FIREBASE_API_KEY'),
+  authDomain: getPublicEnv('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN'),
+  projectId: getPublicEnv('NEXT_PUBLIC_FIREBASE_PROJECT_ID'),
+  appId: getPublicEnv('NEXT_PUBLIC_FIREBASE_APP_ID'),
+  messagingSenderId: getPublicEnv('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID'),
+  databaseURL: getPublicEnv('NEXT_PUBLIC_FIREBASE_DATABASE_URL'),
 };
-console.log('Firebase config:', {
-  firebaseConfig,
-  process:process.env.VITE_FIREBASE_API_KEY
-});
+
+const missingFirebaseKeys = [
+  'NEXT_PUBLIC_FIREBASE_API_KEY',
+  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+  'NEXT_PUBLIC_FIREBASE_APP_ID',
+].filter((key) => !getPublicEnv(key));
 export const isFirebaseClientConfigured = Boolean(
   firebaseConfig.apiKey &&
   firebaseConfig.authDomain &&
@@ -149,7 +152,7 @@ function normalizeLocale(value: string | undefined | null): SupportedLocale {
 }
 
 function resolveInitialLocale(): SupportedLocale {
-  const envLocale = normalizeLocale(process.env.NEXT_PUBLIC_APP_LOCALE || process.env.VITE_APP_LOCALE);
+  const envLocale = normalizeLocale(process.env.NEXT_PUBLIC_APP_LOCALE);
   if (envLocale !== 'en') return envLocale;
 
   if (typeof window !== 'undefined') {
@@ -240,7 +243,7 @@ if (isFirebaseClientConfigured) {
   }
 } else {
   console.warn(
-    'Firebase client config is missing. Set NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, and NEXT_PUBLIC_FIREBASE_APP_ID.'
+    `Firebase client config is missing. Missing keys: ${missingFirebaseKeys.join(', ') || 'unknown'}.`
   );
 }
 

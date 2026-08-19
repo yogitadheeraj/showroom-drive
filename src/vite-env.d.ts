@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
 	readonly [key: string]: string | undefined;
-	readonly VITE_GA_MEASUREMENT_ID?: string;
+	readonly NEXT_PUBLIC_FIREBASE_DATABASE_URL?: string;
 }
 
 interface ImportMeta {

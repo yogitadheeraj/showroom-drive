@@ -5,9 +5,7 @@ const normalize = (value?: string | null) => (value || '').trim().replace(/\/$/,
 export function getApiBaseUrl() {
   const envBase = normalize(
     process.env.NEXT_PUBLIC_API_BASE_URL ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      process.env.VITE_API_BASE_URL ||
-      process.env.VITE_API_URL
+      process.env.NEXT_PUBLIC_API_URL
   );
 
   if (typeof window === 'undefined') {

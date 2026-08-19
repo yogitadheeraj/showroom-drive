@@ -8,7 +8,7 @@ declare global {
 const GA_SCRIPT_ID = 'ga4-script';
 const GA_CONFIG_ID = 'ga4-config';
 
-const getMeasurementId = () => (import.meta as any)?.env?.VITE_GA_MEASUREMENT_ID as string | undefined;
+const getMeasurementId = () => (import.meta as any)?.env?.NEXT_PUBLIC_GA_MEASUREMENT_ID as string | undefined;
 
 export const initGoogleAnalytics = () => {
   const measurementId = getMeasurementId();
