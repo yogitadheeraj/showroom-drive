@@ -50,10 +50,6 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
 };
-console.debug('Firebase config:', {
-  keys: firebaseConfig,
-  pre:process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-});
 
 const missingFirebaseKeys = [
   'NEXT_PUBLIC_FIREBASE_API_KEY',
