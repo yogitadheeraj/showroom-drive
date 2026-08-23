@@ -23,6 +23,7 @@ import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import { TestDriveInsightGrid } from './TestDriveInsightGrid';
 import { StaffActivityGrid } from './StaffActivityGrid';
 import TestDriveCalendarMini from './TestDriveCalendarMini';
+import ServiceProgressPanel from './ServiceProgressPanel';
 
 const STATUS_COLOR: Record<string, string> = {
   scheduled: 'bg-info/10 text-info border-info/20',
@@ -48,6 +49,7 @@ const BranchAdminDashboard = () => {
   const [locationInfo, setLocationInfo] = useState<any>(null);
   const [staff, setStaff] = useState<any[]>([]);
   const [allDrives, setAllDrives] = useState<any[]>([]);
+  const [serviceBookingCount, setServiceBookingCount] = useState(0);
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [driveView, setDriveView] = useState<'list' | 'grid' | 'calendar'>('list');
@@ -69,6 +71,11 @@ const BranchAdminDashboard = () => {
   const fetchDrives = async () => {
     const drives = await apiGet<any[]>(`/api/test-drives?location_id=${locationId}&limit=300`);
     setAllDrives(drives || []);
+  };
+
+  const fetchServiceBookingCount = async () => {
+    const bookings = await apiGet<any[]>(`/api/service-bookings?location_id=${locationId}`);
+    setServiceBookingCount((bookings || []).length);
   };
 
   const fetchAll = async () => {
@@ -97,6 +104,7 @@ const BranchAdminDashboard = () => {
 
       // All test drives for this location
       await fetchDrives();
+      await fetchServiceBookingCount();
     } finally {
       setLoading(false);
     }
@@ -340,6 +348,18 @@ const BranchAdminDashboard = () => {
         </Badge>
       </div>
 
+      <Card className="shadow-card border-amber-300/30 bg-amber-50/40 dark:bg-amber-950/20">
+        <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Create service bookings for your branch in one click</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Jump straight to the internal booking flow for sales and admin staff.</p>
+          </div>
+          <Button size="sm" className="w-full sm:w-auto" onClick={() => navigateTo('/service-bookings')}>
+            Open Service Bookings
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* ── KPI cards ──────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
         {[
@@ -373,6 +393,8 @@ const BranchAdminDashboard = () => {
 
       {/* ── Activity Insights ── */}
       <ActivityInsightsMini />
+
+      <ServiceProgressPanel title="Service Progress (Branch Scope)" />
 
       {/* ── USER-WISE INSIGHTS (single rich component) ─────── */}
       <Card className="shadow-card border-primary/20">
@@ -409,10 +431,14 @@ const BranchAdminDashboard = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-3">
             <div className="rounded-lg border border-info/20 bg-info/5 p-3">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Total Drives</p>
               <p className="text-xl font-heading font-bold">{totalUserwiseDrives}</p>
+            </div>
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Service Bookings</p>
+              <p className="text-xl font-heading font-bold text-primary">{serviceBookingCount}</p>
             </div>
             <div className="rounded-lg border border-success/20 bg-success/5 p-3">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Avg Completion Rate</p>

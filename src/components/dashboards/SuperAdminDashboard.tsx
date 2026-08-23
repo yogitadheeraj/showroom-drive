@@ -23,7 +23,7 @@ import {
   YAxis,
   Cell,
 } from 'recharts';
-import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye, MailCheck, AlertTriangle, RefreshCw, LayoutDashboard, ShieldCheck, Zap, CheckCheck, TrendingDown } from 'lucide-react';
+import { CalendarCheck, Users, Car, MapPin, TrendingUp, Clock, Filter, Phone, Eye, MailCheck, AlertTriangle, RefreshCw, LayoutDashboard, ShieldCheck, Zap, CheckCheck, TrendingDown, BookOpen } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveInsightGrid } from './TestDriveInsightGrid';
 import { StaffActivityGrid } from './StaffActivityGrid';
@@ -76,6 +76,7 @@ const SuperAdminDashboard = () => {
   const [brands, setBrands] = useState<any[]>([]);
   const [staffMembers, setStaffMembers] = useState<any[]>([]);
   const [testDrives, setTestDrives] = useState<any[]>([]);
+  const [serviceBookingTotal, setServiceBookingTotal] = useState(0);
   const [repeatedCustomers, setRepeatedCustomers] = useState<any[]>([]);
   const [activitySessions, setActivitySessions] = useState<any[]>([]);
   const [activityEvents, setActivityEvents] = useState<any[]>([]);
@@ -225,7 +226,7 @@ const SuperAdminDashboard = () => {
       ? [activeSelectedLocation]
       : locations.map((l: any) => l.id);
     if (locationIds.length === 0 && !isSuperAdmin) {
-      setTestDrives([]); setStats({ total: 0, scheduled: 0, completed: 0, noShow: 0, cancelled: 0 }); setRepeatedCustomers([]); return;
+      setTestDrives([]); setServiceBookingTotal(0); setStats({ total: 0, scheduled: 0, completed: 0, noShow: 0, cancelled: 0 }); setRepeatedCustomers([]); return;
     }
 
     const params = new URLSearchParams();
@@ -235,9 +236,19 @@ const SuperAdminDashboard = () => {
       params.set('location_ids', locationIds.join(','));
     }
 
-    const td = await apiGet<any[]>(`/api/test-drives?${params.toString()}`);
+    const serviceBookingParams = new URLSearchParams();
+    serviceBookingParams.set('limit', '500');
+    if (locationIds.length > 0) {
+      serviceBookingParams.set('location_ids', locationIds.join(','));
+    }
+
+    const [td, serviceBookings] = await Promise.all([
+      apiGet<any[]>(`/api/test-drives?${params.toString()}`),
+      apiGet<any[]>(`/api/service-bookings?${serviceBookingParams.toString()}`).catch(() => []),
+    ]);
 
     setTestDrives(td || []);
+    setServiceBookingTotal(serviceBookings?.length || 0);
     const total = td?.length || 0;
     setStats({
       total,
@@ -461,6 +472,7 @@ const SuperAdminDashboard = () => {
     { label: 'Users', value: userCount, icon: Users, color: 'text-accent', bg: 'bg-accent/10' },
     { label: 'Brands', value: brandCount, icon: Car, color: 'text-info', bg: 'bg-info/10' },
     { label: 'Total Drives', value: stats.total, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
+    { label: 'Service Bookings', value: serviceBookingTotal, icon: BookOpen, color: 'text-success', bg: 'bg-success/10' },
     { label: 'Scheduled', value: stats.scheduled, icon: Clock, color: 'text-info', bg: 'bg-info/10' },
     { label: 'Completed', value: stats.completed, icon: TrendingUp, color: 'text-success', bg: 'bg-success/10' },
     { label: 'No Show', value: stats.noShow, icon: Users, color: 'text-warning', bg: 'bg-warning/10' },
@@ -706,6 +718,7 @@ const SuperAdminDashboard = () => {
                 else if (stat.label === 'Users') navigateTo('/users');
                 else if (stat.label === 'Dealers') navigateTo('/users?role=dealer_admin');
                 else if (stat.label === 'Total Drives') navigateTo('/test-drives');
+                else if (stat.label === 'Service Bookings') navigateTo('/service-bookings');
                 else if (stat.label === 'Scheduled') navigateTo('/test-drives');
                 else if (stat.label === 'Completed') navigateTo('/test-drives');
                 else if (stat.label === 'No Show') navigateTo('/test-drives');

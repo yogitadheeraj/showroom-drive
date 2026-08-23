@@ -23,6 +23,7 @@ import { APP_ROLE } from '@/constants/roles';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { navigateTo } from '@/lib/browserNavigation';
+import ServiceProgressPanel from './ServiceProgressPanel';
 
 type LeadTemperature = 'hot' | 'cold';
 
@@ -57,6 +58,7 @@ const SalesDashboard = () => {
   const [oppFollowUpDueAt, setOppFollowUpDueAt] = useState('');
   const [taskNotesDialog, setTaskNotesDialog] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
   const [taskNoteText, setTaskNoteText] = useState('');
+  const [serviceBookingCount, setServiceBookingCount] = useState(0);
   // Booking state (hot lead)
   const [bookingPaymentMethod, setBookingPaymentMethod] = useState<'cash' | 'payment_link'>('cash');
   const [bookingAmount, setBookingAmount] = useState('');
@@ -156,6 +158,8 @@ const SalesDashboard = () => {
     if (!profile?.id) return;
     const enrichedDrives = await apiGet<any[]>(`/api/test-drives?sales_person_id=${encodeURIComponent(profile.id)}`) || [];
     setTestDrives(enrichedDrives);
+    const serviceBookings = await apiGet<any[]>(`/api/service-bookings?location_id=${encodeURIComponent(profile?.location_id || '')}`).catch(() => []);
+    setServiceBookingCount(serviceBookings?.length || 0);
 
     const profileLocationIds = Array.from(new Set(enrichedDrives.map((drive: any) => drive.location_id).filter(Boolean)));
     if (profileLocationIds.length > 0) {
@@ -902,10 +906,39 @@ const SalesDashboard = () => {
         </div>
       </div>
 
+      <Card className="shadow-card border-amber-300/30 bg-amber-50/40 dark:bg-amber-950/20">
+        <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Need to create a service booking quickly?</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Open the internal service booking screen with staff lookup enabled.</p>
+          </div>
+          <Button size="sm" className="w-full sm:w-auto" onClick={() => navigateTo('/service-bookings')}>
+            Open Service Bookings
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-card border-primary/20 bg-primary/5">
+        <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium flex items-center gap-1">
+              <BookOpen className="h-3.5 w-3.5 text-primary" /> Total Service Bookings
+            </p>
+            <p className="text-2xl font-heading font-bold text-foreground mt-1">{serviceBookingCount}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Location-scoped service appointments</p>
+          </div>
+          <Button size="sm" variant="outline" className="shrink-0" onClick={() => navigateTo('/service-bookings')}>
+            View List
+          </Button>
+        </CardContent>
+      </Card>
+
    
 
       {/* ── Activity Insights ── */}
       <ActivityInsightsMini />
+
+      <ServiceProgressPanel title="Service Progress (Sales Scope)" />
 
       <Card className="shadow-card border-primary/20 bg-primary/5">
         <CardHeader className="pb-2">

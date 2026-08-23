@@ -668,34 +668,6 @@ const BookingPage = ({ hideStandaloneHeader = false }: BookingPageProps) => {
         <div className="absolute top-[40%] left-[50%] w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-info/5 rounded-full blur-[80px]" />
       </div>
 
-      <nav className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-2 flex items-center justify-between">
-      <a href="/" >
-        <div className="flex items-center justify-center py-1">
-          <img src="/images/autoadvant-logo.png" alt="Auto Advant logo" className="h-[50px] w-full" />
-        </div>
-        </a>
-
-        <div className="hidden lg:flex items-center gap-3">
-          <a href="/compare">
-            <Button size="lg" className="bg-info text-info-foreground rounded-xl font-semibold hover:bg-info/90 transition-all px-5">
-              <Car className="mr-2 h-4 w-4" /> Compare
-            </Button>
-          </a>
-          <a href="/auth">
-            <Button size="lg" className="primary text-white rounded-xl font-semibold shadow-lg hover:bg-primary-foreground/90 hover:text-black transition-all px-5">
-              Staff Login →
-            </Button>
-          </a>
-        </div>
-
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="lg:hidden p-2 rounded-lg bg-primary-foreground/10 text-primary-foreground"
-        >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
-      </nav>
-
       {mobileMenuOpen && (
         <div className="relative z-20 lg:hidden px-4 pb-4 space-y-2">
           <a href="/compare" onClick={() => setMobileMenuOpen(false)}>

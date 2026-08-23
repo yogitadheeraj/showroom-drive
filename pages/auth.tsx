@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import HeaderComponents from '@/components/common/HeaderComponents';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/hooks/useAuth';
 import { apiGet } from '@/lib/apiClient';
@@ -8,7 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowRight, BadgeCheck, Bell, Building2, CheckCircle2, Eye, EyeOff, KeyRound, MailCheck, ShieldCheck, Sparkles } from 'lucide-react';
+import { BadgeCheck, Bell, Eye, EyeOff, KeyRound, MailCheck, Sparkles, 
+
+  Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail, Warehouse, CreditCard, FileText, Package, Receipt, ClipboardList, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers, Moon, Sun
+ } from 'lucide-react';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { useWhitelabel } from '@/hooks/useWhitelabel';
 import { firebaseAuth, isFirebaseClientConfigured } from '@/integrations/supabase/client';
@@ -31,7 +35,21 @@ const AuthPage = () => {
   const { toast } = useToast();
   const brand = useWhitelabel();
   const logoUrl = brand.dealerLogoUrl || '/images/auth_logo.png';
+  const [mounted, setMounted] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const resolvedTheme = mounted ? (isDarkMode ? 'dark' : 'light') : 'dark';
+   const toggleTheme = () => setIsDarkMode((prev) => !prev);
+    const staffEntryPath = '/auth';
+const THEME_STORAGE_KEY = 'autoadvant-theme';
 
+  useEffect(() => setMounted(true), []);
+
+      useEffect(() => {
+          if (!mounted) return;
+          document.documentElement.classList.toggle('dark', isDarkMode);
+          document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
+          localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? 'dark' : 'light');
+      }, [mounted, isDarkMode]);
   useEffect(() => {
     if (!router.isReady) return;
     const verified = router.query.verified === 'true';
@@ -43,7 +61,15 @@ const AuthPage = () => {
       router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
     }
   }, [router.isReady, router.query.verified, router]);
-
+  useEffect(() => {
+        setMounted(true);
+        const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const nextDark = savedTheme ? savedTheme === 'dark' : prefersDark;
+        setIsDarkMode(nextDark);
+        document.documentElement.classList.toggle('dark', nextDark);
+        document.documentElement.style.colorScheme = nextDark ? 'dark' : 'light';
+    }, []);
   useEffect(() => {
     setCanOpenLeadPage(!!user);
   }, [user]);
@@ -137,18 +163,6 @@ const AuthPage = () => {
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border/50 bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2 font-semibold text-foreground">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">AA</span>
-            <span>AutoAdvant</span>
-          </Link>
-          <div className="flex items-center gap-3 text-sm">
-            <Link href="/dealer-onboarding" className="text-muted-foreground hover:text-foreground">Dealer Onboarding</Link>
-            <Link href="/compare" className="text-muted-foreground hover:text-foreground">Compare</Link>
-          </div>
-        </div>
-      </header>
       {/* SaaS dark backdrop with subtle grid + glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div

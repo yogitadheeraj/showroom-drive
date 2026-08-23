@@ -52,7 +52,7 @@ const DEALER_SCOPED_TABLES = new Set(['locations']);
 
 /** Staff roles that are restricted to their single assigned location. */
 const LOCATION_SCOPED_ROLES = new Set([
-  'gro', 'sales', 'sales_admin', 'branch_admin', 'security', 'brand_admin',
+  'gro', 'sales', 'sales_admin', 'branch_admin', 'service_expert', 'security', 'brand_admin',
 ]);
 
 /**

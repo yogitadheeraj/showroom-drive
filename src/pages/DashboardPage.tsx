@@ -18,6 +18,7 @@ const DashboardPage = () => {
       case APP_ROLE.DEALER_ADMIN: 
        return <SuperAdminDashboard />;
       case APP_ROLE.SALES_ADMIN:  return <BranchAdminDashboard />;
+      case APP_ROLE.SERVICE_EXPERT:
       case APP_ROLE.GRO:          return <GRODashboard />;
       case APP_ROLE.SALES:        return <SalesDashboard />;
       case APP_ROLE.SECURITY:     return <SecurityDashboard />;

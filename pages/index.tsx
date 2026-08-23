@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail, Warehouse, CreditCard, FileText, Package, Receipt, ClipboardList, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers } from 'lucide-react';
+import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail, Warehouse, CreditCard, FileText, Package, Receipt, ClipboardList, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers, Moon, Sun } from 'lucide-react';
+
 import { motion, type Variants } from 'framer-motion';
 import { toast } from 'sonner';
 import showcaseAdminDashboard from '../src/assets/showcase-admin-dashboard.jpg';
@@ -11,6 +12,8 @@ import showcaseGroAssign from '../src/assets/showcase-gro-assign.jpg';
 import SeoMeta from '../src/components/SeoMeta';
 import { apiGet } from '../src/lib/apiClient';
 import { fetchDealerGrowthStats } from '../src/lib/landingPageStats';
+
+const THEME_STORAGE_KEY = 'autoadvant-theme';
 
 declare global {
     interface Window {
@@ -35,7 +38,8 @@ type AutoAdvantLandingPageProps = {
 };
 
 export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdvantLandingPageProps) {
-    const resolvedTheme = 'dark';
+    const [mounted, setMounted] = useState(false);
+    const [isDarkMode, setIsDarkMode] = useState(false);
     const brand = { dealerName: null as string | null, dealerLogoUrl: null as string | null };
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [activeHeroSlide, setActiveHeroSlide] = useState(0);
@@ -51,6 +55,14 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
         totalBrands: 0,
         salesToday: 0,
         totalLeads: 0,
+        serviceBookingsTotal: 0,
+        serviceBookingsBooked: 0,
+        serviceBookingsConfirmed: 0,
+        serviceBookingsInProgress: 0,
+        serviceBookingsCompleted: 0,
+        serviceBookingsToday: 0,
+        serviceBookingsCancelled: 0,
+        serviceBookingsRescheduled: 0,
     });
 
     const fetchJson = async (url: string, init?: RequestInit) => {
@@ -164,6 +176,23 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
     ];
 
     useEffect(() => {
+        setMounted(true);
+        const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const nextDark = savedTheme ? savedTheme === 'dark' : prefersDark;
+        setIsDarkMode(nextDark);
+        document.documentElement.classList.toggle('dark', nextDark);
+        document.documentElement.style.colorScheme = nextDark ? 'dark' : 'light';
+    }, []);
+
+    useEffect(() => {
+        if (!mounted) return;
+        document.documentElement.classList.toggle('dark', isDarkMode);
+        document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
+        localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? 'dark' : 'light');
+    }, [mounted, isDarkMode]);
+
+    useEffect(() => {
         if (!initialResolvedContent) {
             loadContent();
         }
@@ -181,6 +210,9 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
     }, [heroSlides.length]);
 
     const goToSlide = (index: number) => setActiveHeroSlide(index);
+
+    const resolvedTheme = mounted ? (isDarkMode ? 'dark' : 'light') : 'dark';
+    const toggleTheme = () => setIsDarkMode((prev) => !prev);
 
     const staffEntryPath = '/auth';
 
@@ -237,6 +269,20 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
         { value: '3x', label: 'Faster lead follow-up' },
         { value: '40%', label: 'Better booking efficiency' },
         { value: '24/7', label: 'Centralized platform access' },
+    ];
+
+    const serviceBookingOverview = [
+        { label: 'Total', value: dynamicStats.serviceBookingsTotal || 0 },
+        { label: 'Booked', value: dynamicStats.serviceBookingsBooked || 0 },
+        { label: 'In progress', value: dynamicStats.serviceBookingsInProgress || 0 },
+        { label: 'Completed', value: dynamicStats.serviceBookingsCompleted || 0 },
+    ];
+
+    const serviceInsights = [
+        { label: 'Today', value: `${dynamicStats.serviceBookingsToday || 0} bookings` },
+        { label: 'Confirmed', value: `${dynamicStats.serviceBookingsConfirmed || 0} active` },
+        { label: 'Rescheduled', value: `${dynamicStats.serviceBookingsRescheduled || 0} updates` },
+        { label: 'Cancelled', value: `${dynamicStats.serviceBookingsCancelled || 0} closed` },
     ];
 
     const painPoints = content?.painPoints || [
@@ -360,75 +406,39 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                             ogType="website"
                             jsonLd={homeSchema}
                         />
-                        <header className="sticky top-0 z-30 border-b border-border bg-background/85 text-foreground backdrop-blur dark:border-white/10 dark:bg-[hsl(220,50%,10%)]/95 dark:text-slate-100">
-                            <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-                                <a href="/" className="flex items-center shrink-0">
-                                    {(brand.dealerLogoUrl || brand.dealerName) ? (
-                                        <div className="flex flex-col leading-none">
-                                            <div className="flex items-center gap-2">
-                                                {brand.dealerLogoUrl && (
-                                                    <img
-                                                        src={brand.dealerLogoUrl}
-                                                        alt={brand.dealerName || 'Dealer'}
-                                                        className="h-8 w-auto max-w-[120px] object-contain"
-                                                    />
-                                                )}
-                                                {brand.dealerName && (
-                                                    <span className="text-sm font-semibold text-white">{brand.dealerName}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <img
-                                            src={resolvedTheme === 'dark' ? '/images/autoadvant-logo.png' : '/images/autoadvant-peaked-horizontal-dark.png'}
-                                            alt="AutoAdvant"
-                                            className="h-9 w-auto object-contain"
-                                        />
-                                    )}
-                                </a>
-
-                                <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex dark:text-slate-300">
-                                    <a href="/#features" className="transition hover:text-foreground dark:hover:text-white">Features</a>
-                                    <a href="/#benefits" className="transition hover:text-foreground dark:hover:text-white">Benefits</a>
-                                    <a href="/#contact" className="transition hover:text-foreground dark:hover:text-white">Contact</a>
-                                    <Link href="/dealer-onboarding" className="transition hover:text-foreground dark:hover:text-white">Entity Onboarding</Link>
-                                    <Link href="/compare" className="transition hover:text-foreground dark:hover:text-white">Compare Vehicles</Link>
-                                    <Link href={staffEntryPath} className="transition hover:text-foreground dark:hover:text-white">Staff Login</Link>
-                                </nav>
-
-                                <a
-                                    href="/#contact"
-                                    className="rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02]"
-                                >
-                                    Book Demo
-                                </a>
-                            </div>
-                        </header>
-
+      
             <main className={`landing-main bg-background text-foreground${resolvedTheme === 'dark' ? ' dark' : ''}`}>
                 <section className="relative overflow-hidden">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_28%),radial-gradient(circle_at_left,rgba(59,130,246,0.16),transparent_22%)]" />
                     <div className="mx-auto grid max-w-7xl gap-12 px-4 py-8 sm:px-6 sm:py-20 lg:grid-cols-2 lg:px-8 lg:py-10">
-                        <div className="relative z-10 flex flex-col justify-center">
+                        <div className="relative z-10 flex flex-col">
                             <div className="mb-5 inline-flex w-fit items-center rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1 text-xs font-medium uppercase tracking-[0.2em] text-sky-300">
-                                Automotive SaaS + Marketplace Ready
+                                Dealership Operating System
                             </div>
                             <h1 className="max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
-                                Drive more leads, manage test drives, and grow faster with <span className="bg-gradient-to-r from-sky-300 to-blue-500 bg-clip-text text-transparent">AutoAdvant</span>
+                                One platform for <span className="bg-gradient-to-r from-sky-300 to-blue-500 bg-clip-text text-transparent">Service Booking</span>, Test Drives, and Sales Execution
                             </h1>
                             <p className="mt-6 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
-                                A modern platform built for dealerships and automotive businesses to simplify lead handling, optimize test drive operations, and improve sales performance across every location.
+                                Customers can book service online in minutes. Your team can manage service progress, test drives, and follow-up workflows from a single live dashboard.
                             </p>
 
+                            <div className="mt-5 grid max-w-xl gap-2 text-sm text-slate-300 sm:grid-cols-2">
+                                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Customer self-service booking</div>
+                                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Live slot availability + duplicate checks</div>
+                                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Sales and branch staff dashboard controls</div>
+                                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Real-time status and audit trail</div>
+                            </div>
+
                             <div className="mt-8 flex flex-wrap gap-3">
+                                <a href="/service-booking" className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-6 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-400/20">
+                                    Book a Service
+                                </a>
                                 <a href="#contact" className="rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02]">
                                     Book Live Demo
                                 </a>
-                                <a href="#contact" className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-6 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-400/20">
-                                    Start Pilot Program
-                                </a>
-                                <a href="#contact" className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
-                                    Request Dealer Access
+                              
+                                <a href={staffEntryPath} className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+                                    Staff Login
                                 </a>
                              
                             </div>
@@ -484,15 +494,39 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
 
                                     <div className="mt-4 rounded-2xl border border-white/10 bg-slate-800/70 p-4">
                                         <div className="flex items-center justify-between">
-                                            <p className="text-sm text-slate-400">Key Metrics</p>
-                                            <p className="text-xs text-slate-500">Updated live</p>
+                                            <div>
+                                                <p className="text-sm text-slate-400">Service Booking Progress</p>
+                                                <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-slate-500">Live overview</p>
+                                            </div>
+                                            <div className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-300">
+                                                Active
+                                            </div>
                                         </div>
+
+                                        <div className="mt-4 grid grid-cols-2 gap-2">
+                                            {serviceBookingOverview.map((item) => (
+                                                <div key={item.label} className="rounded-xl border from-slate-900 to-slate-800 p-2.5 shadow-inner shadow-slate-950/40">
+                                                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">{item.label}</p>
+                                                    <p className="mt-1 text-xl font-semibold text-white">{item.value}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="mt-4 grid grid-cols-2 gap-2">
+                                            {serviceInsights.map((insight) => (
+                                                <div key={insight.label} className="rounded-xl border border-sky-400/20 bg-sky-500/5 px-2.5 py-2">
+                                                    <p className="text-[10px] uppercase tracking-[0.16em]">{insight.label}</p>
+                                                    <p className="mt-1 text-sm font-medium text-white">{insight.value}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+
                                         <div className="mt-4 space-y-3">
                                             {[
-                                                { label: 'Available Inventory', value: Math.min(dynamicStats.availableVehicles || 0, 100), max: 100 },
-                                                { label: 'Test Drive Volume', value: Math.min(dynamicStats.testDrivesScheduled || 0, 100), max: 100 },
-                                                { label: 'Lead Conversion', value: 74, max: 100 },
-                                            ].map(({ label, value, max }) => {
+                                                { label: 'Available Inventory', value: Math.min(dynamicStats.availableVehicles || 0, 100), max: 100, color: 'from-sky-400 to-blue-600' },
+                                                { label: 'Test Drive Volume', value: Math.min(dynamicStats.testDrivesScheduled || 0, 100), max: 100, color: 'from-violet-400 to-purple-600' },
+                                                { label: 'Service completion', value: dynamicStats.serviceBookingsTotal ? Math.min(Math.round(((dynamicStats.serviceBookingsCompleted || 0) / (dynamicStats.serviceBookingsTotal || 1)) * 100), 100) : 0, max: 100, color: 'from-emerald-400 to-teal-500' },
+                                            ].map(({ label, value, max, color }) => {
                                                 const widthPercent = (value / max) * 100;
                                                 return (
                                                     <div key={label}>
@@ -500,8 +534,8 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                                             <span className="text-slate-300">{label}</span>
                                                             <span className="text-slate-400">{value}%</span>
                                                         </div>
-                                                        <div className="h-2 rounded-full bg-slate-700">
-                                                            <div className="h-2 rounded-full bg-gradient-to-r from-sky-400 to-blue-600" style={{ width: `${widthPercent}%` }} />
+                                                        <div className="h-2.5 overflow-hidden rounded-full bg-slate-700">
+                                                            <div className={`h-full rounded-full bg-gradient-to-r ${color}`} style={{ width: `${widthPercent}%` }} />
                                                         </div>
                                                     </div>
                                                 );
@@ -1124,27 +1158,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                     </div>
                 </section>
             </main>
-            {/* Footer */}
-            <footer className="border-t border-border bg-red backdrop-blur dark:border-white/10 dark:bg-slate-950/90">
-                <div className="mx-auto grid max-w-7xl gap-6 px-2 py-2 sm:px-6 md:grid-cols-[auto,1fr,auto] md:items-center">
-                    <a href="/" className="mx-auto md:mx-0">
-                        <div className="flex items-center justify-center md:justify-start">
-                            <img src="/images/autoadvant-logo.png" alt="AutoAdvant logo" className="h-11 w-auto" />
-                        </div>
-                    </a>
-
-                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:gap-x-5">
-                        <Link href="/dealer-onboarding" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Entity Onboarding</Link>
-                        <Link href="/compare" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Compare Vehicles</Link>
-                        <Link href={staffEntryPath} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Staff Login</Link>
-                        <a href="/privacy-policy" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</a>
-                        <a href="/terms-and-conditions" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Terms & Conditions</a>
-                        <a href="/sitemap" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Sitemap</a>
-                    </div>
-
-                    <p className="text-center text-xs text-muted-foreground md:text-right">© {new Date().getFullYear()} AutoAdvant</p>
-                </div>
-            </footer>
+         
         </div>
     );
 }

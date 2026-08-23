@@ -29,6 +29,26 @@ import { cn } from '@/lib/utils';
 import { COUNTRIES, validatePhoneForCountry, validateEmail } from '@/lib/countries';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const LOCATION_TYPE_OPTIONS = [
+  { value: 'sales', label: 'Sales' },
+  { value: 'service', label: 'Service' },
+  { value: 'preowned', label: 'Pre-owned' },
+  { value: 'other', label: 'Other' },
+] as const;
+
+const normalizeLocationTypes = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string' && !!item).map((item) => item === 'both' ? 'sales' : item);
+  }
+
+  if (typeof value === 'string') {
+    if (!value) return [];
+    if (value === 'both') return ['sales', 'service'];
+    return [value];
+  }
+
+  return [];
+};
 
 const isMissingSlotDurationColumnError = (error: any) => {
   const message = String(error?.message || '').toLowerCase();
@@ -65,7 +85,7 @@ const LocationsPage = () => {
 
   const [showDialog, setShowDialog] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', businessUnitId: '', businessUnitName: '', salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '', brandId: '', brandName: '' });
+  const [formData, setFormData] = useState({ name: '', location_type: [] as string[], address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', businessUnitId: '', businessUnitName: '', salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '', brandId: '', brandName: '' });
   const [dealerBrands, setDealerBrands] = useState<{ id: string; name: string }[]>([]);
   const [locErrors, setLocErrors] = useState<Record<string, string>>({});
 
@@ -495,6 +515,7 @@ const LocationsPage = () => {
   const validateLocationStep1 = (): boolean => {
     const errs: Record<string, string> = {};
     if (!formData.name.trim()) errs.name = 'Location name is required';
+    if (!formData.location_type.length) errs.location_type = 'Select at least one location type';
     if (!formData.address.trim()) errs.address = 'Address is required';
     if (!formData.city.trim()) errs.city = 'City is required';
     if (!formData.state.trim()) errs.state = 'State/Province is required';
@@ -542,7 +563,7 @@ const LocationsPage = () => {
       setShowDialog(false);
       setStep(1);
       setEditingId(null);
-      setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', businessUnitId: '', businessUnitName: '', salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '', brandId: '', brandName: '' });
+      setFormData({ name: '', location_type: [], address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', businessUnitId: '', businessUnitName: '', salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '', brandId: '', brandName: '' });
       setLocErrors({});
       fetchLocations();
     } catch (err: any) {
@@ -554,6 +575,7 @@ const LocationsPage = () => {
     setEditingId(loc.id);
     setFormData({
       name: loc.name,
+      location_type: normalizeLocationTypes(loc.location_type),
       address: loc.address,
       city: loc.city,
       state: loc.state || '',
@@ -872,7 +894,7 @@ const LocationsPage = () => {
             <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">Locations</h1>
             <p className="text-sm text-muted-foreground mt-1">Manage your dealership locations and devices</p>
           </div>
-          <Button onClick={() => { setEditingId(null); setFormData({ name: '', address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', businessUnitId: '', businessUnitName: '', salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '', brandId: '', brandName: '' }); setLocErrors({}); setStep(1); setShowDialog(true); }}
+          <Button onClick={() => { setEditingId(null); setFormData({ name: '', location_type: [], address: '', city: '', state: '', country: 'India', phone: '', email: '', latitude: '', longitude: '', googleplaceid: '', maplink: '', currency_type: 'INR', businessUnitId: '', businessUnitName: '', salesOfficeId: '', salesOfficeName: '', plantId: '', plantName: '', brandId: '', brandName: '' }); setLocErrors({}); setStep(1); setShowDialog(true); }}
             className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" /> Add Location
           </Button>
@@ -990,6 +1012,15 @@ const LocationsPage = () => {
                       </Badge>
                     );
                   })()}
+                  {normalizeLocationTypes(loc.location_type).length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {normalizeLocationTypes(loc.location_type).map((type) => (
+                        <Badge key={`${loc.id}-${type}`} variant="outline" className="text-[10px] font-medium capitalize">
+                          {type === 'preowned' ? 'Pre-owned' : type === 'both' ? 'Sales + Service' : type}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   {loc.brandName ? (
                     <Badge variant="secondary" className="text-[10px] font-medium flex items-center gap-1">
                       <Tag className="h-2.5 w-2.5" />{loc.brandName}
@@ -1114,6 +1145,39 @@ const LocationsPage = () => {
                       onChange={e => { setFormData(p => ({ ...p, name: e.target.value })); setLocErrors(p => ({ ...p, name: '' })); }}
                     />
                     {locErrors.name && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.name}</p>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Type of location <span className="text-destructive">*</span></Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {LOCATION_TYPE_OPTIONS.map((option) => {
+                        const selected = formData.location_type.includes(option.value);
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className={cn(
+                              'rounded-md border px-3 py-2 text-sm font-medium transition-colors',
+                              selected
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-input bg-background text-foreground hover:border-primary/60',
+                            )}
+                            onClick={() => {
+                              setFormData((prev) => {
+                                const exists = prev.location_type.includes(option.value);
+                                const next = exists
+                                  ? prev.location_type.filter((item) => item !== option.value)
+                                  : [...prev.location_type, option.value];
+                                return { ...prev, location_type: next };
+                              });
+                              setLocErrors((prev) => ({ ...prev, location_type: '' }));
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {locErrors.location_type && <p className="text-xs text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {locErrors.location_type}</p>}
                   </div>
                   <div className="space-y-1.5">
                     <Label>Address <span className="text-destructive">*</span></Label>

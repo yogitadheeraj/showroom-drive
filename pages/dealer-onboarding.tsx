@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { apiGet, apiRpc } from '@/lib/apiClient';
 import { authResendSignupVerification, authSignUp } from '@/lib/authClient';
@@ -157,19 +156,6 @@ const DealerOnboardingPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-      <header className="sticky top-0 z-30 border-b border-border/50 bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2 font-semibold text-foreground">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">AA</span>
-            <span>AutoAdvant</span>
-          </Link>
-          <div className="flex items-center gap-3 text-sm">
-            <Link href="/compare" className="text-muted-foreground hover:text-foreground">Compare</Link>
-            <Link href="/auth" className="rounded-xl border border-border px-4 py-2 font-medium text-foreground hover:bg-muted">Sign in</Link>
-          </div>
-        </div>
-      </header>
-
       {/* Hero banner */}
       <div className="relative overflow-hidden border-b border-border/50">
         <div className="absolute inset-0 pointer-events-none">

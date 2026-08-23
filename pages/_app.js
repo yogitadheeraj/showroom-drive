@@ -1,6 +1,7 @@
 import '../src/index.css';
-
-import { useEffect } from 'react';
+import HeaderComponents from '@/components/common/HeaderComponents';
+import FooterComponent from '@/components/common/FooterComponent';
+import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -12,6 +13,8 @@ import { ThemeProvider } from '../src/hooks/useTheme';
 import { DealerContextProvider } from '../src/hooks/useDealerContext';
 import { WhitelabelProvider } from '../src/hooks/useWhitelabel';
 import { setNavigationRouter } from '../src/lib/browserNavigation';
+import { firebaseAuth, isFirebaseClientConfigured } from '@/integrations/supabase/client';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const queryClient = new QueryClient();
 const SITE_URL = 'https://www.autoadvant.com';
@@ -20,10 +23,77 @@ const DEFAULT_DESCRIPTION =
   'AutoAdvant helps automotive dealerships manage leads, schedule test drives, and improve sales operations with real-time insights.';
 const DEFAULT_OG_IMAGE = 'https://www.autoadvant.com/images/autoadvant-logo.png';
 
+const SHOW_HEADER_ROUTES = [
+  '/',
+  '/book',
+  '/brands',
+  '/compare',
+  '/service-booking',
+  '/privacy-policy',
+  '/terms-and-conditions',
+  '/sitemap',
+  '/walkin',
+  '/contact',
+  '/demo/route',
+];
+
+const HIDE_HEADER_ROUTES = [
+  '/auth',
+  '/auth/login',
+  '/auth/register',
+  '/dashboard',
+  '/settings',
+  '/settings/brands',
+  '/users',
+  '/vehicles',
+  '/test-drives',
+  '/service-bookings',
+  '/car-bookings',
+  '/enquiries',
+  '/fleet',
+  '/follow-ups',
+  '/incoming-vehicles',
+  '/waiting-board',
+  '/communications',
+  '/activity-logs',
+  '/reports',
+  '/data-center',
+  '/my-profile',
+  '/dealer-onboarding',
+  '/customer',
+  '/bookings',
+  '/location',
+  '/locations',
+];
+
 export default function App({ Component, pageProps }) {
   const router = useRouter();
   const canonicalPath = (router.asPath || '/').split('?')[0] || '/';
   const canonicalUrl = `${SITE_URL}${canonicalPath}`;
+
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    if (!firebaseAuth || !isFirebaseClientConfigured) {
+      setIsLoggedIn(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
+      setIsLoggedIn(!!user);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const currentPath = router.pathname || '/';
+  const shouldHideHeader =
+    HIDE_HEADER_ROUTES.some((route) => currentPath === route || currentPath.startsWith(`${route}/`)) ||
+    currentPath.startsWith('/customer/');
+  const shouldShowHeader =
+    SHOW_HEADER_ROUTES.includes(currentPath) && !shouldHideHeader;
+  const shouldRenderHeaderFooter = shouldShowHeader;
+
   const globalSchema = [
     {
       '@context': 'https://schema.org',
@@ -104,7 +174,9 @@ export default function App({ Component, pageProps }) {
             <Sonner />
             <AuthProvider>
               <DealerContextProvider>
+                {shouldRenderHeaderFooter && <HeaderComponents isLoggedIn={isLoggedIn} />}
                 <Component {...pageProps} />
+                {shouldRenderHeaderFooter && <FooterComponent />}
               </DealerContextProvider>
             </AuthProvider>
           </TooltipProvider>

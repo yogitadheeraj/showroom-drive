@@ -189,6 +189,19 @@ import {
   uploadCustomerDocumentController,
 } from '../controllers/customerBookingController.js';
 import {
+  cancelServiceBookingController,
+  createServiceBookingController,
+  listServiceBookingsController,
+  listServicePackagesController,
+  requestServiceBookingOtpController,
+  rescheduleServiceBookingController,
+  serviceAvailabilityController,
+  serviceBookingDuplicateCheckController,
+  serviceBookingLookupController,
+  updateServiceProgressController,
+  verifyServiceBookingOtpController,
+} from '../controllers/serviceAppointmentController.js';
+import {
   fleetOverviewController,
   vehicleAvailabilityController,
   listTransitsController,
@@ -282,6 +295,15 @@ apiRouter.post('/location-operating-hours/bulk-upsert', requireAuth, bulkUpsertL
 
 // Public booking (no auth required — rate-limited by phone + location)
 apiRouter.post('/public/book', publicBookTestDriveController);
+apiRouter.get('/public/service-packages', listServicePackagesController);
+apiRouter.get('/public/service-bookings/availability', serviceAvailabilityController);
+apiRouter.get('/public/service-bookings/lookup', serviceBookingLookupController);
+apiRouter.post('/public/service-bookings/otp/request', requestServiceBookingOtpController);
+apiRouter.post('/public/service-bookings/otp/verify', verifyServiceBookingOtpController);
+apiRouter.post('/public/service-bookings/duplicate-check', serviceBookingDuplicateCheckController);
+apiRouter.post('/public/service-bookings', createServiceBookingController);
+apiRouter.post('/public/service-bookings/:id/cancel', cancelServiceBookingController);
+apiRouter.post('/public/service-bookings/:id/reschedule', rescheduleServiceBookingController);
 // Public feedback submission (no auth required)
 apiRouter.post('/public/feedback', submitTestDriveFeedbackController);
 // Email template preview (auth required — dealer_admin / superadmin)
@@ -320,6 +342,10 @@ apiRouter.get('/car-bookings', requireAuth, listCarBookingsController);
 apiRouter.get('/car-bookings/:id', requireAuth, getCarBookingController);
 apiRouter.post('/car-bookings', requireAuth, createCarBookingController);
 apiRouter.patch('/car-bookings/:id', requireAuth, updateCarBookingController);
+
+// Service Bookings
+apiRouter.get('/service-bookings', requireAuth, listServiceBookingsController);
+apiRouter.patch('/service-bookings/:id/progress', requireAuth, updateServiceProgressController);
 
 // Dealers
 apiRouter.get('/dealers/branding/:slug', getDealerBrandingController); // public — no auth

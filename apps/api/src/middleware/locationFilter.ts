@@ -25,6 +25,7 @@ const LOCATION_SCOPED_ROLES = new Set([
   'sales',
   'sales_admin',
   'branch_admin',
+  'service_expert',
   'security',
   'brand_admin',
 ]);

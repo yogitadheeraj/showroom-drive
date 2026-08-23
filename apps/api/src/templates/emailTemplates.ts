@@ -15,10 +15,10 @@ function base(previewText: string, bodyContent: string, branding: EmailBranding 
   const brand = branding.dealerName || SITE_NAME;
   const primaryColor = branding.primaryColor || '#18181b';
   const logoUrl = branding.dealerLogoUrl;
-console.log('Generating email with branding:', { brand, primaryColor, logoUrl });
+  const headerGradient = `linear-gradient(135deg, ${primaryColor} 0%, #0f172a 100%)`;
   const headerContent = logoUrl
     ? `<img src="${logoUrl}" alt="${brand}" style="height:44px;max-width:200px;object-fit:contain;display:block;" />`
-    : `<h1 style="margin:0;font-size:20px;font-weight:700;">🚗 ${brand}</h1>`;
+    : `<h1 style="margin:0;font-size:20px;font-weight:700;letter-spacing:0.01em;">${brand}</h1>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -27,20 +27,21 @@ console.log('Generating email with branding:', { brand, primaryColor, logoUrl })
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${brand}</title>
   <style>
-    body { margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #18181b; }
-    .container { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
-    .header { background: ${primaryColor}; color: #fff; padding: 24px 32px; }
+    body { margin: 0; padding: 0; background: radial-gradient(circle at top, #e2e8f0 0%, #f4f4f5 48%, #f8fafc 100%); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #18181b; }
+    .container { max-width: 620px; margin: 32px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 14px 36px rgba(15,23,42,0.12); border: 1px solid #e4e4e7; }
+    .header { background: ${headerGradient}; color: #fff; padding: 24px 32px 18px; }
     .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
-    .header p { margin: 4px 0 0; font-size: 13px; color: #a1a1aa; }
+    .header p { margin: 6px 0 0; font-size: 13px; color: #d4d4d8; }
+    .brand-chip { display: inline-block; margin-top: 12px; background: rgba(255,255,255,0.16); color: #f8fafc; border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; padding: 6px 12px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
     .body { padding: 28px 32px; }
     .body h2 { margin: 0 0 16px; font-size: 18px; }
     .body p { margin: 0 0 12px; line-height: 1.6; color: #3f3f46; }
-    .details { background: #f4f4f5; border-radius: 6px; padding: 16px 20px; margin: 16px 0; }
-    .details .row { display: flex; justify-content: space-between; gap: 24px; padding: 8px 0; border-bottom: 1px solid #e4e4e7; font-size: 13px; }
+    .details { background: linear-gradient(180deg, #f8fafc 0%, #f4f4f5 100%); border-radius: 12px; padding: 14px 18px; margin: 16px 0; border: 1px solid #e5e7eb; }
+    .details .row { display: flex; justify-content: space-between; gap: 24px; padding: 10px 0; border-bottom: 1px dashed #d4d4d8; font-size: 13px; }
     .details .row:last-child { border-bottom: none; }
     .details .row .label { color: #71717a; white-space: nowrap; }
-    .cta { display: inline-block; background: ${primaryColor}; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 14px; font-weight: 600; margin: 16px 0; }
-    .footer { padding: 20px 32px; font-size: 12px; color: #a1a1aa; border-top: 1px solid #f4f4f5; }
+    .cta { display: inline-block; background: ${primaryColor}; color: #fff; text-decoration: none; padding: 12px 22px; border-radius: 999px; font-size: 14px; font-weight: 700; margin: 16px 0; letter-spacing: 0.02em; box-shadow: 0 6px 16px rgba(15,23,42,0.25); }
+    .footer { padding: 20px 32px; font-size: 12px; color: #71717a; border-top: 1px solid #f1f5f9; background: #fafafa; }
     .preview { display: none; font-size: 1px; color: transparent; }
   </style>
 </head>
@@ -49,6 +50,7 @@ console.log('Generating email with branding:', { brand, primaryColor, logoUrl })
   <div class="container">
     <div class="header">
       ${headerContent}
+      <span class="brand-chip">Premium Customer Update</span>
     </div>
     ${bodyContent}
     <div class="footer">
@@ -63,7 +65,7 @@ console.log('Generating email with branding:', { brand, primaryColor, logoUrl })
 function detailRow(label: string, value: string | undefined | null): string {
   if (!value) return '';
   const displayLabel = label.endsWith(':') ? label : `${label}: `;
-  return `<div class="details row"><span class="label">${displayLabel}</span><span>${value}</span></div>`;
+  return `<div class="row"><span class="label">${displayLabel}</span><span>${value}</span></div>`;
 }
 
 function extractBranding(data: Record<string, unknown>): EmailBranding {
@@ -175,6 +177,148 @@ export function bookingConfirmationTemplate(data: Record<string, unknown>) {
       branding,
     ),
     text: `Hi ${customerName || 'there'}, your test drive is confirmed for ${scheduledDate} at ${scheduledTime}.${manageBookingUrl ? ` Manage booking: ${manageBookingUrl}` : ''}`,
+  };
+}
+
+export function serviceBookingConfirmedTemplate(data: Record<string, unknown>) {
+  const {
+    customerName,
+    appointmentNumber,
+    appointmentDate,
+    appointmentTime,
+    packageName,
+    locationName,
+    manageBookingUrl,
+  } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
+
+  return {
+    subject: `Service booking confirmed${appointmentNumber ? ` - ${appointmentNumber}` : ''}`,
+    html: base(
+      `Your service booking is confirmed for ${appointmentDate || 'your selected date'}${appointmentTime ? ` at ${appointmentTime}` : ''}`,
+      `<div class="body">
+        <h2>Service Booking Confirmed ✅</h2>
+        <p>Hi ${customerName || 'there'},</p>
+        <p>Your service appointment is confirmed.</p>
+        <div class="details">
+          ${detailRow('Booking Ref', appointmentNumber)}
+          ${detailRow('Date', appointmentDate)}
+          ${detailRow('Time', appointmentTime)}
+          ${detailRow('Location', locationName)}
+          ${detailRow('Package', packageName)}
+        </div>
+        ${manageBookingUrl ? `<p style="margin-top:20px;"><a class="cta" href="${manageBookingUrl}">Manage Service Booking</a></p><p style="font-size:13px;color:#71717a;">Use this page to view, reschedule, or cancel your appointment.</p>` : ''}
+        <p>Thank you for choosing us. We look forward to serving you.</p>
+      </div>`,
+      branding,
+    ),
+    text: `Hi ${customerName || 'there'}, your service booking${appointmentNumber ? ` (${appointmentNumber})` : ''} is confirmed for ${appointmentDate || ''} ${appointmentTime || ''}.${manageBookingUrl ? ` Manage booking: ${manageBookingUrl}` : ''}`,
+  };
+}
+
+export function serviceBookingCancelledTemplate(data: Record<string, unknown>) {
+  const {
+    customerName,
+    appointmentNumber,
+    appointmentDate,
+    appointmentTime,
+    packageName,
+    locationName,
+    manageBookingUrl,
+  } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
+
+  return {
+    subject: `Service booking cancelled${appointmentNumber ? ` - ${appointmentNumber}` : ''}`,
+    html: base(
+      'Your service booking has been cancelled',
+      `<div class="body">
+        <h2>Service Booking Cancelled</h2>
+        <p>Hi ${customerName || 'there'},</p>
+        <p>Your service appointment has been cancelled.</p>
+        <div class="details">
+          ${detailRow('Booking Ref', appointmentNumber)}
+          ${detailRow('Date', appointmentDate)}
+          ${detailRow('Time', appointmentTime)}
+          ${detailRow('Location', locationName)}
+          ${detailRow('Package', packageName)}
+        </div>
+        ${manageBookingUrl ? `<p style="margin-top:20px;"><a class="cta" href="${manageBookingUrl}">Manage Service Booking</a></p>` : ''}
+        <p>You can book a new slot at your convenience.</p>
+      </div>`,
+      branding,
+    ),
+    text: `Hi ${customerName || 'there'}, your service booking${appointmentNumber ? ` (${appointmentNumber})` : ''} was cancelled.${manageBookingUrl ? ` Manage bookings: ${manageBookingUrl}` : ''}`,
+  };
+}
+
+export function serviceBookingRescheduledTemplate(data: Record<string, unknown>) {
+  const {
+    customerName,
+    appointmentNumber,
+    appointmentDate,
+    appointmentTime,
+    packageName,
+    locationName,
+    manageBookingUrl,
+  } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
+
+  return {
+    subject: `Service booking rescheduled${appointmentNumber ? ` - ${appointmentNumber}` : ''}`,
+    html: base(
+      `Your service booking has been moved to ${appointmentDate || 'a new date'}${appointmentTime ? ` at ${appointmentTime}` : ''}`,
+      `<div class="body">
+        <h2>Service Booking Rescheduled 🔄</h2>
+        <p>Hi ${customerName || 'there'},</p>
+        <p>Your service appointment has been rescheduled.</p>
+        <div class="details">
+          ${detailRow('Booking Ref', appointmentNumber)}
+          ${detailRow('New Date', appointmentDate)}
+          ${detailRow('New Time', appointmentTime)}
+          ${detailRow('Location', locationName)}
+          ${detailRow('Package', packageName)}
+        </div>
+        ${manageBookingUrl ? `<p style="margin-top:20px;"><a class="cta" href="${manageBookingUrl}">Manage Service Booking</a></p><p style="font-size:13px;color:#71717a;">Need another change? You can reschedule or cancel from this page.</p>` : ''}
+        <p>We appreciate your time and look forward to seeing you.</p>
+      </div>`,
+      branding,
+    ),
+    text: `Hi ${customerName || 'there'}, your service booking${appointmentNumber ? ` (${appointmentNumber})` : ''} is rescheduled to ${appointmentDate || ''} ${appointmentTime || ''}.${manageBookingUrl ? ` Manage booking: ${manageBookingUrl}` : ''}`,
+  };
+}
+
+export function serviceBookingEnquiryTemplate(data: Record<string, unknown>) {
+  const {
+    customerName,
+    appointmentDate,
+    appointmentTime,
+    packageName,
+    locationName,
+    manageBookingUrl,
+  } = data as Record<string, string | undefined>;
+  const branding = extractBranding(data);
+
+  return {
+    subject: 'Service slot enquiry received',
+    html: base(
+      'Your requested slot is unavailable and we have logged your enquiry',
+      `<div class="body">
+        <h2>Service Enquiry Received 📨</h2>
+        <p>Hi ${customerName || 'there'},</p>
+        <p>We could not find an available slot for your requested service time. We have created an enquiry and our team will contact you shortly with alternate options.</p>
+        <div class="details">
+          ${detailRow('Requested Date', appointmentDate)}
+          ${detailRow('Requested Time', appointmentTime)}
+          ${detailRow('Location', locationName)}
+          ${detailRow('Requested Package', packageName)}
+        </div>
+        ${manageBookingUrl ? `<p style="margin-top:20px;"><a class="cta" href="${manageBookingUrl}">Manage Service Booking</a></p>` : ''}
+        <p>Thank you for your patience.</p>
+      </div>`,
+      branding,
+    ),
+    text: `Hi ${customerName || 'there'}, your service slot request for ${appointmentDate || ''} ${appointmentTime || ''} is unavailable. We have logged your enquiry and our team will contact you shortly.${manageBookingUrl ? ` Manage booking: ${manageBookingUrl}` : ''}`,
   };
 }
 
@@ -553,6 +697,10 @@ export const EMAIL_TEMPLATES: Record<string, TemplateRenderer> = {
   'test-drive-thank-you': testDriveThankYouTemplate,
   'test-drive-feedback-received': testDriveFeedbackReceivedTemplate,
   'test-drive-feedback-thank-you': testDriveFeedbackThankYouTemplate,
+  'service-booking-confirmed': serviceBookingConfirmedTemplate,
+  'service-booking-cancelled': serviceBookingCancelledTemplate,
+  'service-booking-rescheduled': serviceBookingRescheduledTemplate,
+  'service-booking-enquiry': serviceBookingEnquiryTemplate,
 };
 
 /** Render an email template by name. Throws if template not found. */

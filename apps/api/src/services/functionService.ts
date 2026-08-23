@@ -27,9 +27,9 @@ import { EmailUnsubscribeToken } from '../models/EmailUnsubscribeToken.js';
 import { generateDailyAIInsights } from './aiInsightsService.js';
 import { runTimesheetReminderJobs } from './timesheetReminderService.js';
 
-const CREATEABLE_ROLES = ['dealer_admin', 'brand_admin', 'sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
-const DEALER_ADMIN_CREATEABLE_ROLES = ['brand_admin', 'sales_admin', 'branch_admin', 'gro', 'sales', 'security'] as const;
-const SALES_ADMIN_CREATEABLE_ROLES = ['sales'] as const;
+const CREATEABLE_ROLES = ['dealer_admin', 'brand_admin', 'sales_admin', 'branch_admin', 'service_expert', 'gro', 'sales', 'security'] as const;
+const DEALER_ADMIN_CREATEABLE_ROLES = ['brand_admin', 'sales_admin', 'branch_admin', 'service_expert', 'gro', 'sales', 'security'] as const;
+const SALES_ADMIN_CREATEABLE_ROLES = ['sales', 'service_expert'] as const;
 
 type CreateableRole = (typeof CREATEABLE_ROLES)[number];
 

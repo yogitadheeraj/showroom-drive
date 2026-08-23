@@ -1,0 +1,26 @@
+[
+  {
+    "code": "basic-checkup",
+    "name": "Basic Checkup",
+    "description": "General health check, fluid top-up, and safety inspection.",
+    "duration_minutes": 60,
+    "price": 1499,
+    "is_active": true
+  },
+  {
+    "code": "periodic-service",
+    "name": "Periodic Service",
+    "description": "Engine oil, filters, diagnostics, and preventive maintenance.",
+    "duration_minutes": 120,
+    "price": 3499,
+    "is_active": true
+  },
+  {
+    "code": "premium-detailing",
+    "name": "Premium Detailing",
+    "description": "Interior deep cleaning, paint polish, and exterior protection.",
+    "duration_minutes": 180,
+    "price": 4999,
+    "is_active": true
+  }
+]

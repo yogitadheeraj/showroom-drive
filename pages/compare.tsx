@@ -236,27 +236,6 @@ const ComparePage = () => {
   return (
     <MarketingPageShell>
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.12),_transparent_34%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.35))]">
-      <div className="sticky top-0 z-40 gradient-dark px-4 py-6 shadow-sm backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <Link href="/book" className="flex items-center gap-2 text-primary-foreground/70 transition-colors hover:text-primary-foreground">
-            <ArrowLeft className="h-4 w-4" />
-            <span className="text-sm font-medium">Back To Booking</span>
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 ring-1 ring-white/10">
-              <GitCompareArrows className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <div className="text-center sm:text-left">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-primary-foreground/55">Vehicle Studio</p>
-              <h1 className="text-lg font-heading font-bold text-primary-foreground sm:text-xl">Compare Vehicles</h1>
-            </div>
-          </div>
-
-          <Link href="/" className="text-sm text-primary-foreground/70 transition-colors hover:text-primary-foreground">Home</Link>
-        </div>
-      </div>
-
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-10">
         <div className="mb-8 rounded-3xl border border-border/60 bg-card/85 p-5 shadow-card backdrop-blur sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

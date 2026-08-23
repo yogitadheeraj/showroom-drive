@@ -15,6 +15,7 @@ export interface ILocation extends Document {
   locationCode: string | null;
   externalLocationId: string | null;
   name: string;
+  location_type: Array<'sales' | 'service' | 'preowned' | 'both' | 'other'> | null;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -73,6 +74,19 @@ const LocationSchema = new Schema<ILocation>(
       set: normalizeOptionalUniqueString,
     },
     name: { type: String, required: true },
+    location_type: {
+      type: [String],
+      enum: ['sales', 'service', 'preowned', 'both', 'other'],
+      default: [],
+      index: true,
+      set: (value: unknown) => {
+        if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string' && ['sales', 'service', 'preowned', 'both', 'other'].includes(v));
+        if (typeof value === 'string' && ['sales', 'service', 'preowned', 'both', 'other'].includes(value)) {
+          return value === 'both' ? ['sales', 'service'] : [value];
+        }
+        return [];
+      },
+    },
     city: { type: String, default: null },
     state: { type: String, default: null },
     country: { type: String, default: null },

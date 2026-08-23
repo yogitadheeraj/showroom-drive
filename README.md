@@ -10,7 +10,7 @@ This repository is now structured as a monorepo foundation:
 
 ## Localhost Ports
 
-- Frontend: `http://localhost:8080`
+- Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:4000`
 
 ## Install

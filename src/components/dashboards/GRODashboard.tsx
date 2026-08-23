@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert, Car, RefreshCw, AlertTriangle, CheckCircle2, LayoutList, LayoutGrid, Activity } from 'lucide-react';
+import { CalendarCheck, Clock, TrendingUp, Monitor, ShieldAlert, Car, RefreshCw, AlertTriangle, CheckCircle2, LayoutList, LayoutGrid, Activity, BookOpen } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import GROCalendarView from './GROCalendarView';
 import BlockedSlotsManager from './BlockedSlotsManager';
@@ -24,6 +24,7 @@ const GRODashboard = () => {
   const { toast } = useToast();
   const [showInsights, setShowInsights] = useState(false);
   const [stats, setStats] = useState({ today: 0, upcoming: 0, completed: 0, completionRate: 0 });
+  const [serviceBookingCount, setServiceBookingCount] = useState(0);
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [newDate, setNewDate] = useState('');
@@ -92,6 +93,9 @@ const GRODashboard = () => {
       completed: completedCount,
       completionRate: enriched.length > 0 ? Math.round((completedCount / enriched.length) * 100) : 0,
     });
+
+    const serviceBookings = await apiGet<any[]>(`/api/service-bookings?location_id=${encodeURIComponent(profile.location_id)}`);
+    setServiceBookingCount(serviceBookings?.length || 0);
   };
 
   const updateStatus = async (id: string, status: string) => {
@@ -180,15 +184,20 @@ const GRODashboard = () => {
           </div>
         </div>
   {showInsights && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           {[
             { label: "Today's Drives", value: stats.today, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
             { label: 'Upcoming', value: stats.upcoming, icon: Clock, color: 'text-info', bg: 'bg-info/10' },
             { label: 'Completed', value: stats.completed, icon: TrendingUp, color: 'text-success', bg: 'bg-success/10' },
             { label: 'Completion Rate', value: `${stats.completionRate}%`, icon: CheckCircle2, color: 'text-accent-foreground', bg: 'bg-accent/10' },
+            { label: 'Service Bookings', value: serviceBookingCount, icon: BookOpen, color: 'text-primary', bg: 'bg-primary/10' },
           ].map(stat => {
             const Icon = stat.icon;
             const handleCardClick = () => {
+              if (stat.label === 'Service Bookings') {
+                navigateTo('/service-bookings');
+                return;
+              }
               if (stat.label === "Today's Drives" || stat.label === 'Upcoming') {
                 navigateTo('/test-drives?status=scheduled');
               } else if (stat.label === 'Completed') {

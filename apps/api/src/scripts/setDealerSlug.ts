@@ -61,7 +61,7 @@ async function main() {
     console.log(`✅  Set slug "${slug}" on dealer "${dealer.name}" (id=${dealer.id})`);
     console.log(`\nTest it:`);
     console.log(`  curl http://localhost:4000/api/dealers/branding/${slug}`);
-    console.log(`  http://localhost:8080/?dealer=${slug}`);
+    console.log(`  http://localhost:3000/?dealer=${slug}`);
 
     await mongoose.disconnect();
     return;

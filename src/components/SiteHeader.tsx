@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useAuthOptional } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { LogOut, Moon, Sun } from 'lucide-react';
@@ -82,9 +83,9 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
             <a href="/#features" className="transition hover:text-foreground dark:hover:text-white">Features</a>
             <a href="/#benefits" className="transition hover:text-foreground dark:hover:text-white">Benefits</a>
             <a href="/#contact" className="transition hover:text-foreground dark:hover:text-white">Contact</a>
-            <a href="/dealer-onboarding" className="transition hover:text-foreground dark:hover:text-white">Entity Onboarding</a>
-            <a href="/compare" className="transition hover:text-foreground dark:hover:text-white">Compare Vehicles</a>
-            <a href={staffEntryPath} className="transition hover:text-foreground dark:hover:text-white">Staff Login</a>
+            <Link to="/dealer-onboarding" className="transition hover:text-foreground dark:hover:text-white">Entity Onboarding</Link>
+            <Link to="/compare" className="transition hover:text-foreground dark:hover:text-white">Compare Vehicles</Link>
+            <Link to={staffEntryPath} className="transition hover:text-foreground dark:hover:text-white">Staff Login</Link>
           </nav>
         )}
 

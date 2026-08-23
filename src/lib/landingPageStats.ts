@@ -7,6 +7,14 @@ export type DealerGrowthStats = {
   totalBrands: number;
   salesToday: number;
   totalLeads: number;
+  serviceBookingsTotal: number;
+  serviceBookingsBooked: number;
+  serviceBookingsConfirmed: number;
+  serviceBookingsInProgress: number;
+  serviceBookingsCompleted: number;
+  serviceBookingsToday: number;
+  serviceBookingsCancelled: number;
+  serviceBookingsRescheduled: number;
 };
 
 export async function fetchDealerGrowthStats(apiGet: ApiGetFn): Promise<DealerGrowthStats> {
@@ -24,6 +32,14 @@ export async function fetchDealerGrowthStats(apiGet: ApiGetFn): Promise<DealerGr
       totalBrands: Number(payload?.totalBrands ?? 0),
       salesToday: Number(payload?.salesToday ?? 0),
       totalLeads: Number(payload?.totalLeads ?? 0),
+      serviceBookingsTotal: Number(payload?.serviceBookingsTotal ?? 0),
+      serviceBookingsBooked: Number(payload?.serviceBookingsBooked ?? 0),
+      serviceBookingsConfirmed: Number(payload?.serviceBookingsConfirmed ?? 0),
+      serviceBookingsInProgress: Number(payload?.serviceBookingsInProgress ?? 0),
+      serviceBookingsCompleted: Number(payload?.serviceBookingsCompleted ?? 0),
+      serviceBookingsToday: Number(payload?.serviceBookingsToday ?? 0),
+      serviceBookingsCancelled: Number(payload?.serviceBookingsCancelled ?? 0),
+      serviceBookingsRescheduled: Number(payload?.serviceBookingsRescheduled ?? 0),
     };
   } catch {
     return {
@@ -33,6 +49,14 @@ export async function fetchDealerGrowthStats(apiGet: ApiGetFn): Promise<DealerGr
       totalBrands: 0,
       salesToday: 0,
       totalLeads: 0,
+      serviceBookingsTotal: 0,
+      serviceBookingsBooked: 0,
+      serviceBookingsConfirmed: 0,
+      serviceBookingsInProgress: 0,
+      serviceBookingsCompleted: 0,
+      serviceBookingsToday: 0,
+      serviceBookingsCancelled: 0,
+      serviceBookingsRescheduled: 0,
     };
   }
 }

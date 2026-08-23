@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Car, Building2, MapPin, User, CheckCircle, ArrowRight, ArrowLeft, Plus, X, Eye, EyeOff } from 'lucide-react';
 import SiteHeader from '@/components/SiteHeader';
 import { navigateTo } from '@/lib/browserNavigation';
-import { navigateTo } from '@/lib/browserNavigation';
 
 const STEPS = [
   { id: 'account', label: 'Admin Account', icon: User },
@@ -45,7 +44,7 @@ const DealerOnboardingPage = () => {
   ]);
 
   const addBrand = () => setBrands(prev => [...prev, { name: '', code: '' }]);
-  navigateTo('/auth');
+  const removeBrand = (i: number) => setBrands(prev => prev.filter((_, idx) => idx !== i));
   const updateBrand = (i: number, field: keyof BrandForm, val: string) => setBrands(prev => prev.map((b, idx) => idx === i ? { ...b, [field]: val } : b));
 
   const addLocation = () => setLocationForms(prev => [...prev, { name: '', locationCode: '', address: '', city: '' }]);

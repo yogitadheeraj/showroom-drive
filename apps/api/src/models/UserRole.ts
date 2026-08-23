@@ -6,6 +6,7 @@ export type AppRole =
   | 'dealer_admin'
   | 'sales_admin'
   | 'branch_admin'
+  | 'service_expert'
   | 'gro'
   | 'sales'
   | 'security'
@@ -24,7 +25,7 @@ const UserRoleSchema = new Schema<IUserRole>(
     role: {
       type: String,
       required: true,
-      enum: ['superadmin', 'super_admin', 'dealer_admin', 'sales_admin', 'branch_admin', 'gro', 'sales', 'security', 'reporting'],
+      enum: ['superadmin', 'super_admin', 'dealer_admin', 'sales_admin', 'branch_admin', 'service_expert', 'gro', 'sales', 'security', 'reporting'],
     },
   },
   { versionKey: false, collection: 'user_roles' },
