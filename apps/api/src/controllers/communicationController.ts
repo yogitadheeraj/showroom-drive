@@ -5,7 +5,6 @@ import { applyLocationScope } from '../middleware/locationFilter.js';
 export async function listCommunicationsController(req: Request, res: Response) {
   const limit = Number(req.query.limit) || 200;
   const filters = { ...(req.query as Record<string, unknown>) };
-  applyLocationScope(req, filters);
   const data = await communicationService.listCommunications(filters, limit);
   res.json({ data });
 }

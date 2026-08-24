@@ -6,7 +6,7 @@ import { applyLocationScope } from '../middleware/locationFilter.js';
 
 export async function listCustomersController(req: Request, res: Response) {
   const filters = { ...(req.query as Record<string, unknown>) };
-  applyLocationScope(req, filters);
+
   const data = await customerService.listCustomers(filters);
   res.json({ data });
 }
