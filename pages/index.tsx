@@ -368,9 +368,9 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
         ],
     };
 
-        const homeTitle = 'AutoAdvant - Automotive Dealership CRM & Test Drive Management Platform';
+        const homeTitle = 'AutoAdvant | Automotive Dealership CRM, Service Booking & Test Drive Software';
         const homeDescription =
-            'AutoAdvant helps automotive dealerships manage leads, schedule test drives, optimize showroom operations, and improve conversions with real-time dashboards and automation.';
+            'AutoAdvant is automotive dealership software for UAE, KSA, and GCC markets. Manage leads, test drives, service bookings, inventory, and showroom operations from one CRM and sales dashboard.';
         const homeCanonicalUrl = 'https://www.autoadvant.com/';
         const homeOgImage = 'https://www.autoadvant.com/images/autoadvant-logo.png';
 
@@ -381,12 +381,22 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 name: 'AutoAdvant',
                 url: homeCanonicalUrl,
                 logo: homeOgImage,
+                sameAs: [
+                    'https://www.autoadvant.com',
+                ],
+                description: homeDescription,
             },
             {
                 '@context': 'https://schema.org',
                 '@type': 'WebSite',
                 name: 'AutoAdvant',
                 url: homeCanonicalUrl,
+                description: homeDescription,
+                potentialAction: {
+                    '@type': 'SearchAction',
+                    target: 'https://www.autoadvant.com/?q={search_term_string}',
+                    'query-input': 'required name=search_term_string',
+                },
             },
             {
                 '@context': 'https://schema.org',
@@ -396,6 +406,10 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 operatingSystem: 'Web',
                 url: homeCanonicalUrl,
                 description: homeDescription,
+                offers: {
+                    '@type': 'Offer',
+                    category: 'Automotive Dealership Software',
+                },
             },
         ];
 
@@ -416,13 +430,13 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                     <div className="mx-auto grid max-w-7xl gap-12 px-4 py-8 sm:px-6 sm:py-20 lg:grid-cols-2 lg:px-8 lg:py-10">
                         <div className="relative z-10 flex flex-col">
                             <div className="mb-5 inline-flex w-fit items-center rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1 text-xs font-medium uppercase tracking-[0.2em] text-sky-300">
-                                Dealership Operating System
+                                Automotive Dealership Software
                             </div>
                             <h1 className="max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
-                                One platform for <span className="bg-gradient-to-r from-sky-300 to-blue-500 bg-clip-text text-transparent">Service Booking</span>, Test Drives, and Sales Execution
+                                AutoAdvant helps dealerships manage <span className="bg-gradient-to-r from-sky-300 to-blue-500 bg-clip-text text-transparent">service bookings</span>, leads, and test drives in one platform
                             </h1>
                             <p className="mt-6 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
-                                Customers can book service online in minutes. Your team can manage service progress, test drives, and follow-up workflows from a single live dashboard.
+                                Built for automotive businesses in the UAE, KSA, and GCC, AutoAdvant centralizes lead capture, customer follow-up, showroom operations, inventory visibility, and digital service booking to improve conversion and efficiency.
                             </p>
 
                             <div className="mt-5 grid max-w-xl gap-2 text-sm text-slate-300 sm:grid-cols-2">
@@ -548,6 +562,30 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </section>
+
+                <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8 lg:pt-20">
+                    <div className="mb-10 max-w-3xl">
+                        <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Why automotive teams choose AutoAdvant</p>
+                        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">A clearer, faster way to manage the full dealership journey</h2>
+                    </div>
+                    <div className="grid gap-5 md:grid-cols-3">
+                        <article className="rounded-[24px] border border-white/10 bg-white/5 p-6">
+                            <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-sky-400/10 text-2xl">🚗</div>
+                            <h3 className="text-lg font-semibold text-white">Lead and test drive management</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">Capture leads from walk-ins, online forms, and campaigns, then assign, track, and convert them through structured workflows.</p>
+                        </article>
+                        <article className="rounded-[24px] border border-white/10 bg-white/5 p-6">
+                            <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400/10 text-2xl">🛠️</div>
+                            <h3 className="text-lg font-semibold text-white">Service booking and operations</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">Enable online vehicle service booking, slot management, appointment updates, and real-time customer communication without manual coordination.</p>
+                        </article>
+                        <article className="rounded-[24px] border border-white/10 bg-white/5 p-6">
+                            <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-violet-400/10 text-2xl">📊</div>
+                            <h3 className="text-lg font-semibold text-white">Smarter dealership reporting</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">Give managers live visibility into bookings, sales flow, showroom performance, and conversion trends across branches.</p>
+                        </article>
                     </div>
                 </section>
 
@@ -811,7 +849,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                     </div>
                 </section>
 
-                <section id="features" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+                <section id="platform-features" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
                     <div className="max-w-full">
                         <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Core Features</p>
                         <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Built for modern automotive operations</h2>
@@ -834,7 +872,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 </section>
 
 
-                <section id="features" className="mx-auto max-w-7xl px-4 py-8 sm:px-0 lg:px-0 lg:py-8">
+                <section id="automotive-dms-platform" className="mx-auto max-w-7xl px-4 py-8 sm:px-0 lg:px-0 lg:py-8">
                     <div className="max-w-2xl">
                         <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Complete DMS Platform</p>
                         <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Built for modern automotive operations</h2>
@@ -1039,6 +1077,27 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </section>
+
+                <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+                    <div className="mb-10 max-w-3xl">
+                        <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Frequently asked questions</p>
+                        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">What can AutoAdvant do for an automotive dealership?</h2>
+                    </div>
+                    <div className="grid gap-5 lg:grid-cols-3">
+                        <article className="rounded-[24px] border border-white/10 bg-white/5 p-6">
+                            <h3 className="text-lg font-semibold text-white">Is this for service and sales teams?</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">Yes. AutoAdvant supports both sales and service workflows, helping teams manage leads, test drive bookings, and post-booking communication from one system.</p>
+                        </article>
+                        <article className="rounded-[24px] border border-white/10 bg-white/5 p-6">
+                            <h3 className="text-lg font-semibold text-white">Does it work for multi-branch operations?</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">Yes. The platform is designed for multi-location dealerships that need centralized reporting while maintaining branch-level operations and permissions.</p>
+                        </article>
+                        <article className="rounded-[24px] border border-white/10 bg-white/5 p-6">
+                            <h3 className="text-lg font-semibold text-white">Can customers book online?</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">Yes. Customers can make service and test-drive bookings online, while staff keep visibility over availability, confirmations, and follow-up actions.</p>
+                        </article>
                     </div>
                 </section>
 
