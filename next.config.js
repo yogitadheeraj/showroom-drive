@@ -26,7 +26,7 @@ const nextConfig = {
 			},
 			{
 				source: '/unsubscribe/',
-				destination: '/unsubscribe',
+				destination: '/auth',
 				permanent: true,
 			},
 		];

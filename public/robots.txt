@@ -1,17 +1,27 @@
 User-agent: Googlebot
 Allow: /
+Disallow: /api/
+Disallow: /uploads/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /api/
+Disallow: /uploads/
 
 User-agent: Twitterbot
 Allow: /
+Disallow: /api/
+Disallow: /uploads/
 
 User-agent: facebookexternalhit
 Allow: /
+Disallow: /api/
+Disallow: /uploads/
 
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /uploads/
 
 Sitemap: https://www.autoadvant.com/sitemap.xml
 Sitemap: https://www.autoadvant.com/sitemap.html
