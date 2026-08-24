@@ -368,9 +368,9 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
         ],
     };
 
-        const homeTitle = 'AutoAdvant | Automotive Dealership CRM, Service Booking & Test Drive Software';
+        const homeTitle = 'AutoAdvant | Car Dealership CRM, Test Drive & Service Booking Software in Dubai, UAE, KSA & GCC';
         const homeDescription =
-            'AutoAdvant is automotive dealership software for UAE, KSA, and GCC markets. Manage leads, test drives, service bookings, inventory, and showroom operations from one CRM and sales dashboard.';
+            'AutoAdvant is automotive dealership software for BMW, Audi, Mercedes-Benz, Toyota, Honda, Porsche, Lexus, Nissan, Range Rover, Volvo, and other car brands. Manage leads, test drives, service bookings, inventory, and showroom operations in Dubai, UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, and globally.';
         const homeCanonicalUrl = 'https://www.autoadvant.com/';
         const homeOgImage = 'https://www.autoadvant.com/images/autoadvant-logo.png';
 
@@ -433,10 +433,10 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                 Automotive Dealership Software
                             </div>
                             <h1 className="max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
-                                AutoAdvant helps dealerships manage <span className="bg-gradient-to-r from-sky-300 to-blue-500 bg-clip-text text-transparent">service bookings</span>, leads, and test drives in one platform
+                                AutoAdvant helps car dealerships manage <span className="bg-gradient-to-r from-sky-300 to-blue-500 bg-clip-text text-transparent">test drives, service bookings</span>, leads, and showroom operations in Dubai, UAE, KSA, and GCC markets
                             </h1>
                             <p className="mt-6 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
-                                Built for automotive businesses in the UAE, KSA, and GCC, AutoAdvant centralizes lead capture, customer follow-up, showroom operations, inventory visibility, and digital service booking to improve conversion and efficiency.
+                                Built for BMW, Audi, Mercedes-Benz, Toyota, Honda, Porsche, Lexus, Nissan, Range Rover, Volvo, and other automotive brands, AutoAdvant centralizes lead capture, customer follow-up, inventory visibility, and digital service booking to improve conversion and operational efficiency across Dubai, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, and global dealership networks.
                             </p>
 
                             <div className="mt-5 grid max-w-xl gap-2 text-sm text-slate-300 sm:grid-cols-2">
