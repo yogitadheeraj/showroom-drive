@@ -369,10 +369,10 @@ apiRouter.get('/user-roles/:userId', requireAuth, getRoleController);
 apiRouter.post('/user-roles', requireAuth, upsertRoleController);
 apiRouter.delete('/user-roles/:userId', requireAuth, deleteRoleController);
 
-// Customers
-apiRouter.get('/customers', requireAuth, listCustomersController);
-apiRouter.get('/customers/:id', requireAuth, getCustomerController);
-apiRouter.post('/customers', requireAuth, createCustomerController);
+// Customers (public access only for approved frontend origins)
+apiRouter.get('/customers', listCustomersController);
+apiRouter.get('/customers/:id', getCustomerController);
+apiRouter.post('/customers', createCustomerController);
 apiRouter.patch('/customers/:id', requireAuth, updateCustomerController);
 
 // Vehicles
@@ -394,9 +394,9 @@ apiRouter.post('/activity/sessions', requireAuth, startSessionController);
 apiRouter.patch('/activity/sessions/:id/touch', requireAuth, touchSessionController);
 apiRouter.patch('/activity/sessions/:id/end', requireAuth, endSessionController);
 
-// Communications
-apiRouter.get('/communications', requireAuth, listCommunicationsController);
-apiRouter.post('/communications', requireAuth, createCommunicationController);
+// Communications (public access only for approved frontend origins)
+apiRouter.get('/communications', listCommunicationsController);
+apiRouter.post('/communications', createCommunicationController);
 apiRouter.patch('/communications/:id', requireAuth, updateCommunicationController);
 apiRouter.patch('/communications/:id/status', requireAuth, updateCommunicationStatusController);
 

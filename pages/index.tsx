@@ -11,6 +11,7 @@ import showcaseBooking from '../src/assets/showcase-booking.jpg';
 import showcaseGroAssign from '../src/assets/showcase-gro-assign.jpg';
 import SeoMeta from '../src/components/SeoMeta';
 import { apiGet } from '../src/lib/apiClient';
+import { getApiBaseUrl } from '../src/lib/getApiBaseUrl';
 import { fetchDealerGrowthStats } from '../src/lib/landingPageStats';
 
 const THEME_STORAGE_KEY = 'autoadvant-theme';
@@ -66,7 +67,9 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
     });
 
     const fetchJson = async (url: string, init?: RequestInit) => {
-        const response = await fetch(url, init);
+        const normalizedUrl = /^https?:\/\//i.test(url) ? url : `${getApiBaseUrl()}${url.startsWith('/') ? url : `/${url}`}`;
+        const response = await fetch(normalizedUrl, init);
+
         if (!response.ok) {
             throw new Error(`Request failed: ${response.status}`);
         }
@@ -104,7 +107,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                 id: commId,
-                customer_id: customer.id,
+                customer_id: customer?.data?.id,
                 type: 'email',
                 purpose: 'custom',
                 sent_to: demoForm.email.trim(),
