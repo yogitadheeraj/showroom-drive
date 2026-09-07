@@ -9,7 +9,7 @@ export function getApiBaseUrl() {
   );
 
   if (typeof window === 'undefined') {
-    return envBase || 'http://localhost:4000';
+    return envBase || 'https://auto-advant-backend-1--auto-advant.asia-east1.hosted.app';
   }
 
   const currentHost = window.location.hostname;
