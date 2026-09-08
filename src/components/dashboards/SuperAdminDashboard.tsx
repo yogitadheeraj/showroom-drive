@@ -30,6 +30,7 @@ import { StaffActivityGrid } from './StaffActivityGrid';
 import TestDriveCalendarMini from './TestDriveCalendarMini';
 import HierarchyOverview from './HierarchyOverview';
 import { navigateTo } from '@/lib/browserNavigation';
+import { DashboardStatusSections } from './DashboardStatusSections';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
@@ -77,6 +78,15 @@ const SuperAdminDashboard = () => {
   const [staffMembers, setStaffMembers] = useState<any[]>([]);
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [serviceBookingTotal, setServiceBookingTotal] = useState(0);
+  const [serviceBookingStatusCounts, setServiceBookingStatusCounts] = useState<Record<string, number>>({
+    booked: 0,
+    confirmed: 0,
+    in_progress: 0,
+    ready_for_delivery: 0,
+    completed: 0,
+    cancelled: 0,
+    rescheduled: 0,
+  });
   const [repeatedCustomers, setRepeatedCustomers] = useState<any[]>([]);
   const [activitySessions, setActivitySessions] = useState<any[]>([]);
   const [activityEvents, setActivityEvents] = useState<any[]>([]);
@@ -249,6 +259,15 @@ const SuperAdminDashboard = () => {
 
     setTestDrives(td || []);
     setServiceBookingTotal(serviceBookings?.length || 0);
+    setServiceBookingStatusCounts({
+      booked: (serviceBookings || []).filter((booking) => booking.status === 'booked').length,
+      confirmed: (serviceBookings || []).filter((booking) => booking.status === 'confirmed').length,
+      in_progress: (serviceBookings || []).filter((booking) => booking.status === 'in_progress').length,
+      ready_for_delivery: (serviceBookings || []).filter((booking) => booking.status === 'ready_for_delivery').length,
+      completed: (serviceBookings || []).filter((booking) => booking.status === 'completed').length,
+      cancelled: (serviceBookings || []).filter((booking) => booking.status === 'cancelled').length,
+      rescheduled: (serviceBookings || []).filter((booking) => booking.status === 'rescheduled').length,
+    });
     const total = td?.length || 0;
     setStats({
       total,
@@ -472,13 +491,7 @@ const SuperAdminDashboard = () => {
     { label: 'Users', value: userCount, icon: Users, color: 'text-accent', bg: 'bg-accent/10' },
     { label: 'Brands', value: brandCount, icon: Car, color: 'text-info', bg: 'bg-info/10' },
     { label: 'Total Drives', value: stats.total, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'Service Bookings', value: serviceBookingTotal, icon: BookOpen, color: 'text-success', bg: 'bg-success/10' },
-    { label: 'Scheduled', value: stats.scheduled, icon: Clock, color: 'text-info', bg: 'bg-info/10' },
-    { label: 'Completed', value: stats.completed, icon: TrendingUp, color: 'text-success', bg: 'bg-success/10' },
-    { label: 'No Show', value: stats.noShow, icon: Users, color: 'text-warning', bg: 'bg-warning/10' },
-    { label: 'Cancelled', value: stats.cancelled, icon: Car, color: 'text-destructive', bg: 'bg-destructive/10' },
-    { label: 'Repeat', value: repeatedCustomers.length, icon: MapPin, color: 'text-accent', bg: 'bg-accent/10' },
-    { label: 'Active Sales Executive', value: activeSalesCount, icon: Users, color: 'text-success', bg: 'bg-success/10' },
+    { label: 'Service Bookings', value: serviceBookingTotal, icon: BookOpen, color: 'text-success', bg: 'bg-success/10' }
   ];
 
   const statusColor: Record<string, string> = {
@@ -704,8 +717,9 @@ const SuperAdminDashboard = () => {
      
       </div>
 
+     
       {/* ── KPI Stat Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-6 gap-3 sm:gap-4">
         {statCards.map(stat => {
           const Icon = stat.icon;
           return (
@@ -719,11 +733,6 @@ const SuperAdminDashboard = () => {
                 else if (stat.label === 'Dealers') navigateTo('/users?role=dealer_admin');
                 else if (stat.label === 'Total Drives') navigateTo('/test-drives');
                 else if (stat.label === 'Service Bookings') navigateTo('/service-bookings');
-                else if (stat.label === 'Scheduled') navigateTo('/test-drives');
-                else if (stat.label === 'Completed') navigateTo('/test-drives');
-                else if (stat.label === 'No Show') navigateTo('/test-drives');
-                else if (stat.label === 'Cancelled') navigateTo('/test-drives');
-                else if (stat.label === 'Repeat') navigateTo('/test-drives');
                 else if (stat.label === 'Active Sales Executive') navigateTo('/users');
               }}
             >
@@ -740,8 +749,20 @@ const SuperAdminDashboard = () => {
           );
         })}
       </div>
-       <HierarchyOverview />
-    
+       <DashboardStatusSections
+        testDriveStatusCounts={{
+          scheduled: stats.scheduled,
+          confirmed: testDrives.filter((d) => d.status === 'confirmed').length,
+          show: testDrives.filter((d) => d.status === 'show').length,
+          no_show: stats.noShow,
+          completed: stats.completed,
+          cancelled: stats.cancelled,
+        }}
+        serviceBookingStatusCounts={serviceBookingStatusCounts}
+      />
+      <HierarchyOverview />
+
+
       <Card className="shadow-card border-primary/20 relative overflow-hidden">
         {/* Gradient accent line at top */}
         <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-primary via-success to-info" />

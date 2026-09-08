@@ -24,6 +24,7 @@ import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { navigateTo } from '@/lib/browserNavigation';
 import ServiceProgressPanel from './ServiceProgressPanel';
+import { DashboardStatusSections } from './DashboardStatusSections';
 
 type LeadTemperature = 'hot' | 'cold';
 
@@ -59,6 +60,15 @@ const SalesDashboard = () => {
   const [taskNotesDialog, setTaskNotesDialog] = useState<{ open: boolean; taskId: string | null }>({ open: false, taskId: null });
   const [taskNoteText, setTaskNoteText] = useState('');
   const [serviceBookingCount, setServiceBookingCount] = useState(0);
+  const [serviceBookingStatusCounts, setServiceBookingStatusCounts] = useState<Record<string, number>>({
+    booked: 0,
+    confirmed: 0,
+    in_progress: 0,
+    ready_for_delivery: 0,
+    completed: 0,
+    cancelled: 0,
+    rescheduled: 0,
+  });
   // Booking state (hot lead)
   const [bookingPaymentMethod, setBookingPaymentMethod] = useState<'cash' | 'payment_link'>('cash');
   const [bookingAmount, setBookingAmount] = useState('');
@@ -159,7 +169,17 @@ const SalesDashboard = () => {
     const enrichedDrives = await apiGet<any[]>(`/api/test-drives?sales_person_id=${encodeURIComponent(profile.id)}`) || [];
     setTestDrives(enrichedDrives);
     const serviceBookings = await apiGet<any[]>(`/api/service-bookings?location_id=${encodeURIComponent(profile?.location_id || '')}`).catch(() => []);
+    const counts = {
+      booked: (serviceBookings || []).filter((booking) => booking.status === 'booked').length,
+      confirmed: (serviceBookings || []).filter((booking) => booking.status === 'confirmed').length,
+      in_progress: (serviceBookings || []).filter((booking) => booking.status === 'in_progress').length,
+      ready_for_delivery: (serviceBookings || []).filter((booking) => booking.status === 'ready_for_delivery').length,
+      completed: (serviceBookings || []).filter((booking) => booking.status === 'completed').length,
+      cancelled: (serviceBookings || []).filter((booking) => booking.status === 'cancelled').length,
+      rescheduled: (serviceBookings || []).filter((booking) => booking.status === 'rescheduled').length,
+    };
     setServiceBookingCount(serviceBookings?.length || 0);
+    setServiceBookingStatusCounts(counts);
 
     const profileLocationIds = Array.from(new Set(enrichedDrives.map((drive: any) => drive.location_id).filter(Boolean)));
     if (profileLocationIds.length > 0) {
@@ -934,6 +954,18 @@ const SalesDashboard = () => {
       </Card>
 
    
+
+      <DashboardStatusSections
+        testDriveStatusCounts={{
+          scheduled: testDrives.filter((td) => td.status === 'scheduled').length,
+          confirmed: testDrives.filter((td) => td.status === 'confirmed').length,
+          show: testDrives.filter((td) => td.status === 'show').length,
+          no_show: testDrives.filter((td) => td.status === 'no_show').length,
+          completed: testDrives.filter((td) => td.status === 'completed').length,
+          cancelled: testDrives.filter((td) => td.status === 'cancelled').length,
+        }}
+        serviceBookingStatusCounts={serviceBookingStatusCounts}
+      />
 
       {/* ── Activity Insights ── */}
       <ActivityInsightsMini />

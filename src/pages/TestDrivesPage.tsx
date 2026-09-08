@@ -1037,9 +1037,9 @@ const TestDrivesPage = () => {
 
                     {/* ── In-progress context hint ── */}
                     {td.status === 'in_progress' && (
-                      <div className="flex items-start gap-1.5 text-[11px] bg-accent/10 border border-accent/30 rounded-md px-2 py-1.5 text-accent-foreground">
-                        <PlayCircle className="h-3 w-3 shrink-0 mt-px text-primary" />
-                        <span>
+                      <div className="flex items-start gap-1.5 text-[11px] bg-accent/10 border border-accent/30 rounded-md px-2 py-1.5 text-muted-foreground">
+                        <PlayCircle className="h-3 w-3 shrink-0 mt-px text-muted-foreground" />
+                        <span className="flex-1">
                           Customer is currently on the test drive.{' '}
                           {(td.security_checked_in_at || td.key_handed_at) && (
                             <>Started at {new Date(td.security_checked_in_at || td.key_handed_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}. </>
@@ -1269,10 +1269,11 @@ const TestDrivesPage = () => {
                     : 'Follow up after test drive and capture objections'}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 ">
                 <Label>Task Due At</Label>
                 <Input type="datetime-local"   
                 min={todayStr}
+                className="text-foreground" 
                       max={maxDateStr} 
                       value={followUpTaskDueAt} onChange={(e) => setFollowUpTaskDueAt(e.target.value)} />
               </div>

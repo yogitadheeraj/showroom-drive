@@ -129,12 +129,13 @@ const AIReportsPage = () => {
         </Card>
 
         <Card className="border border-border">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+          <CardContent className="p-4 sm:p-5 space-y-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <BarChart3 className="h-4 w-4" />
                 <span>Filter and regenerate insights for your selected reporting window.</span>
               </div>
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+            
 
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={scope} onValueChange={(value) => setScope(value as InsightScope)}>

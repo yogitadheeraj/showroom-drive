@@ -189,6 +189,10 @@ import {
   uploadCustomerDocumentController,
 } from '../controllers/customerBookingController.js';
 import {
+  createTradeInRequestController,
+  listTradeInRequestsController,
+} from '../controllers/tradeInController.js';
+import {
   cancelServiceBookingController,
   createServiceBookingController,
   listServiceBookingsController,
@@ -227,6 +231,8 @@ export const apiRouter = express.Router();
 
 // Generic DB query (fallback for all other collections)
 apiRouter.post('/db/query', dbQueryController);
+apiRouter.get('/trade-in-requests', listTradeInRequestsController);
+apiRouter.post('/trade-in-requests', createTradeInRequestController);
 apiRouter.post('/functions/:name', invokeFunctionController);
 apiRouter.post('/rpc/:name', rpcController);
 

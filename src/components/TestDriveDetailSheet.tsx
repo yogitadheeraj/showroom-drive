@@ -146,7 +146,6 @@ console.log('Security Events for this drive:', td, securityEvents)
             <Row label="Sales Person" value={td.assigned_sales_person?.full_name || td.salesPerson?.full_name} />
             <Row label="Phone"          value={td.assigned_sales_person?.phone || td.salesPerson?.phone} />
           </Section>
-
           {/* ── Journey Timeline ── */}
           <Section title="Journey Timeline" icon={Clock}>
             <Row label="Key Handed"    value={fmt(td.key_handed_at)} />
@@ -155,13 +154,12 @@ console.log('Security Events for this drive:', td, securityEvents)
                 ? `${fmt(td.security_checked_in_at)}${securityEvents?.checkInBy ? ` · ${securityEvents.checkInBy}` : ''}`
                 : null
             } />
-            <Row label="Drive Started" value={fmt(td.started_at)} />
             <Row label="Security Out"  value={
               td.security_checked_out_at
                 ? `${fmt(td.security_checked_out_at)}${securityEvents?.completedBy || securityEvents?.checkOutBy ? ` · ${securityEvents?.completedBy || securityEvents?.checkOutBy}` : ''}`
                 : null
             } />
-            <Row label="Completed"     value={fmt(td.completed_at)} />
+          
           </Section>
 
           {/* ── Drive Metrics (if completed) ── */}

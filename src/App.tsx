@@ -35,6 +35,7 @@ import RouteCalculatorDemo from './pages/RouteCalculatorDemo.tsx';
 import SharedVehicleFleetPage from './pages/SharedVehicleFleetPage.tsx';
 import IncomingVehiclesPage from './pages/IncomingVehiclesPage.tsx';
 import BrandsPage from './pages/BrandsPage.tsx';
+import TradeInPage from './pages/TradeInPage.tsx';
 import ReportMonitoringPage from "./pages/ReportMonitoringPage.tsx";
 import ActivityLogsPage from "./pages/ActivityLogsPage.tsx";
 import MyProfilePage from "./pages/MyProfilePage.tsx";
@@ -86,6 +87,7 @@ const App = () => (
             <Route path="/data-center" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.DATA_CENTER]}><DataCenterPage /></ProtectedRoute>} />
             <Route path="/compare" element={<ComparePage />} />
             <Route path="/follow-ups" element={<ProtectedRoute><FollowUpsPage /></ProtectedRoute>} />
+            <Route path="/trade-in" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.TRADE_IN]}><TradeInPage /></ProtectedRoute>} />
             <Route path="/car-bookings" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.BOOKINGS]}><CarBookingsPage /></ProtectedRoute>} />
             <Route path="/service-bookings" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.BOOKINGS]}><ServiceBookingsPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.SETTINGS]}><DealerSettingsPage /></ProtectedRoute>} />

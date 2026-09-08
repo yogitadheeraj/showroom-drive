@@ -700,19 +700,26 @@ const SecurityDashboard = () => {
 
                 {/* KM + inspection */}
                 <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-border" onClick={e => e.stopPropagation()}>
-                  {(testDrive as any).pre_drive_km && <Badge className="bg-primary/10 text-primary text-xs">Pre: {(testDrive as any).pre_drive_km} km</Badge>}
-                  {(testDrive as any).post_drive_km && <Badge className="bg-success/10 text-success text-xs">Post: {(testDrive as any).post_drive_km} km</Badge>}
+                  {(testDrive as any).pre_drive_km && <Badge className="bg-primary/10 text-primary text-xs hover:bg-primary/20">Pre: {(testDrive as any).pre_drive_km} km</Badge>}
+                  {(testDrive as any).post_drive_km && <Badge className="bg-success/10 text-success text-xs hover:bg-success/20">Post: {(testDrive as any).post_drive_km} km</Badge>}
+                 
+                  {(testDrive as any).inspection_submitted_at && <Badge className="bg-muted text-muted-foreground text-xs">Complete</Badge>}
                   {((testDrive as any).pre_drive_km || (testDrive as any).post_drive_km) && (
                     <Button size="sm" className="bg-muted text-foreground hover:bg-muted/80 text-xs" onClick={() => setInspectionViewDrive(testDrive)}>
                       <Eye className="h-3 w-3 mr-1" /> Details
                     </Button>
                   )}
-                  {(testDrive as any).inspection_submitted_at && <Badge className="bg-muted text-muted-foreground text-xs">Complete</Badge>}
-                  <Label htmlFor={`doc-upload-${testDrive.id}`} className="cursor-pointer ml-auto">
+                </div>
+
+                {/* Upload doc */}
+                <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-border" onClick={e => e.stopPropagation()}>
+                 {!(testDrive as any).inspection_submitted_at && (testDrive as any).key_handed_at && (
+                    <Label htmlFor={`doc-upload-${testDrive.id}`} className="cursor-pointer ml-auto">
                     <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 text-xs" asChild>
                       <span><Upload className="h-3 w-3 mr-1" /> Doc</span>
                     </Button>
                   </Label>
+                  )}
                   <input id={`doc-upload-${testDrive.id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={uploadingDocId === testDrive.id}
                     onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleUploadTestDriveDoc(testDrive.id, file); }} />
                 </div>

@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiGet } from '@/lib/apiClient';
 import { listStaffServiceBookings, updateServiceProgress } from '@/lib/serviceBookingService';
 import { Wrench, RefreshCw } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 type ServiceProgressPanelProps = {
   title?: string;
@@ -30,6 +31,7 @@ const PAYMENT_STATUS_OPTIONS = ['pending', 'partial', 'paid'];
 
 export default function ServiceProgressPanel({ title = 'Service Appointment Progress' }: ServiceProgressPanelProps) {
   const { toast } = useToast();
+  const { loading: authLoading } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -45,6 +47,22 @@ export default function ServiceProgressPanel({ title = 'Service Appointment Prog
     }
   };
 
+  useEffect(() => {
+    const syncStatusFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const nextStatus = params.get('status');
+      if (nextStatus && STATUS_OPTIONS.includes(nextStatus)) {
+        setStatusFilter(nextStatus);
+        return;
+      }
+      setStatusFilter('all');
+    };
+
+    syncStatusFromUrl();
+    window.addEventListener('popstate', syncStatusFromUrl);
+    return () => window.removeEventListener('popstate', syncStatusFromUrl);
+  }, []);
+
   const loadRows = async () => {
     setLoading(true);
     try {
@@ -58,13 +76,15 @@ export default function ServiceProgressPanel({ title = 'Service Appointment Prog
       setLoading(false);
     }
   };
-
   useEffect(() => {
-    void loadRows();
-  }, [statusFilter]);
-
+    if (!authLoading) {
+       void loadRows();
+       void loadServiceExperts();
+    }
+  }, [authLoading, statusFilter]);
+ 
   useEffect(() => {
-    void loadServiceExperts();
+ 
   }, []);
 
   useEffect(() => {

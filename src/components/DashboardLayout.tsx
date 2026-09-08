@@ -22,7 +22,7 @@ import {
 import {
   type LucideIcon,
   Car, LayoutDashboard, Users, Shield, CalendarCheck,
-  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText, PlaneLanding, Truck, ChevronLeft, ChevronRight, Tag, Sparkles,
+  LogOut, MapPin, BarChart3, MessageSquare, Menu, X, Inbox, Settings, UserCircle2, Bell, ClipboardCheck, BookOpen, ScrollText, PlaneLanding, Truck, ChevronLeft, ChevronRight, Tag, Sparkles, ArrowLeftRight,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { APP_ROLE, AppRole, DEFAULT_APP_ROLE } from '@/constants/roles';
@@ -41,10 +41,11 @@ interface NavItem {
 const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   [APP_ROLE.SUPERADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'Leads Follow-up', path: '/follow-ups', icon: ClipboardCheck },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
     { label: 'Service Bookings', path: '/service-bookings', icon: ClipboardCheck },
+    { label: 'Trade-in', path: '/trade-in', icon: ArrowLeftRight },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Fleet', path: '/fleet', icon: Truck },
     { label: 'Locations', path: '/locations', icon: MapPin },
@@ -60,10 +61,11 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   ],
   [APP_ROLE.DEALER_ADMIN]: [
     { label: 'Dashboards', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'Leads Follow-up', path: '/follow-ups', icon: ClipboardCheck },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
     { label: 'Service Bookings', path: '/service-bookings', icon: ClipboardCheck },
+    { label: 'Trade-in', path: '/trade-in', icon: ArrowLeftRight },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Fleet', path: '/fleet', icon: Truck },
@@ -80,10 +82,11 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   ],
   [APP_ROLE.SALES_ADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'Leads Follow-up', path: '/follow-ups', icon: ClipboardCheck },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
     { label: 'Service Bookings', path: '/service-bookings', icon: ClipboardCheck },
+    { label: 'Trade-in', path: '/trade-in', icon: ArrowLeftRight },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Fleet', path: '/fleet', icon: Truck },
@@ -110,8 +113,9 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   ],
   [APP_ROLE.GRO]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'Leads Follow-up', path: '/follow-ups', icon: ClipboardCheck },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
+    { label: 'Trade-in', path: '/trade-in', icon: ArrowLeftRight },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
@@ -123,10 +127,11 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   ],
   [APP_ROLE.SALES]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Follow-ups', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'Leads Follow-up', path: '/follow-ups', icon: ClipboardCheck },
     { label: 'My Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
     { label: 'Service Bookings', path: '/service-bookings', icon: ClipboardCheck },
+    { label: 'Trade-in', path: '/trade-in', icon: ArrowLeftRight },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
@@ -497,12 +502,12 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
   }, [location, profile?.id, profile?.location_id, role, user]);
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex bg-background overflow-hidden">
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-2xl transform transition-all duration-200 lg:translate-x-0 lg:static flex-shrink-0 ${
         sidebarCollapsed ? 'w-[60px]' : 'w-64'
       } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex flex-col h-screen overflow-hidden">
           {/* Header */}
           <div className={`bg-[hsl(220,50%,10%)] flex items-center dark:bg-[hsl(220,50%,10%)] px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
            
@@ -523,7 +528,6 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                     </span>
                   )}
                 </div>
-             
               </div>
             ) : (
               <> {
@@ -552,7 +556,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           </div>
 
           <TooltipProvider delayDuration={0}>
-            <nav className="flex-1 p-2 space-y-0.5 overflow-y-hidden">
+            <nav className="flex-1 p-2 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-sidebar-border/70 scrollbar-track-transparent">
               {navItems.map(item => {
                 const Icon = item.icon;
                 const isActive = location === item.path;
@@ -644,82 +648,80 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
       {sidebarOpen && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
       {/* Main content */}
-      <main className="flex-1 min-h-screen">
-        <SiteHeader
-          variant="app"
-          showNav={false}
-          showLogo={false}
-          dealerName={''}
-          dealerLogoUrl={''}
-          leftSlot={
-            <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground dark:text-slate-100">
-              <Menu className="h-5 w-5" />
-              
-            </button>
-          }
-          rightSlot={
-            <>
-              {role === APP_ROLE.DEALER_ADMIN && dealerLocations.length > 1 && (
-            <div className="flex items-center gap-3 rounded-xl bg-transparent">
-              <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Filter by location:</span>
-              <Select
-                value={selectedLocationId ?? '__all__'}
-                onValueChange={(v) => setSelectedLocationId(v === '__all__' ? null : v)}
-              >
-                <SelectTrigger className="h-8 w-64 max-w-full text-sm">
-                  <SelectValue placeholder="All Locations" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All Locations</SelectItem>
-                  {dealerLocations.map((loc) => (
-                    <SelectItem key={loc.id} value={loc.id}>
-                      {loc.name}{loc.city ? ` — ${loc.city}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedLocationId && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedLocationId(null)}
-                  className="ml-auto text-xs text-muted-foreground underline hover:text-foreground"
+      <main className="flex-1 h-screen overflow-hidden">
+        <div className="h-full overflow-y-auto">
+          <SiteHeader
+            variant="app"
+            showNav={false}
+            showLogo={false}
+            dealerName={''}
+            dealerLogoUrl={''}
+            leftSlot={
+              <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground dark:text-slate-100">
+                <Menu className="h-5 w-5" />
+              </button>
+            }
+            rightSlot={
+              <>
+                {role === APP_ROLE.DEALER_ADMIN && dealerLocations.length > 1 && (
+              <div className="flex items-center gap-3 rounded-xl bg-transparent">
+                <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Filter by location:</span>
+                <Select
+                  value={selectedLocationId ?? '__all__'}
+                  onValueChange={(v) => setSelectedLocationId(v === '__all__' ? null : v)}
                 >
-                  Clear
-                </button>
-              )}
-            </div>
-          )}
-              <Button
-                variant="outline"
-                size="sm"
-                className="relative"
-                onClick={handleOpenLeadNotifications}
-              >
-                <Bell className="h-4 w-4 mr-1.5" />
-                New Leads
-                {newLeadCount > 0 && (
-                  <span className="ml-1.5 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
-                    {newLeadCount > 99 ? '99+' : newLeadCount}
-                  </span>
+                  <SelectTrigger className="h-8 w-64 max-w-full text-sm">
+                    <SelectValue placeholder="All Locations" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All Locations</SelectItem>
+                    {dealerLocations.map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        {loc.name}{loc.city ? ` — ${loc.city}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedLocationId && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLocationId(null)}
+                    className="ml-auto text-xs text-muted-foreground underline hover:text-foreground"
+                  >
+                    Clear
+                  </button>
                 )}
-              </Button>
-              <a
-                href="/my-profile"
-                className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5 hover:bg-muted/80 transition-colors dark:border-white/10 dark:bg-white/5"
-              >
-                <UserCircle2 className="h-4 w-4 text-muted-foreground dark:text-slate-300" />
-                <div className="leading-tight">
-                  <p className="text-xs font-semibold text-foreground max-w-[180px] truncate dark:text-slate-100">{displayName}</p>
-                  <p className="text-[11px] text-muted-foreground dark:text-slate-400">{displayRole}</p>
-                </div>
-              </a>
-             
-              
-            </>
-          }
-        />
-        <div className="p-3 sm:p-6 animate-fade-in">
+              </div>
+            )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="relative"
+                  onClick={handleOpenLeadNotifications}
+                >
+                  <Bell className="h-4 w-4 mr-1.5" />
+                  New Leads
+                  {newLeadCount > 0 && (
+                    <span className="ml-1.5 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
+                      {newLeadCount > 99 ? '99+' : newLeadCount}
+                    </span>
+                  )}
+                </Button>
+                <a
+                  href="/my-profile"
+                  className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5 hover:bg-muted/80 transition-colors dark:border-white/10 dark:bg-white/5"
+                >
+                  <UserCircle2 className="h-4 w-4 text-muted-foreground dark:text-slate-300" />
+                  <div className="leading-tight">
+                    <p className="text-xs font-semibold text-foreground max-w-[180px] truncate dark:text-slate-100">{displayName}</p>
+                    <p className="text-[11px] text-muted-foreground dark:text-slate-400">{displayRole}</p>
+                  </div>
+                </a>
+              </>
+            }
+          />
+          <div className="p-3 sm:p-6 animate-fade-in">
           {/* ── On-Leave Banner ── */}
           {profile?.on_leave && (
             <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700/50 dark:bg-amber-900/20">
@@ -761,6 +763,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           )}
         
           {children}
+          </div>
         </div>
       </main>
     </div>

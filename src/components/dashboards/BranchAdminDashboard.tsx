@@ -24,6 +24,7 @@ import { TestDriveInsightGrid } from './TestDriveInsightGrid';
 import { StaffActivityGrid } from './StaffActivityGrid';
 import TestDriveCalendarMini from './TestDriveCalendarMini';
 import ServiceProgressPanel from './ServiceProgressPanel';
+import { DashboardStatusSections } from './DashboardStatusSections';
 
 const STATUS_COLOR: Record<string, string> = {
   scheduled: 'bg-info/10 text-info border-info/20',
@@ -50,6 +51,15 @@ const BranchAdminDashboard = () => {
   const [staff, setStaff] = useState<any[]>([]);
   const [allDrives, setAllDrives] = useState<any[]>([]);
   const [serviceBookingCount, setServiceBookingCount] = useState(0);
+  const [serviceBookingStatusCounts, setServiceBookingStatusCounts] = useState<Record<string, number>>({
+    booked: 0,
+    confirmed: 0,
+    in_progress: 0,
+    ready_for_delivery: 0,
+    completed: 0,
+    cancelled: 0,
+    rescheduled: 0,
+  });
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [driveView, setDriveView] = useState<'list' | 'grid' | 'calendar'>('list');
@@ -75,7 +85,17 @@ const BranchAdminDashboard = () => {
 
   const fetchServiceBookingCount = async () => {
     const bookings = await apiGet<any[]>(`/api/service-bookings?location_id=${locationId}`);
+    const counts = {
+      booked: (bookings || []).filter((booking) => booking.status === 'booked').length,
+      confirmed: (bookings || []).filter((booking) => booking.status === 'confirmed').length,
+      in_progress: (bookings || []).filter((booking) => booking.status === 'in_progress').length,
+      ready_for_delivery: (bookings || []).filter((booking) => booking.status === 'ready_for_delivery').length,
+      completed: (bookings || []).filter((booking) => booking.status === 'completed').length,
+      cancelled: (bookings || []).filter((booking) => booking.status === 'cancelled').length,
+      rescheduled: (bookings || []).filter((booking) => booking.status === 'rescheduled').length,
+    };
     setServiceBookingCount((bookings || []).length);
+    setServiceBookingStatusCounts(counts);
   };
 
   const fetchAll = async () => {
@@ -359,7 +379,17 @@ const BranchAdminDashboard = () => {
           </Button>
         </CardContent>
       </Card>
-
+    <DashboardStatusSections
+        testDriveStatusCounts={{
+          scheduled: allDrives.filter((d) => d.status === 'scheduled').length,
+          confirmed: allDrives.filter((d) => d.status === 'confirmed').length,
+          show: allDrives.filter((d) => d.status === 'show').length,
+          no_show: allDrives.filter((d) => d.status === 'no_show').length,
+          completed: allDrives.filter((d) => d.status === 'completed').length,
+          cancelled: allDrives.filter((d) => d.status === 'cancelled').length,
+        }}
+        serviceBookingStatusCounts={serviceBookingStatusCounts}
+      />
       {/* ── KPI cards ──────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
         {[
@@ -390,6 +420,8 @@ const BranchAdminDashboard = () => {
           );
         })}
       </div>
+
+    
 
       {/* ── Activity Insights ── */}
       <ActivityInsightsMini />

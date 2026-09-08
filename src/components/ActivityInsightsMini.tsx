@@ -27,7 +27,7 @@ const GROUPS = [
   { key: 'testDrivesTotal' as const, label: 'Total Test Drives Today', icon: Car, color: 'text-info', bg: 'bg-info/10' },
  
   { key: 'staffEvents' as const, label: 'Staff Events Today', icon: Activity, color: 'text-primary', bg: 'bg-primary/10' },
-  { key: 'openTasks' as const, label: 'Open Follow-ups', icon: TrendingUp, color: 'text-warning', bg: 'bg-warning/10' },
+  { key: 'openTasks' as const, label: 'Open Lead Follow-ups', icon: TrendingUp, color: 'text-warning', bg: 'bg-warning/10' },
   { key: 'activeSessions' as const, label: 'Active Sessions', icon: Users, color: 'text-success', bg: 'bg-success/10' },
 ];
 
