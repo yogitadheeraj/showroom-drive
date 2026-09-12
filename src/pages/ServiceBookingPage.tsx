@@ -35,6 +35,30 @@ const CONTACT_OPTIONS = [
   { value: 'whatsapp', label: 'WhatsApp' },
 ] as const;
 
+const CURRENCY_LOCALE_BY_CODE: Record<string, string> = {
+  AED: 'en-AE',
+  INR: 'en-IN',
+  USD: 'en-US',
+  EUR: 'en-IE',
+  GBP: 'en-GB',
+  JPY: 'ja-JP',
+};
+
+const resolveCurrencyCode = (currency?: string | null) => {
+  const normalized = (currency || 'AED').trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(CURRENCY_LOCALE_BY_CODE, normalized) ? normalized : 'AED';
+};
+
+const formatCurrencyValue = (value: number, currencyCode?: string | null) => {
+  const code = resolveCurrencyCode(currencyCode);
+  const locale = CURRENCY_LOCALE_BY_CODE[code] || 'en-AE';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: code,
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+};
+
 const defaultForm = {
   customer_name: '',
   customer_phone: '',
@@ -69,6 +93,7 @@ export default function ServiceBookingPage() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [existingVehicles, setExistingVehicles] = useState<any[]>([]);
   const [pastBookings, setPastBookings] = useState<any[]>([]);
+  const [locationCurrencyCode, setLocationCurrencyCode] = useState('AED');
   const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null);
   const [rescheduleDrafts, setRescheduleDrafts] = useState<Record<string, { date: string; time: string }>>({});
   const [activeStep, setActiveStep] = useState(0);
@@ -94,6 +119,9 @@ export default function ServiceBookingPage() {
 
         setPackages(pkgRows || []);
         setLocations(locRows || []);
+        const fallbackLocation = (locRows || [])[0];
+        const activeCurrency = resolveCurrencyCode(fallbackLocation?.currency_type || 'AED');
+        setLocationCurrencyCode(activeCurrency);
         if ((pkgRows || []).length > 0) {
           setForm((prev) => ({ ...prev, package_code: pkgRows[0].code }));
         }
@@ -148,7 +176,14 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
   };
 
   const handleChange = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'location_id') {
+        const chosenLocation = locations.find((location) => location.id === value);
+        setLocationCurrencyCode(resolveCurrencyCode(chosenLocation?.currency_type || 'AED'));
+      }
+      return next;
+    });
   };
 
   const selectedPreferredContacts = useMemo(
@@ -656,7 +691,7 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
                       <SelectContent>
                         {packages.map((pkg) => (
                           <SelectItem key={pkg.code} value={pkg.code}>
-                            {pkg.name} · ₹{pkg.price}
+                            {pkg.name} · {formatCurrencyValue(pkg.price, locationCurrencyCode)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -815,7 +850,7 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
                 Package
               </div>
               <p className="mt-2 text-sm font-medium text-foreground">{selectedPackage?.name || 'Choose a service package'}</p>
-              <p className="text-sm text-muted-foreground">{selectedPackage ? `₹${selectedPackage.price} · ${selectedPackage.duration_minutes} minutes` : 'Package details will appear here.'}</p>
+              <p className="text-sm text-muted-foreground">{selectedPackage ? `${formatCurrencyValue(selectedPackage.price, locationCurrencyCode)} · ${selectedPackage.duration_minutes} minutes` : 'Package details will appear here.'}</p>
             </div>
 
             <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4">

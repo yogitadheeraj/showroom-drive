@@ -18,7 +18,7 @@ export default function TermsAndConditionsPage() {
       </Head>
 
       <MarketingPageShell>
-        <div className="mx-auto max-w-4xl">
+        <div className="mx-auto max-w-4xl p-20">
           <section className="rounded-xl border border-slate-200 bg-white p-6 text-slate-900 shadow-sm sm:p-8">
             <h1 className="text-3xl font-bold tracking-tight">Terms and Conditions</h1>
             <p className="mt-2 text-sm text-slate-600">Last updated: {updatedAt}</p>

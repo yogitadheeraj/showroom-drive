@@ -97,7 +97,7 @@ const App = () => (
             <Route path="/demo/route" element={<RouteCalculatorDemo />} />
             <Route path="/fleet" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.FLEET]}><SharedVehicleFleetPage /></ProtectedRoute>} />
             <Route path="/incoming-vehicles" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.INCOMING_VEHICLES]}><IncomingVehiclesPage /></ProtectedRoute>} />
-            <Route path="/waiting-board" element={<WaitingBoardPage />} />
+            <Route path="/waiting-board" element={<ProtectedRoute><WaitingBoardPage /></ProtectedRoute>} />
             <Route path="/reports/monitoring" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.REPORTS_MONITORING]}><ReportMonitoringPage /></ProtectedRoute>} />
             <Route path="/reports/ai-insights" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.REPORTS_MONITORING]}><AIReportsPage /></ProtectedRoute>} />
             <Route path="/activity-logs" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.ACTIVITY_LOGS]}><ActivityLogsPage /></ProtectedRoute>} />

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import Link from 'next/link';
+import { useRef } from 'react';
 import { useEffect, useState } from 'react';
 import { Car, CalendarCheck, Shield, BarChart3, Users, ArrowRight, MapPin, Clock, CheckCircle2, Building2, Menu, X, GitCompareArrows, MessageCircle, Send, Phone, Mail, Warehouse, CreditCard, FileText, Package, Receipt, ClipboardList, Smartphone, FolderOpen, PieChart, DollarSign, ShieldCheck, Tag, Landmark, Layers, Moon, Sun } from 'lucide-react';
 
@@ -47,6 +48,17 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
     const [demoForm, setDemoForm] = useState({ name: '', email: '', company: '', phone: '', message: '' });
     const [demoLoading, setDemoLoading] = useState(false);
     const [demoSubmitted, setDemoSubmitted] = useState(false);
+    const [chatOpen, setChatOpen] = useState(false);
+    const [chatInput, setChatInput] = useState('');
+    const [chatSubmitting, setChatSubmitting] = useState(false);
+    const [chatMessages, setChatMessages] = useState<Array<{ id: string; sender: 'assistant' | 'user'; text: string }>>([
+        {
+            id: 'assistant-welcome',
+            sender: 'assistant',
+            text: 'Hi! I’m AutoAdvant AI. Tell me if you want a demo, a dealership enquiry, or a test drive request, and I’ll turn it into a ready-to-follow lead.',
+        },
+    ]);
+    const chatScrollRef = useRef<HTMLDivElement | null>(null);
     const initialResolvedContent = initialContent ?? getHydratedIndexContent();
     const [content, setContent] = useState<any>(initialResolvedContent);
     const [dynamicStats, setDynamicStats] = useState<any>({
@@ -74,6 +86,177 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
             throw new Error(`Request failed: ${response.status}`);
         }
         return response.json();
+    };
+
+    const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+    const getChatLeadSummary = (input: string) => {
+        const text = input.trim();
+        const lower = text.toLowerCase();
+
+        const nameMatch = text.match(/(?:my name is|i am|this is|name is)\s+([a-zA-Z][a-zA-Z\s'.-]{1,40})/i);
+        const emailMatch = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+        const phoneMatch = text.match(/(?:\+?\d[\d\s().-]{7,}\d)/);
+        const vehicleMatch = text.match(/(BMW|Audi|Mercedes-Benz|Mercedes|Toyota|Honda|Porsche|Lexus|Nissan|Range Rover|Volvo|Kia|Hyundai|Jaguar|Mini|Mazda|Ford|Chevrolet|MG)[A-Za-z0-9\s-]*/i);
+        const locationMatch = text.match(/(?:in|at|from)\s+(Dubai|Sharjah|Abu Dhabi|Riyadh|Jeddah|Doha|Kuwait|Muscat|Manama|UAE|KSA|GCC)/i);
+        const dateMatch = text.match(/(?:today|tomorrow|next\s+\w+|\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)/i);
+        const timeMatch = text.match(/(?:at|around)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm))/i);
+
+        return {
+            name: nameMatch?.[1]?.trim() || 'Website Visitor',
+            email: emailMatch?.[0]?.trim() || '',
+            phone: phoneMatch?.[0]?.trim() || '',
+            vehicle: vehicleMatch?.[1]?.trim() || 'vehicle enquiry',
+            location: locationMatch?.[1]?.trim() || 'Dubai showroom',
+            date: dateMatch?.[0]?.trim() || 'Flexible date',
+            time: timeMatch?.[1]?.trim() || 'Flexible time',
+            intent: lower.includes('test drive') || lower.includes('test-drive') ? 'test-drive' : lower.includes('demo') || lower.includes('book a demo') || lower.includes('contact') ? 'contact' : 'general',
+        };
+    };
+
+    const handleChatSubmission = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const trimmed = chatInput.trim();
+        if (!trimmed) return;
+
+        const userMessage = { id: `user-${Date.now()}`, sender: 'user' as const, text: trimmed };
+        setChatMessages((prev) => [...prev, userMessage]);
+        setChatInput('');
+        setChatSubmitting(true);
+
+        try {
+            const parsed = getChatLeadSummary(trimmed);
+            const userEmail = parsed.email.trim();
+
+            if (!userEmail) {
+                setChatMessages((prev) => [...prev, {
+                    id: `assistant-${Date.now()}`,
+                    sender: 'assistant',
+                    text: 'Please share your email address so I can save your enquiry and send you a confirmation.',
+                }]);
+                return;
+            }
+
+            if (!isValidEmail(userEmail)) {
+                setChatMessages((prev) => [...prev, {
+                    id: `assistant-${Date.now()}`,
+                    sender: 'assistant',
+                    text: 'That email format looks invalid. Please enter a valid email address in the format name@example.com so we can contact you properly.',
+                }]);
+                return;
+            }
+
+            let customer = await fetchJson(`/api/customers?phone=${encodeURIComponent(parsed.phone || userEmail || 'ai-chat')}&limit=1`)
+                .then((res: any) => (Array.isArray(res) ? res[0] : null))
+                .catch(() => null);
+
+            if (!customer) {
+                customer = await fetchJson('/api/customers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        full_name: parsed.name,
+                        phone: parsed.phone || `ai-chat-${Date.now()}`,
+                        email: userEmail,
+                    }),
+                });
+            }
+
+            const commId = crypto.randomUUID();
+            const subject = parsed.intent === 'test-drive' ? 'AI Test Drive Request' : 'AI Contact Enquiry';
+            const messageBody = parsed.intent === 'test-drive'
+                ? `AI chat test drive request\nName: ${parsed.name}\nEmail: ${userEmail}\nPhone: ${parsed.phone || 'Not provided'}\nVehicle: ${parsed.vehicle}\nPreferred date: ${parsed.date}\nPreferred time: ${parsed.time}\nLocation: ${parsed.location}\nOriginal message: ${trimmed}`
+                : `AI chat enquiry\nName: ${parsed.name}\nEmail: ${userEmail}\nPhone: ${parsed.phone || 'Not provided'}\nNeed: ${trimmed}`;
+
+            await fetchJson('/api/communications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: commId,
+                    customer_id: customer?.data?.id || customer?.id || null,
+                    type: 'email',
+                    purpose: parsed.intent === 'test-drive' ? 'test_drive' : 'custom',
+                    sent_to: userEmail,
+                    subject,
+                    body: messageBody,
+                    status: 'pending',
+                }),
+            });
+
+            const userEmailHtml = `
+                <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+                    <h2 style="color: #0f172a; margin-bottom: 12px;">Thanks for contacting AutoAdvant</h2>
+                    <p>Hello ${parsed.name},</p>
+                    <p>We’ve received your ${parsed.intent === 'test-drive' ? 'test drive request' : 'enquiry'} via our AI chat assistant.</p>
+                    <p><strong>Summary:</strong> ${parsed.intent === 'test-drive' ? `${parsed.vehicle} • ${parsed.date} • ${parsed.time}` : trimmed}</p>
+                    <p>Our sales team will reach out to you shortly at <strong>${userEmail}</strong>.</p>
+                    <p>Best regards,<br/>AutoAdvant Team</p>
+                </div>
+            `;
+
+            await fetchJson('/api/functions/send-transactional-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    templateName: 'demo-request-confirmation',
+                    recipientEmail: userEmail,
+                    idempotencyKey: `ai-chat-user-${commId}`,
+                    templateData: {
+                        name: parsed.name,
+                        email: userEmail,
+                        company: parsed.location,
+                        phone: parsed.phone || 'Not provided',
+                        message: trimmed,
+                    },
+                    subject: `Your ${parsed.intent === 'test-drive' ? 'test drive request' : 'enquiry'} has been received`,
+                    html: userEmailHtml,
+                    text: `Hi ${parsed.name},\n\nWe’ve received your ${parsed.intent === 'test-drive' ? 'test drive request' : 'enquiry'} via our AI chat assistant. Our team will contact you shortly at ${userEmail}.\n\nBest regards,\nAutoAdvant Team`,
+                }),
+            });
+
+            await fetchJson('/api/functions/send-transactional-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    recipientEmail: 'autoadvantplatform@gmail.com',
+                    subject: `AI activity: ${subject}`,
+                    idempotencyKey: `ai-chat-admin-${commId}`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827;">
+                            <h2 style="color: #0f172a; margin-bottom: 12px;">AI Chat Activity</h2>
+                            <p><strong>Lead name:</strong> ${parsed.name}</p>
+                            <p><strong>Email:</strong> ${userEmail}</p>
+                            <p><strong>Phone:</strong> ${parsed.phone || 'Not provided'}</p>
+                            <p><strong>Request type:</strong> ${parsed.intent === 'test-drive' ? 'Test drive' : 'Contact/demo enquiry'}</p>
+                            <p><strong>Vehicle:</strong> ${parsed.vehicle}</p>
+                            <p><strong>Location:</strong> ${parsed.location}</p>
+                            <p><strong>Date:</strong> ${parsed.date}</p>
+                            <p><strong>Time:</strong> ${parsed.time}</p>
+                            <p><strong>Message:</strong> ${trimmed}</p>
+                        </div>
+                    `,
+                    text: `AI Chat Activity\nName: ${parsed.name}\nEmail: ${userEmail}\nPhone: ${parsed.phone || 'Not provided'}\nRequest type: ${parsed.intent === 'test-drive' ? 'Test drive' : 'Contact/demo enquiry'}\nVehicle: ${parsed.vehicle}\nLocation: ${parsed.location}\nDate: ${parsed.date}\nTime: ${parsed.time}\nMessage: ${trimmed}`,
+                }),
+            });
+
+            const successText = parsed.intent === 'test-drive'
+                ? `Perfect — I’ve captured your test drive request as: ${parsed.vehicle} • ${parsed.date} • ${parsed.time}. A confirmation email has been sent to ${userEmail}, and the team has been notified.`
+                : `Thanks! I’ve logged your enquiry for ${parsed.name}. A confirmation email has been sent to ${userEmail}, and our team has been notified.`;
+
+            setChatMessages((prev) => [...prev, {
+                id: `assistant-success-${Date.now()}`,
+                sender: 'assistant',
+                text: successText,
+            }]);
+        } catch {
+            setChatMessages((prev) => [...prev, {
+                id: `assistant-error-${Date.now()}`,
+                sender: 'assistant',
+                text: 'I hit a small issue while saving your request. Please use the contact form below or try again with a valid email address.',
+            }]);
+        } finally {
+            setChatSubmitting(false);
+        }
     };
 
     const handleDemoRequest = async (e: React.FormEvent) => {
@@ -194,6 +377,12 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
         document.documentElement.style.colorScheme = isDarkMode ? 'dark' : 'light';
         localStorage.setItem(THEME_STORAGE_KEY, isDarkMode ? 'dark' : 'light');
     }, [mounted, isDarkMode]);
+
+    useEffect(() => {
+        if (chatScrollRef.current) {
+            chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+        }
+    }, [chatMessages, chatOpen]);
 
     useEffect(() => {
         if (!initialResolvedContent) {
@@ -423,140 +612,194 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                             ogType="website"
                             jsonLd={homeSchema}
                         />
+
+            <div className="fixed bottom-5 right-5 z-50 sm:bottom-6 sm:right-6">
+                {chatOpen && (
+                    <div className="mb-3 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-[24px] border border-sky-400/30 bg-slate-950/95 text-white shadow-2xl shadow-sky-900/30 backdrop-blur-xl">
+                        <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-sky-500/20 to-blue-600/20 px-4 py-3">
+                            <div className="flex items-center gap-2">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-400/20 text-sky-300">
+                                    <MessageCircle className="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold">AutoAdvant AI</p>
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Lead concierge</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setChatOpen(false)}
+                                className="rounded-full border border-white/10 bg-white/5 p-1.5 text-slate-300 transition hover:bg-white/10"
+                                aria-label="Close chat"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <div ref={chatScrollRef} className="max-h-[22rem] space-y-3 overflow-y-auto bg-slate-950/60 p-4">
+                            {chatMessages.map((message) => (
+                                <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                    <div
+                                        className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-6 ${
+                                            message.sender === 'user'
+                                                ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white'
+                                                : 'border border-white/10 bg-white/5 text-slate-200'
+                                        }`}
+                                    >
+                                        {message.text}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="border-t border-white/10 bg-slate-900/80 p-3">
+                            <div className="mb-2 flex flex-wrap gap-2 text-[11px] text-slate-300">
+                                {['Book BMW test drive', 'Request a demo', 'Contact sales'].map((prompt) => (
+                                    <button
+                                        key={prompt}
+                                        type="button"
+                                        onClick={() => setChatInput(prompt)}
+                                        className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 transition hover:bg-white/10"
+                                    >
+                                        {prompt}
+                                    </button>
+                                ))}
+                            </div>
+                            <form onSubmit={handleChatSubmission} className="flex items-center gap-2">
+                                <input
+                                    value={chatInput}
+                                    onChange={(e) => setChatInput(e.target.value)}
+                                    placeholder="Describe your enquiry or request..."
+                                    className="flex-1 rounded-full border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-400/50 focus:outline-none"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={chatSubmitting}
+                                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-blue-600 text-white disabled:cursor-not-allowed disabled:opacity-70"
+                                    aria-label="Send message"
+                                >
+                                    <Send className="h-4 w-4" />
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                <button
+                    type="button"
+                    onClick={() => setChatOpen((open) => !open)}
+                    aria-label="Open AutoAdvant AI chat"
+                    className="inline-flex items-center gap-2 rounded-full border border-sky-400/40 bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-900/40 transition hover:scale-[1.03] hover:shadow-sky-700/40 focus:outline-none focus:ring-2 focus:ring-sky-300/80"
+                >
+                    <MessageCircle className="h-5 w-5" />
+                    <span className="hidden sm:inline">AI Chat</span>
+                </button>
+            </div>
       
             <main className={`landing-main bg-background text-foreground${resolvedTheme === 'dark' ? ' dark' : ''}`}>
                 <section className="relative overflow-hidden">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_28%),radial-gradient(circle_at_left,rgba(59,130,246,0.16),transparent_22%)]" />
-                    <div className="mx-auto grid max-w-7xl gap-12 px-4 py-8 sm:px-6 sm:py-20 lg:grid-cols-2 lg:px-8 lg:py-10">
-                        <div className="relative z-10 flex flex-col">
-                            <div className="mb-5 inline-flex w-fit items-center rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1 text-xs font-medium uppercase tracking-[0.2em] text-sky-300">
-                                Automotive Dealership Software
+                    <div className="relative z-10 mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 sm:py-16 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:px-8 lg:py-18">
+                        <div className="flex flex-col">
+                            <div className="mb-5 inline-flex w-fit items-center rounded-full border border-sky-400/30 bg-sky-400/10 px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.24em] text-sky-300">
+                                Smart dealership operations
                             </div>
-                            <h1 className="max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
-                                AutoAdvant helps car dealerships manage <span className="bg-gradient-to-r from-sky-300 to-blue-500 bg-clip-text text-transparent">test drives, service bookings</span>, leads, and showroom operations in Dubai, UAE, KSA, and GCC markets
+
+                            <h1 className="max-w-2xl text-4xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl">
+                                Turn every lead and service booking into a smoother customer journey.
                             </h1>
-                            <p className="mt-6 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
-                                Built for BMW, Audi, Mercedes-Benz, Toyota, Honda, Porsche, Lexus, Nissan, Range Rover, Volvo, and other automotive brands, AutoAdvant centralizes lead capture, customer follow-up, inventory visibility, and digital service booking to improve conversion and operational efficiency across Dubai, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, and global dealership networks.
+
+                            <p className="mt-5 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
+                                AutoAdvant gives dealership teams one clear place to manage leads, test drives, service bookings, inventory, and day-to-day operations across the showroom.
                             </p>
 
-                            <div className="mt-5 grid max-w-xl gap-2 text-sm text-slate-300 sm:grid-cols-2">
-                                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Customer self-service booking</div>
-                                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Live slot availability + duplicate checks</div>
-                                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Sales and branch staff dashboard controls</div>
-                                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">Real-time status and audit trail</div>
+                            <div className="mt-6 flex flex-wrap gap-2 text-sm text-slate-200">
+                                {['Lead capture', 'Test drive flow', 'Service visibility'].map((item) => (
+                                    <div key={item} className="rounded-full border text-white border-white/10 bg-white/5 px-3 py-1.5 backdrop-blur-sm">
+                                        {item}
+                                    </div>
+                                ))}
                             </div>
 
                             <div className="mt-8 flex flex-wrap gap-3">
-                                <a href="/service-booking" className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-6 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-400/20">
-                                    Book a Service
+                                <a href="#contact" className="rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:translate-y-[-1px]">
+                                    Book a live demo
                                 </a>
-                                <a href="#contact" className="rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02]">
-                                    Book Live Demo
+                                <a href="/service-booking" className="rounded-2xl border border-oranage-400/30 bg-orange-400/10 px-6 py-3 text-sm font-semibold text-oranage-200 transition hover:bg-orange-400/15">
+                                    Book a service
                                 </a>
-                              
                                 <a href={staffEntryPath} className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
-                                    Staff Login
+                                    Staff login
                                 </a>
-                             
                             </div>
 
-                            <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
                                 {stats.map((item) => (
                                     <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm backdrop-blur-sm">
                                         <div className="text-2xl font-semibold text-white">{item.value}</div>
-                                        <div className="mt-1 text-sm text-slate-400">{item.label}</div>
+                                        <div className="mt-1 text-xs uppercase tracking-[0.12em] text-slate-400">{item.label}</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="relative z-10">
-                            <div className="rounded-[28px] border border-white/10 bg-white/5 p-4 shadow-2xl shadow-sky-900/20 backdrop-blur-xl sm:p-6">
-                                <div className="rounded-[24px] border border-white/10 bg-slate-900 p-4 sm:p-6">
+                        <div className="relative">
+                            <div className="rounded-[30px] border border-white/10 bg-white/5 p-3 shadow-2xl shadow-sky-950/20 backdrop-blur-xl sm:p-4">
+                                <div className="rounded-[24px] border border-white/10 bg-slate-950/80 p-4 sm:p-5">
                                     <div className="flex items-center justify-between border-b border-white/10 pb-4">
                                         <div>
-                                            <p className="text-sm text-slate-400">Dashboard Overview</p>
-                                            <h3 className="mt-1 text-xl font-semibold">Dealer Growth Center</h3>
+                                            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Operations snapshot</p>
+                                            <h3 className="mt-2 text-xl font-semibold text-white">Dealer growth center</h3>
                                         </div>
-                                        <div className="rounded-xl bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
-                                            Live Platform
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
-                                            <p className="text-sm text-slate-400">Available Vehicles</p>
-                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.availableVehicles || 0}</p>
-                                            <p className="mt-2 text-sm text-emerald-300">Ready for test drive</p>
-                                        </div>
-                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
-                                            <p className="text-sm text-slate-400">Test Drives Booked</p>
-                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.testDrivesScheduled || 0}</p>
-                                            <p className="mt-2 text-sm text-sky-300">Smooth scheduling flow</p>
+                                        <div className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-300">
+                                            Live
                                         </div>
                                     </div>
 
-                                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
-                                            <p className="text-sm text-slate-400">Total Brands</p>
-                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.totalBrands || 0}</p>
-                                            <p className="mt-2 text-sm text-violet-300">Multi-brand inventory</p>
+                                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                        <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+                                            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Available vehicles</p>
+                                            <p className="mt-2 text-3xl font-semibold text-white">{dynamicStats.availableVehicles || 0}</p>
+                                            <p className="mt-1 text-xs text-emerald-300">Ready now</p>
                                         </div>
-                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
-                                            <p className="text-sm text-slate-400">Total Leads</p>
-                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.totalLeads || 0}</p>
-                                            <p className="mt-2 text-sm text-rose-300">All-time customer base</p>
+                                        <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+                                            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Test drives</p>
+                                            <p className="mt-2 text-3xl font-semibold text-white">{dynamicStats.testDrivesScheduled || 0}</p>
+                                            <p className="mt-1 text-xs text-sky-300">Booked today</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+                                            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Leads</p>
+                                            <p className="mt-2 text-3xl font-semibold text-white">{dynamicStats.totalLeads || 0}</p>
+                                            <p className="mt-1 text-xs text-violet-300">In pipeline</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+                                            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Service</p>
+                                            <p className="mt-2 text-3xl font-semibold text-white">{dynamicStats.serviceBookingsCompleted || 0}</p>
+                                            <p className="mt-1 text-xs text-amber-300">Completed</p>
                                         </div>
                                     </div>
 
-                                    <div className="mt-4 rounded-2xl border border-white/10 bg-slate-800/70 p-4">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="text-sm text-slate-400">Service Booking Progress</p>
-                                                <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-slate-500">Live overview</p>
-                                            </div>
-                                            <div className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-300">
-                                                Active
-                                            </div>
+                                    <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+                                        <div className="mb-3 flex items-center justify-between">
+                                            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Today at a glance</p>
+                                            <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Updated live</span>
                                         </div>
-
-                                        <div className="mt-4 grid grid-cols-2 gap-2">
-                                            {serviceBookingOverview.map((item) => (
-                                                <div key={item.label} className="rounded-xl border from-slate-900 to-slate-800 p-2.5 shadow-inner shadow-slate-950/40">
-                                                    <p className="text-[10px] uppercase tracking-[0.16em] text-slate-400">{item.label}</p>
-                                                    <p className="mt-1 text-xl font-semibold text-white">{item.value}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <div className="mt-4 grid grid-cols-2 gap-2">
-                                            {serviceInsights.map((insight) => (
-                                                <div key={insight.label} className="rounded-xl border border-sky-400/20 bg-sky-500/5 px-2.5 py-2">
-                                                    <p className="text-[10px] uppercase tracking-[0.16em]">{insight.label}</p>
-                                                    <p className="mt-1 text-sm font-medium text-white">{insight.value}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <div className="mt-4 space-y-3">
+                                        <div className="space-y-3">
                                             {[
-                                                { label: 'Available Inventory', value: Math.min(dynamicStats.availableVehicles || 0, 100), max: 100, color: 'from-sky-400 to-blue-600' },
-                                                { label: 'Test Drive Volume', value: Math.min(dynamicStats.testDrivesScheduled || 0, 100), max: 100, color: 'from-violet-400 to-purple-600' },
-                                                { label: 'Service completion', value: dynamicStats.serviceBookingsTotal ? Math.min(Math.round(((dynamicStats.serviceBookingsCompleted || 0) / (dynamicStats.serviceBookingsTotal || 1)) * 100), 100) : 0, max: 100, color: 'from-emerald-400 to-teal-500' },
-                                            ].map(({ label, value, max, color }) => {
-                                                const widthPercent = (value / max) * 100;
-                                                return (
-                                                    <div key={label}>
-                                                        <div className="mb-1 flex items-center justify-between text-sm">
-                                                            <span className="text-slate-300">{label}</span>
-                                                            <span className="text-slate-400">{value}%</span>
-                                                        </div>
-                                                        <div className="h-2.5 overflow-hidden rounded-full bg-slate-700">
-                                                            <div className={`h-full rounded-full bg-gradient-to-r ${color}`} style={{ width: `${widthPercent}%` }} />
-                                                        </div>
+                                                { label: 'Inventory availability', value: Math.min(dynamicStats.availableVehicles || 0, 100), color: 'bg-sky-400' },
+                                                { label: 'Test drive volume', value: Math.min(dynamicStats.testDrivesScheduled || 0, 100), color: 'bg-violet-400' },
+                                                { label: 'Service completion', value: dynamicStats.serviceBookingsTotal ? Math.min(Math.round(((dynamicStats.serviceBookingsCompleted || 0) / (dynamicStats.serviceBookingsTotal || 1)) * 100), 100) : 0, color: 'bg-emerald-400' },
+                                            ].map(({ label, value, color }) => (
+                                                <div key={label}>
+                                                    <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                                                        <span>{label}</span>
+                                                        <span>{value}%</span>
                                                     </div>
-                                                );
-                                            })}
+                                                    <div className="h-2 overflow-hidden rounded-full bg-slate-700">
+                                                        <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>

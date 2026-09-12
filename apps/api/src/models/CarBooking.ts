@@ -16,6 +16,10 @@ export interface ICarBooking extends Document {
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
   booking_amount: number;
+  insurance_provider: string | null;
+  finance_provider: string | null;
+  financing_plan: string | null;
+  deal_status: string | null;
   refund_amount: number;
   payment_link: string | null;
   payment_link_sent_at: string | null;
@@ -55,6 +59,10 @@ const CarBookingSchema = new Schema<ICarBooking>(
       default: 'pending',
     },
     booking_amount: { type: Number, required: true, default: 0 },
+    insurance_provider: { type: String, default: null },
+    finance_provider: { type: String, default: null },
+    financing_plan: { type: String, default: null },
+    deal_status: { type: String, default: null },
     refund_amount: { type: Number, default: 0 },
     payment_link: { type: String, default: null },
     payment_link_sent_at: { type: String, default: null },

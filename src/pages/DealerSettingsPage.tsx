@@ -11,6 +11,7 @@ import BookingSettings from '@/components/settings/BookingSettings';
 import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import EmailTemplateSettings from '@/components/settings/EmailTemplateSettings';
 import HierarchySettings from '@/components/settings/HierarchySettings';
+import DealOptionsSettings from '@/components/settings/DealOptionsSettings';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Building2, Palette, Mail, SunMoon, BellRing, Key, CalendarClock, Plug, GitBranch, ChevronDown, Clock3 } from 'lucide-react';
@@ -49,6 +50,7 @@ const DealerSettingsPage = () => {
     { key: 'appearance', label: 'Appearance', icon: SunMoon, content: <AppearanceSettings /> },
     { key: 'handover', label: 'Key Handover', icon: Key, content: <HandoverQuestionsSettings /> },
     { key: 'booking', label: 'Booking', icon: CalendarClock, content: <BookingSettings dealerIdOverride={dealerOverride} /> },
+    { key: 'deal-options', label: 'Deal Options', icon: GitBranch, content: <DealOptionsSettings dealerIdOverride={dealerOverride} /> },
     { key: 'integrations', label: 'Integrations', icon: Plug, content: <IntegrationSettings /> },
     { key: 'hierarchy', label: 'Entity Hierarchy', icon: GitBranch, content: <HierarchySettings /> },
     ...(showEmailTemplates ? [{ key: 'email-templates', label: 'Email Templates', icon: Mail, content: <EmailTemplateSettings /> }] : []),

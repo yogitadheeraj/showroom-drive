@@ -25,6 +25,7 @@ import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { navigateTo } from '@/lib/browserNavigation';
 import ServiceProgressPanel from './ServiceProgressPanel';
 import { DashboardStatusSections } from './DashboardStatusSections';
+import { buildServiceBookingStatusCounts } from '@/lib/dashboardMetrics';
 
 type LeadTemperature = 'hot' | 'cold';
 
@@ -169,15 +170,7 @@ const SalesDashboard = () => {
     const enrichedDrives = await apiGet<any[]>(`/api/test-drives?sales_person_id=${encodeURIComponent(profile.id)}`) || [];
     setTestDrives(enrichedDrives);
     const serviceBookings = await apiGet<any[]>(`/api/service-bookings?location_id=${encodeURIComponent(profile?.location_id || '')}`).catch(() => []);
-    const counts = {
-      booked: (serviceBookings || []).filter((booking) => booking.status === 'booked').length,
-      confirmed: (serviceBookings || []).filter((booking) => booking.status === 'confirmed').length,
-      in_progress: (serviceBookings || []).filter((booking) => booking.status === 'in_progress').length,
-      ready_for_delivery: (serviceBookings || []).filter((booking) => booking.status === 'ready_for_delivery').length,
-      completed: (serviceBookings || []).filter((booking) => booking.status === 'completed').length,
-      cancelled: (serviceBookings || []).filter((booking) => booking.status === 'cancelled').length,
-      rescheduled: (serviceBookings || []).filter((booking) => booking.status === 'rescheduled').length,
-    };
+    const counts = buildServiceBookingStatusCounts(serviceBookings || []);
     setServiceBookingCount(serviceBookings?.length || 0);
     setServiceBookingStatusCounts(counts);
 

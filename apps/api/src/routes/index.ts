@@ -193,6 +193,11 @@ import {
   listTradeInRequestsController,
 } from '../controllers/tradeInController.js';
 import {
+  createDealQuoteController,
+  listDealQuotesController,
+  updateDealQuoteController,
+} from '../controllers/dealQuoteController.js';
+import {
   cancelServiceBookingController,
   createServiceBookingController,
   listServiceBookingsController,
@@ -233,6 +238,9 @@ export const apiRouter = express.Router();
 apiRouter.post('/db/query', dbQueryController);
 apiRouter.get('/trade-in-requests', listTradeInRequestsController);
 apiRouter.post('/trade-in-requests', createTradeInRequestController);
+apiRouter.get('/deal-quotes', listDealQuotesController);
+apiRouter.post('/deal-quotes', createDealQuoteController);
+apiRouter.patch('/deal-quotes/:id', requireAuth, updateDealQuoteController);
 apiRouter.post('/functions/:name', invokeFunctionController);
 apiRouter.post('/rpc/:name', rpcController);
 

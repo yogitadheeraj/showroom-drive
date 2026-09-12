@@ -25,6 +25,7 @@ import { StaffActivityGrid } from './StaffActivityGrid';
 import TestDriveCalendarMini from './TestDriveCalendarMini';
 import ServiceProgressPanel from './ServiceProgressPanel';
 import { DashboardStatusSections } from './DashboardStatusSections';
+import { buildServiceBookingStatusCounts } from '@/lib/dashboardMetrics';
 
 const STATUS_COLOR: Record<string, string> = {
   scheduled: 'bg-info/10 text-info border-info/20',
@@ -84,16 +85,8 @@ const BranchAdminDashboard = () => {
   };
 
   const fetchServiceBookingCount = async () => {
-    const bookings = await apiGet<any[]>(`/api/service-bookings?location_id=${locationId}`);
-    const counts = {
-      booked: (bookings || []).filter((booking) => booking.status === 'booked').length,
-      confirmed: (bookings || []).filter((booking) => booking.status === 'confirmed').length,
-      in_progress: (bookings || []).filter((booking) => booking.status === 'in_progress').length,
-      ready_for_delivery: (bookings || []).filter((booking) => booking.status === 'ready_for_delivery').length,
-      completed: (bookings || []).filter((booking) => booking.status === 'completed').length,
-      cancelled: (bookings || []).filter((booking) => booking.status === 'cancelled').length,
-      rescheduled: (bookings || []).filter((booking) => booking.status === 'rescheduled').length,
-    };
+    const bookings = await apiGet<any[]>(`/api/service-bookings?location_id=${locationId}`).catch(() => [] as any[]);
+    const counts = buildServiceBookingStatusCounts(bookings || []);
     setServiceBookingCount((bookings || []).length);
     setServiceBookingStatusCounts(counts);
   };

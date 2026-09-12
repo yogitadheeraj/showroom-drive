@@ -64,7 +64,29 @@ const brandBaseValues: Record<string, number> = {
   'Range Rover': 82000,
 };
 
-const formatCurrency = (value: number) => `AED ${new Intl.NumberFormat('en-AE', { maximumFractionDigits: 0 }).format(value)}`;
+const CURRENCY_LOCALE_BY_CODE: Record<string, string> = {
+  AED: 'en-AE',
+  INR: 'en-IN',
+  USD: 'en-US',
+  EUR: 'en-IE',
+  GBP: 'en-GB',
+  JPY: 'ja-JP',
+};
+
+const resolveCurrencyCode = (currency?: string | null) => {
+  const normalized = (currency || 'AED').trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(CURRENCY_LOCALE_BY_CODE, normalized) ? normalized : 'AED';
+};
+
+const formatCurrency = (value: number, currencyCode?: string | null) => {
+  const code = resolveCurrencyCode(currencyCode);
+  const locale = CURRENCY_LOCALE_BY_CODE[code] || 'en-AE';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: code,
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+};
 
 const getTradeInStatusClasses = (status: string) => {
   switch (status) {
@@ -153,6 +175,8 @@ const TradeInPage = () => {
   const { dealerId } = useDealerContext();
   const [formData, setFormData] = useState<TradeInFormState>(initialForm);
   const [records, setRecords] = useState<TradeInRecord[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [locationCurrencyCode, setLocationCurrencyCode] = useState('AED');
   const [loadingRecords, setLoadingRecords] = useState(false);
 
   const saveTradeInRequest = async (payload: Record<string, unknown>) => {
@@ -183,7 +207,14 @@ const TradeInPage = () => {
           filters.push({ field: 'location_id', op: 'eq', value: profile.location_id });
         }
 
-        const rows = await apiGet<any[]>('/api/trade-in-requests?limit=20');
+        const [rows, locationRows] = await Promise.all([
+          apiGet<any[]>('/api/trade-in-requests?limit=20'),
+          apiGet<any[]>('/api/locations?limit=200'),
+        ]);
+
+        setLocations(locationRows || []);
+        const selectedLocation = (locationRows || []).find((location) => location.id === profile?.location_id) || (locationRows || [])[0];
+        setLocationCurrencyCode(resolveCurrencyCode(selectedLocation?.currency_type || 'AED'));
 
         const normalized = (rows || [])
           .map((row) => normalizeDbTradeInRecord(row))
@@ -443,7 +474,7 @@ const TradeInPage = () => {
                     id="expectedOffer"
                     value={formData.expectedOffer}
                     onChange={(e) => updateField('expectedOffer', e.target.value)}
-                    placeholder="AED 75,000"
+                    placeholder={`${formatCurrency(75000, locationCurrencyCode)}`}
                   />
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/20">
                     <div className="flex items-center justify-between gap-3">
@@ -459,7 +490,7 @@ const TradeInPage = () => {
                         type="button"
                         variant="secondary"
                         size="sm"
-                        onClick={() => updateField('expectedOffer', formatCurrency(estimatedValue))}
+                        onClick={() => updateField('expectedOffer', formatCurrency(estimatedValue, locationCurrencyCode))}
                         disabled={!formData.currentYear || !formData.currentMileage}
                       >
                         Use estimate

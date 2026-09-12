@@ -31,6 +31,43 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
   partial_refund: 'bg-info/10 text-info',
 };
 
+const CURRENCY_LOCALE_BY_CODE: Record<string, string> = {
+  AED: 'en-AE',
+  INR: 'en-IN',
+  USD: 'en-US',
+  EUR: 'en-IE',
+  GBP: 'en-GB',
+  JPY: 'ja-JP',
+};
+
+const resolveCurrencyCode = (currency?: string | null) => {
+  const normalized = (currency || 'AED').trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(CURRENCY_LOCALE_BY_CODE, normalized) ? normalized : 'AED';
+};
+
+const formatCurrencyValue = (value: number, currencyCode?: string | null) => {
+  const code = resolveCurrencyCode(currencyCode);
+  const locale = CURRENCY_LOCALE_BY_CODE[code] || 'en-AE';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: code,
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+};
+
+const formatBookingDate = (value?: string | null) => {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return value;
+  }
+};
+
 export default function CarBookingsPage() {
   const { user, profile, role } = useAuth();
   const { toast } = useToast();
@@ -39,6 +76,7 @@ export default function CarBookingsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'cancelled' | 'refunded'>('all');
   const [search, setSearch] = useState('');
+  const [currencyCode, setCurrencyCode] = useState('AED');
 
   // Cancel/Refund dialog
   const [actionDialog, setActionDialog] = useState<{
@@ -65,6 +103,20 @@ export default function CarBookingsPage() {
 
       const rows = await apiGet<any[]>(`/api/car-bookings?${params.toString()}`);
       setBookings(rows || []);
+
+      let nextCurrencyCode = 'AED';
+      const locationId = profile?.location_id || rows?.[0]?.location_id || rows?.[0]?.locations?.id;
+      if (locationId) {
+        try {
+          const locations = await apiGet<any[]>(`/api/locations?ids=${encodeURIComponent(String(locationId))}&is_active=true`);
+          const location = Array.isArray(locations) ? locations[0] : null;
+          const rowCurrency = location?.currency_type || rows?.[0]?.locations?.currency_type;
+          nextCurrencyCode = resolveCurrencyCode(rowCurrency);
+        } catch {
+          nextCurrencyCode = resolveCurrencyCode(rows?.[0]?.locations?.currency_type || 'AED');
+        }
+      }
+      setCurrencyCode(nextCurrencyCode);
     } catch (err: any) {
       toast({ title: 'Failed to load bookings', description: err?.message, variant: 'destructive' });
     } finally {
@@ -166,9 +218,9 @@ export default function CarBookingsPage() {
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         {[
           { label: 'Active Bookings', value: totalConfirmed, color: 'text-success', bg: 'bg-success/10', border: 'border-success/20', icon: CheckCircle2 },
-          { label: 'Total Collected', value: `₹${totalAmount.toLocaleString()}`, color: 'text-primary', bg: 'bg-primary/10', border: 'border-primary/20', icon: Banknote },
+          { label: 'Total Collected', value: formatCurrencyValue(totalAmount, currencyCode), color: 'text-primary', bg: 'bg-primary/10', border: 'border-primary/20', icon: Banknote },
           { label: 'Cancellations', value: totalCancelled, color: 'text-destructive', bg: 'bg-destructive/10', border: 'border-destructive/20', icon: XCircle },
-          { label: 'Refunds Given', value: `₹${totalRefunded.toLocaleString()}`, color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/20', icon: RotateCcw },
+          { label: 'Refunds Given', value: formatCurrencyValue(totalRefunded, currencyCode), color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/20', icon: RotateCcw },
         ].map(stat => {
           const Icon = stat.icon;
           return (
@@ -222,115 +274,119 @@ export default function CarBookingsPage() {
           ) : filtered.length === 0 ? (
             <p className="p-8 text-center text-muted-foreground text-sm">No bookings found.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto rounded-xl border border-border/70 bg-background">
+              <table className="w-full min-w-[950px] text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/30 text-left">
+                  <tr className="border-b border-border bg-gradient-to-r from-slate-50 via-slate-50 to-white text-left dark:from-slate-900/80 dark:via-slate-900/80 dark:to-slate-950/80">
                     <th className="p-3 font-semibold text-foreground">Customer</th>
                     <th className="p-3 font-semibold text-foreground">Vehicle</th>
-                    <th className="p-3 font-semibold text-foreground">Test Drive</th>
-                    <th className="p-3 font-semibold text-foreground">Sales Person</th>
-                    <th className="p-3 font-semibold text-foreground">Location</th>
+                    <th className="p-3 font-semibold text-foreground">Deal</th>
                     <th className="p-3 font-semibold text-foreground">Amount</th>
-                    <th className="p-3 font-semibold text-foreground">Payment</th>
                     <th className="p-3 font-semibold text-foreground">Status</th>
                     <th className="p-3 font-semibold text-foreground">Date</th>
-                    {canManage && <th className="p-3 font-semibold text-foreground">Actions</th>}
+                    {canManage && <th className="p-3 font-semibold text-foreground text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(b => (
-                    <tr key={b.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors align-top">
-                      {/* Customer */}
+                  {filtered.map((b) => (
+                    <tr key={b.id} className="border-b border-border/60 align-top transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
                       <td className="p-3">
-                        <div className="flex items-start gap-2">
-                          <User className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                          <div>
-                            <p className="font-medium text-foreground">{b.customers?.full_name || '—'}</p>
-                            {b.customers?.phone && <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" />{b.customers.phone}</p>}
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/10">
+                            <User className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-foreground">{b.customers?.full_name || '—'}</p>
+                            {b.customers?.phone && (
+                              <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <Phone className="h-3 w-3" />
+                                <span>{b.customers.phone}</span>
+                              </p>
+                            )}
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                              {b.salesPerson?.full_name && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 dark:bg-slate-800">Sales: {b.salesPerson.full_name}</span>}
+                              {b.locations?.name && <span className="rounded-full bg-slate-100 px-1.5 py-0.5 dark:bg-slate-800">{b.locations.name}</span>}
+                            </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Vehicle */}
                       <td className="p-3">
-                        <div className="flex items-start gap-2">
-                          <Car className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="flex items-start gap-2.5">
+                          <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900/60">
+                            <Car className="h-3.5 w-3.5" />
+                          </div>
                           <div>
-                            <p className="font-medium text-foreground">{b.vehicles?.brand} {b.vehicles?.model}</p>
-                            {b.vehicles?.variant && <p className="text-xs text-muted-foreground">{b.vehicles.variant}</p>}
-                            {b.vehicles?.color && <p className="text-xs text-muted-foreground">{b.vehicles.color}</p>}
+                            <p className="font-medium text-foreground">{b.vehicles?.brand || '—'} {b.vehicles?.model || ''}</p>
+                            {(b.vehicles?.variant || b.vehicles?.color) && (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                {b.vehicles?.variant || 'Variant not listed'}{b.vehicles?.color ? ` • ${b.vehicles.color}` : ''}
+                              </p>
+                            )}
+                            {b.testDrive && (
+                              <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                                <Calendar className="h-3 w-3" />
+                                <span>{b.testDrive.scheduled_date || 'Test drive scheduled'}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
 
-                      {/* Test Drive */}
                       <td className="p-3">
-                        {b.testDrive ? (
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Calendar className="h-3.5 w-3.5 shrink-0" />
-                            <span className="text-xs">{b.testDrive.scheduled_date}</span>
+                        {(b.insurance_provider || b.finance_provider || b.financing_plan || b.deal_status) ? (
+                          <div className="space-y-1 rounded-lg border border-border/70 bg-slate-50/80 p-2 text-[11px] text-muted-foreground dark:bg-slate-900/30">
+                            {b.insurance_provider && <div><span className="font-medium text-foreground">Ins:</span> {b.insurance_provider}</div>}
+                            {b.finance_provider && <div><span className="font-medium text-foreground">Finance:</span> {b.finance_provider}</div>}
+                            {b.financing_plan && <div><span className="font-medium text-foreground">Plan:</span> {b.financing_plan}</div>}
+                            {b.deal_status && <div><span className="font-medium text-foreground">Deal:</span> {b.deal_status}</div>}
                           </div>
-                        ) : <span className="text-xs text-muted-foreground">—</span>}
-                      </td>
-
-                      {/* Sales Person */}
-                      <td className="p-3">
-                        <p className="text-foreground">{b.salesPerson?.full_name || '—'}</p>
-                        {b.salesPerson?.phone && <p className="text-xs text-muted-foreground">{b.salesPerson.phone}</p>}
-                      </td>
-
-                      {/* Location */}
-                      <td className="p-3 text-muted-foreground text-xs">{b.locations?.name || '—'}</td>
-
-                      {/* Amount */}
-                      <td className="p-3">
-                        <p className="font-semibold text-foreground">₹{Number(b.booking_amount || 0).toLocaleString()}</p>
-                        {b.booking_status === 'refunded' && b.refund_amount > 0 && (
-                          <p className="text-xs text-warning">Refund: ₹{Number(b.refund_amount).toLocaleString()}</p>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">No finance details</span>
                         )}
                       </td>
 
-                      {/* Payment Method */}
                       <td className="p-3">
-                        <div className="flex items-center gap-1 text-xs">
-                          {b.payment_method === 'cash' ? (
-                            <><Banknote className="h-3.5 w-3.5 text-success" /> Cash</>
-                          ) : (
-                            <><Link2 className="h-3.5 w-3.5 text-primary" /> Link</>
+                        <div className="rounded-lg border border-primary/10 bg-primary/5 p-2.5">
+                          <p className="font-semibold text-foreground">{formatCurrencyValue(Number(b.booking_amount || 0), b.locations?.currency_type || currencyCode)}</p>
+                          <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                            {b.payment_method === 'cash' ? <Banknote className="h-3.5 w-3.5 text-success" /> : <Link2 className="h-3.5 w-3.5 text-primary" />}
+                            <span>{b.payment_method === 'cash' ? 'Cash' : 'Link'}</span>
+                          </div>
+                          <Badge variant="secondary" className={`mt-1.5 text-[10px] ${PAYMENT_STATUS_COLORS[b.payment_status]}`}>
+                            {b?.payment_status?.replace('_', ' ')}
+                          </Badge>
+                          {b.booking_status === 'refunded' && b.refund_amount > 0 && (
+                            <p className="mt-1 text-[11px] text-warning">Refund: {formatCurrencyValue(Number(b.refund_amount || 0), b.locations?.currency_type || currencyCode)}</p>
                           )}
                         </div>
-                        <Badge variant="secondary" className={`text-[10px] mt-0.5 ${PAYMENT_STATUS_COLORS[b.payment_status]}`}>
-                          {b?.payment_status?.replace('_', ' ')}
-                        </Badge>
                       </td>
 
-                      {/* Booking Status */}
                       <td className="p-3">
-                        <Badge variant="outline" className={`text-xs ${BOOKING_STATUS_COLORS[b.booking_status]}`}>
-                          {b.booking_status}
-                        </Badge>
-                        {b.cancellation_reason && (
-                          <p className="text-xs text-muted-foreground mt-0.5 max-w-[140px] truncate" title={b.cancellation_reason}>
-                            {b.cancellation_reason}
-                          </p>
-                        )}
+                        <div className="space-y-2">
+                          <Badge variant="outline" className={`text-xs ${BOOKING_STATUS_COLORS[b.booking_status]}`}>
+                            {b.booking_status}
+                          </Badge>
+                          {b.cancellation_reason && (
+                            <p className="max-w-[180px] truncate text-[11px] text-muted-foreground" title={b.cancellation_reason}>
+                              {b.cancellation_reason}
+                            </p>
+                          )}
+                        </div>
                       </td>
 
-                      {/* Date */}
-                      <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(b.created_at).toLocaleDateString()}
+                      <td className="p-3 text-[11px] text-muted-foreground whitespace-nowrap">
+                        {formatBookingDate(b.created_at)}
                       </td>
 
-                      {/* Actions */}
                       {canManage && (
                         <td className="p-3">
-                          {b.booking_status === 'confirmed' && (
-                            <div className="flex flex-col gap-1">
+                          {b.booking_status === 'confirmed' ? (
+                            <div className="flex flex-col items-end gap-1.5">
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
+                                className="h-7 w-full max-w-[120px] text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
                                 onClick={() => openAction(b, 'cancel')}
                               >
                                 <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel
@@ -338,12 +394,14 @@ export default function CarBookingsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs border-warning/40 text-warning hover:bg-warning/10"
+                                className="h-7 w-full max-w-[120px] text-xs border-warning/40 text-warning hover:bg-warning/10"
                                 onClick={() => openAction(b, 'refund')}
                               >
                                 <RotateCcw className="h-3.5 w-3.5 mr-1" /> Refund
                               </Button>
                             </div>
+                          ) : (
+                            <span className="block text-right text-[11px] text-muted-foreground">No actions</span>
                           )}
                         </td>
                       )}
@@ -369,7 +427,7 @@ export default function CarBookingsPage() {
             </DialogTitle>
             <DialogDescription>
               {actionDialog.booking?.customers?.full_name} • {actionDialog.booking?.vehicles?.brand} {actionDialog.booking?.vehicles?.model}
-              {' '}• ₹{Number(actionDialog.booking?.booking_amount || 0).toLocaleString()}
+              {' '}• {formatCurrencyValue(Number(actionDialog.booking?.booking_amount || 0), actionDialog.booking?.locations?.currency_type || currencyCode)}
             </DialogDescription>
           </DialogHeader>
 
@@ -385,14 +443,14 @@ export default function CarBookingsPage() {
 
             {actionDialog.mode === 'refund' && (
               <div className="space-y-2">
-                <Label>Refund Amount (₹)</Label>
+                <Label>Refund Amount ({resolveCurrencyCode(actionDialog.booking?.locations?.currency_type || currencyCode)})</Label>
                 <Input
                   type="number"
                   min="0"
                   max={actionDialog.booking?.booking_amount}
                   value={refundAmount}
                   onChange={e => setRefundAmount(e.target.value)}
-                  placeholder={`Max ₹${Number(actionDialog.booking?.booking_amount || 0).toLocaleString()}`}
+                  placeholder={`Max ${formatCurrencyValue(Number(actionDialog.booking?.booking_amount || 0), actionDialog.booking?.locations?.currency_type || currencyCode)}`}
                 />
               </div>
             )}

@@ -98,6 +98,10 @@ export interface CreateCarBookingInput {
   payment_method?: PaymentMethod;
   payment_status?: PaymentStatus;
   booking_amount: number;
+  insurance_provider?: string | null;
+  finance_provider?: string | null;
+  financing_plan?: string | null;
+  deal_status?: string | null;
   payment_link?: string;
   notes?: string;
 }
@@ -117,6 +121,10 @@ export async function createCarBooking(input: CreateCarBookingInput) {
     payment_method: input.payment_method ?? 'cash',
     payment_status: input.payment_status ?? (input.payment_method === 'cash' ? 'paid' : 'pending'),
     booking_amount: input.booking_amount,
+    insurance_provider: input.insurance_provider || null,
+    finance_provider: input.finance_provider || null,
+    financing_plan: input.financing_plan || null,
+    deal_status: input.deal_status || null,
     refund_amount: 0,
     payment_link: input.payment_link || null,
     notes: input.notes || null,

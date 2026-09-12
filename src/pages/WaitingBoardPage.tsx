@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { apiDbQuery } from '@/lib/apiClient';
+import { useEffect, useMemo, useState } from 'react';
+import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { Badge } from '@/components/ui/badge';
 import { Car, Clock, User, Timer } from 'lucide-react';
@@ -130,6 +130,7 @@ const WaitingBoardPage = () => {
   const [searchParams] = useBrowserSearchParams();
   const locationId = searchParams.get('location');
   const [testDrives, setTestDrives] = useState<any[]>([]);
+  const [serviceBookings, setServiceBookings] = useState<any[]>([]);
   const [locationName, setLocationName] = useState('');
   const [now, setNow] = useState<Date | null>(null);
 
@@ -150,97 +151,145 @@ const WaitingBoardPage = () => {
   });
 
   const fetchData = async () => {
-    const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [
-      { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
-    ];
-    if (locationId) {
-      filters.push({ field: 'location_id', op: 'eq', value: locationId });
-    }
+    try {
+      const filters: Array<{ field: string; op: 'eq' | 'in'; value: unknown }> = [
+        { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+      ];
+      if (locationId) {
+        filters.push({ field: 'location_id', op: 'eq', value: locationId });
+      }
 
-    const drives = await apiDbQuery<any[]>({
-      table: 'test_drives',
-      action: 'select',
-      select: '*',
-      filters,
-      order: [{ field: 'scheduled_time', ascending: true }],
+      const [drives, bookings] = await Promise.all([
+        apiDbQuery<any[]>({
+          table: 'test_drives',
+          action: 'select',
+          select: '*',
+          filters,
+          order: [{ field: 'scheduled_time', ascending: true }],
+        }).catch(() => []),
+        locationId ? apiGet<any[]>(`/api/service-bookings?location_id=${encodeURIComponent(locationId)}`).catch(() => []) : Promise.resolve([]),
+      ]);
+
+      const customerIds = Array.from(new Set((drives || []).map((d) => d.customer_id).filter(Boolean)));
+      const vehicleIds = Array.from(new Set((drives || []).map((d) => d.vehicle_id).filter(Boolean)));
+      const salesProfileIds = Array.from(new Set((drives || []).map((d) => d.assigned_sales_person_id).filter(Boolean)));
+      const locationIds = Array.from(new Set((drives || []).map((d) => d.location_id).filter(Boolean)));
+
+      const [customers, vehicles, profiles, locations] = await Promise.all([
+        customerIds.length
+          ? apiDbQuery<any[]>({
+              table: 'customers',
+              action: 'select',
+              select: 'id, full_name',
+              filters: [{ field: 'id', op: 'in', value: customerIds }],
+            }).catch(() => [])
+          : Promise.resolve([]),
+        vehicleIds.length
+          ? apiDbQuery<any[]>({
+              table: 'vehicles',
+              action: 'select',
+              select: 'id, brand, model',
+              filters: [{ field: 'id', op: 'in', value: vehicleIds }],
+            }).catch(() => [])
+          : Promise.resolve([]),
+        salesProfileIds.length
+          ? apiDbQuery<any[]>({
+              table: 'profiles',
+              action: 'select',
+              select: 'id, full_name',
+              filters: [{ field: 'id', op: 'in', value: salesProfileIds }],
+            }).catch(() => [])
+          : Promise.resolve([]),
+        locationIds.length
+          ? apiDbQuery<any[]>({
+              table: 'locations',
+              action: 'select',
+              select: 'id, name',
+              filters: [{ field: 'id', op: 'in', value: locationIds }],
+            }).catch(() => [])
+          : Promise.resolve([]),
+      ]);
+
+      const customerMap = (customers || []).reduce((acc: Record<string, any>, row: any) => {
+        acc[row.id] = row;
+        return acc;
+      }, {});
+      const vehicleMap = (vehicles || []).reduce((acc: Record<string, any>, row: any) => {
+        acc[row.id] = row;
+        return acc;
+      }, {});
+      const profileMap = (profiles || []).reduce((acc: Record<string, any>, row: any) => {
+        acc[row.id] = row;
+        return acc;
+      }, {});
+      const locationMap = (locations || []).reduce((acc: Record<string, any>, row: any) => {
+        acc[row.id] = row;
+        return acc;
+      }, {});
+
+      const hydrated = (drives || []).map((drive: any) => ({
+        ...drive,
+        customers: customerMap[drive.customer_id] || null,
+        vehicles: vehicleMap[drive.vehicle_id] || null,
+        profiles: profileMap[drive.assigned_sales_person_id] || null,
+        locations: locationMap[drive.location_id] || null,
+      }));
+
+      setTestDrives(hydrated);
+      setServiceBookings((bookings || []).map((booking: any) => ({
+        ...booking,
+        kind: 'service_booking',
+        customers: { full_name: booking.customer_name || 'Customer' },
+        vehicles: booking.vehicle || null,
+        profiles: null,
+        scheduled_date: booking.appointment_date,
+        scheduled_time: booking.appointment_time,
+      })));
+      if (hydrated?.[0]?.locations?.name) {
+        setLocationName(hydrated[0].locations.name);
+      }
+    } catch {
+      setTestDrives([]);
+      setServiceBookings([]);
+    }
+  };
+
+  const combinedBookings = useMemo(() => {
+    const entries = [
+      ...testDrives.map((drive) => ({ ...drive, kind: 'test_drive', dateKey: drive.scheduled_date })),
+      ...serviceBookings.map((booking) => ({ ...booking, kind: 'service_booking', dateKey: booking.appointment_date })),
+    ].filter((item) => item.dateKey);
+
+    const groups = new Map<string, any[]>();
+    entries.forEach((entry) => {
+      const list = groups.get(entry.dateKey) || [];
+      list.push(entry);
+      groups.set(entry.dateKey, list);
     });
 
-    const customerIds = Array.from(new Set((drives || []).map((d) => d.customer_id).filter(Boolean)));
-    const vehicleIds = Array.from(new Set((drives || []).map((d) => d.vehicle_id).filter(Boolean)));
-    const salesProfileIds = Array.from(new Set((drives || []).map((d) => d.assigned_sales_person_id).filter(Boolean)));
-    const locationIds = Array.from(new Set((drives || []).map((d) => d.location_id).filter(Boolean)));
-
-    const [customers, vehicles, profiles, locations] = await Promise.all([
-      customerIds.length
-        ? apiDbQuery<any[]>({
-            table: 'customers',
-            action: 'select',
-            select: 'id, full_name',
-            filters: [{ field: 'id', op: 'in', value: customerIds }],
-          })
-        : Promise.resolve([]),
-      vehicleIds.length
-        ? apiDbQuery<any[]>({
-            table: 'vehicles',
-            action: 'select',
-            select: 'id, brand, model',
-            filters: [{ field: 'id', op: 'in', value: vehicleIds }],
-          })
-        : Promise.resolve([]),
-      salesProfileIds.length
-        ? apiDbQuery<any[]>({
-            table: 'profiles',
-            action: 'select',
-            select: 'id, full_name',
-            filters: [{ field: 'id', op: 'in', value: salesProfileIds }],
-          })
-        : Promise.resolve([]),
-      locationIds.length
-        ? apiDbQuery<any[]>({
-            table: 'locations',
-            action: 'select',
-            select: 'id, name',
-            filters: [{ field: 'id', op: 'in', value: locationIds }],
-          })
-        : Promise.resolve([]),
-    ]);
-
-    const customerMap = (customers || []).reduce((acc: Record<string, any>, row: any) => {
-      acc[row.id] = row;
-      return acc;
-    }, {});
-    const vehicleMap = (vehicles || []).reduce((acc: Record<string, any>, row: any) => {
-      acc[row.id] = row;
-      return acc;
-    }, {});
-    const profileMap = (profiles || []).reduce((acc: Record<string, any>, row: any) => {
-      acc[row.id] = row;
-      return acc;
-    }, {});
-    const locationMap = (locations || []).reduce((acc: Record<string, any>, row: any) => {
-      acc[row.id] = row;
-      return acc;
-    }, {});
-
-    const hydrated = (drives || []).map((drive: any) => ({
-      ...drive,
-      customers: customerMap[drive.customer_id] || null,
-      vehicles: vehicleMap[drive.vehicle_id] || null,
-      profiles: profileMap[drive.assigned_sales_person_id] || null,
-      locations: locationMap[drive.location_id] || null,
-    }));
-
-    setTestDrives(hydrated);
-    if (hydrated?.[0]?.locations?.name) setLocationName(hydrated[0].locations.name);
-  };
+    return Array.from(groups.entries())
+      .map(([dateKey, items]) => ({
+        dateKey,
+        label: format(new Date(`${dateKey}T00:00:00`), 'EEE, MMM d'),
+        count: items.length,
+        items: items.sort((a, b) => String(a.scheduled_time || '').localeCompare(String(b.scheduled_time || ''))),
+      }))
+      .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  }, [testDrives, serviceBookings]);
 
   const today = now ? format(now, 'yyyy-MM-dd') : null;
   const todaysDrives = today
     ? testDrives.filter((drive) => drive.scheduled_date === today)
     : [];
+  const todaysServiceBookings = today
+    ? serviceBookings.filter((booking) => booking.appointment_date === today)
+    : [];
   const upcomingDrives = today
     ? testDrives.filter((drive) => drive.scheduled_date !== today)
     : testDrives;
+  const upcomingServiceBookings = today
+    ? serviceBookings.filter((booking) => booking.appointment_date !== today)
+    : serviceBookings;
 
   const getETA = (td: any) => {
     if (!now) return 'Calculating...';
@@ -276,9 +325,10 @@ const WaitingBoardPage = () => {
   const currentTimeLabel = now ? format(now, 'HH:mm') : '--:--';
   const currentDateLabel = now ? format(now, 'EEEE, MMM d') : 'Loading date';
 
+  const totalActiveItems = testDrives.length + serviceBookings.length;
+
   return (
     <div className="min-h-screen bg-background">
-      <style>{animationStyles}</style>
       {/* Header */}
       <header className="bg-card border-b border-2 border-border px-4 sm:px-8 py-4 sm:py-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -302,13 +352,40 @@ const WaitingBoardPage = () => {
 
       {/* Board */}
       <main className="max-w-7xl mx-auto p-4 sm:p-8">
-        {testDrives.length === 0 ? (
+        {totalActiveItems === 0 ? (
           <div className="text-center py-16 sm:py-24">
             <Car className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground/30 mx-auto mb-4" />
-            <p className="text-base sm:text-xl text-muted-foreground">No active test drives found</p>
+            <p className="text-base sm:text-xl text-muted-foreground">No active appointments found</p>
           </div>
         ) : (
           <div className="space-y-8">
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base sm:text-lg font-semibold text-foreground">Booking calendar</h2>
+                <Badge variant="secondary">{combinedBookings.length} date(s)</Badge>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+                {combinedBookings.map((day) => (
+                  <div
+                    key={day.dateKey}
+                    className={`rounded-lg border p-3 transition-all ${day.count > 0 ? 'border-primary/60 bg-primary/5 shadow-sm ring-1 ring-primary/20' : 'border-border bg-card opacity-70'} ${day.dateKey === today ? 'border-primary bg-primary/10' : ''}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">{day.label}</span>
+                      {day.count > 0 && (
+                        <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-primary text-primary-foreground px-1.5 py-0.5 text-[10px] font-bold">
+                          {day.count}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      {day.count > 0 ? `${day.count} booking${day.count > 1 ? 's' : ''}` : 'No bookings'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
             <section className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-base sm:text-lg font-semibold text-foreground">Today&apos;s board</h2>

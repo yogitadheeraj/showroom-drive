@@ -641,7 +641,7 @@ const GROCalendarView = () => {
         <div className="rounded-2xl border border-border bg-card/80 shadow-card p-3 sm:p-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={goBack}>
+              <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <h2 className="text-lg font-heading font-semibold text-foreground min-w-[200px] text-center">
@@ -650,7 +650,7 @@ const GROCalendarView = () => {
                   : `${format(weekDays[0], 'MMM d')} — ${format(weekDays[6], 'MMM d, yyyy')}`
                 }
               </h2>
-              <Button variant="outline" size="sm" onClick={goForward}>
+              <Button variant="outline" size="sm" onClick={() => navigate(1)}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>Today</Button>

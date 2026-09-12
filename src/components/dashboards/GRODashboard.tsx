@@ -19,6 +19,7 @@ import { StaffActivityGrid } from './StaffActivityGrid';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import { navigateTo } from '@/lib/browserNavigation';
 import { DashboardStatusSections } from './DashboardStatusSections';
+import { buildServiceBookingStatusCounts, buildTestDriveStatusCounts } from '@/lib/dashboardMetrics';
 
 const GRODashboard = () => {
   const { profile } = useAuth();
@@ -104,16 +105,8 @@ const GRODashboard = () => {
       completionRate: enriched.length > 0 ? Math.round((completedCount / enriched.length) * 100) : 0,
     });
 
-    const serviceBookings = await apiGet<any[]>(`/api/service-bookings?location_id=${encodeURIComponent(profile.location_id)}`);
-    const counts = {
-      booked: (serviceBookings || []).filter((booking) => booking.status === 'booked').length,
-      confirmed: (serviceBookings || []).filter((booking) => booking.status === 'confirmed').length,
-      in_progress: (serviceBookings || []).filter((booking) => booking.status === 'in_progress').length,
-      ready_for_delivery: (serviceBookings || []).filter((booking) => booking.status === 'ready_for_delivery').length,
-      completed: (serviceBookings || []).filter((booking) => booking.status === 'completed').length,
-      cancelled: (serviceBookings || []).filter((booking) => booking.status === 'cancelled').length,
-      rescheduled: (serviceBookings || []).filter((booking) => booking.status === 'rescheduled').length,
-    };
+    const serviceBookings = await apiGet<any[]>(`/api/service-bookings?location_id=${encodeURIComponent(profile.location_id)}`).catch(() => [] as any[]);
+    const counts = buildServiceBookingStatusCounts(serviceBookings || []);
     setServiceBookingCount(serviceBookings?.length || 0);
     setServiceBookingStatusCounts(counts);
   };
@@ -242,22 +235,7 @@ const GRODashboard = () => {
           })}
         </div>
       )}
-
-        <DashboardStatusSections
-          testDriveStatusCounts={{
-            scheduled: testDrives.filter((td) => td.status === 'scheduled').length,
-            confirmed: testDrives.filter((td) => td.status === 'confirmed').length,
-            show: testDrives.filter((td) => td.status === 'show').length,
-            no_show: testDrives.filter((td) => td.status === 'no_show').length,
-            completed: testDrives.filter((td) => td.status === 'completed').length,
-            cancelled: testDrives.filter((td) => td.status === 'cancelled').length,
-          }}
-          serviceBookingStatusCounts={serviceBookingStatusCounts}
-        />
-
-        {/* ── Activity Insights ── */}
-        <ActivityInsightsMini />
-
+      
         <TabsContent value="calendar">
           <GROCalendarView />
         </TabsContent>
@@ -280,7 +258,7 @@ const GRODashboard = () => {
           <Card className="shadow-card">
             <CardContent className="pt-4 sm:pt-6">
               <div className="space-y-3">
-                {testDrives.slice(0, 5).map(td => (
+                {testDrives.map(td => (
                   <div
                     key={td.id}
                     className="p-3 sm:p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors cursor-pointer"

@@ -31,6 +31,7 @@ import TestDriveCalendarMini from './TestDriveCalendarMini';
 import HierarchyOverview from './HierarchyOverview';
 import { navigateTo } from '@/lib/browserNavigation';
 import { DashboardStatusSections } from './DashboardStatusSections';
+import { buildServiceBookingStatusCounts, buildTestDriveStatusCounts } from '@/lib/dashboardMetrics';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
@@ -257,24 +258,18 @@ const SuperAdminDashboard = () => {
       apiGet<any[]>(`/api/service-bookings?${serviceBookingParams.toString()}`).catch(() => []),
     ]);
 
+    const serviceBookingCounts = buildServiceBookingStatusCounts(serviceBookings || []);
     setTestDrives(td || []);
     setServiceBookingTotal(serviceBookings?.length || 0);
-    setServiceBookingStatusCounts({
-      booked: (serviceBookings || []).filter((booking) => booking.status === 'booked').length,
-      confirmed: (serviceBookings || []).filter((booking) => booking.status === 'confirmed').length,
-      in_progress: (serviceBookings || []).filter((booking) => booking.status === 'in_progress').length,
-      ready_for_delivery: (serviceBookings || []).filter((booking) => booking.status === 'ready_for_delivery').length,
-      completed: (serviceBookings || []).filter((booking) => booking.status === 'completed').length,
-      cancelled: (serviceBookings || []).filter((booking) => booking.status === 'cancelled').length,
-      rescheduled: (serviceBookings || []).filter((booking) => booking.status === 'rescheduled').length,
-    });
+    setServiceBookingStatusCounts(serviceBookingCounts);
     const total = td?.length || 0;
+    const testDriveStatusCounts = buildTestDriveStatusCounts(td || []);
     setStats({
       total,
-      scheduled: td?.filter((t: any) => t.status === 'scheduled').length || 0,
-      completed: td?.filter((t: any) => t.status === 'completed').length || 0,
-      noShow: td?.filter((t: any) => t.status === 'no_show').length || 0,
-      cancelled: td?.filter((t: any) => t.status === 'cancelled').length || 0,
+      scheduled: testDriveStatusCounts.scheduled,
+      completed: testDriveStatusCounts.completed,
+      noShow: testDriveStatusCounts.no_show,
+      cancelled: testDriveStatusCounts.cancelled,
     });
     const customerIds = [...new Set(td?.map((t: any) => t.customer_id) || [])];
     if (customerIds.length > 0) {
