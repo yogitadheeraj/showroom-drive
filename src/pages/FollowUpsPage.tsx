@@ -404,7 +404,7 @@ const FollowUpsPage = () => {
 
     const loadDealQuotes = async () => {
       try {
-        const rows = await apiGet<any[]>(`/api/deal-quotes?opportunity_id=${encodeURIComponent(selectedItem.id)}`);
+        const rows: any = await apiGet<any[]>(`/api/deal-quotes?opportunity_id=${encodeURIComponent(selectedItem.id)}`);
         const quoteList = Array.isArray(rows) ? rows : rows?.data || [];
         setDealQuotes(quoteList || []);
       } catch {
