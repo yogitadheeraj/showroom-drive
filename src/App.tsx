@@ -40,6 +40,7 @@ import ReportMonitoringPage from "./pages/ReportMonitoringPage.tsx";
 import ActivityLogsPage from "./pages/ActivityLogsPage.tsx";
 import MyProfilePage from "./pages/MyProfilePage.tsx";
 import AIReportsPage from './pages/AIReportsPage.tsx';
+import CustomersPage from './pages/CustomersPage.tsx';
 import { ROUTE_ALLOWED_ROLES } from "@/constants/roles";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { WhitelabelProvider } from "@/hooks/useWhitelabel";
@@ -84,6 +85,8 @@ const App = () => (
             <Route path="/vehicles" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.VEHICLES]}><VehiclesPage /></ProtectedRoute>} />
             <Route path="/brands" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.BRANDS]}><BrandsPage /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.USERS]}><UsersPage /></ProtectedRoute>} />
+            <Route path="/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
+            <Route path="/customers/:customerId" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
             <Route path="/data-center" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.DATA_CENTER]}><DataCenterPage /></ProtectedRoute>} />
             <Route path="/compare" element={<ComparePage />} />
             <Route path="/follow-ups" element={<ProtectedRoute><FollowUpsPage /></ProtectedRoute>} />

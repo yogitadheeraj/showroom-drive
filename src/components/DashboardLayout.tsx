@@ -50,6 +50,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Fleet', path: '/fleet', icon: Truck },
     { label: 'Locations', path: '/locations', icon: MapPin },
     { label: 'Users', path: '/users', icon: Users },
+    { label: 'Customers', path: '/customers', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
@@ -71,6 +72,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Fleet', path: '/fleet', icon: Truck },
     { label: 'Locations', path: '/locations', icon: MapPin },
     { label: 'Users', path: '/users', icon: Users },
+    { label: 'Customers', path: '/customers', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
@@ -92,6 +94,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Fleet', path: '/fleet', icon: Truck },
     { label: 'Locations', path: '/locations', icon: MapPin },
     { label: 'Users', path: '/users', icon: Users },
+    { label: 'Customers', path: '/customers', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
@@ -106,6 +109,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Brands', path: '/brands', icon: Tag },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Locations', path: '/locations', icon: MapPin },
+    { label: 'Customers', path: '/customers', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
     { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
@@ -118,6 +122,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Trade-in', path: '/trade-in', icon: ArrowLeftRight },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
+    { label: 'Customers', path: '/customers', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
@@ -133,6 +138,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
     { label: 'Service Bookings', path: '/service-bookings', icon: ClipboardCheck },
     { label: 'Trade-in', path: '/trade-in', icon: ArrowLeftRight },
     { label: 'Walk-in', path: '/walkin', icon: Users },
+    { label: 'Customers', path: '/customers', icon: Users },
     { label: 'Enquiries', path: '/enquiries', icon: Inbox },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
@@ -701,7 +707,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                   onClick={handleOpenLeadNotifications}
                 >
                   <Bell className="h-4 w-4 mr-1.5" />
-                  New Leads
+                   Leads Notifications
                   {newLeadCount > 0 && (
                     <span className="ml-1.5 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
                       {newLeadCount > 99 ? '99+' : newLeadCount}

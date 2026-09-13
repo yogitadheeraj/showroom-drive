@@ -60,6 +60,7 @@ type LeadTemperature = 'hot' | 'cold';
 const TestDrivesPage = () => {
   const { role, profile } = useAuth();
   const [searchParams] = useBrowserSearchParams();
+  const customerFilter = searchParams.get('customer_id') || '';
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'all');
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
@@ -129,6 +130,10 @@ const TestDrivesPage = () => {
       }
       // Sales only see their own assigned drives
       params.set('sales_person_id', profile.id);
+    }
+
+    if (customerFilter) {
+      params.set('customer_id', customerFilter);
     }
 
     if (activeFilter !== 'all' && activeFilter !== 'active' && activeFilter !== 'pending_license') {

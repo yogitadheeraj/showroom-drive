@@ -303,7 +303,7 @@ const AuthPage = () => {
                         <div className="grid gap-2 sm:grid-cols-2">
                           <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={handleOpenLeadNotifications}>
                             <Bell className="mr-2 h-4 w-4" />
-                            New Leads
+                          Leads Notifications
                             {newLeadCount > 0 && (
                               <span className="ml-2 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
                                 {newLeadCount > 99 ? '99+' : newLeadCount}

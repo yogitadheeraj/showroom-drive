@@ -1,23 +1,27 @@
 import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
+import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MessageSquare, User, Clock, Send, Mail, Phone } from 'lucide-react';
 import { apiGet } from '@/lib/apiClient';
 
 const CommunicationsPage = () => {
+  const [searchParams] = useBrowserSearchParams();
+  const customerFilter = searchParams.get('customer_id') || '';
   const [communications, setCommunications] = useState<any[]>([]);
   const [typeFilter, setTypeFilter] = useState('all');
 
   useEffect(() => {
     fetchCommunications();
-  }, [typeFilter]);
+  }, [typeFilter, customerFilter]);
 
   const fetchCommunications = async () => {
     try {
       const params = new URLSearchParams({ limit: '500' });
       if (typeFilter !== 'all') params.set('type', typeFilter);
+      if (customerFilter) params.set('customer_id', customerFilter);
       const baseComms = await apiGet<any[]>(`/api/communications?${params}`);
 
       const customerIds = Array.from(
