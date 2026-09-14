@@ -87,13 +87,13 @@ export async function lookupServiceBookings(phone: string, verificationToken: st
   }>(`/api/public/service-bookings/lookup?${qs}`);
 }
 
-export async function requestServiceBookingOtp(phone: string) {
+export async function requestServiceBookingOtp(phone: string, email?: string) {
   return apiPost<{
     success: boolean;
     delivery: string;
     masked_destination: string;
     expires_in_minutes: number;
-  }>('/api/public/service-bookings/otp/request', { phone });
+  }>('/api/public/service-bookings/otp/request', { phone, email: email || undefined });
 }
 
 export async function verifyServiceBookingOtp(phone: string, otp: string) {

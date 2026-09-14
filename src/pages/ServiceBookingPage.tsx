@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { apiDbQuery } from '@/lib/apiClient';
+import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import {
   cancelServiceBooking,
   createServiceBooking,
+  getServiceAvailability,
   listServicePackages,
   lookupServiceBookings,
   requestServiceBookingOtp,
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -22,6 +24,7 @@ import {
   CircleDashed,
   MapPin,
   Phone,
+  Search,
   ShieldCheck,
   UserRound,
   Wrench,
@@ -96,6 +99,11 @@ export default function ServiceBookingPage() {
   const [locationCurrencyCode, setLocationCurrencyCode] = useState('AED');
   const [rescheduleBookingId, setRescheduleBookingId] = useState<string | null>(null);
   const [rescheduleDrafts, setRescheduleDrafts] = useState<Record<string, { date: string; time: string }>>({});
+  const [existingCustomer, setExistingCustomer] = useState<any | null>(null);
+  const [lookupCustomerLoading, setLookupCustomerLoading] = useState(false);
+  const [availableServiceSlots, setAvailableServiceSlots] = useState<Array<{ time: string; available_units: number; is_available: boolean }>>([]);
+  const [loadingServiceSlots, setLoadingServiceSlots] = useState(false);
+  const [showEarliestSlotDialog, setShowEarliestSlotDialog] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
 
   const steps = [
@@ -150,7 +158,6 @@ export default function ServiceBookingPage() {
     const localeCountryCode = Intl.DateTimeFormat().resolvedOptions().locale?.split('-')[1]?.toUpperCase();
     const countryFromLocale = localeCountryCode ? COUNTRIES.find((country) => country.code === localeCountryCode) : undefined;
     const country = countryFromValue || countryFromLocale || COUNTRIES.find((item) => item.name === 'India') || COUNTRIES[0];
-console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, countryFromLocale, country });
     const examples: Record<string, string> = {
       IN: '+91 98765 43210',
       US: '+1 555 123 4567',
@@ -165,8 +172,10 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
     return examples[country.code] || `${country.dialCode} 98765 43210`;
   };
 
+  const validateEmailFormat = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
   const handlePhoneChange = (value: string) => {
-    setForm((prev) => ({ ...prev, customer_phone: value }));
+    setForm((prev) => ({ ...prev, customer_phone: value, customer_email: '', preferred_contact: 'phone', first_name: '', last_name: '' }));
     if (isPhoneVerified) {
       setIsPhoneVerified(false);
       setVerificationToken('');
@@ -184,6 +193,55 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
       }
       return next;
     });
+  };
+
+  const runCustomerLookup = async (nextPhoneOverride?: string, nextEmailOverride?: string) => {
+    const nextPhone = (nextPhoneOverride ?? form.customer_phone).trim();
+    const nextEmail = (nextEmailOverride ?? form.customer_email).trim();
+
+    if (!nextPhone && !nextEmail) {
+      setExistingCustomer(null);
+      return null;
+    }
+
+    try {
+      setLookupCustomerLoading(true);
+      const queries: Promise<any>[] = [];
+
+      if (nextPhone) {
+        queries.push(apiGet<any[]>(`/api/customers?phone=${encodeURIComponent(nextPhone)}&limit=1`));
+      }
+
+      if (nextEmail) {
+        queries.push(apiGet<any[]>(`/api/customers?email=${encodeURIComponent(nextEmail.toLowerCase())}&limit=1`));
+      }
+
+      const results = await Promise.all(queries);
+      const matched = (results.flat() as any[]).find(Boolean);
+      if (!matched) {
+        setExistingCustomer(null);
+               toast({ title: 'No customer found', description: 'No existing customer matched the provided phone or email', variant: 'destructive', duration: 2000 });
+ 
+        return null;
+      }
+      setExistingCustomer(matched);
+
+      if (matched) {
+        setForm((prev) => ({
+          ...prev,
+          customer_name: prev.customer_name || matched.full_name || '',
+          customer_email: prev.customer_email || matched.email || '',
+          preferred_contact: prev.preferred_contact && prev.preferred_contact !== 'phone' ? prev.preferred_contact : (matched.preferred_contact || 'phone'),
+        }));
+      }
+
+      return matched || null;
+    } catch {
+      setExistingCustomer(null);
+      return null;
+    } finally {
+      setLookupCustomerLoading(false);
+    }
   };
 
   const selectedPreferredContacts = useMemo(
@@ -259,13 +317,35 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
       return;
     }
 
+    const emailToUse = (form.customer_email || existingCustomer?.email || '').trim();
+    if (!emailToUse) {
+      toast({
+        title: 'Email required to continue',
+        description: 'Please add your email so we can send the OTP and continue the booking smoothly.',
+        variant: 'destructive',
+      });
+      setActiveStep(1);
+      return;
+    }
+
+    if (!validateEmailFormat(emailToUse)) {
+      toast({
+        title: 'Invalid email format',
+        description: 'Please enter a valid email address before sending the OTP.',
+        variant: 'destructive',
+      });
+      setActiveStep(1);
+      return;
+    }
+
     setOtpLoading(true);
     try {
-      await requestServiceBookingOtp(form.customer_phone.trim());
+      setForm((prev) => ({ ...prev, customer_email: emailToUse }));
+      await requestServiceBookingOtp(form.customer_phone.trim(), emailToUse);
       setOtpRequested(true);
       setOtpCode('');
       setIsPhoneVerified(false);
-      toast({ title: 'OTP sent', description: 'We have sent the verification code to your email associated with this phone number.' });
+      toast({ title: 'OTP sent', description: `We have sent the verification code to ${emailToUse}.` });
     } catch (error: any) {
       toast({ title: 'OTP request failed', description: error?.message || 'Unable to send OTP.', variant: 'destructive' });
     } finally {
@@ -301,6 +381,16 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
     }
   };
 
+  const clearMatchedCustomerSearch = () => {
+    setExistingCustomer(null);
+    setForm((prev) => ({
+      ...prev,
+      customer_name: '',
+      customer_email: '',
+      preferred_contact: 'phone',
+    }));
+  };
+
   const usePastBookingDetails = (booking: any) => {
     if (!booking) return;
 
@@ -324,6 +414,11 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
     toast({ title: 'Booking details loaded', description: 'The selected customer and vehicle details were applied to the form.' });
   };
 
+  const firstAvailableSlot = useMemo(
+    () => availableServiceSlots[0] ?? null,
+    [availableServiceSlots],
+  );
+
   const getTodayDateValue = () => new Date().toISOString().split('T')[0];
 
   const getCurrentTimeValue = () => {
@@ -345,6 +440,53 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
       return { ...prev, appointment_date: value, appointment_time: nextTime };
     });
   };
+
+  useEffect(() => {
+    const location = locations.find((item) => item.id === form.location_id);
+    const resolvedLocationDuration = Number(location?.slot_duration_minutes || 0);
+    const slotDuration = resolvedLocationDuration > 0 ? resolvedLocationDuration : 30;
+
+    if (!form.location_id || !form.appointment_date || !form.package_code) {
+      setAvailableServiceSlots([]);
+      setShowEarliestSlotDialog(false);
+      return;
+    }
+
+    let cancelled = false;
+    const loadSlots = async () => {
+      try {
+        setLoadingServiceSlots(true);
+        const response = await getServiceAvailability(form.location_id, form.appointment_date, form.package_code);
+        if (cancelled) return;
+
+        const slots = Array.isArray(response?.slots) ? response.slots : [];
+        const validSlots = slots.filter((slot) => slot.is_available);
+        setAvailableServiceSlots(validSlots);
+
+        if (form.appointment_time && !validSlots.some((slot) => slot.time === form.appointment_time && slot.is_available)) {
+          setForm((prev) => ({ ...prev, appointment_time: '' }));
+        }
+
+        if (!form.appointment_time && validSlots.length > 0 && !showEarliestSlotDialog) {
+          setShowEarliestSlotDialog(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setAvailableServiceSlots([]);
+          setShowEarliestSlotDialog(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingServiceSlots(false);
+        }
+      }
+    };
+
+    void loadSlots();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.location_id, form.appointment_date, form.package_code, locations, form.appointment_time]);
 
   const handleAppointmentTimeChange = (value: string) => {
     const today = getTodayDateValue();
@@ -454,6 +596,11 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
       return;
     }
 
+    if (form.customer_email && !validateEmailFormat(form.customer_email)) {
+      toast({ title: 'Invalid email format', description: 'Please enter a valid email before confirming the booking.', variant: 'destructive' });
+      return;
+    }
+
     setSubmitting(true);
     try {
       await createServiceBooking({
@@ -476,17 +623,20 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
       });
 
       setSuccessMessage('Your service booking request has been submitted. Our team will confirm the slot shortly.');
-      setActiveStep(2);
+      setActiveStep(1);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('service-booking-updated'));
       }
       if (verificationToken) {
         await loadExistingCustomerData(form.customer_phone.trim(), verificationToken);
       }
+      setExistingCustomer(null);
       setForm((prev) => ({
         ...prev,
         customer_name: '',
+        customer_phone: '',
         customer_email: '',
+        preferred_contact: 'phone',
         vehicle_registration_number: '',
         vehicle_brand: '',
         vehicle_model: '',
@@ -521,6 +671,62 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
           </div>
         </div>
       ) : null}
+
+      {existingCustomer && (
+        <div className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-300">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Existing customer found</p>
+              <p className="mt-1 font-semibold text-foreground">{existingCustomer.full_name || 'Customer record'}</p>
+              <p className="text-xs text-muted-foreground">{existingCustomer.phone || 'No phone'} • {existingCustomer.email || 'No email'}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {lookupCustomerLoading ? <CircleDashed className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Dialog open={showEarliestSlotDialog && !!firstAvailableSlot && !form.appointment_time} onOpenChange={(open) => setShowEarliestSlotDialog(open)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-2xl">Earliest available slot</DialogTitle>
+            <DialogDescription>
+              We found the first open time for this service request. Select it instantly or choose another slot below.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-primary/5 p-5 shadow-sm">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-primary/80">Recommended</div>
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-3xl font-bold text-foreground">{firstAvailableSlot?.time || '--:--'}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{form.appointment_date || 'Selected date'}</p>
+              </div>
+              <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                {firstAvailableSlot?.available_units || 1} unit{(firstAvailableSlot?.available_units || 1) > 1 ? 's' : ''} free
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button type="button" variant="outline" onClick={() => setShowEarliestSlotDialog(false)}>
+              Choose Manually
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (firstAvailableSlot?.time) {
+                  handleAppointmentTimeChange(firstAvailableSlot.time);
+                  setShowEarliestSlotDialog(false);
+                }
+              }}
+            >
+              Select slot
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
@@ -558,15 +764,28 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                   <div className="flex-1 space-y-2">
                     <Label htmlFor="customer_phone">Phone number</Label>
-                    <Input
-                      id="customer_phone"
-                      value={form.customer_phone}
-                      onChange={(e) => handlePhoneChange(e.target.value)}
-                      placeholder={getPhonePlaceholder(form.customer_phone)}
-                      className="h-11"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="customer_phone"
+                        value={form.customer_phone}
+                        onChange={(e) => handlePhoneChange(e.target.value)}
+                        placeholder={getPhonePlaceholder(form.customer_phone)}
+                        className="h-11 flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-11 w-11 shrink-0"
+                        onClick={() => void runCustomerLookup()}
+                        title="Search customer"
+                        aria-label="Search customer"
+                      >
+                        <Search className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="sm:w-[170px]">
+                {existingCustomer ?   <div className="sm:w-[170px]">
                     <Label htmlFor="customer_phone" className="sr-only">Phone number</Label>
                     <Button
                       id="send-otp-button"
@@ -578,7 +797,7 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
                     >
                       {otpLoading ? 'Sending...' : 'Send OTP'}
                     </Button>
-                  </div>
+                  </div>: null}
                 </div>
 
                 {otpRequested ? (
@@ -704,8 +923,33 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="appointment_time">Preferred time</Label>
-                    <Input id="appointment_time" type="time" min={getMinTimeForDate(form.appointment_date)} value={form.appointment_time} onChange={(e) => handleAppointmentTimeChange(e.target.value)} />
+                    <Label htmlFor="appointment_time">Preferred time slot</Label>
+                    {loadingServiceSlots ? (
+                      <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                        <CircleDashed className="h-4 w-4 animate-spin" />
+                        Loading available slots...
+                      </div>
+                    ) : (
+                      <Select value={form.appointment_time || undefined} onValueChange={handleAppointmentTimeChange} disabled={!form.location_id || !form.appointment_date || !form.package_code || !availableServiceSlots.length}>
+                        <SelectTrigger id="appointment_time">
+                          <SelectValue placeholder={availableServiceSlots.length ? 'Choose a slot' : 'No slots available'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableServiceSlots.length ? (
+                            availableServiceSlots.map((slot) => (
+                              <SelectItem key={slot.time} value={slot.time}>
+                                {slot.time} {slot.available_units > 1 ? `(${slot.available_units} units available)` : '(1 unit available)'}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">No available slots for this date and package.</div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {locations.find((location) => location.id === form.location_id)?.slot_duration_minutes || 30} minute slots from the selected location settings.
+                    </p>
                   </div>
                 </div>
 
@@ -797,9 +1041,7 @@ console.log('getPhonePlaceholder', { value, typedPrefix, countryFromValue, count
                   }} disabled={submitting || loading || !isPhoneVerified}>
                     {submitting ? 'Submitting...' : 'Quick submit'}
                   </Button>
-                  <Button type="submit" disabled={submitting || loading || !isPhoneVerified} className="min-w-[180px]">
-                    {submitting ? 'Submitting...' : 'Confirm booking'}
-                  </Button>
+                
                 </div>
               </CardContent>
             </Card>

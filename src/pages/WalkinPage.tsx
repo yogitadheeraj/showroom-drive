@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2, CalendarDays, Clock, AlertCircle, Phone, Mail, MessageSquare, MapPin, Truck } from 'lucide-react';
+import {  Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2, CalendarDays, Clock, AlertCircle, Phone, Mail, MessageSquare, MapPin, Truck, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { COUNTRIES, validatePhoneForCountry, validateEmail } from '@/lib/countries';
 
@@ -36,6 +36,8 @@ const WalkinPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [sharedVehicles, setSharedVehicles] = useState<any[]>([]);
   const [showAdvancedDate, setShowAdvancedDate] = useState(false);
+  const [existingCustomer, setExistingCustomer] = useState<any | null>(null);
+  const [lookupCustomerLoading, setLookupCustomerLoading] = useState(false);
 
   const todayStr = new Date().toLocaleDateString('en-CA').split('T')[0];
 
@@ -256,6 +258,18 @@ const WalkinPage = () => {
     setLicensePreview(null);
   };
 
+  const clearMatchedCustomerSearch = () => {
+    setExistingCustomer(null);
+    setFormData((prev) => ({
+      ...prev,
+      firstName: '',
+      lastName: '',
+      email: '',
+      preferredContact: ['phone'],
+    }));
+    setFormErrors((prev) => ({ ...prev, email: '' }));
+  };
+
   const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId) || sharedVehicles.find(v => v.id === formData.vehicleId);
   const selectedLocation = locations.find(l => l.id === formData.locationId);
   const maxDateStr = (() => {
@@ -277,6 +291,62 @@ const WalkinPage = () => {
       setFormErrors(p => ({ ...p, phone: '' }));
     }
   }, [formData.locationId, locations]);
+
+  const runCustomerLookup = async (forcePhone?: string, forceEmail?: string) => {
+    const nextPhone = (forcePhone ?? formData.phone).trim();
+    const nextEmail = (forceEmail ?? formData.email).trim();
+
+    if (!nextPhone && !nextEmail) {
+      setExistingCustomer(null);
+      return null;
+    }
+
+    try {
+      setLookupCustomerLoading(true);
+      const queries: Promise<any>[] = [];
+
+      if (nextPhone) {
+        queries.push(apiGet<any[]>(`/api/customers?phone=${encodeURIComponent(`${formData.countryCode}${nextPhone}`)}&limit=1`));
+      }
+
+      if (nextEmail) {
+        queries.push(apiGet<any[]>(`/api/customers?email=${encodeURIComponent(nextEmail.toLowerCase())}&limit=1`));
+      }
+
+      if (queries.length === 0) {
+        setExistingCustomer(null);
+        return null;
+      }
+
+      const results = await Promise.all(queries);
+      const matched = (results.flat() as any[]).find(Boolean);
+      if (!matched) {
+        setExistingCustomer(null);
+        toast({ title: 'No customer found', description: 'No existing customer matched the provided phone or email', variant: 'destructive', duration: 2000 });
+        return null;
+      }
+      setExistingCustomer(matched);
+
+      if (matched) {
+        const nameParts = String(matched.full_name || '').trim();
+        const parsedName = nameParts ? nameParts.split(/\s+/) : [];
+        setFormData((prev) => ({
+          ...prev,
+          firstName: prev.firstName || parsedName[0] || '',
+          lastName: prev.lastName || parsedName.slice(1).join(' ') || '',
+          email: prev.email || matched.email || '',
+          preferredContact: prev.preferredContact.length > 0 ? prev.preferredContact : (matched.preferred_contact || 'phone').split(',').filter(Boolean),
+        }));
+      }
+
+      return matched || null;
+    } catch {
+      setExistingCustomer(null);
+      return null;
+    } finally {
+      setLookupCustomerLoading(false);
+    }
+  };
 
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((v) => v.is_demo && v.total_units > 0);
@@ -524,6 +594,24 @@ const WalkinPage = () => {
           </div>
         )}
 
+        {existingCustomer && (
+          <Card className="shadow-card border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+            <CardContent className="p-3.5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Existing customer found</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{existingCustomer.full_name || 'Customer record'}</p>
+                  <p className="text-xs text-muted-foreground">{existingCustomer.phone || 'No phone'} • {existingCustomer.email || 'No email'}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {lookupCustomerLoading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-600" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+               
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {(!isDealerLevel || formData.locationId) ? (
           <Card className="shadow-card">
             <CardContent className="p-4 space-y-3.5">
@@ -542,8 +630,19 @@ const WalkinPage = () => {
                     value={formData.phone}
                     autoFocus
                     className={cn('flex-1', formErrors.phone && 'border-destructive')}
-                    onChange={e => { setFormData(p => ({ ...p, phone: e.target.value.replace(/\D/g, '') })); if (formErrors.phone) setFormErrors(p => ({ ...p, phone: '' })); }}
+                    onChange={e => { setFormData(p => ({ ...p, phone: e.target.value.replace(/\D/g, ''), email: '', firstName: '', lastName: '', preferredContact:  ['phone'] })); if (formErrors.phone) setFormErrors(p => ({ ...p, phone: '' })); }}
                   />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={cn('w-9', formErrors.phone && 'border-destructive', 'bg-muted/50')} 
+                    onClick={() => void runCustomerLookup()}
+                    title="Search customer"
+                    aria-label="Search customer"
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
                 </div>
                 {formErrors.phone && <p className="text-xs text-destructive flex items-center gap-1 mt-1"><AlertCircle className="h-3 w-3 shrink-0" />{formErrors.phone}</p>}
               </div>

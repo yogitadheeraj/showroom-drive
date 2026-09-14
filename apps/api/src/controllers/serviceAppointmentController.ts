@@ -147,11 +147,12 @@ export async function updateServiceProgressController(req: Request, res: Respons
 export async function requestServiceBookingOtpController(req: Request, res: Response) {
   try {
     const phone = String(req.body?.phone || '').trim();
+    const email = String(req.body?.email || '').trim().toLowerCase();
     if (!phone) {
       return res.status(400).json({ data: null, error: { message: 'phone is required' } });
     }
 
-    const data = await requestServiceBookingOtp(phone);
+    const data = await requestServiceBookingOtp(phone, email || undefined);
     res.status(200).json({ data, error: null });
   } catch (error) {
     res.status(400).json({ data: null, error: { message: (error as Error).message } });

@@ -40,14 +40,14 @@ async function sendOtpEmail(email: string, code: string, phone: string) {
   await sendMail({ to: email, subject, html });
 }
 
-export async function requestServiceBookingOtp(phoneRaw: string) {
+export async function requestServiceBookingOtp(phoneRaw: string, emailOverride?: string) {
   const phone = normalizePhone(phoneRaw);
   if (!phone) throw new Error('Phone is required.');
 
   const customer = await Customer.findOne({ phone }, { email: 1 }).lean() as any;
-  const email = String(customer?.email || '').trim().toLowerCase();
-  if (!email) {
-    throw new Error('No customer email found for this mobile number. Please create a booking first with email.');
+  const candidateEmail = String(emailOverride || customer?.email || '').trim().toLowerCase();
+  if (!candidateEmail || !candidateEmail.includes('@')) {
+    throw new Error('No customer email found for this mobile number. Please add your email to continue with the booking.');
   }
 
   const code = generateOtpCode();
@@ -69,12 +69,12 @@ export async function requestServiceBookingOtp(phoneRaw: string) {
   });
 
   await doc.save();
-  await sendOtpEmail(email, code, phone);
+  await sendOtpEmail(candidateEmail, code, phone);
 
   return {
     success: true,
     delivery: 'email',
-    masked_destination: maskEmail(email),
+    masked_destination: maskEmail(candidateEmail),
     expires_in_minutes: OTP_TTL_MINUTES,
   };
 }
