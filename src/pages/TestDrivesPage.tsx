@@ -435,6 +435,41 @@ const TestDrivesPage = () => {
     setFollowUpTaskDueAt('');
   };
 
+  const getNextStepAction = (td: any) => {
+    const salesRoles = [APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[];
+    const adminRoles = [APP_ROLE.GRO, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[];
+
+    if (td.status === 'cancelled') {
+      return { label: 'New Test Drive', onClick: () => setRebookDrive(td), className: 'bg-primary text-primary-foreground hover:bg-primary/90' };
+    }
+
+    if (td.status === 'key_handover_to_sales' && salesRoles.includes(role ?? '')) {
+      return { label: 'Key Handover', onClick: () => handleKeyHandoverComplete(td), className: 'bg-success text-success-foreground hover:bg-success/90' };
+    }
+
+    if ((td.status === 'show' || td.status === 'scheduled' || td.status === 'rescheduled') && !td.key_handed_at && td.customers?.driving_license_verified && salesRoles.includes(role ?? '') && td.status !== 'key_handover_to_sales') {
+      return { label: 'Assign Key', onClick: () => handleAssignKey(td.id), className: 'bg-primary text-primary-foreground hover:bg-primary/90', disabled: assigningKey === td.id };
+    }
+
+    if (td.status === 'scheduled' && adminRoles.includes(role ?? '') && !td.key_handed_at) {
+      return { label: 'Confirm', onClick: () => updateStatus(td.id, 'confirmed'), className: 'bg-primary text-primary-foreground hover:bg-primary/90' };
+    }
+
+    if (['scheduled', 'confirmed', 'show', 'rescheduled'].includes(td.status) && adminRoles.includes(role ?? '')) {
+      return { label: 'Mark Show', onClick: () => updateStatus(td.id, 'show'), className: 'bg-success text-success-foreground hover:bg-success/90' };
+    }
+
+    if (canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && td.scheduled_date && new Date(td.scheduled_date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)) {
+      return {
+        label: 'Create Lead',
+        onClick: () => { setLeadDialogDrive(td); setLeadTemperature('cold'); setFollowUpTaskTitle(''); setFollowUpTaskDueAt(''); },
+        className: 'bg-warning text-warning-foreground hover:bg-warning/90',
+      };
+    }
+
+    return null;
+  };
+
   const statusColor: Record<string, string> = {
     scheduled: 'bg-info/10 text-info border-info/20',
     confirmed: 'bg-primary/10 text-primary border-primary/20',
@@ -954,6 +989,15 @@ const TestDrivesPage = () => {
                         <div className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-primary" />{calendarSelectedDrive.scheduled_date} at {(calendarSelectedDrive.scheduled_time || '').substring(0, 5)}</div>
                         <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3 text-primary" />{calendarSelectedDrive.locations?.name}</div>
                       </div>
+                      {(() => {
+                        const quickAction = getNextStepAction(calendarSelectedDrive);
+                        if (!quickAction) return null;
+                        return (
+                          <Button size="sm" className={`${quickAction.className} w-full text-[11px] h-7`} onClick={quickAction.onClick} disabled={quickAction.disabled}>
+                            {quickAction.label}
+                          </Button>
+                        );
+                      })()}
                       <div className="flex gap-2">
                         <Button size="sm" className="flex-1 text-[11px] h-7" onClick={() => { setDetailSheetDrive(calendarSelectedDrive); setCalendarSelectedDrive(null); }}>
                           Full Details
@@ -1081,27 +1125,22 @@ const TestDrivesPage = () => {
                         <Route className="h-3 w-3 mr-1" /> Journey
                       </Button>
 
-                      {/* Primary contextual action */}
-                      {td.status === 'cancelled' && (
-                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => setRebookDrive(td)}>
-                          <PlusCircle className="h-3 w-3 mr-1" /> New Test Drive
-                        </Button>
-                      )}
-                      {td.status === 'key_handover_to_sales' && ([APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
-                        <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => handleKeyHandoverComplete(td)}>
-                          <FileCheck className="h-3 w-3 mr-1" /> Key Handover
-                        </Button>
-                      )}
-                      {(td.status === 'show' || td.status === 'scheduled' || td.status === 'rescheduled') && !td.key_handed_at && td.customers?.driving_license_verified && ([APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && td.status !== 'key_handover_to_sales' && (
-                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleAssignKey(td.id)} disabled={assigningKey === td.id}>
-                          <Key className="h-3 w-3 mr-1" /> Assign Key
-                        </Button>
-                      )}
-                      {td.status === 'scheduled' && ([APP_ROLE.GRO, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && !td.key_handed_at && (
-                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => updateStatus(td.id, 'confirmed')}>
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Confirm
-                        </Button>
-                      )}
+                      {/* Primary next-step action */}
+                      {(() => {
+                        const quickAction = getNextStepAction(td);
+                        if (!quickAction) return null;
+                        return (
+                          <Button size="sm" className={`${quickAction.className} text-xs`} onClick={quickAction.onClick} disabled={quickAction.disabled}>
+                            {quickAction.label === 'New Test Drive' && <PlusCircle className="h-3 w-3 mr-1" />}
+                            {quickAction.label === 'Key Handover' && <FileCheck className="h-3 w-3 mr-1" />}
+                            {quickAction.label === 'Assign Key' && <Key className="h-3 w-3 mr-1" />}
+                            {quickAction.label === 'Confirm' && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                            {quickAction.label === 'Mark Show' && <CheckCircle className="h-3 w-3 mr-1" />}
+                            {quickAction.label === 'Create Lead' && <TrendingUp className="h-3 w-3 mr-1" />}
+                            {quickAction.label}
+                          </Button>
+                        );
+                      })()}
 
                       {/* Overflow menu — only shown when at least one item is available */}
                       {(() => {

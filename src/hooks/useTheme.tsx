@@ -23,19 +23,25 @@ const applyTheme = (resolved: ResolvedTheme) => {
 };
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'dark';
-    return (localStorage.getItem(STORAGE_KEY) as Theme) || 'dark';
-  });
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    theme === 'system' ? getSystemTheme() : (theme as ResolvedTheme)
-  );
+  const [theme, setThemeState] = useState<Theme>('dark');
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('dark');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const storedTheme = (localStorage.getItem(STORAGE_KEY) as Theme) || 'dark';
+    if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
+      setThemeState(storedTheme);
+    }
+  }, []);
 
   useEffect(() => {
     const resolved = theme === 'system' ? getSystemTheme() : (theme as ResolvedTheme);
     setResolvedTheme(resolved);
     applyTheme(resolved);
-    localStorage.setItem(STORAGE_KEY, theme);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, theme);
+    }
   }, [theme]);
 
   useEffect(() => {

@@ -173,10 +173,16 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useBrowserPath();
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem('sidebar_collapsed') === 'true'; } catch { return false; }
-  });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { resolvedTheme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    try {
+      setSidebarCollapsed(localStorage.getItem('sidebar_collapsed') === 'true');
+    } catch {
+      setSidebarCollapsed(false);
+    }
+  }, []);
 
   const [newLeadCount, setNewLeadCount] = useState(0);
   const [endingLeave, setEndingLeave] = useState(false);
