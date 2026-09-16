@@ -694,7 +694,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           <SiteHeader
             variant="app"
             showNav={false}
-            showLogo={true}
+            showLogo={sidebarOpen}
             dealerName={dealerName}
             dealerLogoUrl={dealerLogoUrl}
             leftSlot={
