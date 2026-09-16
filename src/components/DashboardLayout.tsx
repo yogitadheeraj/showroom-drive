@@ -255,6 +255,20 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   };
 
   const navItems = NAV_ITEMS[role ?? DEFAULT_APP_ROLE];
+  const navGroups = [
+    {
+      title: 'Overview',
+      items: navItems.filter((item) => ['/dashboard', '/follow-ups', '/waiting-board'].includes(item.path)),
+    },
+    {
+      title: 'Sales & Service',
+      items: navItems.filter((item) => ['/walkin', '/test-drives', '/car-bookings', '/service-bookings', '/trade-in', '/customers', '/enquiries', '/communications', '/incoming-vehicles'].includes(item.path)),
+    },
+    {
+      title: 'Management',
+      items: navItems.filter((item) => ['/vehicles', '/fleet', '/locations', '/users', '/brands', '/data-center', '/settings', '/reports/monitoring', '/reports/ai-insights', '/activity-logs'].includes(item.path)),
+    },
+  ].filter((group) => group.items.length > 0);
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'Staff User';
   const displayRole = role ? getAppRoleLabel(role) : 'Staff';
 
@@ -568,38 +582,53 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           </div>
 
           <TooltipProvider delayDuration={0}>
-            <nav className="flex-1 p-2 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-sidebar-border/70 scrollbar-track-transparent">
-              {navItems.map(item => {
-                const Icon = item.icon;
-                const isActive = location === item.path;
-                const linkEl = (
-                  <a
-                    key={item.path}
-                    href={item.path}
-                    onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                      sidebarCollapsed ? 'justify-center px-0' : ''
-                    } ${
-                      isActive
-                        ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-white font-medium shadow-md shadow-blue-500/20'
-                        : 'text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {!sidebarCollapsed && item.label}
-                  </a>
-                );
+            <nav className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-sidebar-border/70 scrollbar-track-transparent">
+              <div className="space-y-4">
+                {navGroups.map((group) => (
+                  <div key={group.title} className="space-y-1.5">
+                    {!sidebarCollapsed && (
+                      <div className="px-2 pb-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/50">
+                          {group.title}
+                        </p>
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      {group.items.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = location === item.path;
+                        const linkEl = (
+                          <a
+                            key={item.path}
+                            href={item.path}
+                            onClick={() => setSidebarOpen(false)}
+                            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                              sidebarCollapsed ? 'justify-center px-0' : ''
+                            } ${
+                              isActive
+                                ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                : 'text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/70'
+                            }`}
+                          >
+                            <Icon className="h-4 w-4 shrink-0" />
+                            {!sidebarCollapsed && item.label}
+                          </a>
+                        );
 
-                if (sidebarCollapsed) {
-                  return (
-                    <Tooltip key={item.path}>
-                      <TooltipTrigger asChild>{linkEl}</TooltipTrigger>
-                      <TooltipContent side="right" className="text-xs">{item.label}</TooltipContent>
-                    </Tooltip>
-                  );
-                }
-                return linkEl;
-              })}
+                        if (sidebarCollapsed) {
+                          return (
+                            <Tooltip key={item.path}>
+                              <TooltipTrigger asChild>{linkEl}</TooltipTrigger>
+                              <TooltipContent side="right" className="text-xs">{item.label}</TooltipContent>
+                            </Tooltip>
+                          );
+                        }
+                        return linkEl;
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </nav>
           </TooltipProvider>
 
@@ -665,9 +694,9 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
           <SiteHeader
             variant="app"
             showNav={false}
-            showLogo={false}
-            dealerName={''}
-            dealerLogoUrl={''}
+            showLogo={true}
+            dealerName={dealerName}
+            dealerLogoUrl={dealerLogoUrl}
             leftSlot={
               <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground dark:text-slate-100">
                 <Menu className="h-5 w-5" />
@@ -676,44 +705,44 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
             rightSlot={
               <>
                 {role === APP_ROLE.DEALER_ADMIN && dealerLocations.length > 1 && (
-              <div className="flex items-center gap-3 rounded-xl bg-transparent">
-                <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Filter by location:</span>
-                <Select
-                  value={selectedLocationId ?? '__all__'}
-                  onValueChange={(v) => setSelectedLocationId(v === '__all__' ? null : v)}
-                >
-                  <SelectTrigger className="h-8 w-64 max-w-full text-sm">
-                    <SelectValue placeholder="All Locations" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All Locations</SelectItem>
-                    {dealerLocations.map((loc) => (
-                      <SelectItem key={loc.id} value={loc.id}>
-                        {loc.name}{loc.city ? ` — ${loc.city}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedLocationId && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedLocationId(null)}
-                    className="ml-auto text-xs text-muted-foreground underline hover:text-foreground"
-                  >
-                    Clear
-                  </button>
+                  <div className="hidden items-center gap-3 rounded-full border border-border bg-muted/60 px-3 py-1.5 xl:flex">
+                    <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">Location:</span>
+                    <Select
+                      value={selectedLocationId ?? '__all__'}
+                      onValueChange={(v) => setSelectedLocationId(v === '__all__' ? null : v)}
+                    >
+                      <SelectTrigger className="h-8 w-52 max-w-full border-0 bg-transparent text-sm shadow-none focus:ring-0">
+                        <SelectValue placeholder="All Locations" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">All Locations</SelectItem>
+                        {dealerLocations.map((loc) => (
+                          <SelectItem key={loc.id} value={loc.id}>
+                            {loc.name}{loc.city ? ` — ${loc.city}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedLocationId && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLocationId(null)}
+                        className="text-[11px] text-muted-foreground underline hover:text-foreground"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
-            )}
                 <Button
                   variant="outline"
                   size="sm"
-                  className="relative"
+                  className="relative rounded-full border border-sky-200 bg-gradient-to-r from-sky-50 to-white text-sky-700 shadow-sm hover:from-sky-100 hover:to-sky-50 dark:border-sky-500/30 dark:from-sky-500/10 dark:to-slate-900 dark:text-sky-200"
                   onClick={handleOpenLeadNotifications}
                 >
                   <Bell className="h-4 w-4 mr-1.5" />
-                   Leads Notifications
+                  Leads
                   {newLeadCount > 0 && (
                     <span className="ml-1.5 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
                       {newLeadCount > 99 ? '99+' : newLeadCount}
@@ -722,7 +751,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                 </Button>
                 <a
                   href="/my-profile"
-                  className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5 hover:bg-muted/80 transition-colors dark:border-white/10 dark:bg-white/5"
+                  className="hidden sm:flex items-center gap-2 rounded-full border border-border bg-muted/70 px-3 py-1.5 transition-all hover:bg-muted dark:border-white/10 dark:bg-white/5"
                 >
                   <UserCircle2 className="h-4 w-4 text-muted-foreground dark:text-slate-300" />
                   <div className="leading-tight">

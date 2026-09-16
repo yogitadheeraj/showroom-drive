@@ -32,49 +32,55 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/85 text-foreground backdrop-blur dark:border-white/10 dark:bg-[hsl(220,50%,10%)]/95 dark:text-slate-100">
+    <header className="sticky top-0 z-30 border-b border-border/80 bg-background/80 text-foreground shadow-[0_12px_30px_rgba(15,23,42,0.05)] backdrop-blur-xl dark:border-white/10 dark:bg-[hsl(220,50%,10%)]/85 dark:text-slate-100">
       <div className="mx-auto flex w-full items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           {leftSlot}
-         {showLogo && (
+          {showLogo && (
             <a href="/" className="flex items-center shrink-0">
-            {(dealerLogoUrl || dealerName) ? (
-              <div className="flex flex-col leading-none">
-                <div className="flex items-center gap-2">
-                  {dealerLogoUrl && (
-                    <img
-                      src={dealerLogoUrl}
-                      alt={dealerName || 'Dealer'}
-                      className="h-8 w-auto max-w-[120px] object-contain"
-                    />
-                  )}
-                  {dealerName && (
-                    <span className={resolvedTheme === 'dark' ? 'text-sm font-semibold text-white' : 'text-sm font-semibold text-foreground'}>
-                      {dealerName}
-                    </span>
-                  )}
+              {(dealerLogoUrl || dealerName) ? (
+                <div className="flex flex-col leading-none">
+                  <div className="flex items-center gap-2">
+                    {dealerLogoUrl && (
+                      <img
+                        src={dealerLogoUrl}
+                        alt={dealerName || 'Dealer'}
+                        className="h-8 w-auto max-w-[120px] object-contain"
+                      />
+                    )}
+                    {dealerName && (
+                      <span className={resolvedTheme === 'dark' ? 'text-sm font-semibold text-white' : 'text-sm font-semibold text-foreground'}>
+                        {dealerName}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground dark:text-slate-500 mt-0.5">
+                    Powered by{' '}
+                    <a
+                      href="https://autoadvant.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:underline text-muted-foreground dark:text-slate-500"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      AutoAdvant.com
+                    </a>
+                  </span>
                 </div>
-                <span className="text-[10px] text-muted-foreground dark:text-slate-500 mt-0.5">
-                  Powered by{' '}
-                  <a
-                    href="https://autoadvant.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline text-muted-foreground dark:text-slate-500"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    AutoAdvant.com
-                  </a>
-                </span>
-              </div>
-            ) : (
-              <img
-                src={ resolvedTheme === 'dark'  ? '/images/autoadvant-logo.png' : '/images/autoadvant-peaked-horizontal-dark.png'}
-                alt="AutoAdvant"
-                className="h-9 w-auto object-contain"
-              />
-            )}
-          </a>
+              ) : (
+                <img
+                  src={resolvedTheme === 'dark' ? '/images/autoadvant-logo.png' : '/images/autoadvant-peaked-horizontal-dark.png'}
+                  alt="AutoAdvant"
+                  className="h-9 w-auto object-contain"
+                />
+              )}
+            </a>
+          )}
+          {variant === 'app' && (
+            <div className="hidden items-center gap-2 rounded-full border border-sky-200 bg-gradient-to-r from-sky-50 to-blue-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 shadow-sm dark:border-sky-500/30 dark:from-sky-500/10 dark:to-blue-500/10 dark:text-sky-200 md:flex">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.9)]" />
+              Operations Center
+            </div>
           )}
         </div>
 

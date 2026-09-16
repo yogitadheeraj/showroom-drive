@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch --inspect --trace-warnings src/index.js",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/data && cp src/data/service-packages.json dist/data/service-packages.json",
     "start": "node dist/index.js",
     "lint": "echo \"No API linter configured yet\""
   },
