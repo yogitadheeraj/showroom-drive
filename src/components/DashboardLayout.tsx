@@ -535,7 +535,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
       } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-screen overflow-hidden">
           {/* Header */}
-          <div className={`bg-[hsl(220,50%,10%)] flex items-center dark:bg-[hsl(220,50%,10%)] px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
+          <div className={` bg-gradient-to-r from-sky-400 to-blue-600 text-white shadow-lg shadow-blue-500/20 flex items-center dark:bg-[hsl(220,50%,10%)] px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
            
            <a href="/" className="flex items-center shrink-0">
             {(dealerLogoUrl || dealerName) ? (
@@ -738,13 +738,13 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                 <Button
                   variant="outline"
                   size="sm"
-                  className="relative rounded-full border border-sky-200 bg-gradient-to-r from-sky-50 to-white text-sky-700 shadow-sm hover:from-sky-100 hover:to-sky-50 dark:border-sky-500/30 dark:from-sky-500/10 dark:to-slate-900 dark:text-sky-200"
+                  className="relative rounded-full border border-sky-200 bg-gradient-to-r from-sky-50"
                   onClick={handleOpenLeadNotifications}
                 >
                   <Bell className="h-4 w-4 mr-1.5" />
                   Leads
                   {newLeadCount > 0 && (
-                    <span className="ml-1.5 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
+                    <span className="ml-1.5 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-black-foreground">
                       {newLeadCount > 99 ? '99+' : newLeadCount}
                     </span>
                   )}
