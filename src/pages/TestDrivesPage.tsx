@@ -561,6 +561,7 @@ const TestDrivesPage = () => {
 
   // Insight computation
   const insightDrives = useMemo(() => {
+     setCalendarSelectedDrive(null);
     if (!calendarInsight) return testDrives;
     const { type, date } = calendarInsight;
     if (type === 'day') return drivesOnDay(date);
@@ -576,6 +577,7 @@ const TestDrivesPage = () => {
   }, [calendarInsight, testDrives]);
 
   const insightLabel = useMemo(() => {
+     setCalendarSelectedDrive(null);
     if (!calendarInsight) return 'All Drives';
     const { type, date } = calendarInsight;
     if (type === 'day') return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -591,6 +593,7 @@ const TestDrivesPage = () => {
   }, [calendarInsight]);
 
   const insightStats = useMemo(() => {
+     setCalendarSelectedDrive(null);
     const total = insightDrives.length;
     const byStatus = insightDrives.reduce((acc: Record<string, number>, td) => {
       acc[td.status] = (acc[td.status] || 0) + 1;
@@ -602,6 +605,7 @@ const TestDrivesPage = () => {
   }, [insightDrives]);
 
   const navigateCalendar = (dir: 1 | -1) => {
+     setCalendarSelectedDrive(null);
     const isAtCurrentYear = calendarViewType === 'year' && calendarDate.getFullYear() >= new Date().getFullYear();
     if (dir === 1 && isAtCurrentYear) return;
     const d = new Date(calendarDate);
@@ -837,7 +841,11 @@ const TestDrivesPage = () => {
                     return (
                       <button
                         key={mon}
-                        onClick={() => { const d = new Date(calendarDate.getFullYear(), idx, 1); setCalendarInsight({ type: 'month', date: d }); }}
+                        onClick={() => { 
+                         
+                          const d = new Date(calendarDate.getFullYear(), idx, 1);
+                           setCalendarInsight({ type: 'month', date: d }); 
+                          }}
                         className={`rounded-xl border p-3 text-left transition-all hover:shadow-md hover:border-primary/40 ${
                           isSelected ? 'border-primary bg-primary/5 shadow-md' : isCurrentMonth ? 'border-primary/30 bg-primary/[0.03]' : 'border-border bg-card'
                         }`}
