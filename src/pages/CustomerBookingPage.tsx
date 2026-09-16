@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +11,7 @@ import RouteCalculator from '@/components/RouteCalculator';
 import { getApiBaseUrl } from '@/lib/getApiBaseUrl';
 import useBrowserPath from '@/hooks/useBrowserPath';
 import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
+import { getAvailableTimeSlots } from '@/lib/slotAvailability';
 import {
   AlertTriangle,
   Calendar,
@@ -84,6 +86,8 @@ export default function CustomerBookingPage() {
   // Reschedule form
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleSlots, setRescheduleSlots] = useState<Array<{ startTime: string; endTime: string; startMinutes: number; endMinutes: number }>>([]);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Cancel
@@ -134,6 +138,48 @@ export default function CustomerBookingPage() {
       .finally(() => setLoading(false));
   }, [testDriveId, token]);
 
+  useEffect(() => {
+    if (!booking || !rescheduleDate) {
+      setRescheduleSlots([]);
+      setRescheduleTime('');
+      return;
+    }
+
+    const locationId = (booking as any)?.location_id || (booking as any)?.location?.id;
+    const slotDuration = Number((booking as any)?.test_drive?.slot_duration_minutes || 30);
+
+    if (!locationId || rescheduleDate < format(new Date(), 'yyyy-MM-dd')) {
+      setRescheduleSlots([]);
+      setRescheduleTime('');
+      return;
+    }
+
+    let cancelled = false;
+    setRescheduleLoading(true);
+
+    void getAvailableTimeSlots(locationId, rescheduleDate, slotDuration)
+      .then(({ slots, error }) => {
+        if (cancelled) return;
+        if (error || !slots?.length) {
+          setRescheduleSlots([]);
+          setRescheduleTime('');
+          return;
+        }
+
+        setRescheduleSlots(slots);
+        if (!rescheduleTime || !slots.some((slot) => slot.startTime === rescheduleTime)) {
+          setRescheduleTime(slots[0].startTime);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRescheduleLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [booking, rescheduleDate]);
+
   const handleCancel = async () => {
     const finalReason = cancelReason === 'Other'
       ? (cancelNote.trim() || 'Cancelled by customer')
@@ -164,9 +210,29 @@ export default function CustomerBookingPage() {
   const handleReschedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rescheduleDate || !rescheduleTime) {
-      toast({ title: 'Required', description: 'Please select a date and time.', variant: 'destructive' });
+      toast({ title: 'Required', description: 'Please select a date and time slot.', variant: 'destructive' });
       return;
     }
+
+    if (rescheduleDate < format(new Date(), 'yyyy-MM-dd')) {
+      toast({ title: 'Past date not allowed', description: 'Please choose a future date for the reschedule.', variant: 'destructive' });
+      return;
+    }
+
+    const locationId = (booking as any)?.location_id || (booking as any)?.location?.id;
+    const slotDuration = Number((booking as any)?.test_drive?.slot_duration_minutes || 30);
+
+    if (!locationId) {
+      toast({ title: 'Location unavailable', description: 'Unable to validate slots for this booking.', variant: 'destructive' });
+      return;
+    }
+
+    const { slots, error } = await getAvailableTimeSlots(locationId, rescheduleDate, slotDuration);
+    if (error || !slots?.length || !slots.some((slot) => slot.startTime === rescheduleTime)) {
+      toast({ title: 'Slot unavailable', description: 'Please choose one of the available time slots for this date.', variant: 'destructive' });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const res = await fetch(apiUrl('/reschedule'), {
@@ -437,42 +503,42 @@ export default function CustomerBookingPage() {
                         id="rs-date"
                         type="date"
                         value={rescheduleDate}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={format(new Date(), 'yyyy-MM-dd')}
                         onChange={(e) => {
-                          const newDate = e.target.value;
-                          setRescheduleDate(newDate);
-                          // Clear time when switching to today so user picks a valid future slot
-                          const todayStr = new Date().toISOString().split('T')[0];
-                          if (newDate === todayStr) {
-                            setRescheduleTime('');
-                          }
+                          setRescheduleDate(e.target.value);
+                          setRescheduleTime('');
                         }}
                         required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="rs-time">New Time</Label>
-                      <Input
-                        id="rs-time"
-                        type="time"
-                        min={rescheduleDate === new Date().toISOString().split('T')[0]
-                          ? (() => {
-                              const now = new Date();
-                              // Round up to next 15-min slot
-                              now.setMinutes(now.getMinutes() + 15);
-                              return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes() - (now.getMinutes() % 15)).padStart(2,'0')}`;
-                            })()
-                          : undefined}
-                        value={rescheduleTime}
-                        onChange={(e) => setRescheduleTime(e.target.value)}
-                        required
-                      />
-                      {rescheduleDate === new Date().toISOString().split('T')[0] && (
-                        <p className="text-xs text-muted-foreground">Only future times are available for today.</p>
+                      <Label>Available time slots</Label>
+                      {rescheduleLoading ? (
+                        <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
+                          Loading available slots...
+                        </div>
+                      ) : rescheduleSlots.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-1">
+                          {rescheduleSlots.map((slot) => (
+                            <Button
+                              key={slot.startTime}
+                              type="button"
+                              variant={rescheduleTime === slot.startTime ? 'default' : 'outline'}
+                              className="justify-center text-xs h-9"
+                              onClick={() => setRescheduleTime(slot.startTime)}
+                            >
+                              {slot.startTime}
+                            </Button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
+                          No available slots for this date. Please choose a different date.
+                        </div>
                       )}
                     </div>
                     <div className="flex gap-3">
-                      <Button type="submit" disabled={isSaving} className="flex-1">
+                      <Button type="submit" disabled={isSaving || !rescheduleDate || !rescheduleTime || rescheduleSlots.length === 0} className="flex-1">
                         {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                         {isSaving ? 'Saving…' : 'Confirm Reschedule'}
                       </Button>

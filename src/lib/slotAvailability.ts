@@ -9,6 +9,11 @@ export async function getAvailableTimeSlots(
   slotDurationMinutes: number = 30
 ) {
   try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (selectedDate < todayStr) {
+      return { slots: [], error: 'Past date not allowed' };
+    }
+
     // Get location operating hours for this day
     const dayOfWeek = new Date(selectedDate).getDay();
     // Use the proper API endpoint (not apiDbQuery) to avoid auth-scope filter overriding location_id
@@ -76,6 +81,13 @@ export async function getAvailableTimeSlots(
       });
     }
 
+    const now = new Date();
+    const isToday = selectedDate === todayStr;
+    const currentMinutes = isToday ? now.getHours() * 60 + now.getMinutes() : null;
+    const futureSlots = isToday
+      ? allSlots.filter((slot) => (currentMinutes === null ? true : slot.startMinutes >= currentMinutes))
+      : allSlots;
+
     // Get existing bookings and blocked slots for this date in parallel
     const [existingBookings, blockedSlots] = await Promise.all([
       apiDbQuery<any[]>({
@@ -100,7 +112,7 @@ export async function getAvailableTimeSlots(
     ]);
 
     // Filter out slots that conflict with existing bookings or blocked windows
-    const availableSlots = allSlots.filter(slot => {
+    const availableSlots = futureSlots.filter(slot => {
       // Check existing test-drive bookings
       const hasBookingConflict = existingBookings?.some(booking => {
         if (!booking.scheduled_time) return false;

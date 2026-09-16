@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { format } from 'date-fns';
 import { apiGet, apiDbQuery, apiPatch, apiPost } from '@/lib/apiClient';
 import { sendTransactionalEmail } from '@/lib/functionService';
 import { getStorageSignedUrl, listStorageFiles, uploadToStorage } from '@/lib/storageClient';
@@ -26,6 +27,7 @@ import { navigateTo } from '@/lib/browserNavigation';
 import ServiceProgressPanel from './ServiceProgressPanel';
 import { DashboardStatusSections } from './DashboardStatusSections';
 import { buildServiceBookingStatusCounts } from '@/lib/dashboardMetrics';
+import { getAvailableTimeSlots } from '@/lib/slotAvailability';
 
 type LeadTemperature = 'hot' | 'cold';
 
@@ -39,6 +41,8 @@ const SalesDashboard = () => {
   const [rescheduleDrive, setRescheduleDrive] = useState<any>(null);
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
+  const [rescheduleSlots, setRescheduleSlots] = useState<Array<{ startTime: string; endTime: string; startMinutes: number; endMinutes: number }>>([]);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [logFilter, setLogFilter] = useState<'all' | 'security' | 'status'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [inspectionViewDrive, setInspectionViewDrive] = useState<any>(null);
@@ -676,8 +680,64 @@ const SalesDashboard = () => {
     void fetchLeadWorkspace();
   };
 
+  useEffect(() => {
+    if (!rescheduleDrive?.id || !newDate) {
+      setRescheduleSlots([]);
+      setNewTime('');
+      return;
+    }
+
+    const locationId = rescheduleDrive.location_id;
+    const slotDuration = Number(rescheduleDrive.slot_duration_minutes || rescheduleDrive.locations?.slot_duration_minutes || 30);
+
+    if (!locationId || newDate < format(new Date(), 'yyyy-MM-dd')) {
+      setRescheduleSlots([]);
+      setNewTime('');
+      return;
+    }
+
+    let cancelled = false;
+    setRescheduleLoading(true);
+
+    void getAvailableTimeSlots(locationId, newDate, slotDuration)
+      .then(({ slots, error }) => {
+        if (cancelled) return;
+        if (error || !slots?.length) {
+          setRescheduleSlots([]);
+          setNewTime('');
+          return;
+        }
+
+        setRescheduleSlots(slots);
+        if (!newTime || !slots.some((slot) => slot.startTime === newTime)) {
+          setNewTime(slots[0].startTime);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRescheduleLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rescheduleDrive, newDate]);
+
   const handleReschedule = async () => {
     if (!rescheduleDrive?.id || !newDate || !newTime) return;
+
+    if (newDate < format(new Date(), 'yyyy-MM-dd')) {
+      toast({ title: 'Past date not allowed', description: 'Please choose a future date for the reschedule.', variant: 'destructive' });
+      return;
+    }
+
+    const locationId = rescheduleDrive.location_id;
+    const slotDuration = Number(rescheduleDrive.slot_duration_minutes || rescheduleDrive.locations?.slot_duration_minutes || 30);
+    const { slots, error } = await getAvailableTimeSlots(locationId, newDate, slotDuration);
+
+    if (error || !slots?.length || !slots.some((slot) => slot.startTime === newTime)) {
+      toast({ title: 'Slot unavailable', description: 'Please choose one of the available time slots for this date.', variant: 'destructive' });
+      return;
+    }
 
     await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleDrive.id)}`, {
       scheduled_date: newDate,
@@ -702,6 +762,7 @@ const SalesDashboard = () => {
     setRescheduleDrive(null);
     setNewDate('');
     setNewTime('');
+    setRescheduleSlots([]);
     fetchAssignedDrives();
   };
   const todayStr = (() => {
@@ -1369,7 +1430,14 @@ const SalesDashboard = () => {
 
       <SalesSwapDialog open={!!swapDrive} onClose={() => setSwapDrive(null)} testDrive={swapDrive} onSwapped={fetchAssignedDrives} mode="swap" />
 
-      <Dialog open={!!rescheduleDrive} onOpenChange={() => setRescheduleDrive(null)}>
+      <Dialog open={!!rescheduleDrive} onOpenChange={(open) => {
+        if (!open) {
+          setRescheduleDrive(null);
+          setNewDate('');
+          setNewTime('');
+          setRescheduleSlots([]);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-heading">Reschedule Assigned Test Drive</DialogTitle>
@@ -1380,13 +1448,47 @@ const SalesDashboard = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>New Date</Label>
-              <Input type="date" value={newDate} min={new Date().toISOString().split('T')[0]} onChange={e => setNewDate(e.target.value)} />
+              <Input
+                type="date"
+                value={newDate}
+                min={format(new Date(), 'yyyy-MM-dd')}
+                onChange={e => {
+                  setNewDate(e.target.value);
+                  setNewTime('');
+                }}
+              />
             </div>
             <div className="space-y-2">
-              <Label>New Time</Label>
-              <Input type="time" value={newTime} min={newDate === new Date().toISOString().split('T')[0] ? `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}` : undefined} onChange={e => setNewTime(e.target.value)} />
+              <Label>Available time slots</Label>
+              {rescheduleLoading ? (
+                <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
+                  Loading available slots...
+                </div>
+              ) : rescheduleSlots.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-1">
+                  {rescheduleSlots.map((slot) => (
+                    <Button
+                      key={slot.startTime}
+                      type="button"
+                      variant={newTime === slot.startTime ? 'default' : 'outline'}
+                      className="justify-center text-xs h-9"
+                      onClick={() => setNewTime(slot.startTime)}
+                    >
+                      {slot.startTime}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
+                  No available slots for this date. Please choose a different date.
+                </div>
+              )}
             </div>
-            <Button onClick={handleReschedule} className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={!newDate || !newTime}>
+            <Button
+              onClick={handleReschedule}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={!newDate || !newTime || rescheduleLoading || rescheduleSlots.length === 0}
+            >
               Confirm Reschedule
             </Button>
           </div>

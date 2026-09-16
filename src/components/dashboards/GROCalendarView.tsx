@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChevronLeft, ChevronRight, Calendar, LayoutGrid, UserPlus, UserPen, RefreshCw, AlertTriangle } from 'lucide-react';
 import WalkinDialog from '@/components/WalkinDialog';
+import { getAvailableTimeSlots } from '@/lib/slotAvailability';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 
 const statusColor: Record<string, string> = {
@@ -91,6 +92,8 @@ const GROCalendarView = () => {
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [rescheduleDate, setRescheduleDate] = useState('');
   const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleSlots, setRescheduleSlots] = useState<Array<{ startTime: string; endTime: string; startMinutes: number; endMinutes: number }>>([]);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [noShowConfirmId, setNoShowConfirmId] = useState<string | null>(null);
   const [walkinDialog, setWalkinDialog] = useState<{ open: boolean; date?: string; time?: string }>({ open: false });
 
@@ -253,8 +256,65 @@ const GROCalendarView = () => {
     fetchTestDrives();
   };
 
+  useEffect(() => {
+    if (!rescheduleId || !rescheduleDate) {
+      setRescheduleSlots([]);
+      return;
+    }
+
+    const currentDrive = testDrives.find((td) => td.id === rescheduleId);
+    const locationId = currentDrive?.location_id || profile?.location_id;
+    const slotDuration = getLocationSlotDuration(locationDetails || currentDrive?.locations || { slot_duration_minutes: 30 });
+
+    if (!locationId || rescheduleDate < format(new Date(), 'yyyy-MM-dd')) {
+      setRescheduleSlots([]);
+      return;
+    }
+
+    let cancelled = false;
+    setRescheduleLoading(true);
+
+    void getAvailableTimeSlots(locationId, rescheduleDate, slotDuration)
+      .then(({ slots, error }) => {
+        if (cancelled) return;
+        if (error || !slots?.length) {
+          setRescheduleSlots([]);
+          if (!rescheduleTime) setRescheduleTime('');
+          return;
+        }
+
+        setRescheduleSlots(slots);
+        if (!rescheduleTime || !slots.some((slot) => slot.startTime === rescheduleTime)) {
+          setRescheduleTime(slots[0].startTime);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRescheduleLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rescheduleId, rescheduleDate, profile?.location_id, locationDetails, testDrives]);
+
   const handleReschedule = async () => {
     if (!rescheduleId || !rescheduleDate || !rescheduleTime) return;
+
+    const currentDrive = testDrives.find((td) => td.id === rescheduleId);
+    const locationId = currentDrive?.location_id || profile?.location_id;
+    const slotDuration = getLocationSlotDuration(locationDetails || currentDrive?.locations || { slot_duration_minutes: 30 });
+
+    if (!locationId || rescheduleDate < format(new Date(), 'yyyy-MM-dd')) {
+      toast({ title: 'Past date not allowed', description: 'Please choose a future date for the reschedule.', variant: 'destructive' });
+      return;
+    }
+
+    const { slots, error } = await getAvailableTimeSlots(locationId, rescheduleDate, slotDuration);
+    if (error || !slots?.length || !slots.some((slot) => slot.startTime === rescheduleTime)) {
+      toast({ title: 'Slot unavailable', description: 'Please choose one of the available time slots for this date.', variant: 'destructive' });
+      return;
+    }
+
     await apiPatch(`/api/test-drives/${encodeURIComponent(rescheduleId)}`, {
       scheduled_date: rescheduleDate,
       scheduled_time: `${rescheduleTime}:00`,
@@ -263,6 +323,7 @@ const GROCalendarView = () => {
     setRescheduleId(null);
     setRescheduleDate('');
     setRescheduleTime('');
+    setRescheduleSlots([]);
     fetchTestDrives();
   };
 
@@ -907,23 +968,62 @@ const GROCalendarView = () => {
       </Dialog>
 
       {/* Reschedule Dialog */}
-      <Dialog open={!!rescheduleId} onOpenChange={(o) => !o && setRescheduleId(null)}>
-        <DialogContent>
+      <Dialog open={!!rescheduleId} onOpenChange={(o) => {
+        if (!o) {
+          setRescheduleId(null);
+          setRescheduleDate('');
+          setRescheduleTime('');
+          setRescheduleSlots([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-heading">Reschedule Test Drive</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>New Date</Label>
-              <Input type="date" value={rescheduleDate} min={new Date().toISOString().split('T')[0]} onChange={(e) => setRescheduleDate(e.target.value)} />
+              <Input
+                type="date"
+                value={rescheduleDate}
+                min={format(new Date(), 'yyyy-MM-dd')}
+                onChange={(e) => {
+                  setRescheduleDate(e.target.value);
+                  setRescheduleTime('');
+                }}
+              />
             </div>
+
             <div className="space-y-2">
-              <Label>New Time</Label>
-              <Input type="time" value={rescheduleTime} min={rescheduleDate === new Date().toISOString().split('T')[0] ? `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}` : undefined} onChange={(e) => setRescheduleTime(e.target.value)} />
+              <Label>Available time slots</Label>
+              {rescheduleLoading ? (
+                <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
+                  Loading available slots...
+                </div>
+              ) : rescheduleSlots.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1">
+                  {rescheduleSlots.map((slot) => (
+                    <Button
+                      key={slot.startTime}
+                      type="button"
+                      variant={rescheduleTime === slot.startTime ? 'default' : 'outline'}
+                      className="justify-center text-xs h-9"
+                      onClick={() => setRescheduleTime(slot.startTime)}
+                    >
+                      {slot.startTime}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
+                  No available slots for this date. Please choose a different date.
+                </div>
+              )}
             </div>
+
             <Button
               onClick={handleReschedule}
-              disabled={!rescheduleDate || !rescheduleTime}
+              disabled={!rescheduleDate || !rescheduleTime || rescheduleLoading || rescheduleSlots.length === 0}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             >
               Confirm Reschedule
