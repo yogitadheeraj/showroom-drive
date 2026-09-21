@@ -31,6 +31,30 @@ import { getAvailableTimeSlots } from '@/lib/slotAvailability';
 
 type LeadTemperature = 'hot' | 'cold';
 
+const CURRENCY_LOCALE_BY_CODE: Record<string, string> = {
+  AED: 'en-AE',
+  INR: 'en-IN',
+  USD: 'en-US',
+  EUR: 'en-IE',
+  GBP: 'en-GB',
+  JPY: 'ja-JP',
+};
+
+const resolveCurrencyCode = (currency?: string | null) => {
+  const normalized = (currency || 'AED').trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(CURRENCY_LOCALE_BY_CODE, normalized) ? normalized : 'AED';
+};
+
+const formatCurrencyValue = (value: number, currencyCode?: string | null) => {
+  const code = resolveCurrencyCode(currencyCode);
+  const locale = CURRENCY_LOCALE_BY_CODE[code] || 'en-AE';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: code,
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+};
+
 const SalesDashboard = () => {
   const { user, profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
@@ -80,6 +104,8 @@ const SalesDashboard = () => {
   const [bookingPaymentLink, setBookingPaymentLink] = useState('');
   const [bookingNotes, setBookingNotes] = useState('');
   const [bookingCreating, setBookingCreating] = useState(false);
+  const [paidSalesAmount, setPaidSalesAmount] = useState(0);
+  const [paidSalesCurrency, setPaidSalesCurrency] = useState('AED');
   const notifiedHandoverIdsRef = useRef<Set<string>>(new Set());
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const { toast } = useToast();
@@ -177,6 +203,10 @@ const SalesDashboard = () => {
     const counts = buildServiceBookingStatusCounts(serviceBookings || []);
     setServiceBookingCount(serviceBookings?.length || 0);
     setServiceBookingStatusCounts(counts);
+    const carBookings = await apiGet<any[]>(`/api/car-bookings?location_id=${encodeURIComponent(profile?.location_id || '')}&limit=500`).catch(() => []);
+    const paidRows = (carBookings || []).filter((row: any) => row.payment_status === 'paid');
+    setPaidSalesAmount(paidRows.reduce((sum: number, row: any) => sum + Number(row.payment_requested_amount || row.booking_amount || 0), 0));
+    setPaidSalesCurrency(resolveCurrencyCode(paidRows[0]?.locations?.currency_type || enrichedDrives[0]?.locations?.currency_type || 'AED'));
 
     const profileLocationIds = Array.from(new Set(enrichedDrives.map((drive: any) => drive.location_id).filter(Boolean)));
     if (profileLocationIds.length > 0) {
@@ -1004,6 +1034,18 @@ const SalesDashboard = () => {
           <Button size="sm" variant="outline" className="shrink-0" onClick={() => navigateTo('/service-bookings')}>
             View List
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-card border-emerald-300/30 bg-emerald-50/40 dark:bg-emerald-950/20">
+        <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium flex items-center gap-1">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-600" /> Paid Sales Amount
+            </p>
+            <p className="text-2xl font-heading font-bold text-foreground mt-1">{formatCurrencyValue(paidSalesAmount, paidSalesCurrency)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Successful car-booking payments for this location</p>
+          </div>
         </CardContent>
       </Card>
 

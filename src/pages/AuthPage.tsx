@@ -33,6 +33,22 @@ const AuthPage = () => {
   const brand = useWhitelabel();
   const logoUrl = brand.dealerLogoUrl || '/images/auth_logo.png';
 
+  const resolvePostLoginPath = () => {
+    const raw = searchParams.get('from');
+    if (!raw) return '/dashboard';
+
+    let decoded = raw;
+    try {
+      decoded = decodeURIComponent(raw);
+    } catch {
+      decoded = raw;
+    }
+
+    if (!decoded.startsWith('/')) return '/dashboard';
+    if (decoded.startsWith('/auth')) return '/dashboard';
+    return decoded;
+  };
+
   useEffect(() => {
     if (searchParams.get('verified') === 'true') {
       setEmailVerifiedBanner(true);
@@ -52,7 +68,7 @@ const AuthPage = () => {
     setIsLoading(true);
     try {
       await signIn(email, password);
-      navigateTo('/dashboard');
+      navigateTo(resolvePostLoginPath(), true);
     } catch (err: any) {
       toast({ title: 'Sign in failed', description: err.message, variant: 'destructive' });
     } finally {

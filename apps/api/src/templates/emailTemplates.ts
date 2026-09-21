@@ -50,7 +50,6 @@ function base(previewText: string, bodyContent: string, branding: EmailBranding 
   <div class="container">
     <div class="header">
       ${headerContent}
-      <span class="brand-chip">Premium Customer Update</span>
     </div>
     ${bodyContent}
     <div class="footer">
@@ -599,9 +598,8 @@ export function testDriveThankYouTemplate(data: Record<string, unknown>) {
   return {
     subject: `Thank you for your test drive, ${customerName || 'there'}! 🎉`,
     html: base(
-      `Thank you for visiting us — here's what's next.`,
+      `Thank you for your test drive of ${vehicleName || 'your selected vehicle'}!`,
       `<div class="body">
-        <h2>Thank You for Visiting Us! 🙏</h2>
         <p>Hi ${customerName || 'there'},</p>
         <p>We hope you had an amazing time driving the <strong>${vehicleName || 'vehicle'}</strong>${locationName ? ` at ${locationName}` : ''}. It was a pleasure having you with us!</p>
         <p>Here's what you can do next:</p>

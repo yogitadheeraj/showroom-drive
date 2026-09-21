@@ -7,6 +7,7 @@ type MailInput = {
   html: string;
   text?: string;
   _dealerName?: string; // Optional field for branding the "from" name
+  attachments?: nodemailer.SendMailOptions['attachments'];
 };
 
 function smtpReady() {
@@ -49,6 +50,7 @@ export async function sendMail(input: MailInput) {
       subject: input.subject,
       html: input.html,
       text: input.text,
+      attachments: input.attachments,
     });
     console.log(`[mail] ✅ Sent → ${input.to} | subject: "${input.subject}" | msgId: ${info.messageId}`);
     return { sent: true, skipped: false };

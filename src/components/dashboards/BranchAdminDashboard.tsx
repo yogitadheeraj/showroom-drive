@@ -44,6 +44,30 @@ const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4
 const formatStatus = (s: string) =>
   s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
+const CURRENCY_LOCALE_BY_CODE: Record<string, string> = {
+  AED: 'en-AE',
+  INR: 'en-IN',
+  USD: 'en-US',
+  EUR: 'en-IE',
+  GBP: 'en-GB',
+  JPY: 'ja-JP',
+};
+
+const resolveCurrencyCode = (currency?: string | null) => {
+  const normalized = (currency || 'AED').trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(CURRENCY_LOCALE_BY_CODE, normalized) ? normalized : 'AED';
+};
+
+const formatCurrencyValue = (value: number, currencyCode?: string | null) => {
+  const code = resolveCurrencyCode(currencyCode);
+  const locale = CURRENCY_LOCALE_BY_CODE[code] || 'en-AE';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: code,
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+};
+
 const BranchAdminDashboard = () => {
   const { profile } = useAuth();
   const locationId = profile?.location_id;
@@ -69,6 +93,8 @@ const BranchAdminDashboard = () => {
   const [insightWindow, setInsightWindow] = useState<'all' | 'today' | 'week' | 'month'>('month');
   const [loading, setLoading] = useState(true);
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
+  const [paidSalesAmount, setPaidSalesAmount] = useState(0);
+  const [paidSalesCurrency, setPaidSalesCurrency] = useState('AED');
 
   useEffect(() => {
     if (!locationId) return;
@@ -89,6 +115,14 @@ const BranchAdminDashboard = () => {
     const counts = buildServiceBookingStatusCounts(bookings || []);
     setServiceBookingCount((bookings || []).length);
     setServiceBookingStatusCounts(counts);
+  };
+
+  const fetchPaidSalesAmount = async (locationCurrency?: string | null) => {
+    const bookings = await apiGet<any[]>(`/api/car-bookings?location_id=${encodeURIComponent(locationId || '')}&limit=500`).catch(() => [] as any[]);
+    const paidRows = (bookings || []).filter((row: any) => row.payment_status === 'paid');
+    const total = paidRows.reduce((sum: number, row: any) => sum + Number(row.payment_requested_amount || row.booking_amount || 0), 0);
+    setPaidSalesAmount(total);
+    setPaidSalesCurrency(resolveCurrencyCode(locationCurrency || paidRows[0]?.locations?.currency_type || 'AED'));
   };
 
   const fetchAll = async () => {
@@ -118,6 +152,7 @@ const BranchAdminDashboard = () => {
       // All test drives for this location
       await fetchDrives();
       await fetchServiceBookingCount();
+      await fetchPaidSalesAmount(loc?.currency_type);
     } finally {
       setLoading(false);
     }
@@ -392,6 +427,7 @@ const BranchAdminDashboard = () => {
           { label: 'Security', value: securityStaff.length, icon: ShieldCheck, color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/20' },
           { label: 'Active Drives', value: activeDrives.length, icon: Car, color: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200' },
           { label: 'Completed', value: completedDrives.length, icon: CheckCircle2, color: 'text-success', bg: 'bg-success/10', border: 'border-success/20' },
+          { label: 'Paid Sales', value: formatCurrencyValue(paidSalesAmount, paidSalesCurrency), icon: Activity, color: 'text-emerald-600', bg: 'bg-emerald-100', border: 'border-emerald-200' },
         ].map(stat => {
           const Icon = stat.icon;
           return (

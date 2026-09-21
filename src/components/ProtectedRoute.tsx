@@ -14,11 +14,16 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const { user, role, loading } = useAuth();
   const location = useBrowserPath();
 
+  const buildAuthRedirect = (currentPath: string) => {
+    const from = currentPath && currentPath !== '/auth' ? currentPath : '';
+    return from ? `/auth?from=${encodeURIComponent(from)}` : '/auth';
+  };
+
   useEffect(() => {
     if (loading) return;
-
     if (!user) {
-      navigateTo(`/auth?from=${encodeURIComponent(location)}`, true);
+      if (location.startsWith('/auth')) return;
+      navigateTo(buildAuthRedirect(location), true);
       return;
     }
 

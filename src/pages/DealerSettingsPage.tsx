@@ -12,9 +12,10 @@ import IntegrationSettings from '@/components/settings/IntegrationSettings';
 import EmailTemplateSettings from '@/components/settings/EmailTemplateSettings';
 import HierarchySettings from '@/components/settings/HierarchySettings';
 import DealOptionsSettings from '@/components/settings/DealOptionsSettings';
+import CarBookingPaymentSettings from '@/components/settings/CarBookingPaymentSettings';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Building2, Palette, Mail, SunMoon, BellRing, Key, CalendarClock, Plug, GitBranch, ChevronDown, Clock3 } from 'lucide-react';
+import { Building2, Palette, Mail, SunMoon, BellRing, Key, CalendarClock, Plug, GitBranch, ChevronDown, Clock3, CreditCard } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE } from '@/constants/roles';
 import { useEffect, useMemo, useState } from 'react';
@@ -50,6 +51,7 @@ const DealerSettingsPage = () => {
     { key: 'appearance', label: 'Appearance', icon: SunMoon, content: <AppearanceSettings /> },
     { key: 'handover', label: 'Key Handover', icon: Key, content: <HandoverQuestionsSettings /> },
     { key: 'booking', label: 'Booking', icon: CalendarClock, content: <BookingSettings dealerIdOverride={dealerOverride} /> },
+    { key: 'car-booking-payment', label: 'Car Booking Payments', icon: CreditCard, content: <CarBookingPaymentSettings /> },
     { key: 'deal-options', label: 'Deal Options', icon: GitBranch, content: <DealOptionsSettings dealerIdOverride={dealerOverride} /> },
     { key: 'integrations', label: 'Integrations', icon: Plug, content: <IntegrationSettings /> },
     { key: 'hierarchy', label: 'Entity Hierarchy', icon: GitBranch, content: <HierarchySettings /> },

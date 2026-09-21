@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export type BookingStatus = 'confirmed' | 'cancelled' | 'refunded';
 export type PaymentMethod = 'cash' | 'payment_link' | 'online';
 export type PaymentStatus = 'pending' | 'paid' | 'refunded' | 'partial_refund';
+export type PaymentRequestMode = 'deposit' | 'full';
 
 export interface ICarBooking extends Document {
   id: string;
@@ -22,6 +23,8 @@ export interface ICarBooking extends Document {
   deal_status: string | null;
   refund_amount: number;
   payment_link: string | null;
+  payment_request_mode: PaymentRequestMode | null;
+  payment_requested_amount: number;
   payment_link_sent_at: string | null;
   cancellation_reason: string | null;
   refund_notes: string | null;
@@ -65,6 +68,12 @@ const CarBookingSchema = new Schema<ICarBooking>(
     deal_status: { type: String, default: null },
     refund_amount: { type: Number, default: 0 },
     payment_link: { type: String, default: null },
+    payment_request_mode: {
+      type: String,
+      enum: ['deposit', 'full'],
+      default: null,
+    },
+    payment_requested_amount: { type: Number, default: 0 },
     payment_link_sent_at: { type: String, default: null },
     cancellation_reason: { type: String, default: null },
     refund_notes: { type: String, default: null },

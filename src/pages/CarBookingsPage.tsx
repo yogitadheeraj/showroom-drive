@@ -15,9 +15,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import {
   BookOpen, Car, User, CreditCard, Banknote, Link2, XCircle, RotateCcw,
-  Calendar, Phone, AlertTriangle, CheckCircle2, Filter, Search
+  AlertTriangle, CheckCircle2, Filter, Search
 } from 'lucide-react';
 import { logStaffActivity } from '@/lib/activityLogger';
+import {
+  getCarBookingPaymentConfig,
+  type CarBookingPaymentConfig,
+} from '@/lib/carBookingPaymentConfigService';
 
 const BOOKING_STATUS_COLORS: Record<string, string> = {
   confirmed: 'bg-success/10 text-success border-success/20',
@@ -79,6 +83,15 @@ export default function CarBookingsPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'cancelled' | 'refunded'>('all');
   const [search, setSearch] = useState('');
   const [currencyCode, setCurrencyCode] = useState('AED');
+  const [paymentConfig, setPaymentConfig] = useState<CarBookingPaymentConfig | null>(null);
+
+  const [paymentDialog, setPaymentDialog] = useState<{
+    open: boolean;
+    booking: any | null;
+  }>({ open: false, booking: null });
+  const [paymentMode, setPaymentMode] = useState<'deposit' | 'full'>('deposit');
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [emailingBookingId, setEmailingBookingId] = useState<string | null>(null);
 
   // Cancel/Refund dialog
   const [actionDialog, setActionDialog] = useState<{
@@ -94,6 +107,19 @@ export default function CarBookingsPage() {
   const isSales = role === APP_ROLE.SALES;
 
   useEffect(() => { fetchBookings(); }, [role, profile?.id]);
+  useEffect(() => { void fetchPaymentConfig(); }, [profile?.location_id]);
+
+  const fetchPaymentConfig = async () => {
+    const locationId = profile?.location_id;
+    if (!locationId) return;
+    try {
+      const row = await getCarBookingPaymentConfig(locationId);
+      setPaymentConfig(row);
+      setPaymentMode(row?.default_collection_mode === 'full' ? 'full' : 'deposit');
+    } catch {
+      setPaymentConfig(null);
+    }
+  };
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -188,6 +214,73 @@ export default function CarBookingsPage() {
   const openCustomer360 = (customerId?: string | null) => {
     if (!customerId) return;
     void router.push(`/customers/${encodeURIComponent(customerId)}`);
+  };
+
+  const openPaymentDialog = (booking: any) => {
+    const defaultMode = paymentConfig?.default_collection_mode === 'full' ? 'full' : 'deposit';
+    setPaymentMode(defaultMode);
+    setPaymentDialog({ open: true, booking });
+  };
+
+  const getRequestedAmountPreview = () => {
+    const bookingAmount = Number(paymentDialog.booking?.booking_amount || 0);
+    if (!(bookingAmount > 0)) return 0;
+    if (paymentMode === 'full') return bookingAmount;
+
+    const config = paymentConfig;
+    if (!config) return Math.round((bookingAmount * 10) / 100);
+    if (config.deposit_type === 'fixed') {
+      return Math.min(bookingAmount, Math.max(0, Number(config.deposit_value || 0)));
+    }
+    const pct = Math.max(1, Math.min(100, Number(config.deposit_value || 10)));
+    return Math.round((bookingAmount * pct) / 100);
+  };
+
+  const handleGeneratePaymentLink = async () => {
+    const booking = paymentDialog.booking;
+    if (!booking?.id) return;
+    const isRegenerate = Boolean(booking.payment_link);
+
+    setPaymentProcessing(true);
+    try {
+      await apiPatch(`/api/car-bookings/${encodeURIComponent(booking.id)}`, {
+        action: isRegenerate ? 'regenerate_payment_link' : 'generate_payment_link',
+        payment_mode: paymentMode,
+      });
+
+      toast({ title: isRegenerate ? 'Payment link regenerated successfully' : 'Payment link generated successfully' });
+      setPaymentDialog({ open: false, booking: null });
+      await fetchBookings();
+    } catch (err: any) {
+      toast({
+        title: 'Failed to generate payment link',
+        description: err?.message || 'Please review payment settings and try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPaymentProcessing(false);
+    }
+  };
+
+  const handleEmailPaymentLink = async (booking: any) => {
+    if (!booking?.id) return;
+
+    setEmailingBookingId(booking.id);
+    try {
+      await apiPatch(`/api/car-bookings/${encodeURIComponent(booking.id)}`, {
+        action: 'email_payment_link',
+      });
+
+      toast({ title: 'Payment link sent to customer email' });
+    } catch (err: any) {
+      toast({
+        title: 'Failed to send payment link email',
+        description: err?.message || 'Please verify customer email and payment link.',
+        variant: 'destructive',
+      });
+    } finally {
+      setEmailingBookingId(null);
+    }
   };
 
   const filtered = bookings.filter(b => {
@@ -327,6 +420,7 @@ export default function CarBookingsPage() {
                           <div>
                             <p className="text-sm font-medium text-foreground">{b.customers?.full_name || '—'}</p>
                             <p className="text-[11px] text-muted-foreground">{b.customers?.phone || 'No phone'}</p>
+                            <p className="text-[11px] text-muted-foreground">{b.customers?.email || 'No email'}</p>
                           </div>
                         </div>
                       </div>
@@ -340,6 +434,16 @@ export default function CarBookingsPage() {
                             <Badge variant="secondary" className={`mt-1 text-[10px] hover:bg-slate-50/80 ${PAYMENT_STATUS_COLORS[b.payment_status]}`}>
                               {b?.payment_status?.replace('_', ' ')}
                             </Badge>
+                            {b.payment_link && (
+                              <a
+                                href={b.payment_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-1 block text-[11px] font-medium text-primary hover:underline"
+                              >
+                                Open payment link
+                              </a>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -395,6 +499,25 @@ export default function CarBookingsPage() {
                       </Button>
                       {canManage && b.booking_status === 'confirmed' && (
                         <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-primary/40 text-primary hover:bg-primary/10"
+                            onClick={() => openPaymentDialog(b)}
+                          >
+                            <Link2 className="h-3.5 w-3.5 mr-1" /> {b.payment_link ? 'Regenerate Link' : 'Generate Link'}
+                          </Button>
+                          {b.payment_link && b.customers?.email && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 border-sky-300 text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-950/40"
+                              onClick={() => handleEmailPaymentLink(b)}
+                              disabled={emailingBookingId === b.id}
+                            >
+                              <CreditCard className="h-3.5 w-3.5 mr-1" /> {emailingBookingId === b.id ? 'Sending...' : 'Email Link'}
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
@@ -492,6 +615,66 @@ export default function CarBookingsPage() {
                 disabled={actionProcessing || !actionReason.trim()}
               >
                 {actionProcessing ? 'Processing…' : actionDialog.mode === 'cancel' ? 'Confirm Cancel' : 'Confirm Refund'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Link Dialog */}
+      <Dialog open={paymentDialog.open} onOpenChange={(o) => !o && setPaymentDialog({ open: false, booking: null })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-heading">
+              <CreditCard className="h-5 w-5 text-primary" /> {paymentDialog.booking?.payment_link ? 'Regenerate Payment Link' : 'Generate Payment Link'}
+            </DialogTitle>
+            <DialogDescription>
+              {paymentDialog.booking?.customers?.full_name} • {paymentDialog.booking?.vehicles?.brand} {paymentDialog.booking?.vehicles?.model}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {!paymentConfig?.payment_module_enabled && (
+              <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-muted-foreground">
+                Payment module is currently disabled for this location. Enable it from Settings &gt; Car Booking Payments.
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Collection mode</Label>
+              <Select value={paymentMode} onValueChange={(v: 'deposit' | 'full') => setPaymentMode(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="deposit" disabled={paymentConfig?.allow_deposit === false}>Deposit</SelectItem>
+                  <SelectItem value="full" disabled={paymentConfig?.allow_full_payment === false}>Full amount</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+              <p className="text-muted-foreground">Requested amount</p>
+              <p className="text-lg font-semibold text-foreground">
+                {formatCurrencyValue(getRequestedAmountPreview(), paymentDialog.booking?.locations?.currency_type || currencyCode)}
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setPaymentDialog({ open: false, booking: null })}
+                disabled={paymentProcessing}
+              >
+                Back
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleGeneratePaymentLink}
+                disabled={paymentProcessing || !paymentConfig?.payment_module_enabled}
+              >
+                {paymentProcessing ? 'Processing…' : paymentDialog.booking?.payment_link ? 'Regenerate Link' : 'Generate Link'}
               </Button>
             </div>
           </div>

@@ -176,11 +176,17 @@ import {
   updateUserController,
 } from '../controllers/firebaseController.js';
 import {
+  completePublicCarBookingPaymentController,
   createCarBookingController,
   getCarBookingController,
+  getPublicCarBookingPaymentController,
   listCarBookingsController,
   updateCarBookingController,
 } from '../controllers/carBookingController.js';
+import {
+  getCarBookingPaymentConfigController,
+  upsertCarBookingPaymentConfigController,
+} from '../controllers/carBookingPaymentConfigController.js';
 import {
   cancelCustomerBookingController,
   getCustomerBookingController,
@@ -352,10 +358,14 @@ apiRouter.get('/integrations/oauth/outlook/start', requireAuth, startOutlookOAut
 apiRouter.get('/integrations/oauth/outlook/callback', outlookOAuthCallback);
 
 // Car Bookings
+apiRouter.get('/public/car-bookings/:id/payment', getPublicCarBookingPaymentController);
+apiRouter.post('/public/car-bookings/:id/payment/complete', completePublicCarBookingPaymentController);
 apiRouter.get('/car-bookings', requireAuth, listCarBookingsController);
 apiRouter.get('/car-bookings/:id', requireAuth, getCarBookingController);
 apiRouter.post('/car-bookings', requireAuth, createCarBookingController);
 apiRouter.patch('/car-bookings/:id', requireAuth, updateCarBookingController);
+apiRouter.get('/car-bookings/payment-config/:locationId', requireAuth, getCarBookingPaymentConfigController);
+apiRouter.put('/car-bookings/payment-config', requireAuth, upsertCarBookingPaymentConfigController);
 
 // Service Bookings
 apiRouter.get('/service-bookings', requireAuth, listServiceBookingsController);

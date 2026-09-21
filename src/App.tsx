@@ -41,6 +41,7 @@ import ActivityLogsPage from "./pages/ActivityLogsPage.tsx";
 import MyProfilePage from "./pages/MyProfilePage.tsx";
 import AIReportsPage from './pages/AIReportsPage.tsx';
 import CustomersPage from './pages/CustomersPage.tsx';
+import PaymentPage from './pages/PaymentPage.tsx';
 import { ROUTE_ALLOWED_ROLES } from "@/constants/roles";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { WhitelabelProvider } from "@/hooks/useWhitelabel";
@@ -74,6 +75,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/book" element={<BookingPage />} />
+            <Route path="/payment" element={<PaymentPage />} />
+            <Route path="/payments/collect" element={<PaymentPage />} />
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/walkin" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.WALKIN]}><WalkinPage /></ProtectedRoute>} />

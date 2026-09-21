@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import type { PaymentRequestMode } from '../models/CarBooking.js';
 import {
   listCarBookings,
   getCarBookingById,
@@ -6,6 +7,10 @@ import {
   cancelCarBooking,
   refundCarBooking,
   countCarBookings,
+  generateCarBookingPaymentLink,
+  emailCarBookingPaymentLink,
+  getPublicCarBookingPaymentDetails,
+  completeCarBookingPayment,
 } from '../services/carBookingService.js';
 import { applyLocationScope } from '../middleware/locationFilter.js';
 
@@ -86,8 +91,49 @@ export async function updateCarBookingController(req: Request, res: Response) {
       return;
     }
 
-    res.status(400).json({ data: null, error: { message: 'Missing or invalid action. Use "cancel" or "refund".' } });
+    if (action === 'generate_payment_link' || action === 'regenerate_payment_link') {
+      const data = await generateCarBookingPaymentLink(req.params.id, payload as any);
+      res.status(200).json({ data, error: null });
+      return;
+    }
+
+    if (action === 'email_payment_link') {
+      const data = await emailCarBookingPaymentLink(req.params.id);
+      res.status(200).json({ data, error: null });
+      return;
+    }
+
+    res.status(400).json({ data: null, error: { message: 'Missing or invalid action. Use "cancel", "refund", "generate_payment_link", "regenerate_payment_link", or "email_payment_link".' } });
   } catch (error) {
     res.status(400).json({ data: null, error: { message: (error as Error).message } });
+  }
+}
+
+export async function getPublicCarBookingPaymentController(req: Request, res: Response) {
+  try {
+    const locationId = typeof req.query.locationId === 'string' ? req.query.locationId : undefined;
+    const data = await getPublicCarBookingPaymentDetails(req.params.id, locationId);
+    res.status(200).json({ data, error: null });
+  } catch (error) {
+    const message = (error as Error).message;
+    const status = message.includes('not found') ? 404 : 400;
+    res.status(status).json({ data: null, error: { message } });
+  }
+}
+
+export async function completePublicCarBookingPaymentController(req: Request, res: Response) {
+  try {
+    const body = (req.body || {}) as Record<string, unknown>;
+    const data = await completeCarBookingPayment(req.params.id, {
+      amount: Number(body.amount || 0),
+      mode: body.mode as PaymentRequestMode | undefined,
+      provider: typeof body.provider === 'string' ? body.provider : undefined,
+      locationId: typeof body.locationId === 'string' ? body.locationId : null,
+    });
+    res.status(200).json({ data, error: null });
+  } catch (error) {
+    const message = (error as Error).message;
+    const status = message.includes('not found') ? 404 : 400;
+    res.status(status).json({ data: null, error: { message } });
   }
 }

@@ -59,6 +59,30 @@ const AUTH_EMAIL_TEMPLATES = [
 ];
 const TEST_DRIVE_EMAIL_TEMPLATES = ['booking-confirmation', 'sales-follow-up'];
 
+const CURRENCY_LOCALE_BY_CODE: Record<string, string> = {
+  AED: 'en-AE',
+  INR: 'en-IN',
+  USD: 'en-US',
+  EUR: 'en-IE',
+  GBP: 'en-GB',
+  JPY: 'ja-JP',
+};
+
+const resolveCurrencyCode = (currency?: string | null) => {
+  const normalized = (currency || 'AED').trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(CURRENCY_LOCALE_BY_CODE, normalized) ? normalized : 'AED';
+};
+
+const formatCurrencyValue = (value: number, currencyCode?: string | null) => {
+  const code = resolveCurrencyCode(currencyCode);
+  const locale = CURRENCY_LOCALE_BY_CODE[code] || 'en-AE';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: code,
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+};
+
 const SuperAdminDashboard = () => {
   const { role } = useAuth();
   const { dealerId: contextDealerId, loading: dealerLoading, selectedLocationId } = useDealerContext();
@@ -130,6 +154,8 @@ const SuperAdminDashboard = () => {
   const [tdLastUpdated, setTdLastUpdated] = useState<Date | null>(null);
   const [tdRefreshing, setTdRefreshing] = useState(false);
   const [tdUpdateCount, setTdUpdateCount] = useState(0);
+  const [paidSalesAmount, setPaidSalesAmount] = useState(0);
+  const [paidSalesCurrency, setPaidSalesCurrency] = useState('AED');
 
   const activeDealerId = isSuperAdmin
     ? (selectedDealer === 'all' ? null : selectedDealer)
@@ -170,7 +196,7 @@ const SuperAdminDashboard = () => {
       const data = await apiDbQuery<any[]>({
         table: 'locations',
         action: 'select',
-        select: 'id, name, dealer_id',
+        select: 'id, name, dealer_id, currency_type',
         filters,
         order: [{ field: 'name', ascending: true }],
       });
@@ -257,6 +283,16 @@ const SuperAdminDashboard = () => {
       apiGet<any[]>(`/api/test-drives?${params.toString()}`),
       apiGet<any[]>(`/api/service-bookings?${serviceBookingParams.toString()}`).catch(() => []),
     ]);
+
+    const carBookingParams = new URLSearchParams();
+    carBookingParams.set('limit', '500');
+    if (locationIds.length > 0) {
+      carBookingParams.set('location_ids', locationIds.join(','));
+    }
+    const carBookings = await apiGet<any[]>(`/api/car-bookings?${carBookingParams.toString()}`).catch(() => []);
+    const paidRows = (carBookings || []).filter((row: any) => row.payment_status === 'paid');
+    setPaidSalesAmount(paidRows.reduce((sum: number, row: any) => sum + Number(row.payment_requested_amount || row.booking_amount || 0), 0));
+    setPaidSalesCurrency(resolveCurrencyCode(paidRows[0]?.locations?.currency_type || locations.find((entry: any) => entry.id === activeSelectedLocation)?.currency_type || 'AED'));
 
     const serviceBookingCounts = buildServiceBookingStatusCounts(serviceBookings || []);
     setTestDrives(td || []);
@@ -486,7 +522,8 @@ const SuperAdminDashboard = () => {
     { label: 'Users', value: userCount, icon: Users, color: 'text-accent', bg: 'bg-accent/10' },
     { label: 'Brands', value: brandCount, icon: Car, color: 'text-info', bg: 'bg-info/10' },
     { label: 'Total Drives', value: stats.total, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'Service Bookings', value: serviceBookingTotal, icon: BookOpen, color: 'text-success', bg: 'bg-success/10' }
+    { label: 'Service Bookings', value: serviceBookingTotal, icon: BookOpen, color: 'text-success', bg: 'bg-success/10' },
+    { label: 'Paid Sales', value: formatCurrencyValue(paidSalesAmount, paidSalesCurrency), icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-100' }
   ];
 
   const statusColor: Record<string, string> = {
