@@ -65,6 +65,9 @@ async function buildInvoicePdfBuffer(args: {
   dealerCode?: string | null;
   dealerEmail?: string | null;
   dealerPhone?: string | null;
+  dealerGstNumber?: string | null;
+  dealerPanNumber?: string | null;
+  invoiceTerms?: string | null;
   locationAddress?: string | null;
   locationCity?: string | null;
   locationState?: string | null;
@@ -122,6 +125,8 @@ async function buildInvoicePdfBuffer(args: {
   if (sellerAddress) doc.text(`Address: ${sellerAddress}`);
   if (args.dealerEmail || args.locationEmail) doc.text(`Email: ${args.locationEmail || args.dealerEmail}`);
   if (args.dealerPhone || args.locationPhone) doc.text(`Phone: ${args.locationPhone || args.dealerPhone}`);
+  if (args.dealerGstNumber) doc.text(`GST: ${args.dealerGstNumber}`);
+  if (args.dealerPanNumber) doc.text(`PAN: ${args.dealerPanNumber}`);
 
   doc.moveDown(1);
   doc.fontSize(13).fillColor(primaryColor).text('Customer Details');
@@ -143,7 +148,7 @@ async function buildInvoicePdfBuffer(args: {
     ['Booking Amount', formatCurrency(args.bookingAmount, args.currencyCode)],
     ['Paid Now', formatCurrency(args.paidAmount, args.currencyCode)],
     ['Remaining Balance', formatCurrency(args.remainingAmount, args.currencyCode)],
-    ['Tax / GST', 'As applicable at final invoicing'],
+    ['Tax / GST', args.dealerGstNumber ? `GST registered: ${args.dealerGstNumber}` : 'As applicable at final invoicing'],
   ];
 
   lines.forEach(([label, value]) => {
@@ -155,9 +160,21 @@ async function buildInvoicePdfBuffer(args: {
   doc.moveDown(1);
   doc.fontSize(13).fillColor(primaryColor).text('Invoice Notes & Terms');
   doc.moveDown(0.4);
-  doc.fontSize(10).fillColor('#4b5563').text('1. This invoice acknowledges receipt of the amount shown above against the booking.', { align: 'left' });
-  doc.text('2. Any remaining balance, taxes, registration, insurance, accessories, and statutory charges will be shared separately where applicable.', { align: 'left' });
-  doc.text('3. Please retain this invoice and payment confirmation for your records and future reference.', { align: 'left' });
+  if (args.invoiceTerms) {
+    const termLines = String(args.invoiceTerms)
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (termLines.length > 0) {
+      termLines.forEach((line, index) => {
+        doc.fontSize(10).fillColor('#4b5563').text(`${index + 1}. ${line}`, { align: 'left' });
+      });
+    }
+  } else {
+    doc.fontSize(10).fillColor('#4b5563').text('1. This invoice acknowledges receipt of the amount shown above against the booking.', { align: 'left' });
+    doc.text('2. Any remaining balance, taxes, registration, insurance, accessories, and statutory charges will be shared separately where applicable.', { align: 'left' });
+    doc.text('3. Please retain this invoice and payment confirmation for your records and future reference.', { align: 'left' });
+  }
   doc.moveDown(0.6);
   doc.fontSize(10).fillColor('#6b7280').text('Thank you for your payment. We are excited to be part of your journey.', { align: 'left' });
   doc.end();
@@ -178,6 +195,9 @@ async function sendPaymentSuccessEmail(args: {
     code?: string | null;
     email?: string | null;
     phone?: string | null;
+    gstNumber?: string | null;
+    panNumber?: string | null;
+    invoiceTerms?: string | null;
   };
 }) {
   if (!args.customer?.email) return;
@@ -224,6 +244,9 @@ async function sendPaymentSuccessEmail(args: {
     dealerCode: args.dealership?.code || null,
     dealerEmail: args.dealership?.email || null,
     dealerPhone: args.dealership?.phone || null,
+    dealerGstNumber: args.dealership?.gstNumber || null,
+    dealerPanNumber: args.dealership?.panNumber || null,
+    invoiceTerms: args.dealership?.invoiceTerms || null,
     locationAddress: args.location?.address || null,
     locationCity: args.location?.city || null,
     locationState: args.location?.state || null,
@@ -309,17 +332,20 @@ async function resolveDealerBranding(locationId: string | undefined): Promise<{ 
   }
 }
 
-async function resolveDealerDetails(locationId: string | undefined): Promise<{ code?: string; email?: string; phone?: string }> {
+async function resolveDealerDetails(locationId: string | undefined): Promise<{ code?: string; email?: string; phone?: string; gstNumber?: string; panNumber?: string; invoiceTerms?: string }> {
   if (!locationId) return {};
   try {
     const loc = await Location.findOne({ id: locationId }, { dealer_id: 1 }).lean() as any;
     if (!loc?.dealer_id) return {};
-    const dealer = await Dealer.findOne({ id: loc.dealer_id }, { code: 1, contact_email: 1, contact_phone: 1 }).lean() as any;
+    const dealer = await Dealer.findOne({ id: loc.dealer_id }, { code: 1, contact_email: 1, contact_phone: 1, gst_number: 1, pan_number: 1, invoice_terms: 1 }).lean() as any;
     if (!dealer) return {};
     return {
       code: dealer.code || undefined,
       email: dealer.contact_email || undefined,
       phone: dealer.contact_phone || undefined,
+      gstNumber: dealer.gst_number || undefined,
+      panNumber: dealer.pan_number || undefined,
+      invoiceTerms: dealer.invoice_terms || undefined,
     };
   } catch {
     return {};

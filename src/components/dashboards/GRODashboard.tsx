@@ -274,7 +274,7 @@ const GRODashboard = () => {
                     <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-lg sm:text-2xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
+                    <p className="text-lg sm:text-xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
                     <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight break-words mt-1">{stat.label}</p>
                   </div>
                 </CardContent>

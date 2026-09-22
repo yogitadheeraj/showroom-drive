@@ -62,16 +62,16 @@ const RouteAnalyticsTracker = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-   <ThemeProvider>
-    <WhitelabelProvider>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <PWAInstallPrompt />
-      <BrowserRouter>
-        <RouteAnalyticsTracker />
-        <AuthProvider>
-          <DealerContextProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <WhitelabelProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <PWAInstallPrompt />
+            <BrowserRouter>
+              <RouteAnalyticsTracker />
+              <DealerContextProvider>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/book" element={<BookingPage />} />
@@ -110,12 +110,12 @@ const App = () => (
             <Route path="/my-profile" element={<ProtectedRoute><MyProfilePage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-          </DealerContextProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-    </WhitelabelProvider>
-   </ThemeProvider>
+              </DealerContextProvider>
+            </BrowserRouter>
+          </TooltipProvider>
+        </WhitelabelProvider>
+      </ThemeProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

@@ -241,7 +241,7 @@ const THEME_STORAGE_KEY = 'autoadvant-theme';
                                 className="h-12 rounded-xl"
                               />
                             </div>
-                            <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 text-white font-semibold" loading={isSendingReset} loadingText="Sending..." disabled={isSendingReset}>
+                            <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-sky-400 text-white font-semibold" loading={isSendingReset} loadingText="Sending..." disabled={isSendingReset}>
                               <KeyRound className="mr-2 h-4 w-4" />
                               Send Reset Link
                             </Button>

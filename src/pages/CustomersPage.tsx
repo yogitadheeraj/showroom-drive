@@ -217,15 +217,6 @@ const CustomersPage = () => {
                     ))}
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => void router.push(`/test-drives?customer_id=${encodeURIComponent(currentCustomer.id)}`)}>
-                      Open test drives
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => void router.push(`/communications?customer_id=${encodeURIComponent(currentCustomer.id)}`)}>
-                      Open communications
-                    </Button>
-                  </div>
-
                   <div className="grid gap-4 lg:grid-cols-2">
                     <div className="space-y-4 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/80 to-white p-4 dark:border-violet-900/60 dark:from-violet-950/30 dark:to-slate-900">
                       <div className="flex items-center justify-between">
@@ -266,18 +257,13 @@ const CustomersPage = () => {
                             <p className="text-sm text-muted-foreground">No test drives recorded</p>
                           ) : (
                             summary.testDrives.slice(0, 5).map((testDrive: any) => (
-                              <button
-                                key={testDrive.id}
-                                type="button"
-                                onClick={() => void router.push(`/test-drives?customer_id=${encodeURIComponent(currentCustomer.id)}&status=${encodeURIComponent(testDrive.status || 'all')}`)}
-                                className="w-full rounded-xl border border-amber-200/80 bg-white/80 p-3 text-left text-sm shadow-sm transition hover:border-amber-300 hover:bg-amber-50 dark:border-amber-800 dark:bg-slate-900/80 dark:hover:border-amber-700 dark:hover:bg-slate-900"
-                              >
+                              <div key={testDrive.id} className="rounded-xl border border-amber-200/80 bg-white/80 p-3 text-sm shadow-sm dark:border-amber-800 dark:bg-slate-900/80">
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="font-medium text-foreground">{testDrive.status || 'scheduled'}</span>
                                   <Badge variant="secondary" className="capitalize bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-200">{testDrive.status || 'scheduled'}</Badge>
                                 </div>
                                 <p className="mt-1 text-muted-foreground">{testDrive.scheduled_date || '—'} • {testDrive.scheduled_time || '—'}</p>
-                              </button>
+                              </div>
                             ))
                           )}
                         </div>
@@ -290,18 +276,13 @@ const CustomersPage = () => {
                             <p className="text-sm text-muted-foreground">No communications recorded</p>
                           ) : (
                             summary.communications.slice(0, 5).map((communication: any) => (
-                              <button
-                                key={communication.id}
-                                type="button"
-                                onClick={() => void router.push(`/communications?customer_id=${encodeURIComponent(currentCustomer.id)}`)}
-                                className="w-full rounded-xl border border-cyan-200/80 bg-white/80 p-3 text-left text-sm shadow-sm transition hover:border-cyan-300 hover:bg-cyan-50 dark:border-cyan-800 dark:bg-slate-900/80 dark:hover:border-cyan-700 dark:hover:bg-slate-900"
-                              >
+                              <div key={communication.id} className="rounded-xl border border-cyan-200/80 bg-white/80 p-3 text-sm shadow-sm dark:border-cyan-800 dark:bg-slate-900/80">
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="font-medium text-foreground capitalize">{communication.type || 'message'}</span>
                                   <Badge variant="secondary" className="capitalize bg-cyan-100 text-cyan-700 dark:bg-cyan-900/60 dark:text-cyan-200">{communication.status || 'sent'}</Badge>
                                 </div>
                                 <p className="mt-1 text-muted-foreground">{communication.purpose || 'communication'} • {communication.sent_to || 'customer'}</p>
-                              </button>
+                              </div>
                             ))
                           )}
                         </div>

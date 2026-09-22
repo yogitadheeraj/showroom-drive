@@ -8,6 +8,11 @@ export interface IDealer extends Document {
   contact_email: string;
   contact_phone: string | null;
   logo_url: string | null;
+  primary_color: string | null;
+  tagline: string | null;
+  gst_number: string | null;
+  pan_number: string | null;
+  invoice_terms: string | null;
   is_active: boolean;
   admin_user_id: string | null;
   created_at: string;
@@ -23,6 +28,11 @@ const DealerSchema = new Schema<IDealer>(
     contact_email: { type: String, required: true },
     contact_phone: { type: String, default: null },
     logo_url: { type: String, default: null },
+    primary_color: { type: String, default: null },
+    tagline: { type: String, default: null },
+    gst_number: { type: String, default: null },
+    pan_number: { type: String, default: null },
+    invoice_terms: { type: String, default: null },
     is_active: { type: Boolean, default: true },
     admin_user_id: { type: String, default: null },
     created_at: { type: String, default: () => new Date().toISOString() },

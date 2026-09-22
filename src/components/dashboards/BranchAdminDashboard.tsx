@@ -119,7 +119,7 @@ const BranchAdminDashboard = () => {
 
   const fetchPaidSalesAmount = async (locationCurrency?: string | null) => {
     const bookings = await apiGet<any[]>(`/api/car-bookings?location_id=${encodeURIComponent(locationId || '')}&limit=500`).catch(() => [] as any[]);
-    const paidRows = (bookings || []).filter((row: any) => row.payment_status === 'paid');
+    const paidRows = (bookings || []).filter((row: any) => row.payment_status === 'paid' && row.booking_status === 'confirmed');
     const total = paidRows.reduce((sum: number, row: any) => sum + Number(row.payment_requested_amount || row.booking_amount || 0), 0);
     setPaidSalesAmount(total);
     setPaidSalesCurrency(resolveCurrencyCode(locationCurrency || paidRows[0]?.locations?.currency_type || 'AED'));

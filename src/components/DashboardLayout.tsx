@@ -535,7 +535,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
       } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-screen overflow-hidden">
           {/* Header */}
-          <div className={` bg-gradient-to-r from-sky-400 to-blue-600 text-white shadow-lg shadow-blue-500/20 flex items-center dark:bg-[hsl(220,50%,10%)] px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
+          <div className={` bg-gradient-to-r from-sky-400  text-white shadow-lg shadow-blue-500/20 flex items-center dark:bg-[hsl(220,50%,10%)] px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
            
            <a href="/" className="flex items-center shrink-0">
             {(dealerLogoUrl || dealerName) ? (
@@ -606,7 +606,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                               sidebarCollapsed ? 'justify-center px-0' : ''
                             } ${
                               isActive
-                                ? 'bg-gradient-to-r from-sky-400 to-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                ? 'bg-[hsl(var(--sidebar-active-bg))] text-[hsl(var(--sidebar-active-fg))] shadow-md ring-1 ring-[hsl(var(--sidebar-active-ring))]'
                                 : 'text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/70'
                             }`}
                           >

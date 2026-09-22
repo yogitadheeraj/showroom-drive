@@ -39,7 +39,7 @@ const HeaderComponents = ({isLoggedIn}) => {
         document.documentElement.style.colorScheme = nextDark ? 'dark' : 'light';
     }, []);
   return (
-      <header className="sticky top-0 z-30 border-b border-border bg-background/85 text-foreground backdrop-blur dark:border-white/10 dark:bg-[hsl(220,50%,10%)]/95 dark:text-slate-100">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/85 text-foreground backdrop-blur dark:border-white/10 dark:bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-cyan-400/10 dark:text-slate-100">
                             <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-6">
                                 <a href="/" className="flex items-center shrink-0">
                                     {(brand.dealerLogoUrl || brand.dealerName) ? (

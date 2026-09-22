@@ -15,6 +15,7 @@ export interface IProfile extends Document {
   leave_start_date: string | null;
   leave_end_date: string | null;
   last_login_at: string | null;
+  preferences: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +36,7 @@ const ProfileSchema = new Schema<IProfile>(
     leave_start_date: { type: String, default: null },
     leave_end_date: { type: String, default: null },
     last_login_at: { type: String, default: null },
+    preferences: { type: Schema.Types.Mixed, default: {} },
     created_at: { type: String, default: () => new Date().toISOString() },
     updated_at: { type: String, default: () => new Date().toISOString() },
   },

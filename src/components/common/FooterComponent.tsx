@@ -1,7 +1,7 @@
 import React from 'react';
 const staffEntryPath = '/auth';
 const FooterComponent = () => (
-  <footer className="border-t border-border bg-background/90 backdrop-blur dark:border-white/10 dark:bg-slate-950/90">
+  <footer className="border-t border-border bg-background/90 backdrop-blur dark:border-white/10 dark:bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-cyan-400/10">
         <div className="mx-auto grid max-w-7xl gap-6 px-2 py-2 sm:px-6 md:grid-cols-[auto,1fr,auto] md:items-center">
           <a href="/" className="mx-auto md:mx-0">
             <div className="flex items-center justify-center md:justify-start">

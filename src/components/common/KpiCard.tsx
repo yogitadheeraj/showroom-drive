@@ -32,7 +32,7 @@ const KpiCard = ({
       <CardContent className="p-4 flex items-start justify-between gap-3">
         <div className="space-y-1">
           <p className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground">{label}</p>
-          <p className="text-2xl font-heading font-bold leading-none text-foreground">{value}</p>
+          <p className="text-xl font-heading font-bold leading-none text-foreground">{value}</p>
           {helperText ? <p className="text-xs text-muted-foreground">{helperText}</p> : null}
           {trendText ? <Badge variant="secondary" className="text-[10px]">{trendText}</Badge> : null}
         </div>

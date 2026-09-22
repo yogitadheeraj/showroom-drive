@@ -290,7 +290,7 @@ const SuperAdminDashboard = () => {
       carBookingParams.set('location_ids', locationIds.join(','));
     }
     const carBookings = await apiGet<any[]>(`/api/car-bookings?${carBookingParams.toString()}`).catch(() => []);
-    const paidRows = (carBookings || []).filter((row: any) => row.payment_status === 'paid');
+    const paidRows = (carBookings || []).filter((row: any) => row.payment_status === 'paid' && row.booking_status === 'confirmed');
     setPaidSalesAmount(paidRows.reduce((sum: number, row: any) => sum + Number(row.payment_requested_amount || row.booking_amount || 0), 0));
     setPaidSalesCurrency(resolveCurrencyCode(paidRows[0]?.locations?.currency_type || locations.find((entry: any) => entry.id === activeSelectedLocation)?.currency_type || 'AED'));
 
@@ -766,6 +766,7 @@ const SuperAdminDashboard = () => {
                 else if (stat.label === 'Total Drives') navigateTo('/test-drives');
                 else if (stat.label === 'Service Bookings') navigateTo('/service-bookings');
                 else if (stat.label === 'Active Sales Executive') navigateTo('/users');
+                else if (stat.label === 'Paid Sales') navigateTo('/car-bookings?payment_status=paid&booking_status=confirmed');
               }}
             >
               <CardContent className="p-3 sm:p-4 min-w-0 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">
@@ -773,7 +774,7 @@ const SuperAdminDashboard = () => {
                   <Icon className={`h-5 w-5 ${stat.color}`} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-2xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
+                  <p className="text-xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
                   <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-tight mt-1 break-words">{stat.label}</p>
                 </div>
               </CardContent>
@@ -1211,6 +1212,7 @@ const SuperAdminDashboard = () => {
               <Users className="h-5 w-5 text-info" /> Staff Role Distribution
             </CardTitle>
           </CardHeader>
+
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>

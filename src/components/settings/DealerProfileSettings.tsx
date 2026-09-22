@@ -7,6 +7,7 @@ import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Upload, X, Building2 } from 'lucide-react';
@@ -23,8 +24,26 @@ const DealerProfileSettings = ({ dealerIdOverride }: { dealerIdOverride?: string
   const [creating, setCreating] = useState(false);
   const [dealer, setDealer] = useState<any>(null);
   const [allDealers, setAllDealers] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: '', contact_email: '', contact_phone: '', logo_url: '' });
-  const [createForm, setCreateForm] = useState({ name: '', slug: '', contact_email: '', contact_phone: '' });
+  const [form, setForm] = useState({
+    name: '',
+    contact_email: '',
+    contact_phone: '',
+    logo_url: '',
+    primary_color: '',
+    tagline: '',
+    gst_number: '',
+    pan_number: '',
+    invoice_terms: '',
+  });
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    slug: '',
+    contact_email: '',
+    contact_phone: '',
+    gst_number: '',
+    pan_number: '',
+    invoice_terms: '',
+  });
 
   useEffect(() => {
     if (dealerLoading) return;
@@ -60,6 +79,11 @@ const DealerProfileSettings = ({ dealerIdOverride }: { dealerIdOverride?: string
           contact_email: data.contact_email || '',
           contact_phone: data.contact_phone || '',
           logo_url: data.logo_url || '',
+          primary_color: data.primary_color || '',
+          tagline: data.tagline || '',
+          gst_number: data.gst_number || '',
+          pan_number: data.pan_number || '',
+          invoice_terms: data.invoice_terms || '',
         });
       }
       setLoading(false);
@@ -99,6 +123,11 @@ const DealerProfileSettings = ({ dealerIdOverride }: { dealerIdOverride?: string
         contact_email: form.contact_email.trim(),
         contact_phone: form.contact_phone.trim() || null,
         logo_url: form.logo_url || null,
+        primary_color: form.primary_color.trim() || null,
+        tagline: form.tagline.trim() || null,
+        gst_number: form.gst_number.trim() || null,
+        pan_number: form.pan_number.trim() || null,
+        invoice_terms: form.invoice_terms.trim() || null,
       },
       filters: [{ field: 'id', op: 'eq', value: dealerId }],
     });
@@ -128,6 +157,9 @@ const DealerProfileSettings = ({ dealerIdOverride }: { dealerIdOverride?: string
         slug,
         contact_email: email,
         contact_phone: createForm.contact_phone.trim() || null,
+        gst_number: createForm.gst_number.trim() || null,
+        pan_number: createForm.pan_number.trim() || null,
+        invoice_terms: createForm.invoice_terms.trim() || null,
         admin_user_id: user.id,
       },
     });
@@ -227,6 +259,31 @@ const DealerProfileSettings = ({ dealerIdOverride }: { dealerIdOverride?: string
                 onChange={e => setCreateForm(prev => ({ ...prev, contact_phone: e.target.value }))}
               />
             </div>
+            <div className="space-y-2">
+              <Label>GST Number</Label>
+              <Input
+                value={createForm.gst_number}
+                onChange={e => setCreateForm(prev => ({ ...prev, gst_number: e.target.value }))}
+                placeholder="e.g. 29ABCDE1234F1Z5"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>PAN Number</Label>
+              <Input
+                value={createForm.pan_number}
+                onChange={e => setCreateForm(prev => ({ ...prev, pan_number: e.target.value.toUpperCase() }))}
+                placeholder="e.g. ABCDE1234F"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Invoice Terms</Label>
+            <Textarea
+              value={createForm.invoice_terms}
+              onChange={e => setCreateForm(prev => ({ ...prev, invoice_terms: e.target.value }))}
+              placeholder="Payment terms, tax notes, delivery clauses, and invoice footer content"
+              className="min-h-24"
+            />
           </div>
           <div className="flex justify-end pt-2">
             <Button
@@ -295,6 +352,32 @@ const DealerProfileSettings = ({ dealerIdOverride }: { dealerIdOverride?: string
             <Label>Contact Phone</Label>
             <Input value={form.contact_phone} onChange={e => setForm(prev => ({ ...prev, contact_phone: e.target.value }))} />
           </div>
+          <div className="space-y-2">
+            <Label>Primary Brand Color</Label>
+            <Input value={form.primary_color} onChange={e => setForm(prev => ({ ...prev, primary_color: e.target.value }))} placeholder="#2563eb" />
+          </div>
+          <div className="space-y-2">
+            <Label>Tagline</Label>
+            <Input value={form.tagline} onChange={e => setForm(prev => ({ ...prev, tagline: e.target.value }))} placeholder="A premium dealership experience" />
+          </div>
+          <div className="space-y-2">
+            <Label>GST Number</Label>
+            <Input value={form.gst_number} onChange={e => setForm(prev => ({ ...prev, gst_number: e.target.value }))} placeholder="29ABCDE1234F1Z5" />
+          </div>
+          <div className="space-y-2">
+            <Label>PAN Number</Label>
+            <Input value={form.pan_number} onChange={e => setForm(prev => ({ ...prev, pan_number: e.target.value.toUpperCase() }))} placeholder="ABCDE1234F" />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Invoice Terms</Label>
+          <Textarea
+            value={form.invoice_terms}
+            onChange={e => setForm(prev => ({ ...prev, invoice_terms: e.target.value }))}
+            placeholder="Delivery, tax, registration, finance and invoice terms shown in customer invoice PDFs"
+            className="min-h-28"
+          />
         </div>
 
         <div className="flex justify-end pt-2">

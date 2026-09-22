@@ -1407,7 +1407,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                         </button>
                                     </div>
                                 ) : (
-                                    <form onSubmit={handleDemoRequest} className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/60 p-6">
+                                    <form onSubmit={handleDemoRequest} className="space-y-4 rounded-2xl border border-white/10 bg-slate-1200 p-6">
                                         <div className="grid gap-4 sm:grid-cols-2">
                                             <input
                                                 placeholder="Your Name"
