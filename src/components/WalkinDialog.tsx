@@ -81,6 +81,7 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licensePreview, setLicensePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLicenseUploading, setIsLicenseUploading] = useState(false);
   const [routeData, setRouteData] = useState<RouteResult | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -265,10 +266,12 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
         const ext = licenseFile.name.split('.').pop();
         const path = `licenses/${customerId}/${Date.now()}.${ext}`;
         try {
+          setIsLicenseUploading(true);
           await uploadToStorage('documents', path, licenseFile);
           const publicUrl = await getStoragePublicUrl('documents', path);
           await updateCustomer(customerId, { driving_license_url: publicUrl });
         } catch (err) { console.error('License upload failed:', err); }
+        finally { setIsLicenseUploading(false); }
       }
 
       const now = new Date();
@@ -652,7 +655,14 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
 
         {/* Step 2: Driving License */}
         {step === 'license' && (
-          <div className="space-y-4">
+          <div className="relative space-y-4">
+            {isLicenseUploading && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl bg-background/80 backdrop-blur-sm">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm font-semibold text-foreground">Uploading driving licence</p>
+                <p className="text-xs text-muted-foreground">Processing and saving document…</p>
+              </div>
+            )}
             {showCamera ? (
               <div className="space-y-3">
                 <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
@@ -660,15 +670,15 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
                 </div>
                 <canvas ref={canvasRef} className="hidden" />
                 <div className="flex gap-2 justify-center">
-                  <Button onClick={capturePhoto} size="lg" className="gap-2"><Camera className="h-5 w-5" /> Capture</Button>
-                  <Button variant="outline" onClick={stopCamera}>Cancel</Button>
+                  <Button onClick={capturePhoto} size="lg" className="gap-2" disabled={isLicenseUploading}><Camera className="h-5 w-5" /> Capture</Button>
+                  <Button variant="outline" onClick={stopCamera} disabled={isLicenseUploading}>Cancel</Button>
                 </div>
               </div>
             ) : licensePreview ? (
               <div className="space-y-3">
                 <div className="relative rounded-xl overflow-hidden border border-border">
                   <img src={licensePreview} alt="Driving License" className="w-full max-h-56 object-contain bg-muted/30" />
-                  <button onClick={removeLicense} className="absolute top-2 right-2 p-1.5 rounded-full bg-destructive text-destructive-foreground shadow-md hover:bg-destructive/90 transition">
+                  <button onClick={removeLicense} disabled={isLicenseUploading} className="absolute top-2 right-2 p-1.5 rounded-full bg-destructive text-destructive-foreground shadow-md hover:bg-destructive/90 transition disabled:opacity-60">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -677,22 +687,22 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
             ) : (
               <div className="border-2 border-dashed border-border rounded-xl p-6 text-center space-y-4">
                 <div className="flex justify-center gap-6">
-                  <button onClick={startCamera} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-primary/5 hover:bg-primary/10 transition-colors text-primary">
+                  <button onClick={startCamera} disabled={isLicenseUploading} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-primary/5 hover:bg-primary/10 transition-colors text-primary disabled:opacity-60">
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center"><Camera className="h-6 w-6" /></div>
                     <span className="text-sm font-medium">Take Photo</span>
                   </button>
-                  <button onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-muted hover:bg-muted/80 transition-colors">
+                  <button onClick={() => fileInputRef.current?.click()} disabled={isLicenseUploading} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-muted hover:bg-muted/80 transition-colors disabled:opacity-60">
                     <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center"><ImagePlus className="h-6 w-6 text-muted-foreground" /></div>
                     <span className="text-sm font-medium">Upload File</span>
                   </button>
                 </div>
                 <p className="text-xs text-muted-foreground">Accepts JPG, PNG, PDF • Max 10MB</p>
-                <input ref={fileInputRef} type="file" accept="image/*,.pdf" capture="environment" className="hidden" onChange={handleFileSelect} />
+                <input ref={fileInputRef} type="file" accept="image/*,.pdf" capture="environment" className="hidden" onChange={handleFileSelect} disabled={isLicenseUploading} />
               </div>
             )}
             <div className="flex justify-between pt-2">
-              <Button variant="outline" onClick={() => setStep('customer')}><ArrowLeft className="h-4 w-4 mr-1" /> Back</Button>
-              <Button onClick={() => setStep('confirm')}>{licenseFile ? 'Next' : 'Skip'} <ArrowRight className="h-4 w-4 ml-1" /></Button>
+              <Button variant="outline" onClick={() => setStep('customer')} disabled={isLicenseUploading}><ArrowLeft className="h-4 w-4 mr-1" /> Back</Button>
+              <Button onClick={() => setStep('confirm')} disabled={isLicenseUploading}>{licenseFile ? 'Next' : 'Skip'} <ArrowRight className="h-4 w-4 ml-1" /></Button>
             </div>
           </div>
         )}

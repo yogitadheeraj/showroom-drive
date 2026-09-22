@@ -553,14 +553,23 @@ export default function CustomerBookingPage() {
 
             {/* Document upload form */}
             {view === 'upload' && (
-              <Card>
+              <Card className="relative overflow-hidden">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
                     <FileText className="h-5 w-5 text-primary" />
                     Upload Driving Licence
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="relative" aria-busy={isUploading}>
+                  {isUploading && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-b-lg bg-background/80 backdrop-blur-sm">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-foreground">Uploading document</p>
+                        <p className="text-xs text-muted-foreground">Please wait while we process your licence…</p>
+                      </div>
+                    </div>
+                  )}
                   {uploadedUrl ? (
                     <div className="flex flex-col items-center gap-3 py-6 text-center">
                       <CheckCircle2 className="h-10 w-10 text-green-500" />
@@ -581,6 +590,7 @@ export default function CustomerBookingPage() {
                           accept="image/jpeg,image/png,image/webp,application/pdf"
                           onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
                           required
+                          disabled={isUploading}
                         />
                       </div>
                       <div className="flex gap-3">
@@ -588,7 +598,7 @@ export default function CustomerBookingPage() {
                           {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
                           {isUploading ? 'Uploading…' : 'Upload Document'}
                         </Button>
-                        <Button type="button" variant="outline" onClick={() => setView('details')}>
+                        <Button type="button" variant="outline" onClick={() => setView('details')} disabled={isUploading}>
                           Back
                         </Button>
                       </div>

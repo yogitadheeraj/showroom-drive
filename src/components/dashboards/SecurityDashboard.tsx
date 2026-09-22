@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye, Car, Clock, File, Trash2, Phone, User, Truck, AlertTriangle, Zap, TrendingUp, ArrowRight, TimerReset, Activity } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye, Car, Clock, File, Trash2, Phone, User, Truck, AlertTriangle, Zap, TrendingUp, ArrowRight, TimerReset, Activity, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -669,33 +669,43 @@ const SecurityDashboard = () => {
                 </div>
 
                 {/* License */}
-                <div className="flex items-center gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
-                  {testDrive.customers?.driving_license_url ? (
-                    testDrive.customers?.driving_license_verified ? (
-                      <Badge className="bg-success/10 text-success text-xs">License Verified</Badge>
+                <div className="relative" onClick={e => e.stopPropagation()}>
+                  {reuploadingId === testDrive.customer_id && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/80 backdrop-blur-sm">
+                      <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 shadow-sm">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        <span className="text-xs font-semibold text-foreground">Uploading driving licence</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {testDrive.customers?.driving_license_url ? (
+                      testDrive.customers?.driving_license_verified ? (
+                        <Badge className="bg-success/10 text-success text-xs">License Verified</Badge>
+                      ) : (
+                        <>
+                          <Badge className="bg-warning/10 text-warning text-xs">Verify Pending</Badge>
+                          <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" disabled={reuploadingId === testDrive.customer_id} onClick={() => void openLicensePreview(testDrive.customer_id, testDrive.customers.driving_license_url)}>
+                            <FileCheck className="h-3 w-3 mr-1" /> Verify
+                          </Button>
+                          <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs" disabled={reuploadingId === testDrive.customer_id} onClick={() => openRejectDialog(testDrive.customer_id)}>
+                            <XCircle className="h-3 w-3 mr-1" /> Reject
+                          </Button>
+                        </>
+                      )
                     ) : (
                       <>
-                        <Badge className="bg-warning/10 text-warning text-xs">Verify Pending</Badge>
-                        <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => void openLicensePreview(testDrive.customer_id, testDrive.customers.driving_license_url)}>
-                          <FileCheck className="h-3 w-3 mr-1" /> Verify
-                        </Button>
-                        <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs" onClick={() => openRejectDialog(testDrive.customer_id)}>
-                          <XCircle className="h-3 w-3 mr-1" /> Reject
-                        </Button>
+                        <Badge className="bg-destructive/10 text-destructive text-xs">No License</Badge>
+                        <Label htmlFor={`reupload-sec-${testDrive.customer_id}`} className="cursor-pointer">
+                          <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" asChild>
+                            <span><Upload className="h-3 w-3 mr-1" /> Upload</span>
+                          </Button>
+                        </Label>
+                        <input id={`reupload-sec-${testDrive.customer_id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={reuploadingId === testDrive.customer_id}
+                          onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleReuploadLicense(testDrive.customer_id, file); }} />
                       </>
-                    )
-                  ) : (
-                    <>
-                      <Badge className="bg-destructive/10 text-destructive text-xs">No License</Badge>
-                      <Label htmlFor={`reupload-sec-${testDrive.customer_id}`} className="cursor-pointer">
-                        <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" asChild>
-                          <span><Upload className="h-3 w-3 mr-1" /> Upload</span>
-                        </Button>
-                      </Label>
-                      <input id={`reupload-sec-${testDrive.customer_id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={reuploadingId === testDrive.customer_id}
-                        onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleReuploadLicense(testDrive.customer_id, file); }} />
-                    </>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {/* KM + inspection */}

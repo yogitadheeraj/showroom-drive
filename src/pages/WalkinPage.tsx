@@ -69,6 +69,7 @@ const WalkinPage = () => {
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licensePreview, setLicensePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLicenseUploading, setIsLicenseUploading] = useState(false);
   const [licenseLightbox, setLicenseLightbox] = useState(false);
   const [bookedSlotMinutes, setBookedSlotMinutes] = useState<number[]>([]);
   const [showCamera, setShowCamera] = useState(false);
@@ -417,11 +418,14 @@ const WalkinPage = () => {
         const ext = licenseFile.name.split('.').pop();
         const path = `licenses/${customerId}/${Date.now()}.${ext}`;
         try {
+          setIsLicenseUploading(true);
           await uploadToStorage('documents', path, licenseFile);
           const publicUrl = await getStoragePublicUrl('documents', path);
           await updateCustomer(customerId, { driving_license_url: publicUrl });
         } catch (uploadError) {
           console.error('License upload failed:', uploadError);
+        } finally {
+          setIsLicenseUploading(false);
         }
       }
 
@@ -808,22 +812,29 @@ const WalkinPage = () => {
               )}
 
               {/* License upload — compact optional inline */}
-              <div className="border-t border-border/50 pt-3 space-y-2">
+              <div className="relative border-t border-border/50 pt-3 space-y-2">
+                {isLicenseUploading && (
+                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-background/80 backdrop-blur-sm">
+                    <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                    <p className="text-sm font-semibold text-foreground">Uploading driving licence</p>
+                    <p className="text-xs text-muted-foreground">Processing and saving document…</p>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <Label className="text-xs text-muted-foreground font-medium">
                     Driving License <span className="font-normal">(optional)</span>
                   </Label>
                   {!licensePreview && !showCamera && (
                     <div className="flex items-center gap-3">
-                      <button type="button" onClick={startCamera}
+                      <button type="button" onClick={startCamera} disabled={isLicenseUploading}
                         className="flex items-center gap-1 text-xs text-primary hover:underline underline-offset-2">
                         <Camera className="h-3.5 w-3.5" /> Camera
                       </button>
-                      <button type="button" onClick={() => fileInputRef.current?.click()}
+                      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isLicenseUploading}
                         className="flex items-center gap-1 text-xs text-primary hover:underline underline-offset-2">
                         <ImagePlus className="h-3.5 w-3.5" /> Upload
                       </button>
-                      <input ref={fileInputRef} type="file" accept="image/*,.pdf" capture="environment" className="hidden" onChange={handleFileSelect} />
+                      <input ref={fileInputRef} type="file" accept="image/*,.pdf" capture="environment" className="hidden" onChange={handleFileSelect} disabled={isLicenseUploading} />
                     </div>
                   )}
                 </div>
@@ -834,10 +845,10 @@ const WalkinPage = () => {
                     </div>
                     <canvas ref={canvasRef} className="hidden" />
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={capturePhoto} className="gap-1.5">
+                      <Button size="sm" onClick={capturePhoto} className="gap-1.5" disabled={isLicenseUploading}>
                         <Camera className="h-3.5 w-3.5" /> Capture
                       </Button>
-                      <Button size="sm" variant="outline" onClick={stopCamera}>Cancel</Button>
+                      <Button size="sm" variant="outline" onClick={stopCamera} disabled={isLicenseUploading}>Cancel</Button>
                     </div>
                   </div>
                 )}
@@ -847,12 +858,14 @@ const WalkinPage = () => {
                       <button
                         type="button"
                         onClick={() => setLicenseLightbox(true)}
+                        disabled={isLicenseUploading}
                         className="block rounded-md overflow-hidden border border-border hover:ring-2 hover:ring-primary/40 transition"
                       >
                         <img src={licensePreview} alt="License" className="h-16 w-24 object-cover" />
                       </button>
                       <button
                         onClick={removeLicense}
+                        disabled={isLicenseUploading}
                         className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-sm"
                       >
                         <X className="h-2.5 w-2.5" />
