@@ -77,8 +77,8 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
             </a>
           )}
           {variant === 'app' && (
-            <div className="hidden items-center gap-2 rounded-full border border-sky-200 bg-gradient-to-r from-sky-50 to-blue-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700 shadow-sm dark:border-sky-500/30 dark:from-sky-500/10 dark:to-blue-500/10 dark:text-sky-200 md:flex">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.9)]" />
+            <div className="hidden items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary shadow-sm md:flex">
+              <span className="h-2 w-2 rounded-full bg-success shadow-[0_0_12px_hsl(var(--success)/0.55)]" />
               Operations Center
             </div>
           )}
@@ -121,7 +121,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
           {variant === 'landing' && (
             <a
               href="/#contact"
-              className="rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02]"
+              className="gradient-primary rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:scale-[1.02]"
             >
               Book Demo
             </a>

@@ -153,7 +153,7 @@ const AuthPage = () => {
   return (
     <div className="relative min-h-screen bg-background text-foreground">
       <SiteHeader variant="landing" dealerName={brand.dealerName} dealerLogoUrl={brand.dealerLogoUrl} />
-      {/* SaaS dark backdrop with subtle grid + glows */}
+      {/* Atmosphere backdrop with subtle grid + glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div
           className="absolute inset-0 opacity-[0.07]"
@@ -171,8 +171,52 @@ const AuthPage = () => {
       </div>
 
       <div className="relative mx-auto flex min-h-[calc(100vh-72px)] max-w-7xl items-center px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid w-full">
-       
+        <div className="grid w-full gap-8 lg:grid-cols-[1.1fr_minmax(0,560px)] lg:items-center">
+          <section className="hidden lg:block">
+            <div className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card/70 p-8 shadow-elevated backdrop-blur-xl">
+              <div className="absolute -right-24 -top-24 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
+              <div className="absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-info/20 blur-3xl" />
+              <div className="relative space-y-7">
+                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Operations Workspace
+                </div>
+                <div className="space-y-3">
+                  <h2 className="font-heading text-4xl font-bold leading-tight text-foreground">
+                    Modern dealership operations start here
+                  </h2>
+                  <p className="max-w-xl text-sm leading-7 text-muted-foreground">
+                    Manage leads, bookings, service flow, and team activity from one secure control center designed for daily execution.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    { label: 'Lead Actions', value: 'Real-time' },
+                    { label: 'Team Access', value: 'Role-based' },
+                    { label: 'Audit Trail', value: 'Always on' },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-2xl border border-border/80 bg-background/70 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{item.label}</p>
+                      <p className="mt-1 text-base font-semibold text-foreground">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  {[
+                    'Customer timeline and communication visibility',
+                    'Live operational dashboards for each role',
+                    'Secure workflows with verified team access',
+                  ].map((point) => (
+                    <div key={point} className="flex items-start gap-2 text-sm text-foreground/90">
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <span>{point}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section className="flex items-center justify-center">
             <div className="w-full max-w-xl animate-fade-in space-y-5">
               <Card className="overflow-hidden rounded-[2rem] border-border bg-card shadow-elevated backdrop-blur-xl text-card-foreground">
@@ -195,6 +239,12 @@ const AuthPage = () => {
                       ? `Sign in to your ${brand.dealerName || 'dealership'} portal`
                       : 'Sign in to manage daily test drives, staff activity, customers, and scheduled reporting.'}
                   </CardDescription>
+                  <div className="pt-1">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                      <BadgeCheck className="h-3.5 w-3.5" />
+                      Secure staff access
+                    </div>
+                  </div>
                 </CardHeader>
 
                 <CardContent className="px-6 py-6 sm:px-8 sm:py-8">
@@ -231,7 +281,7 @@ const AuthPage = () => {
                                 className="h-12 rounded-xl"
                               />
                             </div>
-                            <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-sky-400  text-white font-semibold" loading={isSendingReset} loadingText="Sending..." disabled={isSendingReset}>
+                            <Button type="submit" className="h-12 w-full rounded-2xl font-semibold" loading={isSendingReset} loadingText="Sending..." disabled={isSendingReset}>
                               <KeyRound className="mr-2 h-4 w-4" />
                               Send Reset Link
                             </Button>
@@ -300,7 +350,7 @@ const AuthPage = () => {
                             </div>
                           </div>
 
-                          <Button type="submit" className="h-12 w-full rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] text-primary-foreground hover:bg-primary/90 px-4 py-2 h-12 w-full text-base font-semibold" loading={isLoading} loadingText="Signing in..." disabled={isLoading}>
+                          <Button type="submit" className="h-12 w-full rounded-2xl text-base font-semibold" loading={isLoading} loadingText="Signing in..." disabled={isLoading}>
                             Access Auto Advant
                             <ArrowRight className="ml-2 h-4 w-4" />
                           </Button>

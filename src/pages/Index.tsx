@@ -253,6 +253,42 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
         },
     ];
 
+    const quickStartSteps = [
+        {
+            title: 'Capture Every Lead',
+            desc: 'Collect web, walk-in, and campaign leads in one pipeline with instant assignment.',
+        },
+        {
+            title: 'Run Test Drives Smoothly',
+            desc: 'Book slots, reserve vehicles, and trigger reminders automatically.',
+        },
+        {
+            title: 'Convert With Visibility',
+            desc: 'Track conversion and team performance from one live dashboard.',
+        },
+    ];
+
+    const roleHighlights = [
+        {
+            title: 'Sales Teams',
+            desc: 'See assigned leads, upcoming drives, and next best actions clearly.',
+        },
+        {
+            title: 'Operations Managers',
+            desc: 'Monitor bookings, branch load, and service progress in real time.',
+        },
+        {
+            title: 'Leadership',
+            desc: 'Get clean KPI snapshots for pipeline health and revenue decisions.',
+        },
+    ];
+
+    const heroChecklist = [
+        'Capture and assign leads instantly',
+        'Schedule drives with automatic reminders',
+        'Track team and conversion performance live',
+    ];
+
     const stats = content?.staticStats || [
         { value: '3x', label: 'Faster lead follow-up' },
         { value: '40%', label: 'Better booking efficiency' },
@@ -395,88 +431,96 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 jsonLd={homeSchema}
             />
             <main className={`landing-main bg-background text-foreground${resolvedTheme === 'dark' ? ' dark' : ''}`}>
-                <section className="relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_28%),radial-gradient(circle_at_left,rgba(59,130,246,0.16),transparent_22%)]" />
-                    <div className="mx-auto grid max-w-7xl gap-12 px-4 py-8 sm:px-6 sm:py-20 lg:grid-cols-2 lg:px-8 lg:py-10">
+                <section className="relative overflow-hidden border-b border-border/60 bg-gradient-to-b from-muted/20 via-background to-background">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.08),transparent_36%),radial-gradient(circle_at_left,rgba(15,23,42,0.06),transparent_24%)]" />
+                    <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:gap-12 sm:px-6 sm:py-20 lg:grid-cols-2 lg:px-8 lg:py-10">
                         <div className="relative z-10 flex flex-col justify-center">
-                            <div className="mb-5 inline-flex w-fit items-center rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-1 text-xs font-medium uppercase tracking-[0.2em] text-sky-300">
-                                Automotive SaaS + Marketplace Ready
+                            <div className="mb-5 inline-flex w-fit items-center rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                                Built for modern dealerships
                             </div>
-                            <h1 className="max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
-                                Drive more leads, manage test drives, and grow faster with <span className="bg-gradient-to-r from-sky-300 to-blue-500 bg-clip-text text-transparent">AutoAdvant</span>
+                            <h1 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+                                One platform for leads, test drives, and showroom performance
                             </h1>
-                            <p className="mt-6 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
-                                A modern platform built for dealerships and automotive businesses to simplify lead handling, optimize test drive operations, and improve sales performance across every location.
+                            <p className="mt-5 max-w-xl text-sm leading-7 text-muted-foreground sm:mt-6 sm:text-lg">
+                                Capture leads, run test drives smoothly, and convert faster with one clear dealership workflow.
                             </p>
 
-                            <div className="mt-8 flex flex-wrap gap-3">
-                                <a href="#contact" className="rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02]">
-                                    Book Live Demo
-                                </a>
-                                <a href="#contact" className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-6 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-400/20">
-                                    Start Pilot Program
-                                </a>
-                                <a href="#contact" className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
-                                    Request Dealer Access
-                                </a>
-                             
+                            <div className="mt-5 space-y-2">
+                                {heroChecklist.map((item) => (
+                                    <div key={item} className="flex items-start gap-2 text-sm text-foreground/90">
+                                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                        <span>{item}</span>
+                                    </div>
+                                ))}
                             </div>
 
-                            <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                                <a href="#contact" className="inline-flex w-full items-center justify-center rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:brightness-95 sm:w-auto">
+                                    Book a Live Demo
+                                </a>
+                                <a href="#how-it-works" className="inline-flex w-full items-center justify-center rounded-2xl border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition hover:bg-muted/50 sm:w-auto">
+                                    See How It Works
+                                </a>
+                                <a href={staffEntryPath} className="inline-flex w-full items-center justify-center rounded-2xl border border-border bg-background px-6 py-3 text-sm font-medium text-muted-foreground transition hover:bg-muted/40 hover:text-foreground sm:w-auto">
+                                    Staff Sign In
+                                </a>
+                            </div>
+
+                            <div className="mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:gap-4 sm:grid-cols-3">
                                 {stats.map((item) => (
-                                    <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm backdrop-blur-sm">
-                                        <div className="text-2xl font-semibold text-white">{item.value}</div>
-                                        <div className="mt-1 text-sm text-slate-400">{item.label}</div>
+                                    <div key={item.label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                                        <div className="text-2xl font-semibold text-foreground">{item.value}</div>
+                                        <div className="mt-1 text-sm text-muted-foreground">{item.label}</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
                         <div className="relative z-10">
-                            <div className="rounded-[28px] border border-white/10 bg-white/5 p-4 shadow-2xl shadow-sky-900/20 backdrop-blur-xl sm:p-6">
-                                <div className="rounded-[24px] border border-white/10 bg-slate-900 p-4 sm:p-6">
-                                    <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                            <div className="rounded-[24px] border border-border bg-card p-3 shadow-2xl shadow-black/10 sm:rounded-[28px] sm:p-6">
+                                <div className="rounded-[24px] border border-border bg-background p-4 sm:p-6">
+                                    <div className="flex items-center justify-between border-b border-border pb-4">
                                         <div>
-                                            <p className="text-sm text-slate-400">Dashboard Overview</p>
-                                            <h3 className="mt-1 text-xl font-semibold">Dealer Growth Center</h3>
+                                            <p className="text-sm text-muted-foreground">Live dashboard preview</p>
+                                            <h3 className="mt-1 text-xl font-semibold text-foreground">Dealer Growth Center</h3>
                                         </div>
-                                        <div className="rounded-xl bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
+                                        <div className="rounded-xl bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-300">
                                             Live Platform
                                         </div>
                                     </div>
 
                                     <div className="mt-4 flex flex-wrap gap-2">
-                                        <a href="/book" className="rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-xs font-medium text-sky-200 transition hover:bg-sky-400/20">
+                                        <a href="/book" className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20">
                                             Book a Test Drive
                                         </a>
-                                        <a href="/service-booking" className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-1.5 text-xs font-medium text-amber-200 transition hover:bg-amber-400/20">
+                                        <a href="/service-booking" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-500/20 dark:text-amber-300">
                                             Book a Service
                                         </a>
                                     </div>
 
                                     <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
-                                            <p className="text-sm text-slate-400">Available Vehicles</p>
-                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.availableVehicles || 0}</p>
-                                            <p className="mt-2 text-sm text-emerald-300">Ready for test drive</p>
+                                        <div className="rounded-2xl border border-border bg-card p-4">
+                                            <p className="text-sm text-muted-foreground">Available Vehicles</p>
+                                            <p className="mt-2 text-3xl font-semibold text-foreground">{dynamicStats.availableVehicles || 0}</p>
+                                            <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-300">Ready for test drive</p>
                                         </div>
-                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
-                                            <p className="text-sm text-slate-400">Test Drives Booked</p>
-                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.testDrivesScheduled || 0}</p>
-                                            <p className="mt-2 text-sm text-sky-300">Smooth scheduling flow</p>
+                                        <div className="rounded-2xl border border-border bg-card p-4">
+                                            <p className="text-sm text-muted-foreground">Test Drives Booked</p>
+                                            <p className="mt-2 text-3xl font-semibold text-foreground">{dynamicStats.testDrivesScheduled || 0}</p>
+                                            <p className="mt-2 text-sm text-primary">Smooth scheduling flow</p>
                                         </div>
                                     </div>
 
                                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
-                                            <p className="text-sm text-slate-400">Total Brands</p>
-                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.totalBrands || 0}</p>
-                                            <p className="mt-2 text-sm text-violet-300">Multi-brand inventory</p>
+                                        <div className="rounded-2xl border border-border bg-card p-4">
+                                            <p className="text-sm text-muted-foreground">Total Brands</p>
+                                            <p className="mt-2 text-3xl font-semibold text-foreground">{dynamicStats.totalBrands || 0}</p>
+                                            <p className="mt-2 text-sm text-violet-600 dark:text-violet-300">Multi-brand inventory</p>
                                         </div>
-                                        <div className="rounded-2xl border border-white/10 bg-slate-800/70 p-4">
-                                            <p className="text-sm text-slate-400">Total Leads</p>
-                                            <p className="mt-2 text-3xl font-semibold">{dynamicStats.totalLeads || 0}</p>
-                                            <p className="mt-2 text-sm text-rose-300">All-time customer base</p>
+                                        <div className="rounded-2xl border border-border bg-card p-4">
+                                            <p className="text-sm text-muted-foreground">Total Leads</p>
+                                            <p className="mt-2 text-3xl font-semibold text-foreground">{dynamicStats.totalLeads || 0}</p>
+                                            <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">All-time customer base</p>
                                         </div>
                                     </div>
 
@@ -532,6 +576,46 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:px-8 lg:py-18">
+                    <div className="text-center">
+                        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">How it works</p>
+                        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-foreground sm:text-4xl">Simple workflow your team can adopt quickly</h2>
+                        <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">No complex setup. Start with lead capture, automate scheduling, and track outcomes from one dashboard.</p>
+                    </div>
+                    <div className="mt-8 grid gap-4 sm:mt-10 sm:gap-5 md:grid-cols-3">
+                        {quickStartSteps.map((step, index) => (
+                            <div key={step.title} className="rounded-[24px] border border-border bg-card p-6 shadow-sm">
+                                <div className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{index + 1}</div>
+                                <h3 className="mt-4 text-lg font-semibold text-foreground">{step.title}</h3>
+                                <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                <section className="mx-auto max-w-7xl px-4 pb-6 sm:px-6 lg:px-8 lg:pb-12">
+                    <div className="rounded-[24px] border border-border bg-gradient-to-r from-card to-muted/30 p-5 sm:rounded-[28px] sm:p-8">
+                        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="max-w-2xl">
+                                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Built for every role</p>
+                                <h2 className="mt-3 text-xl font-semibold tracking-tight text-foreground sm:text-3xl">Clear views for sales, operations, and leadership</h2>
+                                <p className="mt-4 text-muted-foreground">Everyone sees the exact information they need. That means faster actions, fewer misses, and better customer experience.</p>
+                            </div>
+                            <a href="#contact" className="inline-flex w-fit items-center justify-center rounded-xl border border-border bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition hover:bg-muted/50">
+                                Talk to our team
+                            </a>
+                        </div>
+                        <div className="mt-6 grid gap-3 sm:mt-8 sm:gap-4 md:grid-cols-3">
+                            {roleHighlights.map((role) => (
+                                <div key={role.title} className="rounded-2xl border border-border bg-background/80 p-5">
+                                    <h3 className="text-base font-semibold text-foreground">{role.title}</h3>
+                                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{role.desc}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </section>
@@ -819,10 +903,10 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 </section>
 
 
-                <section id="features" className="mx-auto max-w-7xl px-4 py-8 sm:px-0 lg:px-0 lg:py-8">
+                <section id="modules" className="mx-auto max-w-7xl px-4 py-8 sm:px-0 lg:px-0 lg:py-8">
                     <div className="max-w-2xl">
                         <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Complete DMS Platform</p>
-                        <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Built for modern automotive operations</h2>
+                        <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">All modules in one connected platform</h2>
 
                     </div>
 
@@ -1054,8 +1138,8 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                     </div>
                 </section>
 
-                <section id="contact" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-                    <div className="rounded-[32px] border border-white/10 bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-cyan-400/10 p-8 shadow-xl shadow-sky-950/20 md:p-12">
+                <section id="contact" className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+                    <div className="rounded-[24px] border border-white/10 bg-gradient-to-r from-sky-500/10 via-blue-500/10 to-cyan-400/10 p-5 shadow-xl shadow-sky-950/20 sm:rounded-[32px] sm:p-8 md:p-12">
                         <div className="grid gap-10 lg:grid-cols-2">
                             <div>
                                 <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Get Started</p>
@@ -1135,7 +1219,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                         <button
                                             type="submit"
                                             disabled={demoLoading}
-                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.01] disabled:opacity-50"
+                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:opacity-50"
                                         >
                                             {demoLoading ? 'Sending...' : <><Send className="h-4 w-4" /> Book a Demo</>}
                                         </button>

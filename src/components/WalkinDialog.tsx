@@ -678,7 +678,7 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
               <div className="space-y-3">
                 <div className="relative rounded-xl overflow-hidden border border-border">
                   <img src={licensePreview} alt="Driving License" className="w-full max-h-56 object-contain bg-muted/30" />
-                  <button onClick={removeLicense} disabled={isLicenseUploading} className="absolute top-2 right-2 p-1.5 rounded-full bg-destructive text-destructive-foreground shadow-md hover:bg-destructive/90 transition disabled:opacity-60">
+                  <button onClick={removeLicense} disabled={isLicenseUploading} className="absolute top-2 right-2 p-1.5 rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90 transition disabled:opacity-60">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -687,7 +687,7 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
             ) : (
               <div className="border-2 border-dashed border-border rounded-xl p-6 text-center space-y-4">
                 <div className="flex justify-center gap-6">
-                  <button onClick={startCamera} disabled={isLicenseUploading} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-primary/5 hover:bg-primary/10 transition-colors text-primary disabled:opacity-60">
+                  <button onClick={startCamera} disabled={isLicenseUploading} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60">
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center"><Camera className="h-6 w-6" /></div>
                     <span className="text-sm font-medium">Take Photo</span>
                   </button>

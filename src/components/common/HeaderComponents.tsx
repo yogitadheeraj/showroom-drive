@@ -78,13 +78,13 @@ const HeaderComponents = ({isLoggedIn}) => {
                              
                                 <a
                                     href="/compare"
-                                    className="rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02]"
+                                    className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:bg-primary/90"
                                 >
                                    Compare Vehicles
                                 </a>
                                  <a
                                     href="/#contact"
-                                    className="rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.02]"
+                                    className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:bg-primary/90"
                                 >
                                     Book Demo
                                 </a>

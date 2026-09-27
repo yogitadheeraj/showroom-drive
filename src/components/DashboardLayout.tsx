@@ -257,15 +257,15 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const navItems = NAV_ITEMS[role ?? DEFAULT_APP_ROLE];
   const navGroups = [
     {
-      title: 'Overview',
+      title: 'Start',
       items: navItems.filter((item) => ['/dashboard', '/follow-ups', '/waiting-board'].includes(item.path)),
     },
     {
-      title: 'Sales & Service',
+      title: 'Daily Work',
       items: navItems.filter((item) => ['/walkin', '/test-drives', '/car-bookings', '/service-bookings', '/trade-in', '/customers', '/enquiries', '/communications', '/incoming-vehicles'].includes(item.path)),
     },
     {
-      title: 'Management',
+      title: 'Setup & Reports',
       items: navItems.filter((item) => ['/vehicles', '/fleet', '/locations', '/users', '/brands', '/data-center', '/settings', '/reports/monitoring', '/reports/ai-insights', '/activity-logs'].includes(item.path)),
     },
   ].filter((group) => group.items.length > 0);
@@ -535,7 +535,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
       } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-screen overflow-hidden">
           {/* Header */}
-          <div className={` bg-gradient-to-r from-sky-400  text-white shadow-lg shadow-blue-500/20 flex items-center dark:bg-[hsl(220,50%,10%)] px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
+          <div className={`gradient-dark text-white shadow-card flex items-center px-2 py-3 ${sidebarCollapsed ? 'justify-center' : 'justify-between px-4'}`}>
            
            <a href="/" className="flex items-center shrink-0">
             {(dealerLogoUrl || dealerName) ? (
@@ -636,7 +636,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
             {!sidebarCollapsed && (
               <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 flex items-center justify-center text-sm font-semibold text-white ring-2 ring-sidebar-border/50 shrink-0">
+                  <div className="gradient-primary h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold text-white ring-2 ring-sidebar-border/50 shrink-0">
                     {displayName?.[0]?.toUpperCase() || 'U'}
                   </div>
                   <div className="min-w-0">
@@ -651,7 +651,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <a href="/my-profile" className="h-9 w-9 rounded-full bg-gradient-to-r from-sky-400 to-blue-600 flex items-center justify-center text-sm font-semibold text-white ring-2 ring-sidebar-border/50">
+                    <a href="/my-profile" className="gradient-primary h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold text-white ring-2 ring-sidebar-border/50">
                       {displayName?.[0]?.toUpperCase() || 'U'}
                     </a>
                   </TooltipTrigger>
@@ -738,11 +738,11 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                 <Button
                   variant="outline"
                   size="sm"
-                  className="relative rounded-full border border-sky-200 bg-gradient-to-r from-sky-50"
+                  className="relative rounded-full border border-primary/20 bg-primary/10 text-foreground hover:bg-primary/15"
                   onClick={handleOpenLeadNotifications}
                 >
                   <Bell className="h-4 w-4 mr-1.5" />
-                  Leads
+                  New Leads
                   {newLeadCount > 0 && (
                     <span className="ml-1.5 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-black-foreground">
                       {newLeadCount > 99 ? '99+' : newLeadCount}

@@ -95,20 +95,20 @@ const FollowUpOverview = () => {
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Flame className="h-4 w-4 text-destructive" />
-          Opportunities &amp; Follow-up Tasks
+          Priority Follow-ups
           <Badge variant="secondary">{totalCount}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         {mergedItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No hot opportunities or open tasks.</p>
+          <p className="text-sm text-muted-foreground">No urgent follow-ups or open tasks right now.</p>
         ) : mergedItems.map((item) => (
           item._type === 'opportunity' ? (
             <div key={`opp-${item.id}`} className="rounded-md border border-destructive/20 bg-destructive/5 p-2.5 flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <Flame className="h-3 w-3 text-destructive shrink-0" />
-                  <span className="text-xs font-semibold text-destructive">Hot Opportunity</span>
+                  <span className="text-xs font-semibold text-destructive">High-Priority Opportunity</span>
                   <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize">{item.stage || 'new'}</Badge>
                 </div>
                 <p className="font-medium text-foreground text-sm truncate">{customersById[item.customer_id]?.full_name || 'Customer'}</p>
@@ -120,7 +120,7 @@ const FollowUpOverview = () => {
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <ClipboardCheck className="h-3 w-3 text-primary shrink-0" />
-                  <span className="text-xs font-semibold text-primary">Follow-up Task</span>
+                  <span className="text-xs font-semibold text-primary">Open Task</span>
                   {item.priority && (
                     <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize">{item.priority}</Badge>
                   )}

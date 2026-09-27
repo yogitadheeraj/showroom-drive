@@ -130,7 +130,7 @@ export default function TestDriveCalendarMini({ testDrives }: Props) {
             ))}
           </div>
           {/* Nav */}
-          <button onClick={goBack} className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted"><ChevronLeft className="h-3.5 w-3.5" /></button>
+          <button onClick={goBack} className="h-6 w-6 flex items-center justify-center rounded bg-primary text-primary-foreground hover:bg-primary/90"><ChevronLeft className="h-3.5 w-3.5" /></button>
           <span className="text-xs font-semibold text-foreground flex-1 text-center min-w-[140px]">{periodLabel}</span>
           <button onClick={goForward} disabled={isAtCurrentYear} className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${isAtCurrentYear ? 'opacity-30 cursor-not-allowed' : 'hover:bg-muted'}`}><ChevronRight className="h-3.5 w-3.5" /></button>
           <button onClick={() => { setBaseDate(new Date()); setInsight(null); }} className="text-[11px] px-2 py-0.5 rounded border border-border hover:bg-muted">Today</button>
