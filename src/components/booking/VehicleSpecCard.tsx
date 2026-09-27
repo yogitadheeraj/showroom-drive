@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Car, Gauge, Fuel, Users, ArrowRight, Battery, Timer, ArrowUpRight, Zap } from 'lucide-react';
+import VehicleImage from '@/components/common/VehicleImage';
 
 const SpecItem = ({ icon, label, value, highlight }: { icon: React.ReactNode; label: string; value: string; highlight?: boolean }) => (
   <div className={`flex items-start gap-2 p-2.5 rounded-lg ${highlight ? 'bg-success/5 border border-success/15' : 'bg-muted/50'}`}>
@@ -18,8 +19,15 @@ const VehicleSpecCard = ({ vehicle }: { vehicle: any }) => {
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <VehicleImage
+            imageUrl={vehicle.image_url}
+            brand={vehicle.brand}
+            model={vehicle.model}
+            className="h-14 w-14 rounded-xl object-cover border border-border shrink-0"
+          />
+          <div className="min-w-0">
           <h4 className="font-heading font-bold text-foreground text-lg">{vehicle.brand} {vehicle.model}</h4>
           <p className="text-sm text-muted-foreground">{vehicle.variant} · {vehicle.year}</p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -30,6 +38,7 @@ const VehicleSpecCard = ({ vehicle }: { vehicle: any }) => {
             {!vehicle.is_demo && vehicle.vehicle_time_days != null && (
               <Badge variant="secondary" className="text-[10px]">{vehicle.vehicle_time_days} day(s)</Badge>
             )}
+          </div>
           </div>
         </div>
         <Badge className={

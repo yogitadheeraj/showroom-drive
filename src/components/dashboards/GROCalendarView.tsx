@@ -16,6 +16,7 @@ import { ChevronLeft, ChevronRight, Calendar, LayoutGrid, UserPlus, UserPen, Ref
 import WalkinDialog from '@/components/WalkinDialog';
 import { getAvailableTimeSlots } from '@/lib/slotAvailability';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
+import VehicleImage from '@/components/common/VehicleImage';
 
 const statusColor: Record<string, string> = {
   scheduled: 'bg-info/10 text-info border-info/20',
@@ -653,7 +654,15 @@ const GROCalendarView = () => {
     return (
     <div key={td.id} className={`p-2 rounded-md border text-xs mb-1 ${statusColor[td.status] || 'bg-muted'}`}>
       <p className="font-medium truncate">{td.customers?.full_name}</p>
-      <p className="truncate opacity-80">{td.vehicles?.brand} {td.vehicles?.model}</p>
+      <p className="truncate opacity-80 flex items-center gap-1.5">
+        <VehicleImage
+          imageUrl={td.vehicles?.image_url}
+          brand={td.vehicles?.brand}
+          model={td.vehicles?.model}
+          className="h-4 w-4 rounded object-cover border border-border/40 shrink-0"
+        />
+        <span className="truncate">{td.vehicles?.brand} {td.vehicles?.model}</span>
+      </p>
       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
           {formatStatusLabel(td.status || 'scheduled')}

@@ -31,6 +31,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import VehicleImage from '@/components/common/VehicleImage';
 
 const MAX_COMPARE = 4;
 
@@ -277,13 +278,12 @@ const ComparePage = () => {
                 >
                   <CardContent className="flex h-full flex-col p-0">
                     <div className="relative h-52 overflow-hidden bg-muted/30">
-                      {vehicle.image_url ? (
-                        <img src={vehicle.image_url} alt={`${vehicle.brand} ${vehicle.model}`} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full items-center justify-center bg-gradient-to-br from-muted to-background">
-                          <Car className="h-12 w-12 text-muted-foreground/35" />
-                        </div>
-                      )}
+                      <VehicleImage
+                        imageUrl={vehicle.image_url}
+                        brand={vehicle.brand}
+                        model={vehicle.model}
+                        className="h-full w-full object-cover"
+                      />
 
                       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/65 via-black/20 to-transparent p-4">
                         <div>
@@ -484,13 +484,12 @@ const ComparePage = () => {
                     {selectedVehicles.map((vehicle: any) => (
                       <div key={`selected-${vehicle.id}`} className="w-[180px] shrink-0 rounded-2xl border border-primary/30 bg-primary/5 p-3">
                         <div className="relative mb-3 overflow-hidden rounded-xl bg-muted/25">
-                          {vehicle.image_url ? (
-                            <img src={vehicle.image_url} alt={`${vehicle.brand} ${vehicle.model}`} className="h-24 w-full object-cover" />
-                          ) : (
-                            <div className="flex h-24 items-center justify-center">
-                              <Car className="h-7 w-7 text-muted-foreground/35" />
-                            </div>
-                          )}
+                          <VehicleImage
+                            imageUrl={vehicle.image_url}
+                            brand={vehicle.brand}
+                            model={vehicle.model}
+                            className="h-24 w-full object-cover"
+                          />
                         </div>
                         <p className="truncate text-sm font-semibold text-foreground">{vehicle.brand} {vehicle.model}</p>
                         <p className="truncate text-xs text-muted-foreground">{vehicle.variant || 'Signature Variant'}</p>
@@ -503,13 +502,12 @@ const ComparePage = () => {
                     {canvasVehicleOptions.map((vehicle: any) => (
                       <div key={`option-${vehicle.id}`} className="w-[180px] shrink-0 rounded-2xl border border-border/70 bg-background p-3">
                         <div className="relative mb-3 overflow-hidden rounded-xl bg-muted/25">
-                          {vehicle.image_url ? (
-                            <img src={vehicle.image_url} alt={`${vehicle.brand} ${vehicle.model}`} className="h-24 w-full object-cover" />
-                          ) : (
-                            <div className="flex h-24 items-center justify-center">
-                              <Car className="h-7 w-7 text-muted-foreground/35" />
-                            </div>
-                          )}
+                          <VehicleImage
+                            imageUrl={vehicle.image_url}
+                            brand={vehicle.brand}
+                            model={vehicle.model}
+                            className="h-24 w-full object-cover"
+                          />
                         </div>
                         <p className="truncate text-sm font-semibold text-foreground">{vehicle.brand} {vehicle.model}</p>
                         <p className="truncate text-xs text-muted-foreground">{vehicle.variant || 'Signature Variant'}</p>
@@ -533,13 +531,12 @@ const ComparePage = () => {
                 {selectedVehicles.map((vehicle: any) => (
                   <div key={vehicle.id} className="rounded-2xl border border-border/70 bg-card p-3 shadow-card">
                     <div className="relative overflow-hidden rounded-xl bg-muted/25">
-                      {vehicle.image_url ? (
-                        <img src={vehicle.image_url} alt={`${vehicle.brand} ${vehicle.model}`} className="h-36 w-full object-cover" />
-                      ) : (
-                        <div className="flex h-36 items-center justify-center">
-                          <Car className="h-10 w-10 text-muted-foreground/35" />
-                        </div>
-                      )}
+                      <VehicleImage
+                        imageUrl={vehicle.image_url}
+                        brand={vehicle.brand}
+                        model={vehicle.model}
+                        className="h-36 w-full object-cover"
+                      />
                       <button
                         type="button"
                         onClick={() => removeVehicle(vehicle.id)}

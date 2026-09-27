@@ -29,6 +29,7 @@ import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import WalkinDialog from '@/components/WalkinDialog';
 import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
 import { getAvailableTimeSlots } from '@/lib/slotAvailability';
+import VehicleImage from '@/components/common/VehicleImage';
 
 type DurationBadge = 'Lightning Fast' | 'Smooth Experience' | 'Detailed Guidance' | 'Premium Attention';
 
@@ -835,7 +836,15 @@ const TestDrivesPage = () => {
                                   className={`w-full text-left rounded px-1.5 py-1 text-[10px] font-medium leading-tight truncate transition-opacity hover:opacity-80 ${statusCalColor[td.status] ?? 'bg-slate-400 text-white'} ${calendarSelectedDrive?.id === td.id ? 'ring-2 ring-white ring-offset-1' : ''}`}
                                 >
                                   <div className="font-semibold truncate">{td.customers?.full_name || 'Customer'}</div>
-                                  <div className="opacity-80 truncate">{td.vehicles?.brand} {td.vehicles?.model}</div>
+                                  <div className="mt-0.5 flex items-center gap-1.5 opacity-80 min-w-0">
+                                    <VehicleImage
+                                      imageUrl={td.vehicles?.image_url}
+                                      brand={td.vehicles?.brand}
+                                      model={td.vehicles?.model}
+                                      className="h-3.5 w-3.5 rounded object-cover border border-white/30 shrink-0"
+                                    />
+                                    <span className="truncate">{td.vehicles?.brand} {td.vehicles?.model}</span>
+                                  </div>
                                 </button>
                               ))}
                             </div>
@@ -1023,7 +1032,16 @@ const TestDrivesPage = () => {
                           <div className={`h-2 w-2 rounded-full shrink-0 ${statusDotColor[td.status] ?? 'bg-slate-400'}`} />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium text-foreground truncate">{td.customers?.full_name}</p>
-                            <p className="text-[10px] text-muted-foreground">{td.scheduled_date} · {(td.scheduled_time || '').substring(0, 5)} · {td.vehicles?.brand} {td.vehicles?.model}</p>
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1.5 min-w-0">
+                              <span>{td.scheduled_date} · {(td.scheduled_time || '').substring(0, 5)} ·</span>
+                              <VehicleImage
+                                imageUrl={td.vehicles?.image_url}
+                                brand={td.vehicles?.brand}
+                                model={td.vehicles?.model}
+                                className="h-3.5 w-3.5 rounded object-cover border border-border shrink-0"
+                              />
+                              <span className="truncate">{td.vehicles?.brand} {td.vehicles?.model}</span>
+                            </p>
                           </div>
                           <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium capitalize shrink-0 ${statusCalColor[td.status] ?? 'bg-slate-400 text-white'}`}>
                             {td.status.replace(/_/g, ' ')}
@@ -1054,7 +1072,15 @@ const TestDrivesPage = () => {
                         </button>
                       </div>
                       <div className="space-y-1 text-[11px] text-muted-foreground">
-                        <div className="flex items-center gap-1.5"><Car className="h-3 w-3 text-primary" />{calendarSelectedDrive.vehicles?.brand} {calendarSelectedDrive.vehicles?.model}</div>
+                        <div className="flex items-center gap-1.5">
+                          <VehicleImage
+                            imageUrl={calendarSelectedDrive.vehicles?.image_url}
+                            brand={calendarSelectedDrive.vehicles?.brand}
+                            model={calendarSelectedDrive.vehicles?.model}
+                            className="h-4 w-4 rounded object-cover border border-border shrink-0"
+                          />
+                          {calendarSelectedDrive.vehicles?.brand} {calendarSelectedDrive.vehicles?.model}
+                        </div>
                         <div className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-primary" />{calendarSelectedDrive.scheduled_date} at {(calendarSelectedDrive.scheduled_time || '').substring(0, 5)}</div>
                         <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3 text-primary" />{calendarSelectedDrive.locations?.name}</div>
                       </div>
@@ -1124,7 +1150,15 @@ const TestDrivesPage = () => {
 
                     {/* ── Info grid ── */}
                     <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1 truncate"><Car className="h-3 w-3 shrink-0" />{td.vehicles?.brand} {td.vehicles?.model}</span>
+                      <span className="flex items-center gap-1 truncate">
+                        <VehicleImage
+                          imageUrl={td.vehicles?.image_url}
+                          brand={td.vehicles?.brand}
+                          model={td.vehicles?.model}
+                          className="h-4 w-4 rounded object-cover border border-border shrink-0"
+                        />
+                        {td.vehicles?.brand} {td.vehicles?.model}
+                      </span>
                       <span className="flex items-center gap-1 truncate"><MapPin className="h-3 w-3 shrink-0" />{td.locations?.name}</span>
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3 shrink-0" />{td.scheduled_date}</span>
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3 shrink-0" />{(td.scheduled_time || '').substring(0, 5)}</span>

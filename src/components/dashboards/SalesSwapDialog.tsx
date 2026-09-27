@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { logStaffActivity } from '@/lib/activityLogger';
+import VehicleImage from '@/components/common/VehicleImage';
 
 type AssignmentMode = 'reassign' | 'swap';
 
@@ -84,7 +85,7 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
 
     const [customers, vehicles] = await Promise.all([
       customerIds.length ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: 'id, full_name', filters: [{ field: 'id', op: 'in', value: customerIds }] }) : Promise.resolve([]),
-      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: 'id, brand, model', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
+      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: 'id, brand, model, image_url', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
     ]);
 
     const customerMap = new Map(customers.map((c) => [c.id, c]));
@@ -231,7 +232,16 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
         <div className="space-y-4">
           <div className="p-3 rounded-lg bg-muted/50 text-sm">
             <p className="font-medium text-foreground">{testDrive?.customers?.full_name}</p>
-            <p className="text-muted-foreground">{testDrive?.vehicles?.brand} {testDrive?.vehicles?.model} • {testDrive?.scheduled_date} at {testDrive?.scheduled_time}</p>
+            <p className="text-muted-foreground flex items-center gap-1.5 min-w-0">
+              <VehicleImage
+                imageUrl={testDrive?.vehicles?.image_url}
+                brand={testDrive?.vehicles?.brand}
+                model={testDrive?.vehicles?.model}
+                className="h-4 w-4 rounded object-cover border border-border shrink-0"
+              />
+              <span className="truncate">{testDrive?.vehicles?.brand} {testDrive?.vehicles?.model}</span>
+              <span>• {testDrive?.scheduled_date} at {testDrive?.scheduled_time}</span>
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -258,7 +268,15 @@ const SalesSwapDialog = ({ open, onClose, testDrive, onSwapped, mode = 'swap' }:
                 <SelectContent>
                   {targetPersonDrives.map(td => (
                     <SelectItem key={td.id} value={td.id}>
-                      {td.customers?.full_name} • {td.vehicles?.brand} {td.vehicles?.model} • {td.scheduled_date} {td.scheduled_time?.substring(0, 5)}
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <VehicleImage
+                          imageUrl={td.vehicles?.image_url}
+                          brand={td.vehicles?.brand}
+                          model={td.vehicles?.model}
+                          className="h-4 w-4 rounded object-cover border border-border shrink-0"
+                        />
+                        <span className="truncate">{td.customers?.full_name} • {td.vehicles?.brand} {td.vehicles?.model} • {td.scheduled_date} {td.scheduled_time?.substring(0, 5)}</span>
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -21,6 +21,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import BulkVehicleImport from '@/components/vehicles/BulkVehicleImport';
 import VehicleReservations from '@/components/vehicles/VehicleReservations';
 import PricingRulesConfig from '@/components/vehicles/PricingRulesConfig';
+import VehicleImage from '@/components/common/VehicleImage';
 
 const CONDITION_LABEL: Record<string, string> = { new: 'New', used: 'Used', demo: 'Demo' };
 const CONDITION_CLASS: Record<string, string> = {
@@ -663,13 +664,12 @@ const VehiclesPage = () => {
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
-                            cond === 'demo' ? 'bg-violet-100' : cond === 'used' ? 'bg-amber-100' : 'bg-emerald-100'
-                          }`}>
-                            <Car className={`h-4 w-4 ${
-                              cond === 'demo' ? 'text-violet-600' : cond === 'used' ? 'text-amber-600' : 'text-emerald-600'
-                            }`} />
-                          </div>
+                          <VehicleImage
+                            imageUrl={v.image_url}
+                            brand={v.brand}
+                            model={v.model}
+                            className="h-10 w-10 rounded-lg object-cover border border-border shrink-0"
+                          />
                           <div className="min-w-0">
                             <h3 className="font-heading font-semibold text-sm text-foreground truncate">{v.brand} {v.model}</h3>
                             <p className="text-xs text-muted-foreground truncate">

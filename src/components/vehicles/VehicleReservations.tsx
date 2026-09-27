@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { CalendarCheck, Plus, Clock, User, Car } from 'lucide-react';
 import { format } from 'date-fns';
+import VehicleImage from '@/components/common/VehicleImage';
 
 const STATUS_COLORS: Record<string, string> = {
   active: 'bg-success/10 text-success',
@@ -57,7 +58,7 @@ const VehicleReservations = () => {
     const customerIds = Array.from(new Set((reservationData || []).map((r) => r.customer_id).filter(Boolean)));
 
     const [vehicles, customers] = await Promise.all([
-      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: 'id, brand, model, variant', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
+      vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: 'id, brand, model, variant, image_url', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
       customerIds.length ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: 'id, full_name, phone', filters: [{ field: 'id', op: 'in', value: customerIds }] }) : Promise.resolve([]),
     ]);
 
@@ -77,7 +78,7 @@ const VehicleReservations = () => {
     const data = await apiDbQuery<any[]>({
       table: 'vehicles',
       action: 'select',
-      select: 'id, brand, model, variant, location_id, locations(dealer_id)',
+      select: 'id, brand, model, variant, image_url, location_id, locations(dealer_id)',
       filters: [{ field: 'is_active', op: 'eq', value: true }],
     });
     let filtered = data || [];
@@ -176,7 +177,12 @@ const VehicleReservations = () => {
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
-                      <Car className="h-4 w-4 text-muted-foreground" />
+                      <VehicleImage
+                        imageUrl={r.vehicles?.image_url}
+                        brand={r.vehicles?.brand}
+                        model={r.vehicles?.model}
+                        className="h-7 w-7 rounded object-cover border border-border shrink-0"
+                      />
                       {r.vehicles?.brand} {r.vehicles?.model} {r.vehicles?.variant || ''}
                     </div>
                   </TableCell>

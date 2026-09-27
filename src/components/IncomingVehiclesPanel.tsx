@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import VehicleImage from '@/components/common/VehicleImage';
 import {
   Truck, Navigation, Clock, Car, MapPin, User,
   CheckCircle, ArrowRight, Loader2, Bell,
@@ -16,7 +17,7 @@ import {
 interface IncomingTransit {
   id: string;
   status: 'scheduled' | 'in_transit';
-  vehicle: { id: string; brand: string; model: string; variant?: string; color?: string; registration_number?: string } | null;
+  vehicle: { id: string; brand: string; model: string; variant?: string; color?: string; registration_number?: string; image_url?: string } | null;
   from_location: { name: string; city?: string } | null;
   receiver: { id: string; full_name: string; phone?: string } | null;
   receiver_profile_id: string | null;
@@ -130,9 +131,12 @@ export default function IncomingVehiclesPanel({ locationId, profileId, readOnly 
               <CardHeader className="pb-2 pt-3 px-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5">
-                    <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${isInTransit ? 'bg-info/15' : 'bg-amber-100'}`}>
-                      <Truck className={`h-4.5 w-4.5 ${isInTransit ? 'text-info' : 'text-amber-600'}`} />
-                    </div>
+                    <VehicleImage
+                      imageUrl={transit.vehicle?.image_url}
+                      brand={transit.vehicle?.brand}
+                      model={transit.vehicle?.model}
+                      className="h-9 w-9 rounded-full object-cover border border-border shrink-0"
+                    />
                     <div>
                       <CardTitle className="text-sm font-semibold">
                         {transit.vehicle?.brand} {transit.vehicle?.model}

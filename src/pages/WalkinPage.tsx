@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import {  Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2, CalendarDays, Clock, AlertCircle, Phone, Mail, MessageSquare, MapPin, Truck, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { COUNTRIES, validatePhoneForCountry, validateEmail } from '@/lib/countries';
+import VehicleImage from '@/components/common/VehicleImage';
 
 const CONTACT_OPTIONS = [
   { value: 'phone', label: 'Phone', icon: Phone },
@@ -695,7 +696,15 @@ const WalkinPage = () => {
                             : 'border-border hover:border-primary/40 hover:bg-muted/30'
                         )}>
                         {formData.vehicleId === v.id && <CheckCircle2 className="h-3.5 w-3.5 text-primary absolute top-2 right-2" />}
-                        <p className="font-medium text-sm leading-tight pr-5">{v.brand} {v.model}</p>
+                        <div className="flex items-center gap-2 pr-5">
+                          <VehicleImage
+                            imageUrl={v.image_url}
+                            brand={v.brand}
+                            model={v.model}
+                            className="h-8 w-8 rounded-md object-cover border border-border shrink-0"
+                          />
+                          <p className="font-medium text-sm leading-tight truncate">{v.brand} {v.model}</p>
+                        </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5">{[v.color, String(v.year)].filter(Boolean).join(' · ')}</p>
                         <div className="mt-1 flex items-center gap-1 flex-wrap">
                           {v.variant && <span className="text-[10px] text-muted-foreground">{v.variant}</span>}

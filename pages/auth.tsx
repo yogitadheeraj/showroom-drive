@@ -242,23 +242,25 @@ const THEME_STORAGE_KEY = 'autoadvant-theme';
                       )}
                     </div>
                   ) : (
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/70">Auto Advant</p>
+                    <></>
                   )}
                   <CardTitle className="font-heading text-3xl font-bold tracking-tight">Welcome back</CardTitle>
                   <CardDescription className="text-sm leading-6 text-muted-foreground">
                     {brand.isBranded
                       ? `Sign in to your ${brand.dealerName || 'dealership'} portal`
-                      : 'Sign in to manage daily test drives, staff activity, customers, and scheduled reporting.'}
-                  </CardDescription>
-                  <div className="pt-1">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                      : 
+                      
+                      <div >
+                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
                       <BadgeCheck className="h-3.5 w-3.5" />
-                      Secure staff access
+                     Sign in to your Auto Advant portal - Secure staff access
                     </div>
-                  </div>
+                  </div>}
+                  </CardDescription>
+                  
                 </CardHeader>
 
-                <CardContent className="px-6 py-6 sm:px-8 sm:py-8">
+                <CardContent className="px-2 py-2 sm:px-6 sm:py-6">
                   <div className="space-y-5">
                     {/* ── Forgot password mode ── */}
                     {forgotMode ? (

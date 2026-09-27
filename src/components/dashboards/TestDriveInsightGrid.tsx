@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Car, Calendar, Users, Tag, ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react';
+import VehicleImage from '@/components/common/VehicleImage';
 
 type GroupBy = 'date' | 'staff' | 'source';
 
@@ -223,8 +224,13 @@ export function TestDriveInsightGrid({
                         </div>
 
                         {/* Vehicle */}
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Car className="h-3 w-3 shrink-0" />
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <VehicleImage
+                            imageUrl={td.vehicles?.image_url}
+                            brand={td.vehicles?.brand}
+                            model={td.vehicles?.model}
+                            className="h-4 w-4 rounded object-cover border border-border shrink-0"
+                          />
                           <span className="truncate">
                             {[td.vehicles?.brand, td.vehicles?.model].filter(Boolean).join(' ') || td.vehicle_name || '—'}
                           </span>

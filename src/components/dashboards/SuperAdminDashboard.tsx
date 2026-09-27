@@ -32,6 +32,7 @@ import HierarchyOverview from './HierarchyOverview';
 import { navigateTo } from '@/lib/browserNavigation';
 import { DashboardStatusSections } from './DashboardStatusSections';
 import { buildServiceBookingStatusCounts, buildTestDriveStatusCounts } from '@/lib/dashboardMetrics';
+import VehicleImage from '@/components/common/VehicleImage';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
@@ -1130,7 +1131,17 @@ const SuperAdminDashboard = () => {
                           <p className="font-medium text-foreground">{td.customers?.full_name}</p>
                           <p className="text-xs text-muted-foreground">{td.customers?.phone}</p>
                         </td>
-                        <td className="p-3 text-foreground">{td.vehicles?.brand} {td.vehicles?.model}</td>
+                        <td className="p-3 text-foreground">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <VehicleImage
+                              imageUrl={td.vehicles?.image_url}
+                              brand={td.vehicles?.brand}
+                              model={td.vehicles?.model}
+                              className="h-7 w-7 rounded object-cover border border-border shrink-0"
+                            />
+                            <span className="truncate">{td.vehicles?.brand} {td.vehicles?.model}</span>
+                          </div>
+                        </td>
                         <td className="p-3 text-muted-foreground">{td.locations?.name}</td>
                         <td className="p-3 text-muted-foreground">{td.scheduled_date} {td.scheduled_time}</td>
                         <td className="p-3">
@@ -1165,7 +1176,15 @@ const SuperAdminDashboard = () => {
                         <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>{formatStatusLabel(td.status)}</Badge>
                       </div>
                       <div className="grid grid-cols-2 gap-1.5 text-xs">
-                        <div className="flex items-center gap-1"><Car className="h-3 w-3 text-muted-foreground" /><span className="text-foreground truncate">{td.vehicles?.brand} {td.vehicles?.model}</span></div>
+                        <div className="flex items-center gap-1.5">
+                          <VehicleImage
+                            imageUrl={td.vehicles?.image_url}
+                            brand={td.vehicles?.brand}
+                            model={td.vehicles?.model}
+                            className="h-4 w-4 rounded object-cover border border-border shrink-0"
+                          />
+                          <span className="text-foreground truncate">{td.vehicles?.brand} {td.vehicles?.model}</span>
+                        </div>
                         <div className="flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" /><span className="text-muted-foreground truncate">{td.locations?.name}</span></div>
                         <div className="flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" /><span className="text-muted-foreground">{td.scheduled_date}</span></div>
                         <div className="col-span-2 text-muted-foreground">
