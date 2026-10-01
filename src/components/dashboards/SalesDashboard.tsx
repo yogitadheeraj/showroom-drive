@@ -106,6 +106,7 @@ const SalesDashboard = () => {
   const [bookingCreating, setBookingCreating] = useState(false);
   const [paidSalesAmount, setPaidSalesAmount] = useState(0);
   const [paidSalesCurrency, setPaidSalesCurrency] = useState('AED');
+  const [totalVehicles, setTotalVehicles] = useState(0);
   const notifiedHandoverIdsRef = useRef<Set<string>>(new Set());
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const { toast } = useToast();
@@ -203,6 +204,8 @@ const SalesDashboard = () => {
     const counts = buildServiceBookingStatusCounts(serviceBookings || []);
     setServiceBookingCount(serviceBookings?.length || 0);
     setServiceBookingStatusCounts(counts);
+    const vehicles = await apiGet<any[]>(`/api/vehicles?location_id=${encodeURIComponent(profile?.location_id || '')}`).catch(() => []);
+    setTotalVehicles((vehicles || []).length);
     const carBookings = await apiGet<any[]>(`/api/car-bookings?location_id=${encodeURIComponent(profile?.location_id || '')}&limit=500`).catch(() => []);
     const paidRows = (carBookings || []).filter((row: any) => row.payment_status === 'paid');
     setPaidSalesAmount(paidRows.reduce((sum: number, row: any) => sum + Number(row.payment_requested_amount || row.booking_amount || 0), 0));
@@ -1033,6 +1036,21 @@ const SalesDashboard = () => {
           </div>
           <Button size="sm" variant="outline" className="shrink-0" onClick={() => navigateTo('/service-bookings')}>
             View List
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-card border-emerald-300/30 bg-emerald-50/40 dark:bg-emerald-950/20">
+        <CardContent className="p-4 sm:p-5 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium flex items-center gap-1">
+              <Car className="h-3.5 w-3.5 text-sky-600" /> Total Vehicles
+            </p>
+            <p className="text-2xl font-heading font-bold text-foreground mt-1">{totalVehicles}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Vehicles available for this location</p>
+          </div>
+          <Button size="sm" variant="outline" className="shrink-0" onClick={() => navigateTo('/vehicles')}>
+            View Fleet
           </Button>
         </CardContent>
       </Card>

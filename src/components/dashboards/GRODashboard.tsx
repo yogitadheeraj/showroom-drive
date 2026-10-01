@@ -38,6 +38,7 @@ const GRODashboard = () => {
     cancelled: 0,
     rescheduled: 0,
   });
+  const [totalVehicles, setTotalVehicles] = useState(0);
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [newDate, setNewDate] = useState('');
@@ -113,6 +114,9 @@ const GRODashboard = () => {
     const counts = buildServiceBookingStatusCounts(serviceBookings || []);
     setServiceBookingCount(serviceBookings?.length || 0);
     setServiceBookingStatusCounts(counts);
+
+    const vehicleRows = await apiGet<any[]>(`/api/vehicles?location_id=${encodeURIComponent(profile.location_id)}`).catch(() => [] as any[]);
+    setTotalVehicles((vehicleRows || []).length);
   };
 
   const updateStatus = async (id: string, status: string) => {
@@ -245,18 +249,23 @@ const GRODashboard = () => {
           </div>
         </div>
   {showInsights && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
           {[
             { label: "Today's Drives", value: stats.today, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
             { label: 'Upcoming', value: stats.upcoming, icon: Clock, color: 'text-info', bg: 'bg-info/10' },
             { label: 'Completed', value: stats.completed, icon: TrendingUp, color: 'text-success', bg: 'bg-success/10' },
             { label: 'Completion Rate', value: `${stats.completionRate}%`, icon: CheckCircle2, color: 'text-accent-foreground', bg: 'bg-accent/10' },
             { label: 'Service Bookings', value: serviceBookingCount, icon: BookOpen, color: 'text-primary', bg: 'bg-primary/10' },
+            { label: 'Total Vehicles', value: totalVehicles, icon: Car, color: 'text-sky-600', bg: 'bg-sky-100' },
           ].map(stat => {
             const Icon = stat.icon;
             const handleCardClick = () => {
               if (stat.label === 'Service Bookings') {
                 navigateTo('/service-bookings');
+                return;
+              }
+              if (stat.label === 'Total Vehicles') {
+                navigateTo('/vehicles');
                 return;
               }
               if (stat.label === "Today's Drives" || stat.label === 'Upcoming') {

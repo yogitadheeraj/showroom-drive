@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { apiDbQuery } from '@/lib/apiClient';
+import { useEffect, useMemo, useState } from 'react';
+import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { DollarSign, Plus, Tag, Percent, Edit2, Trash2 } from 'lucide-react';
+import { DollarSign, Plus, Tag, Percent, Edit2, Trash2, Sparkles, Layers3, TicketPercent } from 'lucide-react';
 
 const RULE_TYPE_LABELS: Record<string, string> = {
   base: 'Base Price',
@@ -24,6 +24,8 @@ const RULE_TYPE_LABELS: Record<string, string> = {
 const PricingRulesConfig = () => {
   const [rules, setRules] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
+  const [vehicleCatalog, setVehicleCatalog] = useState<any[]>([]);
   const [showRuleDialog, setShowRuleDialog] = useState(false);
   const [showDiscountDialog, setShowDiscountDialog] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
@@ -43,7 +45,44 @@ const PricingRulesConfig = () => {
   const { toast } = useToast();
   const { dealerId } = useDealerContext();
 
-  useEffect(() => { fetchRules(); fetchDiscounts(); }, [dealerId]);
+  useEffect(() => { fetchRules(); fetchDiscounts(); fetchBrands(); fetchVehicleCatalog(); }, [dealerId]);
+
+  const fetchBrands = async () => {
+    const data = await apiDbQuery<any[]>({
+      table: 'brands',
+      action: 'select',
+      select: 'id, name, dealer_id',
+      order: [{ field: 'name', ascending: true }],
+    });
+    const rows = dealerId ? (data || []).filter((brand) => brand.dealer_id === dealerId) : (data || []);
+    setBrands(rows);
+  };
+
+  const fetchVehicleCatalog = async () => {
+    const data = await apiGet<any[]>('/api/vehicles');
+    const vehicles = data || [];
+    const locationIds = Array.from(new Set(vehicles.map((vehicle) => vehicle.location_id).filter(Boolean)));
+
+    const locations = locationIds.length
+      ? await apiDbQuery<any[]>({
+          table: 'locations',
+          action: 'select',
+          select: 'id, dealer_id',
+          filters: [{ field: 'id', op: 'in', value: locationIds }],
+        })
+      : [];
+
+    const locationMap = new Map((locations || []).map((location) => [location.id, location]));
+    const hydratedVehicles = vehicles.map((vehicle) => ({
+      ...vehicle,
+      locations: locationMap.get(vehicle.location_id) || null,
+    }));
+
+    const rows = dealerId
+      ? hydratedVehicles.filter((vehicle) => vehicle.locations?.dealer_id === dealerId)
+      : hydratedVehicles;
+    setVehicleCatalog(rows);
+  };
 
   const fetchRules = async () => {
     const data = await apiDbQuery<any[]>({
@@ -215,28 +254,89 @@ const PricingRulesConfig = () => {
     fetchDiscounts();
   };
 
+  const activeRules = rules.filter((rule) => rule.is_active).length;
+  const activeDiscounts = discounts.filter((discount) => discount.is_active).length;
+
+  const brandOptions = useMemo(() => {
+    const values = brands.map((brand) => String(brand.name)).filter(Boolean);
+    return Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
+  }, [brands]);
+
+  const modelOptions = useMemo(() => {
+    const selectedBrand = ruleForm.brand;
+    const models = new Set<string>();
+    vehicleCatalog.forEach((vehicle) => {
+      if (!vehicle.model) return;
+      if (selectedBrand && String(vehicle.brand) !== selectedBrand) return;
+      models.add(String(vehicle.model));
+    });
+    return Array.from(models).sort((left, right) => left.localeCompare(right));
+  }, [vehicleCatalog, ruleForm.brand]);
+
+  const variantOptions = useMemo(() => {
+    const selectedBrand = ruleForm.brand;
+    const selectedModel = ruleForm.model;
+    const variants = new Set<string>();
+    vehicleCatalog.forEach((vehicle) => {
+      if (!vehicle.variant) return;
+      if (selectedBrand && String(vehicle.brand) !== selectedBrand) return;
+      if (selectedModel && String(vehicle.model) !== selectedModel) return;
+      variants.add(String(vehicle.variant));
+    });
+    return Array.from(variants).sort((left, right) => left.localeCompare(right));
+  }, [vehicleCatalog, ruleForm.brand, ruleForm.model]);
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-heading flex items-center gap-2">
-          <DollarSign className="h-5 w-5 text-primary" />
-          Pricing Configuration
-        </CardTitle>
+    <Card className="overflow-hidden rounded-3xl border-border/60 shadow-sm">
+      <CardHeader className="space-y-4 border-b border-border/60 bg-gradient-to-r from-background via-background to-primary/5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="font-heading flex items-center gap-2 text-xl">
+              <DollarSign className="h-5 w-5 text-primary" />
+              Pricing Configuration
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Keep price rules and promotions in one place with a simple workflow for day-to-day pricing control.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-2xl border border-border/60 bg-card p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Rules</p>
+              <p className="mt-1 text-lg font-semibold text-foreground">{rules.length}</p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-card p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Active</p>
+              <p className="mt-1 text-lg font-semibold text-foreground">{activeRules}</p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-card p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Promos</p>
+              <p className="mt-1 text-lg font-semibold text-foreground">{discounts.length}</p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-card p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Live</p>
+              <p className="mt-1 text-lg font-semibold text-foreground">{activeDiscounts}</p>
+            </div>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6 p-4 sm:p-6">
         <Tabs defaultValue="rules">
-          <TabsList className="mb-4">
-            <TabsTrigger value="rules">Pricing Rules</TabsTrigger>
-            <TabsTrigger value="discounts">Discounts & Promos</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 rounded-2xl border border-border/60 bg-muted/40 p-1">
+            <TabsTrigger value="rules" className="rounded-xl">Pricing Rules</TabsTrigger>
+            <TabsTrigger value="discounts" className="rounded-xl">Discounts & Promos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="rules" className="space-y-4">
-            <div className="flex justify-end">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Layers3 className="h-4 w-4 text-primary" />
+                Price rules define the base and adjusted selling strategy.
+              </div>
               <Button onClick={() => { setEditingRuleId(null); setRuleForm({ brand: '', model: '', variant: '', rule_type: 'base', base_price: '', adjusted_price: '', adjustment_percent: '', season_name: '', valid_from: '', valid_until: '', priority: '0' }); setShowRuleDialog(true); }} className="bg-success text-success-foreground hover:bg-success/90">
                 <Plus className="h-4 w-4 mr-2" /> Add Rule
               </Button>
             </div>
-            <div className="overflow-auto">
+            <div className="overflow-hidden rounded-2xl border border-border/60 bg-background/80">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -277,12 +377,16 @@ const PricingRulesConfig = () => {
           </TabsContent>
 
           <TabsContent value="discounts" className="space-y-4">
-            <div className="flex justify-end">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <TicketPercent className="h-4 w-4 text-primary" />
+                Discounts and promos can be activated or paused without losing their setup.
+              </div>
               <Button onClick={() => { setEditingDiscountId(null); setDiscountForm({ name: '', code: '', discount_type: 'percentage', discount_value: '', max_discount_amount: '', applicable_brands: '', applicable_models: '', min_base_price: '', usage_limit: '', valid_from: '', valid_until: '' }); setShowDiscountDialog(true); }} className="bg-success text-success-foreground hover:bg-success/90">
                 <Plus className="h-4 w-4 mr-2" /> Add Discount
               </Button>
             </div>
-            <div className="overflow-auto">
+            <div className="overflow-hidden rounded-2xl border border-border/60 bg-background/80">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -331,11 +435,41 @@ const PricingRulesConfig = () => {
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Brand *</Label><Input value={ruleForm.brand} onChange={e => setRuleForm(p => ({ ...p, brand: e.target.value }))} /></div>
-                <div className="space-y-2"><Label>Model</Label><Input value={ruleForm.model} onChange={e => setRuleForm(p => ({ ...p, model: e.target.value }))} /></div>
+                <div className="space-y-2">
+                  <Label>Brand *</Label>
+                  <Select value={ruleForm.brand} onValueChange={(value) => setRuleForm((p) => ({ ...p, brand: value, model: '', variant: '' }))}>
+                    <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
+                    <SelectContent>
+                      {[ruleForm.brand, ...brandOptions].filter(Boolean).filter((value, index, array) => array.indexOf(value) === index).map((brand) => (
+                        <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Model</Label>
+                  <Select value={ruleForm.model} onValueChange={(value) => setRuleForm((p) => ({ ...p, model: value, variant: '' }))} disabled={!ruleForm.brand}>
+                    <SelectTrigger><SelectValue placeholder={!ruleForm.brand ? 'Select brand first' : 'Select model'} /></SelectTrigger>
+                    <SelectContent>
+                      {[ruleForm.model, ...modelOptions].filter(Boolean).filter((value, index, array) => array.indexOf(value) === index).map((model) => (
+                        <SelectItem key={model} value={model}>{model}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Variant</Label><Input value={ruleForm.variant} onChange={e => setRuleForm(p => ({ ...p, variant: e.target.value }))} /></div>
+                <div className="space-y-2">
+                  <Label>Variant</Label>
+                  <Select value={ruleForm.variant} onValueChange={(value) => setRuleForm((p) => ({ ...p, variant: value }))} disabled={!ruleForm.brand || !ruleForm.model}>
+                    <SelectTrigger><SelectValue placeholder={!ruleForm.brand || !ruleForm.model ? 'Select model first' : 'Select variant'} /></SelectTrigger>
+                    <SelectContent>
+                      {[ruleForm.variant, ...variantOptions].filter(Boolean).filter((value, index, array) => array.indexOf(value) === index).map((variant) => (
+                        <SelectItem key={variant} value={variant}>{variant}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label>Rule Type</Label>
                   <Select value={ruleForm.rule_type} onValueChange={v => setRuleForm(p => ({ ...p, rule_type: v }))}>

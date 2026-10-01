@@ -12,10 +12,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
+import VehicleImage from '@/components/common/VehicleImage';
 import {
   BookOpen, Car, User, CreditCard, Banknote, Link2, XCircle, RotateCcw,
-  AlertTriangle, CheckCircle2, Filter, Search
+  AlertTriangle, CheckCircle2, Filter, Search, MapPin, CalendarDays
 } from 'lucide-react';
 import { logStaffActivity } from '@/lib/activityLogger';
 import {
@@ -73,6 +75,47 @@ const formatBookingDate = (value?: string | null) => {
   }
 };
 
+const getBookingVehicle = (booking: any) => booking?.vehicles || booking?.testDrive?.vehicle || null;
+
+const getBookingVehicleTitle = (booking: any) => {
+  const vehicle = getBookingVehicle(booking);
+  if (vehicle?.brand || vehicle?.model) {
+    return `${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim();
+  }
+  return 'Vehicle not linked';
+};
+
+const getBookingVehicleSubtitle = (booking: any) => {
+  const vehicle = getBookingVehicle(booking);
+  const variant = vehicle?.variant?.trim();
+  const color = vehicle?.color?.trim();
+
+  if (variant && color) return `${variant} • ${color}`;
+  if (variant) return variant;
+  if (color) return color;
+
+  if (booking?.vehicleSource === 'test_drive_vehicle') return 'Test drive vehicle';
+  if (booking?.vehicleSource === 'sales_vehicle') return 'Sales vehicle';
+  return 'Vehicle details unavailable';
+};
+
+const getBookingVehicleImageUrl = (booking: any) => {
+  const vehicle = getBookingVehicle(booking);
+  return vehicle?.image_url || null;
+};
+
+const getBookingVehicleSourceLabel = (booking: any) => {
+  if (booking?.vehicleSource === 'test_drive_vehicle') return 'Test Drive Vehicle';
+  if (booking?.vehicleSource === 'sales_vehicle') return 'Sales Vehicle';
+  return '';
+};
+
+const getBookingVehicleSourceClass = (booking: any) => {
+  if (booking?.vehicleSource === 'test_drive_vehicle') return 'bg-info/10 text-info border-info/20';
+  if (booking?.vehicleSource === 'sales_vehicle') return 'bg-success/10 text-success border-success/20';
+  return 'bg-muted text-muted-foreground border-border';
+};
+
 export default function CarBookingsPage() {
   const router = useRouter();
   const { user, profile, role } = useAuth();
@@ -84,6 +127,7 @@ export default function CarBookingsPage() {
   const [search, setSearch] = useState('');
   const [currencyCode, setCurrencyCode] = useState('AED');
   const [paymentConfig, setPaymentConfig] = useState<CarBookingPaymentConfig | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
 
   const [paymentDialog, setPaymentDialog] = useState<{
     open: boolean;
@@ -307,15 +351,28 @@ export default function CarBookingsPage() {
   return (
     <DashboardLayout>
     <div className="space-y-5 p-4 sm:p-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground tracking-tight flex items-center gap-2">
-          <BookOpen className="h-6 w-6 text-primary" /> Car Bookings
-        </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Manage purchase bookings, payments, cancellations and refunds.</p>
+      <div className="relative overflow-hidden rounded-3xl border border-white/40 bg-gradient-to-r from-slate-100/80 via-white/70 to-amber-100/70 p-4 sm:p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/10 dark:from-slate-900/80 dark:via-slate-900/70 dark:to-slate-800/70">
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-40 bg-gradient-to-l from-white/30 to-transparent dark:from-white/5" />
+        <div className="relative flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground tracking-tight flex items-center gap-2">
+              <BookOpen className="h-6 w-6 text-primary" /> Car Bookings
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Manage purchase bookings, payments, cancellations and refunds.</p>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
+            <span className="h-9 w-9 rounded-full border border-border/60 bg-white/70 backdrop-blur-md flex items-center justify-center dark:bg-slate-900/60">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+            </span>
+            <span className="h-9 w-9 rounded-full border border-border/60 bg-white/70 backdrop-blur-md flex items-center justify-center dark:bg-slate-900/60">
+              <Search className="h-4 w-4 text-muted-foreground" />
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="-mt-3 sm:-mt-5 relative z-10 grid grid-cols-2 xl:grid-cols-4 gap-3 px-1 sm:px-3">
         {[
           { label: 'Active Bookings', value: totalConfirmed, color: 'text-success', bg: 'bg-success/10', border: 'border-success/20', icon: CheckCircle2 },
           { label: 'Total Collected', value: formatCurrencyValue(totalAmount, currencyCode), color: 'text-primary', bg: 'bg-primary/10', border: 'border-primary/20', icon: Banknote },
@@ -324,7 +381,7 @@ export default function CarBookingsPage() {
         ].map(stat => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className={`shadow-card border ${stat.border}`}>
+            <Card key={stat.label} className={`shadow-[0_14px_35px_rgba(15,23,42,0.08)] border ${stat.border} bg-white/75 backdrop-blur-xl dark:bg-slate-900/75`}>
               <CardContent className="p-4 flex items-center gap-3">
                 <div className={`h-10 w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
                   <Icon className={`h-5 w-5 ${stat.color}`} />
@@ -366,184 +423,194 @@ export default function CarBookingsPage() {
         </div>
       </div>
 
-      {/* Bookings Cards */}
-      <Card className="shadow-card border-0 bg-gradient-to-br from-slate-50 via-white to-violet-50 dark:from-slate-950 dark:via-slate-900 dark:to-violet-950/40">
+      {/* Bookings Row Grid */}
+      <Card className="shadow-card border-0 bg-muted/20">
         <CardContent className="p-4 sm:p-5">
           {loading ? (
             <p className="p-8 text-center text-muted-foreground text-sm">Loading bookings…</p>
           ) : filtered.length === 0 ? (
             <p className="p-8 text-center text-muted-foreground text-sm">No bookings found.</p>
           ) : (
-            <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
-              {filtered.map((b) => (
-                <div
-                  key={b.id}
-                  className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-0.5 hover:shadow-[0_22px_55px_rgba(124,58,237,0.15)] dark:border-slate-800 dark:bg-slate-900"
-                >
-                  <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-sky-500 p-4 text-white">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.25em] text-violet-100">Booking</p>
-                        <p className="mt-2 text-lg font-bold">{formatCurrencyValue(Number(b.booking_amount || 0), b.locations?.currency_type || currencyCode)}</p>
-                      </div>
-                      <div className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-medium ring-1 ring-white/20 backdrop-blur-sm">
-                        {b.payment_method === 'cash' ? 'Cash' : 'Card'}
-                      </div>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between text-[11px] text-violet-100">
-                      <span>{b.customers?.full_name || 'Customer'}</span>
-                      <span>{formatBookingDate(b.created_at)}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
-                          <Car className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-foreground">{b.vehicles?.brand || '—'} {b.vehicles?.model || ''}</p>
-                          <p className="text-[11px] text-muted-foreground">{b.vehicles?.variant || 'Variant not listed'}{b.vehicles?.color ? ` • ${b.vehicles.color}` : ''}</p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className={`text-[10px] ${BOOKING_STATUS_COLORS[b.booking_status]}`}>
-                        {b.booking_status}
-                      </Badge>
-                    </div>
-
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-950/40">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Customer</p>
-                        <div className="mt-2 flex items-start gap-2">
-                          <User className="mt-0.5 h-3.5 w-3.5 text-violet-500" />
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{b.customers?.full_name || '—'}</p>
-                            <p className="text-[11px] text-muted-foreground">{b.customers?.phone || 'No phone'}</p>
-                            <p className="text-[11px] text-muted-foreground">{b.customers?.email || 'No email'}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-950/40">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Payment</p>
-                        <div className="mt-2 flex items-start gap-2">
-                          {b.payment_method === 'cash' ? <Banknote className="mt-0.5 h-3.5 w-3.5 text-emerald-500" /> : <CreditCard className="mt-0.5 h-3.5 w-3.5 text-violet-500" />}
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{b.payment_method === 'cash' ? 'Cash' : 'Card / Link'}</p>
-                            <Badge variant="secondary" className={`mt-1 text-[10px] hover:bg-slate-50/80 ${PAYMENT_STATUS_COLORS[b.payment_status]}`}>
-                              {b?.payment_status?.replace('_', ' ')}
-                            </Badge>
-                            {b.payment_link && (
-                              <a
-                                href={b.payment_link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-1 block text-[11px] font-medium text-primary hover:underline"
-                              >
-                                Open payment link
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-3 dark:border-slate-800 dark:from-slate-950/50 dark:to-slate-900">
-                      {b.salesPerson?.full_name && (
-                        <div className="flex items-center justify-between text-[12px] text-muted-foreground">
-                          <span>Sales</span>
-                          <span className="font-medium text-foreground">{b.salesPerson.full_name}</span>
-                        </div>
-                      )}
-                      {b.locations?.name && (
-                        <div className="flex items-center justify-between text-[12px] text-muted-foreground">
-                          <span>Location</span>
-                          <span className="font-medium text-foreground">{b.locations.name}</span>
-                        </div>
-                      )}
-                      {b.testDrive && (
-                        <div className="flex items-center justify-between text-[12px] text-muted-foreground">
-                          <span>Test drive</span>
-                          <span className="font-medium text-foreground">{b.testDrive.scheduled_date || 'Scheduled'}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {(b.insurance_provider || b.finance_provider || b.financing_plan || b.deal_status) && (
-                      <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3 dark:border-violet-900/60 dark:bg-violet-950/20">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Deal details</p>
-                        <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-                          {b.insurance_provider && <span className="rounded-full bg-white px-2 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700">Ins: {b.insurance_provider}</span>}
-                          {b.finance_provider && <span className="rounded-full bg-white px-2 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700">Finance: {b.finance_provider}</span>}
-                          {b.financing_plan && <span className="rounded-full bg-white px-2 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700">Plan: {b.financing_plan}</span>}
-                          {b.deal_status && <span className="rounded-full bg-white px-2 py-1 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700">Deal: {b.deal_status}</span>}
-                        </div>
-                      </div>
-                    )}
-
-                    {b.booking_status === 'refunded' && b.refund_amount > 0 && (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-                        Refund: {formatCurrencyValue(Number(b.refund_amount || 0), b.locations?.currency_type || currencyCode)}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 pt-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 border-violet-200 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/40"
-                        onClick={() => openCustomer360(b.customer_id || b.customers?.id)}
-                      >
-                        <Link2 className="h-3.5 w-3.5 mr-1" /> Customer 360
-                      </Button>
-                      {canManage && b.booking_status === 'confirmed' && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 border-primary/40 text-primary hover:bg-primary/10"
-                            onClick={() => openPaymentDialog(b)}
-                          >
-                            <Link2 className="h-3.5 w-3.5 mr-1" /> {b.payment_link ? 'Regenerate Link' : 'Generate Link'}
-                          </Button>
-                          {b.payment_link && b.customers?.email && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="flex-1 border-sky-300 text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-950/40"
-                              onClick={() => handleEmailPaymentLink(b)}
-                              disabled={emailingBookingId === b.id}
-                            >
-                              <CreditCard className="h-3.5 w-3.5 mr-1" /> {emailingBookingId === b.id ? 'Sending...' : 'Email Link'}
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 border-destructive/40 text-destructive hover:bg-destructive/10"
-                            onClick={() => openAction(b, 'cancel')}
-                          >
-                            <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 border-warning/40 text-warning hover:bg-warning/10"
-                            onClick={() => openAction(b, 'refund')}
-                          >
-                            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Refund
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+            <div className="overflow-x-auto rounded-xl border bg-card">
+              <div className="min-w-[1100px]">
+                <div className="grid grid-cols-[1.2fr_1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.8fr] gap-2 border-b bg-muted/50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span>Customer</span>
+                  <span>Vehicle</span>
+                  <span>Amount</span>
+                  <span>Booking</span>
+                  <span>Payment</span>
+                  <span>Location</span>
+                  <span>Date</span>
                 </div>
-              ))}
+                <div className="max-h-[66vh] overflow-y-auto">
+                  {filtered.map((b) => (
+                    <div
+                      key={b.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedBooking(b)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedBooking(b);
+                        }
+                      }}
+                      className="grid grid-cols-[1.2fr_1fr_0.9fr_0.8fr_0.8fr_0.8fr_0.8fr] items-center gap-2 border-b px-3 py-2.5 text-sm transition-colors hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-foreground">{b.customers?.full_name || '—'}</p>
+                        <p className="truncate text-xs text-muted-foreground">{b.customers?.phone || 'No phone'}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <VehicleImage
+                            imageUrl={getBookingVehicleImageUrl(b)}
+                            brand={getBookingVehicle(b)?.brand}
+                            model={getBookingVehicle(b)?.model}
+                            className="h-10 w-16 rounded-md object-cover"
+                          />
+                          <p className="truncate font-medium text-foreground">{getBookingVehicleTitle(b)}</p>
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-1.5">
+                          <p className="truncate text-xs text-muted-foreground">{getBookingVehicleSubtitle(b)}</p>
+                        
+                        </div>
+                      </div>
+                      <p className="truncate font-semibold text-foreground">{formatCurrencyValue(Number(b.booking_amount || 0), b.locations?.currency_type || currencyCode)}</p>
+                      <Badge variant="outline" className={`w-fit text-[10px] ${BOOKING_STATUS_COLORS[b.booking_status]}`}>{b.booking_status}</Badge>
+                      <Badge variant="secondary" className={`w-fit text-[10px] ${PAYMENT_STATUS_COLORS[b.payment_status]}`}>{(b?.payment_status || 'pending').replace('_', ' ')}</Badge>
+                      <p className="truncate text-sm text-foreground">{b.locations?.name || 'No location'}</p>
+                      <p className="text-sm text-muted-foreground">{formatBookingDate(b.created_at)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Sheet open={Boolean(selectedBooking)} onOpenChange={(open) => !open && setSelectedBooking(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="font-heading">Booking Details</SheetTitle>
+            <SheetDescription>
+              {selectedBooking?.customers?.full_name || 'Customer'} • {getBookingVehicleTitle(selectedBooking)}
+            </SheetDescription>
+          </SheetHeader>
+
+          {selectedBooking && (
+            <div className="mt-5 space-y-4">
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Booking Amount</p>
+                <p className="text-2xl font-heading font-bold text-foreground mt-1">
+                  {formatCurrencyValue(Number(selectedBooking.booking_amount || 0), selectedBooking.locations?.currency_type || currencyCode)}
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Customer</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedBooking.customers?.full_name || '—'}</p>
+                  <p className="text-xs text-muted-foreground">{selectedBooking.customers?.phone || 'No phone'}</p>
+                  <p className="text-xs text-muted-foreground break-all">{selectedBooking.customers?.email || 'No email'}</p>
+                </div>
+                <div className="rounded-xl border p-3">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Vehicle</p>
+                  <div className="mt-2 mb-2">
+                    <VehicleImage
+                      imageUrl={getBookingVehicleImageUrl(selectedBooking)}
+                      brand={getBookingVehicle(selectedBooking)?.brand}
+                      model={getBookingVehicle(selectedBooking)?.model}
+                      className="h-32 w-full rounded-lg object-cover"
+                    />
+                  </div>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{getBookingVehicleTitle(selectedBooking)}</p>
+                  <p className="text-xs text-muted-foreground">{getBookingVehicleSubtitle(selectedBooking)}</p>
+                 
+                </div>
+              </div>
+
+              <div className="grid gap-2 text-sm">
+                <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+                  <span className="text-muted-foreground">Booking status</span>
+                  <Badge variant="outline" className={BOOKING_STATUS_COLORS[selectedBooking.booking_status]}>{selectedBooking.booking_status}</Badge>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+                  <span className="text-muted-foreground">Payment status</span>
+                  <Badge variant="secondary" className={PAYMENT_STATUS_COLORS[selectedBooking.payment_status]}>{(selectedBooking.payment_status || 'pending').replace('_', ' ')}</Badge>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+                  <span className="text-muted-foreground">Payment method</span>
+                  <span className="font-medium text-foreground">{selectedBooking.payment_method === 'cash' ? 'Cash' : 'Card / Link'}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+                  <span className="text-muted-foreground">Location</span>
+                  <span className="font-medium text-foreground">{selectedBooking.locations?.name || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+                  <span className="text-muted-foreground">Created on</span>
+                  <span className="font-medium text-foreground">{formatBookingDate(selectedBooking.created_at)}</span>
+                </div>
+              </div>
+
+              {(selectedBooking.insurance_provider || selectedBooking.finance_provider || selectedBooking.financing_plan || selectedBooking.deal_status) && (
+                <div className="rounded-xl border border-info/20 bg-info/5 p-3">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Deal Details</p>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    {selectedBooking.insurance_provider && <span className="rounded-full border bg-background px-2 py-1">Ins: {selectedBooking.insurance_provider}</span>}
+                    {selectedBooking.finance_provider && <span className="rounded-full border bg-background px-2 py-1">Finance: {selectedBooking.finance_provider}</span>}
+                    {selectedBooking.financing_plan && <span className="rounded-full border bg-background px-2 py-1">Plan: {selectedBooking.financing_plan}</span>}
+                    {selectedBooking.deal_status && <span className="rounded-full border bg-background px-2 py-1">Deal: {selectedBooking.deal_status}</span>}
+                  </div>
+                </div>
+              )}
+
+              {selectedBooking.payment_link && (
+                <a
+                  href={selectedBooking.payment_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10"
+                >
+                  Open payment link
+                </a>
+              )}
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button variant="outline" onClick={() => openCustomer360(selectedBooking.customer_id || selectedBooking.customers?.id)}>
+                  <Link2 className="h-3.5 w-3.5 mr-1" /> Customer 360
+                </Button>
+                {canManage && selectedBooking.booking_status === 'confirmed' && (
+                  <Button variant="outline" className="border-primary/40 text-primary hover:bg-primary/10" onClick={() => openPaymentDialog(selectedBooking)}>
+                    <Link2 className="h-3.5 w-3.5 mr-1" /> {selectedBooking.payment_link ? 'Regenerate Link' : 'Generate Link'}
+                  </Button>
+                )}
+                {canManage && selectedBooking.booking_status === 'confirmed' && selectedBooking.payment_link && selectedBooking.customers?.email && (
+                  <Button
+                    variant="outline"
+                    className="border-sky-300 text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-950/40"
+                    onClick={() => handleEmailPaymentLink(selectedBooking)}
+                    disabled={emailingBookingId === selectedBooking.id}
+                  >
+                    <CreditCard className="h-3.5 w-3.5 mr-1" /> {emailingBookingId === selectedBooking.id ? 'Sending...' : 'Email Link'}
+                  </Button>
+                )}
+                {canManage && selectedBooking.booking_status === 'confirmed' && (
+                  <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => openAction(selectedBooking, 'cancel')}>
+                    <XCircle className="h-3.5 w-3.5 mr-1" /> Cancel Booking
+                  </Button>
+                )}
+                {canManage && selectedBooking.booking_status === 'confirmed' && (
+                  <Button variant="outline" className="border-warning/40 text-warning hover:bg-warning/10" onClick={() => openAction(selectedBooking, 'refund')}>
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Process Refund
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Cancel / Refund Dialog */}
       <Dialog open={actionDialog.open} onOpenChange={(o) => !o && setActionDialog(prev => ({ ...prev, open: false }))}>

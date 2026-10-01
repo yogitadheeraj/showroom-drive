@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { CalendarCheck, Plus, Clock, User, Car } from 'lucide-react';
+import { CalendarCheck, Plus, Clock, User, Car, Sparkles, ClipboardList, TimerReset } from 'lucide-react';
 import { format } from 'date-fns';
 import VehicleImage from '@/components/common/VehicleImage';
 
@@ -144,19 +144,43 @@ const VehicleReservations = () => {
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   })();
+
+  const activeReservations = reservations.filter((reservation) => reservation.status === 'active').length;
+  const cancelledReservations = reservations.filter((reservation) => reservation.status === 'cancelled').length;
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="font-heading flex items-center gap-2">
-          <CalendarCheck className="h-5 w-5 text-primary" />
-          Vehicle Reservations
-        </CardTitle>
-        <Button onClick={() => { setFormData({ vehicle_id: '', customer_id: '', reservation_type: 'internal', reserved_until: '', deposit_amount: '0', notes: '' }); setShowDialog(true); }} className="bg-success text-success-foreground hover:bg-success/90">
-          <Plus className="h-4 w-4 mr-2" /> New Reservation
-        </Button>
+    <Card className="overflow-hidden rounded-3xl border-border/60 shadow-sm">
+      <CardHeader className="space-y-4 border-b border-border/60 bg-gradient-to-r from-background via-background to-primary/5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="font-heading flex items-center gap-2 text-xl">
+              <CalendarCheck className="h-5 w-5 text-primary" />
+              Vehicle Reservations
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Reserve inventory, track deposits, and keep customer holds visible from a clean operations screen.
+            </p>
+          </div>
+          <Button onClick={() => { setFormData({ vehicle_id: '', customer_id: '', reservation_type: 'internal', reserved_until: '', deposit_amount: '0', notes: '' }); setShowDialog(true); }} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Plus className="h-4 w-4 mr-2" /> New Reservation
+          </Button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div className="rounded-2xl border border-border/60 bg-card p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">All Reservations</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{reservations.length}</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-card p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Active</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{activeReservations}</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-card p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Cancelled</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{cancelledReservations}</p>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-auto">
+      <CardContent className="p-4 sm:p-6">
+        <div className="overflow-hidden rounded-2xl border border-border/60 bg-background/80">
           <Table>
             <TableHeader>
               <TableRow>
@@ -222,6 +246,9 @@ const VehicleReservations = () => {
               <DialogTitle className="font-heading">New Vehicle Reservation</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3 text-sm text-muted-foreground">
+                Choose a vehicle, set the hold window, and optionally attach a customer so the reservation is easy to follow.
+              </div>
               <div className="space-y-2">
                 <Label>Vehicle *</Label>
                 <Select value={formData.vehicle_id} onValueChange={v => setFormData(p => ({ ...p, vehicle_id: v }))}>
@@ -264,7 +291,7 @@ const VehicleReservations = () => {
                 <Label>Reserved Until *</Label>
                 <Input type="datetime-local"
                    min={todayStr}
-                      max={maxDateStr}  value={formData.reserved_until} onChange={e => setFormData(p => ({ ...p, reserved_until: e.target.value }))} />
+                  max={maxDateStr} value={formData.reserved_until} onChange={e => setFormData(p => ({ ...p, reserved_until: e.target.value }))} />
               </div>
               <div className="space-y-2">
                 <Label>Notes</Label>

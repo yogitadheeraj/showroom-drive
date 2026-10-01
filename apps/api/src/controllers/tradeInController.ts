@@ -27,3 +27,13 @@ export async function createTradeInRequestController(req: Request, res: Response
     res.status(400).json({ error: { message } });
   }
 }
+
+export async function updateTradeInRequestController(req: Request, res: Response) {
+  try {
+    const data = await tradeInService.updateTradeInRequest(req.params.id, req.body || {});
+    res.json({ data });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to update trade-in request';
+    res.status(400).json({ error: { message } });
+  }
+}

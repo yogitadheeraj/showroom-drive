@@ -197,6 +197,7 @@ import {
 import {
   createTradeInRequestController,
   listTradeInRequestsController,
+  updateTradeInRequestController,
 } from '../controllers/tradeInController.js';
 import {
   createDealQuoteController,
@@ -244,6 +245,7 @@ export const apiRouter = express.Router();
 apiRouter.post('/db/query', dbQueryController);
 apiRouter.get('/trade-in-requests', listTradeInRequestsController);
 apiRouter.post('/trade-in-requests', createTradeInRequestController);
+apiRouter.patch('/trade-in-requests/:id', updateTradeInRequestController);
 apiRouter.get('/deal-quotes', listDealQuotesController);
 apiRouter.post('/deal-quotes', createDealQuoteController);
 apiRouter.patch('/deal-quotes/:id', requireAuth, updateDealQuoteController);

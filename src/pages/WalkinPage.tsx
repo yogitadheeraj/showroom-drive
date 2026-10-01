@@ -5,6 +5,7 @@ import { apiGet, apiInvokeFunction, apiPost } from '@/lib/apiClient';
 import { logStaffActivity } from '@/lib/activityLogger';
 import { createCustomer, findCustomerByPhone, updateCustomer } from '@/lib/customerService';
 import { getStoragePublicUrl, uploadToStorage } from '@/lib/storageClient';
+import { navigateTo } from '@/lib/browserNavigation';
 import { useAuth } from '@/hooks/useAuth';
 import { isLocationCurrentlyOpen, getAvailableTimeSlots } from '@/lib/slotAvailability';
 import { APP_ROLE } from '@/constants/roles';
@@ -15,11 +16,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
-import {  Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2, CalendarDays, Clock, AlertCircle, Phone, Mail, MessageSquare, MapPin, Truck, Search } from 'lucide-react';
+import {  Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2, CalendarDays, Clock, AlertCircle, Phone, Mail, MessageSquare, MapPin, Truck, Search, ChevronRight, UserRound, CalendarClock, FileCheck, ExternalLink, FileImage } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { COUNTRIES, validatePhoneForCountry, validateEmail } from '@/lib/countries';
 import VehicleImage from '@/components/common/VehicleImage';
+import { buildCustomer360Summary } from '@/lib/customer360';
 
 const CONTACT_OPTIONS = [
   { value: 'phone', label: 'Phone', icon: Phone },
@@ -28,6 +31,13 @@ const CONTACT_OPTIONS = [
 ];
 
 type Step = 'customer' | 'license' | 'confirm';
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+};
 
 const WalkinPage = () => {
   const { profile, role } = useAuth();
@@ -39,6 +49,9 @@ const WalkinPage = () => {
   const [showAdvancedDate, setShowAdvancedDate] = useState(false);
   const [existingCustomer, setExistingCustomer] = useState<any | null>(null);
   const [lookupCustomerLoading, setLookupCustomerLoading] = useState(false);
+  const [customer360Open, setCustomer360Open] = useState(false);
+  const [customer360Loading, setCustomer360Loading] = useState(false);
+  const [customer360Summary, setCustomer360Summary] = useState<any | null>(null);
 
   const todayStr = new Date().toLocaleDateString('en-CA').split('T')[0];
 
@@ -72,6 +85,7 @@ const WalkinPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLicenseUploading, setIsLicenseUploading] = useState(false);
   const [licenseLightbox, setLicenseLightbox] = useState(false);
+  const [customerLicenseLightbox, setCustomerLicenseLightbox] = useState(false);
   const [bookedSlotMinutes, setBookedSlotMinutes] = useState<number[]>([]);
   const [showCamera, setShowCamera] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -262,6 +276,8 @@ const WalkinPage = () => {
 
   const clearMatchedCustomerSearch = () => {
     setExistingCustomer(null);
+    setCustomer360Open(false);
+    setCustomer360Summary(null);
     setFormData((prev) => ({
       ...prev,
       firstName: '',
@@ -271,6 +287,50 @@ const WalkinPage = () => {
     }));
     setFormErrors((prev) => ({ ...prev, email: '' }));
   };
+
+  useEffect(() => {
+    if (!customer360Open || !existingCustomer?.id) return;
+
+    let cancelled = false;
+
+    const fetchCustomer360 = async () => {
+      setCustomer360Loading(true);
+      try {
+        const [customer, testDrives, communications, allEvents] = await Promise.all([
+          apiGet<any>(`/api/customers/${encodeURIComponent(existingCustomer.id)}`),
+          apiGet<any[]>(`/api/test-drives?customer_id=${encodeURIComponent(existingCustomer.id)}&limit=200`),
+          apiGet<any[]>(`/api/communications?customer_id=${encodeURIComponent(existingCustomer.id)}&limit=200`),
+          apiGet<any[]>(`/api/activity/events?limit=500`),
+        ]);
+
+        const relevantEvents = (allEvents || []).filter((event: any) => {
+          const metadata = event?.metadata ?? {};
+          const customerIdFromMeta = metadata.customer_id || metadata.customerId;
+          return customerIdFromMeta === existingCustomer.id || event?.customer_id === existingCustomer.id;
+        });
+
+        if (cancelled) return;
+        setCustomer360Summary(buildCustomer360Summary({
+          customer,
+          testDrives: testDrives || [],
+          communications: communications || [],
+          events: relevantEvents || [],
+        }));
+      } catch {
+        if (cancelled) return;
+        setCustomer360Summary(null);
+        toast({ title: 'Failed to load customer 360', description: 'Could not fetch customer activity and communication history.', variant: 'destructive' });
+      } finally {
+        if (!cancelled) setCustomer360Loading(false);
+      }
+    };
+
+    void fetchCustomer360();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customer360Open, existingCustomer?.id, toast]);
 
   const selectedVehicle = vehicles.find(v => v.id === formData.vehicleId) || sharedVehicles.find(v => v.id === formData.vehicleId);
   const selectedLocation = locations.find(l => l.id === formData.locationId);
@@ -372,6 +432,42 @@ const WalkinPage = () => {
 
   const selectedVehicleAvailableUnits = Number(selectedVehicle?.available_units ?? 0);
   const selectedVehicleIsFree = selectedVehicleAvailableUnits > 0;
+  const customer360 = customer360Summary;
+  const customer360Customer = customer360?.customer || existingCustomer || null;
+  const customer360SummaryCards = [
+    {
+      label: 'Phone',
+      value: customer360Customer?.phone || '—',
+      icon: Phone,
+    },
+    {
+      label: 'Email',
+      value: customer360Customer?.email || '—',
+      icon: Mail,
+    },
+    {
+      label: 'Joined',
+      value: formatDateTime(customer360Customer?.created_at),
+      icon: CalendarClock,
+    },
+  ];
+  const customerLicenseStatus = customer360Customer?.driving_license_verified
+    ? {
+        label: 'Verified',
+        className: 'bg-success/10 text-success border-success/20',
+        description: 'Driving license is verified and approved for handover.',
+      }
+    : customer360Customer?.driving_license_url
+      ? {
+          label: 'Pending Verification',
+          className: 'bg-warning/10 text-warning border-warning/20',
+          description: 'Driving license is uploaded but still awaiting verification.',
+        }
+      : {
+          label: 'Not Uploaded',
+          className: 'bg-destructive/10 text-destructive border-destructive/20',
+          description: 'No driving license has been uploaded for this customer yet.',
+        };
 
   // Only allow booking if required fields are filled and location is open for today
   const isBookingToday = formData.scheduledDate === todayStr;
@@ -600,21 +696,28 @@ const WalkinPage = () => {
         )}
 
         {existingCustomer && (
-          <Card className="shadow-card border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/20">
-            <CardContent className="p-3.5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Existing customer found</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{existingCustomer.full_name || 'Customer record'}</p>
-                  <p className="text-xs text-muted-foreground">{existingCustomer.phone || 'No phone'} • {existingCustomer.email || 'No email'}</p>
+          <button
+            type="button"
+            onClick={() => setCustomer360Open(true)}
+            className="block w-full text-left"
+          >
+            <Card className="shadow-card border-emerald-200 bg-emerald-50/60 transition hover:border-emerald-300 hover:shadow-md dark:border-emerald-900/60 dark:bg-emerald-950/20">
+              <CardContent className="p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Existing customer found</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{existingCustomer.full_name || 'Customer record'}</p>
+                    <p className="text-xs text-muted-foreground">{existingCustomer.phone || 'No phone'} • {existingCustomer.email || 'No email'}</p>
+                    <p className="mt-2 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">Tap to open customer 360 view</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {lookupCustomerLoading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-600" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+                    <ChevronRight className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {lookupCustomerLoading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-600" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-               
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </button>
         )}
 
         {(!isDealerLevel || formData.locationId) ? (
@@ -625,7 +728,7 @@ const WalkinPage = () => {
               <div className="space-y-1">
                 <Label className="text-sm font-medium">Phone <span className="text-destructive">*</span></Label>
                 <div className="flex gap-2">
-                  <div className="flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-input bg-muted/50 text-sm shrink-0 select-none">
+                  <div className="h-auto flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-input bg-muted/50 text-sm shrink-0 select-none">
                     <span>{COUNTRIES.find(c => c.dialCode === formData.countryCode)?.flag ?? '🌍'}</span>
                     <span className="font-mono text-xs">{formData.countryCode}</span>
                   </div>
@@ -634,7 +737,7 @@ const WalkinPage = () => {
                     placeholder={COUNTRIES.find(c => c.dialCode === formData.countryCode)?.phoneHint || 'Phone number'}
                     value={formData.phone}
                     autoFocus
-                    className={cn('flex-1', formErrors.phone && 'border-destructive')}
+                    className={cn('flex-1 h-100', formErrors.phone && 'border-destructive')}
                     onChange={e => { setFormData(p => ({ ...p, phone: e.target.value.replace(/\D/g, ''), email: '', firstName: '', lastName: '', preferredContact:  ['phone'] })); if (formErrors.phone) setFormErrors(p => ({ ...p, phone: '' })); }}
                   />
                   <Button
@@ -940,6 +1043,214 @@ const WalkinPage = () => {
           </Card>
         )}
       </div>
+
+      <Sheet open={customer360Open} onOpenChange={setCustomer360Open}>
+        <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-[760px]">
+          <SheetHeader className="sticky top-0 z-10 border-b border-border bg-background px-5 py-4 text-left">
+            <div className="flex items-center justify-between gap-3">
+              <SheetTitle className="flex items-center gap-2 text-base font-heading">
+                <UserRound className="h-4 w-4 text-primary" />
+                Customer 360 View
+              </SheetTitle>
+              {customer360Customer?.id && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => navigateTo(`/customers/${encodeURIComponent(customer360Customer.id)}`)}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open Full Page
+                </Button>
+              )}
+            </div>
+          </SheetHeader>
+
+          <div className="space-y-5 px-5 py-4">
+            {customer360Loading ? (
+              <div className="flex min-h-[320px] items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading customer activity...
+              </div>
+            ) : !customer360Customer ? (
+              <div className="flex min-h-[320px] items-center justify-center text-sm text-muted-foreground">
+                Customer details are not available.
+              </div>
+            ) : (
+              <>
+                <div className="rounded-3xl border border-primary/20 bg-primary p-5 text-primary-foreground shadow-lg">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 text-white ring-1 ring-white/30 backdrop-blur-sm">
+                        <UserRound className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold">{customer360Customer.full_name || 'Customer'}</h2>
+                        <p className="text-sm text-primary-foreground/80">Customer ID: {String(customer360Customer.id || '').slice(0, 8) || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className="bg-white/15 text-white ring-1 ring-white/20 hover:bg-white/20">{customer360?.metrics?.totalActivities ?? 0} activities</Badge>
+                      <Badge className="bg-white/20 text-white ring-1 ring-white/30 hover:bg-white/30">{customer360?.metrics?.activeTestDrives ?? 0} active drives</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  {customer360SummaryCards.map(({ label, value, icon: Icon }) => (
+                    <div key={label} className="rounded-2xl border border-border bg-card p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</span>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                      </div>
+                      <p className="break-words text-sm font-semibold text-foreground">{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-2xl border border-border bg-card p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-foreground">Driving License</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{customerLicenseStatus.description}</p>
+                    </div>
+                    <Badge variant="outline" className={customerLicenseStatus.className}>
+                      <FileCheck className="mr-1 h-3.5 w-3.5" />
+                      {customerLicenseStatus.label}
+                    </Badge>
+                  </div>
+
+                  {customer360Customer?.driving_license_url ? (
+                    <div className="mt-4 flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-3">
+                      {customer360Customer.driving_license_url ? (
+                           <button
+                        type="button"
+                        onClick={() => setCustomerLicenseLightbox(true)}
+                        className="flex h-16 w-24 items-center justify-center overflow-hidden rounded-lg border border-border bg-background transition hover:ring-2 hover:ring-primary/40"
+                      >
+                        <img
+                          src={customer360Customer.driving_license_url}
+                          alt="Customer driving license"
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                      ) : null}
+                   
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground">License document uploaded</p>
+                        <p className="mt-1 text-xs text-muted-foreground">Tap preview to inspect the uploaded license.</p>
+                        <a
+                          href={customer360Customer.driving_license_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                        >
+                          <FileImage className="h-3.5 w-3.5" />
+                          Open original file
+                        </a>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="space-y-4 rounded-2xl border border-border bg-card p-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-foreground">Timeline</h3>
+                      <Badge variant="secondary" className="bg-primary/10 text-primary">{customer360?.timeline?.length ?? 0}</Badge>
+                    </div>
+                    <div className="space-y-3">
+                      {(customer360?.timeline || []).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No activity recorded</p>
+                      ) : (
+                        customer360.timeline.slice(0, 10).map((item: any) => {
+                          const IconTile = item.type === 'communication' ? MessageSquare : item.type === 'test_drive' ? CalendarClock : CheckCircle2;
+                          return (
+                            <div key={item.id} className="flex gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
+                              <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                <IconTile className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-foreground">{item.title}</p>
+                                <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+                                <p className="mt-2 text-xs text-muted-foreground">{formatDateTime(item.timestamp)}</p>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-border bg-card p-4">
+                      <h3 className="font-semibold text-foreground">Recent test drives</h3>
+                      <div className="mt-3 space-y-2">
+                        {(customer360?.testDrives || []).length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No test drives recorded</p>
+                        ) : (
+                          customer360.testDrives.slice(0, 5).map((testDrive: any) => (
+                            <div key={testDrive.id} className="rounded-xl border border-border bg-card p-3 text-sm shadow-sm">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium capitalize text-foreground">{String(testDrive.status || 'scheduled').replace(/_/g, ' ')}</span>
+                                <Badge variant="secondary" className="capitalize bg-primary/10 text-primary">{testDrive.status || 'scheduled'}</Badge>
+                              </div>
+                              <p className="mt-1 text-muted-foreground">{testDrive.vehicle_name || 'Vehicle'} • {testDrive.scheduled_date || '—'} {testDrive.scheduled_time || ''}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-card p-4">
+                      <h3 className="font-semibold text-foreground">Recent communications</h3>
+                      <div className="mt-3 space-y-2">
+                        {(customer360?.communications || []).length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No communications recorded</p>
+                        ) : (
+                          customer360.communications.slice(0, 5).map((communication: any) => (
+                            <div key={communication.id} className="rounded-xl border border-border bg-card p-3 text-sm shadow-sm">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium capitalize text-foreground">{communication.type || 'message'}</span>
+                                <Badge variant="secondary" className="capitalize bg-primary/10 text-primary">{communication.status || 'sent'}</Badge>
+                              </div>
+                              <p className="mt-1 text-muted-foreground">{communication.purpose || 'communication'} • {communication.sent_to || 'customer'}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {customerLicenseLightbox && customer360Customer?.driving_license_url && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+                    onClick={() => setCustomerLicenseLightbox(false)}
+                  >
+                    <div className="relative max-w-3xl" onClick={(event) => event.stopPropagation()}>
+                      <img
+                        src={customer360Customer.driving_license_url}
+                        alt="Customer driving license"
+                        className="max-h-[85vh] rounded-xl shadow-2xl"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCustomerLicenseLightbox(false)}
+                        className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-black shadow-lg transition hover:bg-slate-100"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </DashboardLayout>
   );
 };

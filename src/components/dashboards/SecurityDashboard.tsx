@@ -24,6 +24,7 @@ import { navigateTo } from '@/lib/browserNavigation';
 const SecurityDashboard = () => {
   const { profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
+  const [totalVehicles, setTotalVehicles] = useState(0);
   const { toast } = useToast();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -77,6 +78,13 @@ const SecurityDashboard = () => {
     if (profile?.location_id) params.set('location_id', profile.location_id);
     const enrichedDrives = await apiGet<any[]>(`/api/test-drives?${params.toString()}`) || [];
     setTestDrives(enrichedDrives);
+
+    if (profile?.location_id) {
+      const vehicles = await apiGet<any[]>(`/api/vehicles?location_id=${encodeURIComponent(profile.location_id)}`).catch(() => [] as any[]);
+      setTotalVehicles((vehicles || []).length);
+    } else {
+      setTotalVehicles(0);
+    }
 
     if (!enrichedDrives.length) {
       setSecurityLogsByDrive({});
@@ -517,12 +525,13 @@ const SecurityDashboard = () => {
       </div>
 
       {/* ── KPI stat strip ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
           { label: 'Total Today', value: testDrives.length, icon: Shield, color: 'text-primary', bg: 'bg-primary/10', activeColor: 'ring-primary', sub: `${metrics.active.length} active`, filter: 'total' as const },
           { label: 'In Progress', value: metrics.inProgress.length, icon: CheckCircle, color: 'text-success', bg: 'bg-success/10', activeColor: 'ring-success', sub: metrics.overdueReturn.length > 0 ? `${metrics.overdueReturn.length} overdue` : 'on track', alert: metrics.overdueReturn.length > 0, filter: 'in_progress' as const },
           { label: 'License OK', value: testDrives.filter((d) => d.customers?.driving_license_verified).length, icon: FileCheck, color: 'text-info', bg: 'bg-info/10', activeColor: 'ring-info', sub: `${pendingCount} pending`, filter: 'license_ok' as const },
           { label: 'Pending Verification', value: pendingCount, icon: AlertCircle, color: pendingCount > 0 ? 'text-warning' : 'text-muted-foreground', bg: pendingCount > 0 ? 'bg-warning/10' : 'bg-muted/40', activeColor: 'ring-warning', sub: pendingCount > 0 ? 'needs action' : 'all clear', alert: pendingCount > 0, filter: 'pending_verification' as const },
+          { label: 'Total Vehicles', value: totalVehicles, icon: Car, color: 'text-sky-600', bg: 'bg-sky-100', activeColor: 'ring-sky-500', sub: 'fleet in location', filter: 'all' as const, navigateToVehicles: true },
         ].map((stat) => {
           const Icon = stat.icon;
           const isActive = viewFilter === stat.filter;
@@ -532,7 +541,13 @@ const SecurityDashboard = () => {
               className={`shadow-card cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 select-none
                 ${(stat as any).alert ? 'border-warning/30' : ''}
                 ${isActive ? `ring-2 ${stat.activeColor} border-transparent` : ''}`}
-              onClick={() => handleStatClick(stat.filter)}
+              onClick={() => {
+                if ((stat as any).navigateToVehicles) {
+                  navigateTo('/vehicles');
+                  return;
+                }
+                handleStatClick(stat.filter);
+              }}
             >
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center gap-3">

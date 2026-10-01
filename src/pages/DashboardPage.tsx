@@ -137,16 +137,46 @@ const DashboardPage = () => {
   const hydratedProfilePrefsForRef = useRef<string | null>(null);
   const lastSavedPrefsRef = useRef<string>('');
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [showIntroSection, setShowIntroSection] = useState(true);
+  const [introClosing, setIntroClosing] = useState(false);
+  const isOrganizationAdmin = role === APP_ROLE.DEALER_ADMIN;
 
-  const [dashboardPreferences, setDashboardPreferences] = useState<DashboardPreferences>(() => {
-    if (typeof window === 'undefined') return DEFAULT_DASHBOARD_PREFERENCES;
+  const [dashboardPreferences, setDashboardPreferences] = useState<DashboardPreferences>(DEFAULT_DASHBOARD_PREFERENCES);
+
+  useEffect(() => {
     try {
       const raw = localStorage.getItem(DASHBOARD_PREFS_STORAGE_KEY);
-      return raw ? normalizeDashboardPreferences(JSON.parse(raw)) : DEFAULT_DASHBOARD_PREFERENCES;
+      if (!raw) return;
+      setDashboardPreferences(normalizeDashboardPreferences(JSON.parse(raw)));
     } catch {
-      return DEFAULT_DASHBOARD_PREFERENCES;
+      setDashboardPreferences(DEFAULT_DASHBOARD_PREFERENCES);
     }
-  });
+  }, []);
+
+  useEffect(() => {
+    if (!isOrganizationAdmin) {
+      setShowIntroSection(true);
+      setIntroClosing(false);
+      return;
+    }
+
+    setShowIntroSection(true);
+    setIntroClosing(false);
+
+    const closeDelayId = window.setTimeout(() => {
+      setIntroClosing(true);
+    }, 10_000);
+
+    const hideDelayId = window.setTimeout(() => {
+      setShowIntroSection(false);
+      setIntroClosing(false);
+    }, 10_700);
+
+    return () => {
+      window.clearTimeout(closeDelayId);
+      window.clearTimeout(hideDelayId);
+    };
+  }, [isOrganizationAdmin]);
 
   useEffect(() => {
     if (!profile?.id) {
@@ -304,104 +334,7 @@ const DashboardPage = () => {
   return (
     <DashboardLayout>
       <div className="space-y-5">
-        <Card className="overflow-hidden border-border/60 bg-card/95 shadow-card">
-          <CardContent className="p-0">
-            <div className="grid gap-0 xl:grid-cols-[1.55fr_0.95fr]">
-              <div className="relative overflow-hidden border-b border-border/60 bg-gradient-to-br from-primary/[0.08] via-background to-accent/[0.08] p-6 xl:border-b-0 xl:border-r">
-                <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-primary/10 blur-3xl" />
-                <div className="absolute bottom-0 left-10 h-20 w-20 rounded-full bg-accent/10 blur-2xl" />
-                <div className="relative space-y-4">
-                  <div className="space-y-2">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Daily Control Center
-                    </div>
-                    <div>
-                      <h1 className="text-2xl font-heading font-bold tracking-tight text-foreground sm:text-3xl">
-                        {roleLabel}
-                      </h1>
-                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
-                        {roleSummary}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <div className="rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground">
-                      Workspace owner: <span className="font-semibold">{profile?.full_name || 'Team Member'}</span>
-                    </div>
-                    <div className="rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground">
-                      Layout: <span className="font-semibold">{columns} column{columns > 1 ? 's' : ''}</span>
-                    </div>
-                    <div className="rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground">
-                      Density: <span className="font-semibold capitalize">{density}</span>
-                    </div>
-                    <div className="rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground">
-                      Active sections: <span className="font-semibold">{visibleWidgetCount}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Start Here</p>
-                      <p className="mt-2 text-sm font-semibold text-foreground">Open the key action your team needs right now.</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Use the quick actions for speed. Use the overview below for the full business picture.</p>
-                    </div>
-                    <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Make It Your Own</p>
-                      <p className="mt-2 text-sm font-semibold text-foreground">Show only the sections your role actually uses.</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Adjust layout, density, and visible sections without changing the rest of the app.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <Button className="gap-2" onClick={() => setPreferencesOpen((prev) => !prev)}>
-                      <SlidersHorizontal className="h-4 w-4" />
-                      {preferencesOpen ? 'Hide Layout Controls' : 'Adjust Layout'}
-                    </Button>
-                    <Button variant="outline" className="gap-2" asChild>
-                      <a href="/reports/monitoring">
-                        <ArrowUpRight className="h-4 w-4" />
-                        Open Reports
-                      </a>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6">
-                <div className="mb-4 flex items-center gap-2">
-                  <div className="rounded-lg bg-muted p-2 text-muted-foreground">
-                    <LayoutGrid className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Start Here</p>
-                    <p className="text-xs text-muted-foreground">Fast links for the most common daily work.</p>
-                  </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {quickActions.map((action) => {
-                    const Icon = action.icon;
-                    return (
-                      <a
-                        key={action.href}
-                        href={action.href}
-                        className="group rounded-2xl border border-border/70 bg-background/70 p-4 transition-all hover:border-primary/30 hover:bg-primary/[0.04] hover:shadow-card"
-                      >
-                        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-hover:scale-105">
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <p className="text-sm font-semibold text-foreground">{action.label}</p>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{action.description}</p>
-                      </a>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
+       
         {preferencesOpen && (
           <Card className="border-border/60 bg-card/95 shadow-card">
             <CardHeader className="pb-3">

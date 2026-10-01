@@ -15,13 +15,59 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Car, Edit2, MapPin, Palette, FileSpreadsheet, CalendarCheck, DollarSign, Zap, AlertCircle, Truck, PowerOff } from 'lucide-react';
+import { Plus, Car, Edit2, MapPin, Palette, FileSpreadsheet, CalendarCheck, DollarSign, Zap, AlertCircle, Truck, PowerOff, Save, FilePlus2, NotebookPen, LayoutGrid, Tag, Clock3, SlidersHorizontal, Search, FilterX } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import BulkVehicleImport from '@/components/vehicles/BulkVehicleImport';
 import VehicleReservations from '@/components/vehicles/VehicleReservations';
 import PricingRulesConfig from '@/components/vehicles/PricingRulesConfig';
 import VehicleImage from '@/components/common/VehicleImage';
+
+type VehicleCompareSpecsDraft = {
+  horsepower: string;
+  torque: string;
+  top_speed: string;
+  acceleration: string;
+  fuel_type: string;
+  drive_type: string;
+  transmission: string;
+  mileage: string;
+  battery_capacity: string;
+  range_km: string;
+  seating_capacity: string;
+};
+
+const emptyCompareSpecsDraft = (): VehicleCompareSpecsDraft => ({
+  horsepower: '',
+  torque: '',
+  top_speed: '',
+  acceleration: '',
+  fuel_type: '',
+  drive_type: '',
+  transmission: '',
+  mileage: '',
+  battery_capacity: '',
+  range_km: '',
+  seating_capacity: '',
+});
+
+const FUEL_TYPE_OPTIONS = ['Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG', 'LPG'] as const;
+const DRIVE_TYPE_OPTIONS = ['FWD', 'RWD', 'AWD', '4WD', '2WD'] as const;
+const TRANSMISSION_OPTIONS = ['Automatic', 'Manual', 'CVT', 'DCT', 'AMT'] as const;
+
+const toCompareSpecsDraft = (vehicle?: any): VehicleCompareSpecsDraft => ({
+  horsepower: vehicle?.horsepower != null ? String(vehicle.horsepower) : '',
+  torque: vehicle?.torque != null ? String(vehicle.torque) : '',
+  top_speed: vehicle?.top_speed != null ? String(vehicle.top_speed) : '',
+  acceleration: vehicle?.acceleration != null ? String(vehicle.acceleration) : '',
+  fuel_type: vehicle?.fuel_type != null ? String(vehicle.fuel_type) : '',
+  drive_type: vehicle?.drive_type != null ? String(vehicle.drive_type) : '',
+  transmission: vehicle?.transmission != null ? String(vehicle.transmission) : '',
+  mileage: vehicle?.mileage != null ? String(vehicle.mileage) : '',
+  battery_capacity: vehicle?.battery_capacity != null ? String(vehicle.battery_capacity) : '',
+  range_km: vehicle?.range_km != null ? String(vehicle.range_km) : '',
+  seating_capacity: vehicle?.seating_capacity != null ? String(vehicle.seating_capacity) : '',
+});
 
 const CONDITION_LABEL: Record<string, string> = { new: 'New', used: 'Used', demo: 'Demo' };
 const CONDITION_CLASS: Record<string, string> = {
@@ -73,6 +119,8 @@ const VehiclesPage = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formStep, setFormStep] = useState(1);
   const [createDemoForNew, setCreateDemoForNew] = useState(false);
+  const [specPromptVehicle, setSpecPromptVehicle] = useState<{ id: string; name: string } | null>(null);
+  const [specDraft, setSpecDraft] = useState<VehicleCompareSpecsDraft>(emptyCompareSpecsDraft());
   const [demoFormData, setDemoFormData] = useState({
     variant: 'Demo', year: new Date().getFullYear().toString(), color: '', registration_number: '', image_url: '',
     total_units: '1', available_units: '1',
@@ -104,6 +152,9 @@ const VehiclesPage = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'sold' | 'unavailable' | 'deactivated'>('all');
   const [conditionFilter, setConditionFilter] = useState<'all' | 'new' | 'used' | 'demo'>('all');
   const [workflowFilter, setWorkflowFilter] = useState<'all' | VehicleWorkflowStatus>('all');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'bulk' | 'reservations' | 'pricing'>('inventory');
+  const [inventoryFiltersOpen, setInventoryFiltersOpen] = useState(false);
+  const [inventorySearch, setInventorySearch] = useState('');
   const showDemoSetupStep = !editingId && formData.vehicle_condition === 'new' && createDemoForNew;
   const totalSteps = showDemoSetupStep ? 3 : 2;
 
@@ -127,6 +178,55 @@ const VehiclesPage = () => {
   const isVehicleUnavailable = (vehicle: any) => false;
   const isVehicleDeactivated = (vehicle: any) => !vehicle.is_active;
 
+  const vehicleMetrics = useMemo(() => {
+    const active = vehicles.filter((vehicle) => isVehicleAvailable(vehicle)).length;
+    const sold = vehicles.filter((vehicle) => isVehicleSold(vehicle)).length;
+    const reserved = vehicles.filter((vehicle) => getWorkflowStatus(vehicle.status) === 'returned' || getWorkflowStatus(vehicle.status) === 'shipped').length;
+    return [
+      { label: 'Inventory', value: vehicles.length, hint: 'All vehicles', icon: LayoutGrid },
+      { label: 'Active', value: active, hint: 'Available now', icon: Car },
+      { label: 'Pricing', value: 'Rules', hint: 'Manage offers', icon: DollarSign },
+      { label: 'Reservations', value: reserved, hint: 'Open journeys', icon: Clock3 },
+    ];
+  }, [vehicles]);
+
+  const filteredVehicles = useMemo(() => {
+    const query = inventorySearch.trim().toLowerCase();
+
+    return vehicles
+      .filter((v) => {
+        if (statusFilter === 'active') return isVehicleAvailable(v);
+        if (statusFilter === 'sold') return v.is_active && isVehicleSold(v);
+        if (statusFilter === 'unavailable') return isVehicleUnavailable(v);
+        if (statusFilter === 'deactivated') return isVehicleDeactivated(v);
+        return true;
+      })
+      .filter((v) => {
+        if (conditionFilter === 'all') return true;
+        return getVehicleCondition(v) === conditionFilter;
+      })
+      .filter((v) => {
+        if (workflowFilter === 'all') return true;
+        return getWorkflowStatus(v.status) === workflowFilter;
+      })
+      .filter((v) => {
+        if (!query) return true;
+        const searchable = [v.brand, v.model, v.grade, v.trim, v.variant, v.registration_number, v.color, v.locations?.name, v.current_location_name]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return searchable.includes(query);
+      });
+  }, [vehicles, statusFilter, conditionFilter, workflowFilter, inventorySearch]);
+
+  const clearInventoryFilters = () => {
+    setInventorySearch('');
+    setStatusFilter('all');
+    setConditionFilter('all');
+    setWorkflowFilter('all');
+    if (isSuperAdmin) setSelectedDealer('all');
+  };
+
   const assignedBrandIds = useMemo(() => {
     return normalizeIdList(profile?.brand_ids);
   }, [profile?.brand_ids]);
@@ -144,6 +244,8 @@ const VehiclesPage = () => {
     const allowed = new Set(assignedBrandIds);
     return brands.filter((brand: any) => allowed.has(String(brand.id)));
   }, [brands, shouldRestrictToAssignments, assignedBrandIds]);
+
+  const brandOptions = assignableBrands.length > 0 ? assignableBrands : brands;
 
   const assignableLocations = useMemo(() => {
     if (!shouldRestrictToAssignments) return locations;
@@ -163,14 +265,22 @@ const VehiclesPage = () => {
         next.location_id = assignableLocations[0].id;
       }
 
-      if (!next.brand_id && assignableBrands.length === 1) {
-        next.brand_id = assignableBrands[0].id;
-        next.brand = assignableBrands[0].name || next.brand;
+      if (!next.brand_id && brandOptions.length === 1) {
+        next.brand_id = brandOptions[0].id;
+        next.brand = brandOptions[0].name || next.brand;
       }
 
       return next;
     });
-  }, [showDialog, editingId, assignableLocations, assignableBrands]);
+  }, [showDialog, editingId, assignableLocations, brandOptions]);
+
+  useEffect(() => {
+    if (!showDialog || !formData.brand || formData.brand_id || brandOptions.length === 0) return;
+    const matchedBrand = brandOptions.find((brand) => String(brand.name).toLowerCase() === String(formData.brand).toLowerCase());
+    if (matchedBrand) {
+      setFormData((prev) => ({ ...prev, brand_id: matchedBrand.id }));
+    }
+  }, [showDialog, formData.brand, formData.brand_id, brandOptions]);
 
   // Map: new vehicle id → demo vehicles linked to it
   const demosForVehicle = useMemo(() => {
@@ -308,6 +418,8 @@ const VehiclesPage = () => {
     setEditingId(v.id);
     setFormStep(1);
     setCreateDemoForNew(false);
+    setSpecPromptVehicle(null);
+    setSpecDraft(toCompareSpecsDraft(v));
     setFormData({
       brand: v.brand, brand_id: v.brandId || '', model: v.model, grade: v.grade || '', trim: v.trim || '', variant: v.variant || '', year: String(v.year),
       color: v.color || '', registration_number: v.registration_number || '',
@@ -328,11 +440,22 @@ const VehiclesPage = () => {
     setShowDialog(true);
   };
 
+  const openVehicleSpecsPrompt = (vehicle: any) => {
+    setEditingId(null);
+    setFormStep(1);
+    setCreateDemoForNew(false);
+    setShowDialog(false);
+    setSpecPromptVehicle({ id: vehicle.id, name: `${vehicle.brand} ${vehicle.model}`.trim() });
+    setSpecDraft(toCompareSpecsDraft(vehicle));
+  };
+
   // ── Open new ────────────────────────────────────────────────
   const openNew = () => {
     setEditingId(null);
     setFormStep(1);
     setCreateDemoForNew(false);
+    setSpecPromptVehicle(null);
+    setSpecDraft(emptyCompareSpecsDraft());
     setFormData({
       brand: '', brand_id: '', model: '', grade: '', trim: '', variant: '', year: new Date().getFullYear().toString(),
       color: '', registration_number: '', location_id: '', image_url: '',
@@ -411,6 +534,10 @@ const VehiclesPage = () => {
             metadata: { vehicleId: editingId, brand: formData.brand, model: formData.model, condition: formData.vehicle_condition, registrationNumber: formData.registration_number || null },
           });
         }
+
+        setSpecPromptVehicle({ id: editingId, name: `${formData.brand} ${formData.model}`.trim() });
+        const currentVehicle = vehicles.find((vehicle) => vehicle.id === editingId);
+        setSpecDraft(toCompareSpecsDraft({ ...currentVehicle, ...payload }));
       } else {
         const created = await apiPost<any>('/api/vehicles', payload);
         const createdId: string = Array.isArray(created) ? created[0]?.id : created?.id;
@@ -461,6 +588,11 @@ const VehiclesPage = () => {
             });
           }
         }
+
+        if (createdId) {
+          setSpecPromptVehicle({ id: createdId, name: `${formData.brand} ${formData.model}`.trim() });
+          setSpecDraft(emptyCompareSpecsDraft());
+        }
       }
 
       setShowDialog(false);
@@ -468,6 +600,49 @@ const VehiclesPage = () => {
     } catch (err: any) {
       toast({ title: 'Save failed', description: err?.message || 'Please try again.', variant: 'destructive' });
     }
+  };
+
+  const handleSaveCompareSpecs = async () => {
+    if (!specPromptVehicle) return;
+
+    const payload: Record<string, unknown> = {};
+    const assignNumber = (key: keyof VehicleCompareSpecsDraft, target: 'horsepower' | 'range_km' | 'seating_capacity') => {
+      const value = specDraft[key].trim();
+      if (value !== '') payload[target] = Number(value);
+    };
+    const assignText = (key: keyof VehicleCompareSpecsDraft, target: 'torque' | 'top_speed' | 'acceleration' | 'fuel_type' | 'drive_type' | 'transmission' | 'mileage' | 'battery_capacity') => {
+      const value = specDraft[key].trim();
+      if (value !== '') payload[target] = value;
+    };
+
+    assignNumber('horsepower', 'horsepower');
+    assignText('torque', 'torque');
+    assignText('top_speed', 'top_speed');
+    assignText('acceleration', 'acceleration');
+    assignText('fuel_type', 'fuel_type');
+    assignText('drive_type', 'drive_type');
+    assignText('transmission', 'transmission');
+    assignText('mileage', 'mileage');
+    assignText('battery_capacity', 'battery_capacity');
+    assignNumber('range_km', 'range_km');
+    assignNumber('seating_capacity', 'seating_capacity');
+
+    try {
+      if (Object.keys(payload).length > 0) {
+        await apiPatch(`/api/vehicles/${encodeURIComponent(specPromptVehicle.id)}`, payload);
+        toast({ title: 'Compare specs saved', description: 'The new vehicle is now ready for richer compare cards.' });
+        fetchVehicles();
+      }
+      setSpecPromptVehicle(null);
+      setSpecDraft(emptyCompareSpecsDraft());
+    } catch (err: any) {
+      toast({ title: 'Specs save failed', description: err?.message || 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const handleSkipCompareSpecs = () => {
+    setSpecPromptVehicle(null);
+    setSpecDraft(emptyCompareSpecsDraft());
   };
 
   const handleStartWorkflowAction = (vehicle: any, nextStatus: VehicleWorkflowStatus) => {
@@ -534,18 +709,48 @@ const VehiclesPage = () => {
   return (
     <DashboardLayout>
       <div className="space-y-4 sm:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground">Vehicle Management</h1>
-            <p className="text-sm text-muted-foreground">Manage inventory: new, used, and demo vehicles</p>
+        <section className="overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
+          <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[1.4fr_0.9fr] lg:items-center">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
+                <Tag className="h-3.5 w-3.5" /> Vehicle Management
+              </div>
+              <div className="space-y-1">
+                <h1 className="text-xl sm:text-3xl font-heading font-bold text-foreground">Inventory, pricing, and reservations in one flow</h1>
+                <p className="max-w-2xl text-sm sm:text-base text-muted-foreground">
+                  Keep vehicles, price rules, and reservations in a clean workspace that is easy to scan, quick to edit, and flexible for daily operations.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row lg:justify-end">
+              <Button onClick={openNew} className="bg-primary text-primary-foreground hover:bg-primary/90 w-full sm:w-auto" style={{ display: canManageVehicles ? undefined : 'none' }}>
+                <Plus className="h-4 w-4 mr-2" /> Add Vehicle
+              </Button>
+            </div>
           </div>
-          <Button onClick={openNew} className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto" style={{ display: canManageVehicles ? undefined : 'none' }}>
-            <Plus className="h-4 w-4 mr-2" /> Add Vehicle
-          </Button>
-        </div>
+          <div className="grid gap-3 border-t border-border/60 bg-background/60 p-4 sm:grid-cols-2 xl:grid-cols-4">
+            {vehicleMetrics.map((metric) => {
+              const Icon = metric.icon;
+              return (
+                <div key={metric.label} className="rounded-2xl border border-border/60 bg-card/80 p-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{metric.label}</p>
+                      <p className="mt-1 text-2xl font-heading font-semibold text-foreground">{metric.value}</p>
+                    </div>
+                    <div className="rounded-xl bg-primary/10 p-2 text-primary">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{metric.hint}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
-        <Tabs defaultValue="inventory" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'inventory' | 'bulk' | 'reservations' | 'pricing')} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 gap-1 rounded-2xl border border-border/60 bg-muted/40 p-1 sm:grid-cols-4">
             <TabsTrigger value="inventory" className="flex items-center gap-1.5">
               <Car className="h-4 w-4" /> Inventory
             </TabsTrigger>
@@ -563,89 +768,35 @@ const VehiclesPage = () => {
           </TabsList>
 
           {/* ── Inventory tab ───────────────────────── */}
-          <TabsContent value="inventory" className="space-y-4 mt-4">
-            {isSuperAdmin && (
-              <div className="flex items-end gap-3">
-                <div className="flex-1 max-w-xs">
-                  <Label className="text-sm text-muted-foreground mb-2 block">Filter by Dealer</Label>
-                  <Select value={selectedDealer} onValueChange={setSelectedDealer}>
-                    <SelectTrigger><SelectValue placeholder="Select dealer" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Dealers</SelectItem>
-                      {dealers.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+          <TabsContent value="inventory" id="inventory" className="space-y-4 mt-4 scroll-mt-24">
+            <Card className="border-border/60 shadow-sm">
+              <CardContent className="space-y-4 p-4 sm:p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Inventory cards</p>
+                    <p className="text-xs text-muted-foreground">Showing {filteredVehicles.length} of {vehicles.length} vehicles</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" className="gap-2 border-primary/20" onClick={() => setInventoryFiltersOpen(true)}>
+                      <SlidersHorizontal className="h-4 w-4" /> Filters
+                    </Button>
+                    <Button variant="ghost" className="gap-2 text-muted-foreground" onClick={clearInventoryFilters}>
+                      <FilterX className="h-4 w-4" /> Clear
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[240px_240px]">
-              <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">Inventory status</Label>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'sold' | 'unavailable' | 'deactivated')}>
-                  <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All ({vehicles.length})</SelectItem>
-                    <SelectItem value="active">Available ({vehicles.filter(v => isVehicleAvailable(v)).length})</SelectItem>
-                    <SelectItem value="sold">Sold ({vehicles.filter(v => isVehicleSold(v) && v.is_active).length})</SelectItem>
-                    <SelectItem value="unavailable">Unavailable ({vehicles.filter(v => isVehicleUnavailable(v)).length})</SelectItem>
-                    <SelectItem value="deactivated">Deactivated ({vehicles.filter(v => !v.is_active).length})</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">Condition</Label>
-                <Select value={conditionFilter} onValueChange={(value) => setConditionFilter(value as 'all' | 'new' | 'used' | 'demo')}>
-                  <SelectTrigger><SelectValue placeholder="All conditions" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All ({vehicles.length})</SelectItem>
-                    <SelectItem value="new">New ({vehicles.filter(v => getVehicleCondition(v) === 'new').length})</SelectItem>
-                    <SelectItem value="used">Used ({vehicles.filter(v => getVehicleCondition(v) === 'used').length})</SelectItem>
-                    <SelectItem value="demo">Demo ({vehicles.filter(v => getVehicleCondition(v) === 'demo').length})</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {(['all', 'shipped', 'in_stock', 'sold', 'returned'] as const).map((stage) => {
-                const count = stage === 'all'
-                  ? vehicles.length
-                  : vehicles.filter((v) => getWorkflowStatus(v.status) === stage).length;
-                return (
-                  <button
-                    key={stage}
-                    type="button"
-                    onClick={() => setWorkflowFilter(stage)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                      workflowFilter === stage
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
-                    }`}
-                  >
-                    {stage === 'all' ? 'All stages' : VEHICLE_WORKFLOW_LABELS[stage]} ({count})
-                  </button>
-                );
-              })}
-            </div>
+                <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                  {selectedDealer !== 'all' && <Badge variant="secondary" className="rounded-full">Dealer: {dealers.find((d: any) => d.id === selectedDealer)?.name || 'Selected'}</Badge>}
+                  {statusFilter !== 'all' && <Badge variant="secondary" className="rounded-full">Status: {statusFilter}</Badge>}
+                  {conditionFilter !== 'all' && <Badge variant="secondary" className="rounded-full">Condition: {conditionFilter}</Badge>}
+                  {workflowFilter !== 'all' && <Badge variant="secondary" className="rounded-full">Workflow: {VEHICLE_WORKFLOW_LABELS[workflowFilter]}</Badge>}
+                  {inventorySearch && <Badge variant="secondary" className="rounded-full">Search: {inventorySearch}</Badge>}
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {vehicles
-                .filter(v => {
-                  if (statusFilter === 'active') return isVehicleAvailable(v);
-                  if (statusFilter === 'sold') return v.is_active && isVehicleSold(v);
-                  if (statusFilter === 'unavailable') return isVehicleUnavailable(v);
-                  if (statusFilter === 'deactivated') return isVehicleDeactivated(v);
-                  return true;
-                })
-                .filter(v => {
-                  if (conditionFilter === 'all') return true;
-                  return getVehicleCondition(v) === conditionFilter;
-                })
-                .filter(v => {
-                  if (workflowFilter === 'all') return true;
-                  return getWorkflowStatus(v.status) === workflowFilter;
-                })
-                .map((v) => {
+              {filteredVehicles.map((v) => {
                 const linkedDemos = demosForVehicle.get(v.id) || [];
                 const demoAvail = linkedDemos.reduce((s: number, d: any) => s + (d.available_units || 0), 0);
                 const demoTotal = linkedDemos.reduce((s: number, d: any) => s + (d.total_units || 0), 0);
@@ -699,6 +850,15 @@ const VehiclesPage = () => {
                             </Badge>
                           )}
                           <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 w-6 p-0 border-primary/20"
+                              title="Add or update specs"
+                              onClick={() => openVehicleSpecsPrompt(v)}
+                            >
+                              <NotebookPen className="h-3 w-3" />
+                            </Button>
                             {canManageVehicles && (
                               <Button size="sm" className="h-6 w-6 p-0 border border-primary/20" title="Edit vehicle" onClick={() => openEdit(v)}>
                                 <Edit2 className="h-3 w-3" />
@@ -834,6 +994,99 @@ const VehiclesPage = () => {
           )}
         </Tabs>
 
+        <Dialog open={inventoryFiltersOpen} onOpenChange={setInventoryFiltersOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-heading">Inventory Filters</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Search cards</Label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={inventorySearch}
+                    onChange={(event) => setInventorySearch(event.target.value)}
+                    placeholder="Brand, model, variant, VIN, location..."
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+              {isSuperAdmin && (
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">Filter by dealer</Label>
+                  <Select value={selectedDealer} onValueChange={setSelectedDealer}>
+                    <SelectTrigger><SelectValue placeholder="Select dealer" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Dealers</SelectItem>
+                      {dealers.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">Inventory status</Label>
+                  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'sold' | 'unavailable' | 'deactivated')}>
+                    <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All ({vehicles.length})</SelectItem>
+                      <SelectItem value="active">Available ({vehicles.filter(v => isVehicleAvailable(v)).length})</SelectItem>
+                      <SelectItem value="sold">Sold ({vehicles.filter(v => isVehicleSold(v) && v.is_active).length})</SelectItem>
+                      <SelectItem value="unavailable">Unavailable ({vehicles.filter(v => isVehicleUnavailable(v)).length})</SelectItem>
+                      <SelectItem value="deactivated">Deactivated ({vehicles.filter(v => !v.is_active).length})</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">Condition</Label>
+                  <Select value={conditionFilter} onValueChange={(value) => setConditionFilter(value as 'all' | 'new' | 'used' | 'demo')}>
+                    <SelectTrigger><SelectValue placeholder="All conditions" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All ({vehicles.length})</SelectItem>
+                      <SelectItem value="new">New ({vehicles.filter(v => getVehicleCondition(v) === 'new').length})</SelectItem>
+                      <SelectItem value="used">Used ({vehicles.filter(v => getVehicleCondition(v) === 'used').length})</SelectItem>
+                      <SelectItem value="demo">Demo ({vehicles.filter(v => getVehicleCondition(v) === 'demo').length})</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Workflow</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(['all', 'shipped', 'in_stock', 'sold', 'returned'] as const).map((stage) => {
+                    const count = stage === 'all'
+                      ? vehicles.length
+                      : vehicles.filter((v) => getWorkflowStatus(v.status) === stage).length;
+                    return (
+                      <button
+                        key={stage}
+                        type="button"
+                        onClick={() => setWorkflowFilter(stage)}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                          workflowFilter === stage
+                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                            : 'bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
+                        }`}
+                      >
+                        {stage === 'all' ? 'All stages' : VEHICLE_WORKFLOW_LABELS[stage]} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-2">
+                <Button variant="outline" onClick={clearInventoryFilters} className="gap-2">
+                  <FilterX className="h-4 w-4" /> Clear filters
+                </Button>
+                <Button onClick={() => setInventoryFiltersOpen(false)} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  Apply
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* ── Add / Edit Dialog ───────────────────── */}
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogContent>
@@ -927,14 +1180,14 @@ const VehiclesPage = () => {
                         <Select
                           value={formData.brand_id}
                           onValueChange={(v) => {
-                            const selected = brands.find((b: any) => b.id === v);
+                            const selected = brandOptions.find((b: any) => b.id === v);
                             setFormData((p) => ({ ...p, brand_id: v, brand: selected?.name || p.brand }));
                           }}
                           disabled={formData.vehicle_condition === 'demo' && !!formData.demo_for_vehicle_id}
                         >
                           <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
                           <SelectContent>
-                            {assignableBrands.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                            {brandOptions.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1253,6 +1506,113 @@ const VehiclesPage = () => {
                     {editingId ? 'Update Vehicle' : 'Add Vehicle'}
                   </Button>
                 )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!specPromptVehicle} onOpenChange={(open) => { if (!open) handleSkipCompareSpecs(); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-heading">{editingId ? 'Update Compare Specs' : 'Add Compare Specs'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
+                <p className="text-sm font-medium text-foreground">{specPromptVehicle?.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {editingId
+                    ? 'Review and update the compare specs now so the vehicle stays useful in compare views.'
+                    : 'Add key specs now so this vehicle shows richer details on the compare page.'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Horsepower</Label>
+                  <Input type="number" min="0" value={specDraft.horsepower} onChange={(e) => setSpecDraft((prev) => ({ ...prev, horsepower: e.target.value }))} placeholder="e.g. 150" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Range (km)</Label>
+                  <Input type="number" min="0" value={specDraft.range_km} onChange={(e) => setSpecDraft((prev) => ({ ...prev, range_km: e.target.value }))} placeholder="e.g. 420" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Seating Capacity</Label>
+                  <Input type="number" min="1" value={specDraft.seating_capacity} onChange={(e) => setSpecDraft((prev) => ({ ...prev, seating_capacity: e.target.value }))} placeholder="e.g. 5" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fuel Type</Label>
+                  <Select value={specDraft.fuel_type} onValueChange={(value) => setSpecDraft((prev) => ({ ...prev, fuel_type: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select fuel type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FUEL_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Drive Type</Label>
+                  <Select value={specDraft.drive_type} onValueChange={(value) => setSpecDraft((prev) => ({ ...prev, drive_type: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select drive type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DRIVE_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Transmission</Label>
+                  <Select value={specDraft.transmission} onValueChange={(value) => setSpecDraft((prev) => ({ ...prev, transmission: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select transmission" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TRANSMISSION_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Torque</Label>
+                  <Input value={specDraft.torque} onChange={(e) => setSpecDraft((prev) => ({ ...prev, torque: e.target.value }))} placeholder="e.g. 250 Nm" />
+                </div>
+                <div className="space-y-2">
+                  <Label>0-100 km/h</Label>
+                  <Input value={specDraft.acceleration} onChange={(e) => setSpecDraft((prev) => ({ ...prev, acceleration: e.target.value }))} placeholder="e.g. 7.8s" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Top Speed</Label>
+                  <Input value={specDraft.top_speed} onChange={(e) => setSpecDraft((prev) => ({ ...prev, top_speed: e.target.value }))} placeholder="e.g. 180 km/h" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Mileage</Label>
+                  <Input value={specDraft.mileage} onChange={(e) => setSpecDraft((prev) => ({ ...prev, mileage: e.target.value }))} placeholder="e.g. 18 km/l" />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Battery Capacity</Label>
+                  <Input value={specDraft.battery_capacity} onChange={(e) => setSpecDraft((prev) => ({ ...prev, battery_capacity: e.target.value }))} placeholder="e.g. 72.6 kWh" />
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-3">
+                <Button variant="outline" className="gap-2" onClick={handleSkipCompareSpecs}>
+                  <FilePlus2 className="h-4 w-4" />
+                  Extra Info Later
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={handleSkipCompareSpecs}>
+                  <FilePlus2 className="h-4 w-4" />
+                  Skip
+                </Button>
+                <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => void handleSaveCompareSpecs()}>
+                  <Save className="h-4 w-4" />
+                  {editingId ? 'Update Specs' : 'Save Specs'}
+                </Button>
               </div>
             </div>
           </DialogContent>

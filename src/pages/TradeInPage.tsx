@@ -8,8 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { ArrowLeftRight, CarFront, Gauge, Save, ShieldCheck } from 'lucide-react';
-import { apiGet, apiPost } from '@/lib/apiClient';
+import { ArrowLeftRight, CarFront, Gauge, PencilLine, Save, ShieldCheck } from 'lucide-react';
+import { apiGet, apiPatch, apiPost } from '@/lib/apiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
 
@@ -175,12 +175,18 @@ const TradeInPage = () => {
   const { dealerId } = useDealerContext();
   const [formData, setFormData] = useState<TradeInFormState>(initialForm);
   const [records, setRecords] = useState<TradeInRecord[]>([]);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [locations, setLocations] = useState<any[]>([]);
   const [locationCurrencyCode, setLocationCurrencyCode] = useState('AED');
   const [loadingRecords, setLoadingRecords] = useState(false);
 
   const saveTradeInRequest = async (payload: Record<string, unknown>) => {
     const result = await apiPost<TradeInRecord>('/api/trade-in-requests', payload);
+    return result;
+  };
+
+  const updateTradeInRequest = async (id: string, payload: Record<string, unknown>) => {
+    const result = await apiPatch<TradeInRecord>(`/api/trade-in-requests/${encodeURIComponent(id)}`, payload);
     return result;
   };
 
@@ -245,6 +251,30 @@ const TradeInPage = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleSelectRecord = (record: TradeInRecord) => {
+    setSelectedRecordId(record.id);
+    setFormData({
+      customerName: record.customerName,
+      phone: record.phone,
+      email: record.email,
+      preferredBrand: record.preferredBrand,
+      preferredModel: record.preferredModel,
+      currentVehicle: record.currentVehicle,
+      currentYear: record.currentYear,
+      currentMileage: record.currentMileage,
+      condition: record.condition,
+      expectedOffer: record.expectedOffer,
+      notes: record.notes,
+      status: record.status,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const resetForm = () => {
+    setSelectedRecordId(null);
+    setFormData(initialForm);
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -270,8 +300,12 @@ const TradeInPage = () => {
       status: formData.status || 'New enquiry',
     };
 
+    const activeRecord = records.find((record) => record.id === selectedRecordId) || null;
+    const recordId = activeRecord?.id || crypto.randomUUID();
+    const createdAt = activeRecord?.createdAt || nowIso;
+
     const dbPayload = {
-      id: crypto.randomUUID(),
+      id: recordId,
       customer_name: finalForm.customerName,
       phone: finalForm.phone,
       email: finalForm.email,
@@ -286,18 +320,20 @@ const TradeInPage = () => {
       status: finalForm.status,
       dealer_id: dealerId || null,
       location_id: profile?.location_id || null,
-      created_at: nowIso,
+      created_at: createdAt,
       updated_at: nowIso,
     };
 
     try {
-      const inserted = await saveTradeInRequest(dbPayload);
+      const inserted = selectedRecordId
+        ? await updateTradeInRequest(selectedRecordId, dbPayload)
+        : await saveTradeInRequest(dbPayload);
 
       const savedRecord = normalizeDbTradeInRecord(inserted || dbPayload);
       const nextRecord = savedRecord || {
         ...finalForm,
-        id: dbPayload.id,
-        createdAt: nowIso,
+        id: recordId,
+        createdAt,
       };
 
       const updated = [nextRecord, ...records.filter((record) => record.id !== nextRecord.id)].slice(0, 8);
@@ -307,24 +343,24 @@ const TradeInPage = () => {
       } catch {
         // ignore local storage failures
       }
-      setFormData(initialForm);
-      toast.success('Trade-in request saved successfully.');
+      resetForm();
+      toast.success(selectedRecordId ? 'Trade-in request updated successfully.' : 'Trade-in request saved successfully.');
     } catch (error) {
       const fallbackRecord: TradeInRecord = {
         ...finalForm,
-        id: dbPayload.id,
-        createdAt: nowIso,
+        id: recordId,
+        createdAt,
       };
 
-      const updated = [fallbackRecord, ...records].slice(0, 8);
+      const updated = [fallbackRecord, ...records.filter((record) => record.id !== fallbackRecord.id)].slice(0, 8);
       setRecords(updated);
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       } catch {
         // ignore local storage failures
       }
-      setFormData(initialForm);
-      toast.warning('Saved locally as backup. Please retry sync if the server is temporarily unavailable.');
+      resetForm();
+      toast.warning(selectedRecordId ? 'Updated locally as backup. Please retry sync if the server is temporarily unavailable.' : 'Saved locally as backup. Please retry sync if the server is temporarily unavailable.');
       console.error('Trade-in save failed:', error);
     }
   };
@@ -340,7 +376,7 @@ const TradeInPage = () => {
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Trade-in valuation requests</h1>
           </div>
-          <Badge className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+          <Badge className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/60">
             <ShieldCheck className="mr-1 h-3.5 w-3.5" />
             Leads ready for review
           </Badge>
@@ -351,14 +387,25 @@ const TradeInPage = () => {
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <CarFront className="h-5 w-5 text-primary" />
-                New trade-in enquiry
+                {selectedRecordId ? 'Edit trade-in enquiry' : 'New trade-in enquiry'}
               </CardTitle>
               <CardDescription>
-                Capture customer intent, current vehicle condition, and the desired replacement model.
+                {selectedRecordId
+                  ? 'Review the selected request, update any fields, and save changes back to the same enquiry.'
+                  : 'Capture customer intent, current vehicle condition, and the desired replacement model.'}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-5">
+                {selectedRecordId && (
+                  <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+                    <div className="flex items-center gap-2 text-foreground">
+                      <PencilLine className="h-4 w-4 text-primary" />
+                      <span>Editing selected request from the latest trade-in list.</span>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={resetForm}>Cancel edit</Button>
+                  </div>
+                )}
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="customerName">Customer name</Label>
@@ -513,10 +560,10 @@ const TradeInPage = () => {
                 <div className="flex flex-wrap items-center gap-3 pt-2">
                   <Button type="submit" className="gap-2">
                     <Save className="h-4 w-4" />
-                    Save valuation request
+                    {selectedRecordId ? 'Update valuation request' : 'Save valuation request'}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setFormData(initialForm)}>
-                    Reset form
+                  <Button type="button" variant="outline" onClick={resetForm}>
+                    {selectedRecordId ? 'Cancel edit' : 'Reset form'}
                   </Button>
                 </div>
               </form>
@@ -543,8 +590,13 @@ const TradeInPage = () => {
               ) : (
                 <div className="space-y-3">
                   {records.map((record) => (
-                    <div key={record.id} className="rounded-xl border border-border bg-muted/20 p-4">
-                      <div className="mb-2 flex items-center justify-between gap-3">
+                    <button
+                      key={record.id}
+                      type="button"
+                      onClick={() => handleSelectRecord(record)}
+                      className={`block hover:border-primary/40 hover:bg-primary/5  w-full rounded-xl border p-4 text-left transition ${selectedRecordId === record.id ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border bg-muted/20 hover:border-primary/40 hover:bg-primary/5'}`}
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-3 hover:bg-transparent">
                         <p className="font-semibold text-foreground">{record.customerName}</p>
                         <Badge className={getTradeInStatusClasses(record.status)}>{record.status}</Badge>
                       </div>
@@ -553,8 +605,11 @@ const TradeInPage = () => {
                         <p>{record.phone}</p>
                         <p>{record.preferredBrand} {record.preferredModel}</p>
                       </div>
-                      <div className="mt-3 text-xs text-muted-foreground">Saved {formatDate(record.createdAt)}</div>
-                    </div>
+                      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                        <span>Saved {formatDate(record.createdAt)}</span>
+                        <span className="font-medium text-primary">Click to edit</span>
+                      </div>
+                    </button>
                   ))}
                 </div>
               )}

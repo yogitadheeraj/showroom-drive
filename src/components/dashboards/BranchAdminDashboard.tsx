@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { apiGet } from '@/lib/apiClient';
+import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,6 +95,7 @@ const BranchAdminDashboard = () => {
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const [paidSalesAmount, setPaidSalesAmount] = useState(0);
   const [paidSalesCurrency, setPaidSalesCurrency] = useState('AED');
+  const [totalVehicles, setTotalVehicles] = useState(0);
 
   useEffect(() => {
     if (!locationId) return;
@@ -125,6 +126,17 @@ const BranchAdminDashboard = () => {
     setPaidSalesCurrency(resolveCurrencyCode(locationCurrency || paidRows[0]?.locations?.currency_type || 'AED'));
   };
 
+  const fetchVehicleCount = async () => {
+    const vehicles = await apiDbQuery<any[]>({
+      table: 'vehicles',
+      action: 'select',
+      select: 'id',
+      filters: [{ field: 'location_id', op: 'eq', value: locationId }],
+    }).catch(() => [] as any[]);
+
+    setTotalVehicles((vehicles || []).length);
+  };
+
   const fetchAll = async () => {
     setLoading(true);
     try {
@@ -153,6 +165,7 @@ const BranchAdminDashboard = () => {
       await fetchDrives();
       await fetchServiceBookingCount();
       await fetchPaidSalesAmount(loc?.currency_type);
+      await fetchVehicleCount();
     } finally {
       setLoading(false);
     }
@@ -334,6 +347,9 @@ const BranchAdminDashboard = () => {
       case 'Security':
         navigateTo(`/users?role=security${locationId ? `&location=${locationId}` : ''}`);
         break;
+      case 'Total Vehicles':
+        navigateTo('/vehicles');
+        break;
       case 'Active Drives':
         navigateTo('/test-drives?status=in_progress');
         break;
@@ -425,6 +441,7 @@ const BranchAdminDashboard = () => {
           { label: 'GRO', value: groStaff.length, icon: CalendarCheck, color: 'text-success', bg: 'bg-success/10', border: 'border-success/20' },
           { label: 'Sales', value: salesStaff.length, icon: TrendingUp, color: 'text-info', bg: 'bg-info/10', border: 'border-info/20' },
           { label: 'Security', value: securityStaff.length, icon: ShieldCheck, color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/20' },
+          { label: 'Total Vehicles', value: totalVehicles, icon: Car, color: 'text-sky-600', bg: 'bg-sky-100', border: 'border-sky-200' },
           { label: 'Active Drives', value: activeDrives.length, icon: Car, color: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200' },
           { label: 'Completed', value: completedDrives.length, icon: CheckCircle2, color: 'text-success', bg: 'bg-success/10', border: 'border-success/20' },
           { label: 'Paid Sales', value: formatCurrencyValue(paidSalesAmount, paidSalesCurrency), icon: Activity, color: 'text-emerald-600', bg: 'bg-emerald-100', border: 'border-emerald-200' },

@@ -377,7 +377,7 @@ export async function listCarBookings(filters: Record<string, unknown> = {}) {
   if (rows.length === 0) return rows;
 
   const customerIds  = Array.from(new Set(rows.map((r: any) => r.customer_id).filter(Boolean)));
-  const vehicleIds   = Array.from(new Set(rows.map((r: any) => r.vehicle_id).filter(Boolean)));
+  const bookingVehicleIds = Array.from(new Set(rows.map((r: any) => r.vehicle_id).filter(Boolean)));
   const locationIds  = Array.from(new Set(rows.map((r: any) => r.location_id).filter(Boolean)));
   const profileIds   = Array.from(new Set([
     ...rows.map((r: any) => r.sales_person_profile_id),
@@ -385,13 +385,18 @@ export async function listCarBookings(filters: Record<string, unknown> = {}) {
   ].filter(Boolean)));
   const tdIds        = Array.from(new Set(rows.map((r: any) => r.test_drive_id).filter(Boolean)));
 
-  const [customers, vehicles, locations, profiles, testDrives] = await Promise.all([
+  const [customers, locations, profiles, testDrives] = await Promise.all([
     customerIds.length  ? Customer.find({ id: { $in: customerIds } }, { id: 1, full_name: 1, phone: 1, email: 1 }).lean() : [],
-    vehicleIds.length   ? Vehicle.find({ id: { $in: vehicleIds } }, { id: 1, brand: 1, model: 1, variant: 1 }).lean() : [],
     locationIds.length  ? Location.find({ id: { $in: locationIds } }, { id: 1, name: 1, currency_type: 1 }).lean() : [],
     profileIds.length   ? Profile.find({ id: { $in: profileIds } }, { id: 1, full_name: 1, phone: 1 }).lean() : [],
-    tdIds.length        ? TestDrive.find({ id: { $in: tdIds } }, { id: 1, scheduled_date: 1, scheduled_time: 1 }).lean() : [],
+    tdIds.length        ? TestDrive.find({ id: { $in: tdIds } }, { id: 1, scheduled_date: 1, scheduled_time: 1, vehicle_id: 1 }).lean() : [],
   ]);
+
+  const testDriveVehicleIds = Array.from(new Set((testDrives as any[]).map((t: any) => t.vehicle_id).filter(Boolean)));
+  const vehicleIds = Array.from(new Set([...bookingVehicleIds, ...testDriveVehicleIds]));
+  const vehicles = vehicleIds.length
+    ? await Vehicle.find({ id: { $in: vehicleIds } }, { id: 1, brand: 1, model: 1, variant: 1, color: 1, image_url: 1 }).lean()
+    : [];
 
   const cMap  = new Map((customers  as any[]).map((c: any) => [c.id, c]));
   const vMap  = new Map((vehicles   as any[]).map((v: any) => [v.id, v]));
@@ -399,15 +404,23 @@ export async function listCarBookings(filters: Record<string, unknown> = {}) {
   const pMap  = new Map((profiles   as any[]).map((p: any) => [p.id, p]));
   const tdMap = new Map((testDrives as any[]).map((t: any) => [t.id, t]));
 
-  return rows.map((r: any) => ({
-    ...r,
-    customers:   cMap.get(r.customer_id) || null,
-    vehicles:    vMap.get(r.vehicle_id) || null,
-    locations:   lMap.get(r.location_id) || null,
-    salesPerson: pMap.get(r.sales_person_profile_id) || null,
-    cancelledBy: pMap.get(r.cancelled_by_profile_id) || null,
-    testDrive:   tdMap.get(r.test_drive_id) || null,
-  }));
+  return rows.map((r: any) => {
+    const testDrive = tdMap.get(r.test_drive_id) || null;
+    const bookingVehicle = vMap.get(r.vehicle_id) || null;
+    const testDriveVehicle = testDrive?.vehicle_id ? (vMap.get(testDrive.vehicle_id) || null) : null;
+    const resolvedVehicle = bookingVehicle || testDriveVehicle;
+
+    return {
+      ...r,
+      customers: cMap.get(r.customer_id) || null,
+      vehicles: resolvedVehicle,
+      vehicleSource: bookingVehicle ? 'sales_vehicle' : testDriveVehicle ? 'test_drive_vehicle' : null,
+      locations: lMap.get(r.location_id) || null,
+      salesPerson: pMap.get(r.sales_person_profile_id) || null,
+      cancelledBy: pMap.get(r.cancelled_by_profile_id) || null,
+      testDrive: testDrive ? { ...testDrive, vehicle: testDriveVehicle } : null,
+    };
+  });
 }
 
 // ─── Get single ─────────────────────────────────────────────────────────────

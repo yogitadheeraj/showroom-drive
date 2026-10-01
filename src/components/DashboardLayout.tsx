@@ -279,7 +279,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
   const handleOpenLeadNotifications = () => {
     setNewLeadCount(0);
-    navigateTo('/test-drives');
+    navigateTo('/walkin?filter=new');
   };
 
   useEffect(() => {
@@ -677,10 +677,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                 </Tooltip>
               </TooltipProvider>
             ) : (
-              <Button variant="outline" size="sm" className="w-full justify-center border-sidebar-border text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive" onClick={handleSignOut}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out Securely
-              </Button>
+             null 
             )}
           </div>
         </div>
@@ -698,21 +695,25 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
             dealerName={dealerName}
             dealerLogoUrl={dealerLogoUrl}
             leftSlot={
-              <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground dark:text-slate-100">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 bg-background/70 text-foreground transition hover:bg-background dark:border-white/15 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10 lg:hidden"
+                aria-label="Open menu"
+              >
                 <Menu className="h-5 w-5" />
               </button>
             }
             rightSlot={
               <>
                 {role === APP_ROLE.DEALER_ADMIN && dealerLocations.length > 1 && (
-                  <div className="hidden items-center gap-3 rounded-full border border-border bg-muted/60 px-3 py-1.5 xl:flex">
-                    <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">Location:</span>
+                  <div className="hidden items-center gap-3 rounded-full border border-border/70 bg-background/65 px-3 py-1.5 shadow-sm backdrop-blur xl:flex dark:border-white/15 dark:bg-white/5">
+                    <MapPin className="h-4 w-4 shrink-0 text-muted-foreground dark:text-slate-300" />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap dark:text-slate-300">Location:</span>
                     <Select
                       value={selectedLocationId ?? '__all__'}
                       onValueChange={(v) => setSelectedLocationId(v === '__all__' ? null : v)}
                     >
-                      <SelectTrigger className="h-8 w-52 max-w-full border-0 bg-transparent text-sm shadow-none focus:ring-0">
+                      <SelectTrigger className="h-8 w-52 max-w-full rounded-full border-0 bg-transparent text-sm shadow-none focus:ring-0 dark:text-slate-100">
                         <SelectValue placeholder="All Locations" />
                       </SelectTrigger>
                       <SelectContent>
@@ -728,7 +729,7 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                       <button
                         type="button"
                         onClick={() => setSelectedLocationId(null)}
-                        className="text-[11px] text-muted-foreground underline hover:text-foreground"
+                        className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground dark:text-slate-300 dark:hover:text-white"
                       >
                         Clear
                       </button>
@@ -738,20 +739,20 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                 <Button
                   variant="outline"
                   size="sm"
-                  className="relative rounded-full border border-primary/20 bg-primary/10 text-foreground hover:bg-primary/15"
+                  className="relative rounded-full border border-border/70 bg-background/65 text-foreground shadow-sm hover:bg-background dark:border-white/15 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10"
                   onClick={handleOpenLeadNotifications}
                 >
                   <Bell className="h-4 w-4 mr-1.5" />
                   New Leads
                   {newLeadCount > 0 && (
-                    <span className="ml-1.5 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-black-foreground">
+                    <span className="ml-1.5 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
                       {newLeadCount > 99 ? '99+' : newLeadCount}
                     </span>
                   )}
                 </Button>
                 <a
                   href="/my-profile"
-                  className="hidden sm:flex items-center gap-2 rounded-full border border-border bg-muted/70 px-3 py-1.5 transition-all hover:bg-muted dark:border-white/10 dark:bg-white/5"
+                  className="hidden sm:flex items-center gap-2 rounded-full border border-border/70 bg-background/65 px-3 py-1.5 shadow-sm transition-all hover:bg-background dark:border-white/15 dark:bg-white/5 dark:hover:bg-white/10"
                 >
                   <UserCircle2 className="h-4 w-4 text-muted-foreground dark:text-slate-300" />
                   <div className="leading-tight">

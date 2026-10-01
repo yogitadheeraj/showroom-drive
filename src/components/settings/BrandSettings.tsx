@@ -369,7 +369,7 @@ const BrandSettings = ({ dealerIdOverride }: { dealerIdOverride?: string } = {})
             >
               <div className="flex items-center gap-3">
                 {brand.logo_url ? (
-                  <img src={brand.logo_url} alt={brand.name} className="h-10 w-10 rounded-lg object-cover border border-border" />
+                  <img src={brand.logo_url} alt={brand.name} className="h-100 w-100 rounded-lg object-cover border border-border" />
                 ) : (
                   <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground">
                     {brand.name[0]}
@@ -393,7 +393,7 @@ const BrandSettings = ({ dealerIdOverride }: { dealerIdOverride?: string } = {})
                   <div className="flex items-center gap-4">
                     {brand.logo_url ? (
                       <div className="relative">
-                        <img src={brand.logo_url} alt={brand.name} className="h-16 w-16 rounded-xl object-cover border border-border" />
+                        <img src={brand.logo_url} alt={brand.name} className="h-100 w-100 rounded-xl object-cover border border-border" />
                         <button
                           onClick={() => updateBrand(brand.id, 'logo_url', '')}
                           className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"

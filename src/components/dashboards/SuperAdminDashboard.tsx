@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Bar,
   BarChart,
@@ -32,7 +33,6 @@ import HierarchyOverview from './HierarchyOverview';
 import { navigateTo } from '@/lib/browserNavigation';
 import { DashboardStatusSections } from './DashboardStatusSections';
 import { buildServiceBookingStatusCounts, buildTestDriveStatusCounts } from '@/lib/dashboardMetrics';
-import VehicleImage from '@/components/common/VehicleImage';
 
 const DASHBOARD_PREFS_KEY = 'dashboard_superadmin_prefs_v1';
 
@@ -157,6 +157,8 @@ const SuperAdminDashboard = () => {
   const [tdUpdateCount, setTdUpdateCount] = useState(0);
   const [paidSalesAmount, setPaidSalesAmount] = useState(0);
   const [paidSalesCurrency, setPaidSalesCurrency] = useState('AED');
+  const [totalVehicles, setTotalVehicles] = useState(0);
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true);
 
   const activeDealerId = isSuperAdmin
     ? (selectedDealer === 'all' ? null : selectedDealer)
@@ -258,69 +260,100 @@ const SuperAdminDashboard = () => {
     fetchStaff();
   }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin]);
 
-  const fetchTestDrivesData = useCallback(async () => {
+  useEffect(() => {
     if (dealerLoading && !isSuperAdmin) return;
-    const locationIds = activeSelectedLocation !== 'all'
-      ? [activeSelectedLocation]
-      : locations.map((l: any) => l.id);
-    if (locationIds.length === 0 && !isSuperAdmin) {
-      setTestDrives([]); setServiceBookingTotal(0); setStats({ total: 0, scheduled: 0, completed: 0, noShow: 0, cancelled: 0 }); setRepeatedCustomers([]); return;
-    }
 
-    const params = new URLSearchParams();
-    params.set('limit', '500');
-    params.set('include_related', 'true');
-    if (locationIds.length > 0) {
-      params.set('location_ids', locationIds.join(','));
-    }
+    const fetchVehicleCount = async () => {
+      const locationIds = activeSelectedLocation !== 'all'
+        ? [activeSelectedLocation]
+        : locations.map((location) => location.id);
 
-    const serviceBookingParams = new URLSearchParams();
-    serviceBookingParams.set('limit', '500');
-    if (locationIds.length > 0) {
-      serviceBookingParams.set('location_ids', locationIds.join(','));
-    }
+      if (locationIds.length === 0) {
+        setTotalVehicles(0);
+        return;
+      }
 
-    const [td, serviceBookings] = await Promise.all([
-      apiGet<any[]>(`/api/test-drives?${params.toString()}`),
-      apiGet<any[]>(`/api/service-bookings?${serviceBookingParams.toString()}`).catch(() => []),
-    ]);
-
-    const carBookingParams = new URLSearchParams();
-    carBookingParams.set('limit', '500');
-    if (locationIds.length > 0) {
-      carBookingParams.set('location_ids', locationIds.join(','));
-    }
-    const carBookings = await apiGet<any[]>(`/api/car-bookings?${carBookingParams.toString()}`).catch(() => []);
-    const paidRows = (carBookings || []).filter((row: any) => row.payment_status === 'paid' && row.booking_status === 'confirmed');
-    setPaidSalesAmount(paidRows.reduce((sum: number, row: any) => sum + Number(row.payment_requested_amount || row.booking_amount || 0), 0));
-    setPaidSalesCurrency(resolveCurrencyCode(paidRows[0]?.locations?.currency_type || locations.find((entry: any) => entry.id === activeSelectedLocation)?.currency_type || 'AED'));
-
-    const serviceBookingCounts = buildServiceBookingStatusCounts(serviceBookings || []);
-    setTestDrives(td || []);
-    setServiceBookingTotal(serviceBookings?.length || 0);
-    setServiceBookingStatusCounts(serviceBookingCounts);
-    const total = td?.length || 0;
-    const testDriveStatusCounts = buildTestDriveStatusCounts(td || []);
-    setStats({
-      total,
-      scheduled: testDriveStatusCounts.scheduled,
-      completed: testDriveStatusCounts.completed,
-      noShow: testDriveStatusCounts.no_show,
-      cancelled: testDriveStatusCounts.cancelled,
-    });
-    const customerIds = [...new Set(td?.map((t: any) => t.customer_id) || [])];
-    if (customerIds.length > 0) {
-      const customers = await apiDbQuery<any[]>({
-        table: 'customers',
+      const rows = await apiDbQuery<any[]>({
+        table: 'vehicles',
         action: 'select',
-        select: '*',
-        filters: [
-          { field: 'total_test_drives', op: 'gt', value: 1 },
-          { field: 'id', op: 'in', value: customerIds },
-        ],
+        select: 'id',
+        filters: [{ field: 'location_id', op: 'in', value: locationIds }],
       });
-      setRepeatedCustomers(customers || []);
-    } else { setRepeatedCustomers([]); }
+
+      setTotalVehicles((rows || []).length);
+    };
+
+    void fetchVehicleCount();
+  }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin]);
+
+  const fetchTestDrivesData = useCallback(async () => {
+    setIsDashboardLoading(true);
+    if (dealerLoading && !isSuperAdmin) return;
+    try {
+      const locationIds = activeSelectedLocation !== 'all'
+        ? [activeSelectedLocation]
+        : locations.map((l: any) => l.id);
+      if (locationIds.length === 0 && !isSuperAdmin) {
+        setTestDrives([]); setServiceBookingTotal(0); setStats({ total: 0, scheduled: 0, completed: 0, noShow: 0, cancelled: 0 }); setRepeatedCustomers([]); return;
+      }
+
+      const params = new URLSearchParams();
+      params.set('limit', '500');
+      params.set('include_related', 'true');
+      if (locationIds.length > 0) {
+        params.set('location_ids', locationIds.join(','));
+      }
+
+      const serviceBookingParams = new URLSearchParams();
+      serviceBookingParams.set('limit', '500');
+      if (locationIds.length > 0) {
+        serviceBookingParams.set('location_ids', locationIds.join(','));
+      }
+
+      const [td, serviceBookings] = await Promise.all([
+        apiGet<any[]>(`/api/test-drives?${params.toString()}`),
+        apiGet<any[]>(`/api/service-bookings?${serviceBookingParams.toString()}`).catch(() => []),
+      ]);
+
+      const carBookingParams = new URLSearchParams();
+      carBookingParams.set('limit', '500');
+      if (locationIds.length > 0) {
+        carBookingParams.set('location_ids', locationIds.join(','));
+      }
+      const carBookings = await apiGet<any[]>(`/api/car-bookings?${carBookingParams.toString()}`).catch(() => []);
+      const paidRows = (carBookings || []).filter((row: any) => row.payment_status === 'paid' && row.booking_status === 'confirmed');
+      setPaidSalesAmount(paidRows.reduce((sum: number, row: any) => sum + Number(row.payment_requested_amount || row.booking_amount || 0), 0));
+      setPaidSalesCurrency(resolveCurrencyCode(paidRows[0]?.locations?.currency_type || locations.find((entry: any) => entry.id === activeSelectedLocation)?.currency_type || 'AED'));
+
+      const serviceBookingCounts = buildServiceBookingStatusCounts(serviceBookings || []);
+      setTestDrives(td || []);
+      setServiceBookingTotal(serviceBookings?.length || 0);
+      setServiceBookingStatusCounts(serviceBookingCounts);
+      const total = td?.length || 0;
+      const testDriveStatusCounts = buildTestDriveStatusCounts(td || []);
+      setStats({
+        total,
+        scheduled: testDriveStatusCounts.scheduled,
+        completed: testDriveStatusCounts.completed,
+        noShow: testDriveStatusCounts.no_show,
+        cancelled: testDriveStatusCounts.cancelled,
+      });
+      const customerIds = [...new Set(td?.map((t: any) => t.customer_id) || [])];
+      if (customerIds.length > 0) {
+        const customers = await apiDbQuery<any[]>({
+          table: 'customers',
+          action: 'select',
+          select: '*',
+          filters: [
+            { field: 'total_test_drives', op: 'gt', value: 1 },
+            { field: 'id', op: 'in', value: customerIds },
+          ],
+        });
+        setRepeatedCustomers(customers || []);
+      } else { setRepeatedCustomers([]); }
+    } finally {
+      setIsDashboardLoading(false);
+    }
   }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin]);
 
   useEffect(() => {
@@ -522,10 +555,12 @@ const SuperAdminDashboard = () => {
     { label: 'Locations', value: locationCount, icon: MapPin, color: 'text-primary', bg: 'bg-primary/10' },
     { label: 'Users', value: userCount, icon: Users, color: 'text-accent', bg: 'bg-accent/10' },
     { label: 'Brands', value: brandCount, icon: Car, color: 'text-info', bg: 'bg-info/10' },
+    { label: 'Total Vehicles', value: totalVehicles, icon: Car, color: 'text-sky-600', bg: 'bg-sky-100' },
     { label: 'Total Drives', value: stats.total, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
     { label: 'Service Bookings', value: serviceBookingTotal, icon: BookOpen, color: 'text-success', bg: 'bg-success/10' },
     { label: 'Paid Sales', value: formatCurrencyValue(paidSalesAmount, paidSalesCurrency), icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-100' }
   ];
+  const showStatSkeleton = dealerLoading || isDashboardLoading;
 
   const statusColor: Record<string, string> = {
     scheduled: 'bg-info/10 text-info',
@@ -735,20 +770,7 @@ const SuperAdminDashboard = () => {
   return (
     <div className="space-y-4 sm:space-y-6">
 
-      {/* ── Header row: title + inline filters ── */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 pt-4 sm:pb-3 border-b border-border">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground tracking-tight flex items-center gap-2">
-            <LayoutDashboard className="h-5 w-5 text-primary" />
-            {isSuperAdmin ? 'Super Admin Dashboard' : 'Organization Admin Dashboard'}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isSuperAdmin ? 'Overview across all dealerships & test drives' : 'Overview of your dealership test drives'}
-          </p>
-        </div>
-
      
-      </div>
 
      
       {/* ── KPI Stat Cards ── */}
@@ -764,6 +786,7 @@ const SuperAdminDashboard = () => {
                 else if (stat.label === 'Brands') navigateTo('/settings?tab=brands');
                 else if (stat.label === 'Users') navigateTo('/users');
                 else if (stat.label === 'Dealers') navigateTo('/users?role=dealer_admin');
+                else if (stat.label === 'Total Vehicles') navigateTo('/vehicles');
                 else if (stat.label === 'Total Drives') navigateTo('/test-drives');
                 else if (stat.label === 'Service Bookings') navigateTo('/service-bookings');
                 else if (stat.label === 'Active Sales Executive') navigateTo('/users');
@@ -775,8 +798,17 @@ const SuperAdminDashboard = () => {
                   <Icon className={`h-5 w-5 ${stat.color}`} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
-                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-tight mt-1 break-words">{stat.label}</p>
+                  {showStatSkeleton ? (
+                    <>
+                      <Skeleton className="h-6 w-16" />
+                      <Skeleton className="h-3 w-20 mt-2" />
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
+                      <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-tight mt-1 break-words">{stat.label}</p>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -821,7 +853,7 @@ const SuperAdminDashboard = () => {
               )}
             </CardTitle>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap ">
               {tdRefreshing ? (
                 <span className="flex items-center gap-1 text-[11px] text-success font-medium animate-pulse">
                   <RefreshCw className="h-3 w-3 animate-spin" />
@@ -835,7 +867,7 @@ const SuperAdminDashboard = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
+                className="h-7 w-7 bg-success/10"
                 title="Refresh now"
                 onClick={() => {
                   setTdRefreshing(true);
@@ -845,7 +877,7 @@ const SuperAdminDashboard = () => {
                   });
                 }}
               >
-                <RefreshCw className={`h-3.5 w-3.5 text-muted-foreground ${tdRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-3.5 w-3.5 bg-success/10 text-muted-foreground ${tdRefreshing ? 'animate-spin' : ''}`} />
               </Button>
               <Select value={userInsightRoleFilter} onValueChange={(v: 'all' | 'sales' | 'gro') => setUserInsightRoleFilter(v)}>
                 <SelectTrigger className="w-[120px] h-8 text-xs">
@@ -1131,17 +1163,7 @@ const SuperAdminDashboard = () => {
                           <p className="font-medium text-foreground">{td.customers?.full_name}</p>
                           <p className="text-xs text-muted-foreground">{td.customers?.phone}</p>
                         </td>
-                        <td className="p-3 text-foreground">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <VehicleImage
-                              imageUrl={td.vehicles?.image_url}
-                              brand={td.vehicles?.brand}
-                              model={td.vehicles?.model}
-                              className="h-7 w-7 rounded object-cover border border-border shrink-0"
-                            />
-                            <span className="truncate">{td.vehicles?.brand} {td.vehicles?.model}</span>
-                          </div>
-                        </td>
+                        <td className="p-3 text-foreground">{td.vehicles?.brand} {td.vehicles?.model}</td>
                         <td className="p-3 text-muted-foreground">{td.locations?.name}</td>
                         <td className="p-3 text-muted-foreground">{td.scheduled_date} {td.scheduled_time}</td>
                         <td className="p-3">
@@ -1176,15 +1198,7 @@ const SuperAdminDashboard = () => {
                         <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>{formatStatusLabel(td.status)}</Badge>
                       </div>
                       <div className="grid grid-cols-2 gap-1.5 text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <VehicleImage
-                            imageUrl={td.vehicles?.image_url}
-                            brand={td.vehicles?.brand}
-                            model={td.vehicles?.model}
-                            className="h-4 w-4 rounded object-cover border border-border shrink-0"
-                          />
-                          <span className="text-foreground truncate">{td.vehicles?.brand} {td.vehicles?.model}</span>
-                        </div>
+                        <div className="flex items-center gap-1"><Car className="h-3 w-3 text-muted-foreground" /><span className="text-foreground truncate">{td.vehicles?.brand} {td.vehicles?.model}</span></div>
                         <div className="flex items-center gap-1"><MapPin className="h-3 w-3 text-muted-foreground" /><span className="text-muted-foreground truncate">{td.locations?.name}</span></div>
                         <div className="flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" /><span className="text-muted-foreground">{td.scheduled_date}</span></div>
                         <div className="col-span-2 text-muted-foreground">

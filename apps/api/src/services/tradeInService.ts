@@ -70,3 +70,35 @@ export async function createTradeInRequest(payload: TradeInInput) {
   await doc.save();
   return lean(doc);
 }
+
+export async function updateTradeInRequest(id: string, payload: TradeInInput) {
+  const existing = await TradeInRequest.findOne({ id }).exec();
+
+  if (!existing) {
+    throw new Error('Trade-in request not found.');
+  }
+
+  const nextRecord = {
+    customer_name: String(payload.customer_name || '').trim(),
+    phone: String(payload.phone || '').trim(),
+    email: String(payload.email || '').trim(),
+    preferred_brand: String(payload.preferred_brand || 'BMW').trim(),
+    preferred_model: String(payload.preferred_model || '').trim(),
+    current_vehicle: String(payload.current_vehicle || '').trim(),
+    current_year: String(payload.current_year || '').trim(),
+    current_mileage: String(payload.current_mileage || '').trim(),
+    condition: String(payload.condition || 'Good').trim(),
+    expected_offer: String(payload.expected_offer || existing.expected_offer || '').trim(),
+    notes: String(payload.notes || existing.notes || '').trim(),
+    status: String(payload.status || existing.status || 'New enquiry').trim(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!nextRecord.customer_name || !nextRecord.phone || !nextRecord.current_vehicle) {
+    throw new Error('Customer name, phone, and current vehicle are required.');
+  }
+
+  existing.set(nextRecord);
+  await existing.save();
+  return lean(existing);
+}
