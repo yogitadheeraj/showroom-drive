@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import VehicleImage from '@/components/common/VehicleImage';
 import {
   ArrowRight,
-  BadgeIndianRupee,
+  Banknote,
   CarFront,
   CheckCircle2,
   ChevronDown,
@@ -133,11 +133,13 @@ const brandVisualTheme: Record<string, { exteriorOpacity: number; interiorOpacit
 
 const financeTerms = [24, 36, 48, 60, 72];
 const MAX_COMPARE = 4;
+const DISPLAY_LOCALE = 'en-AE';
+const DISPLAY_CURRENCY = 'AED';
 
 const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-IN', {
+  new Intl.NumberFormat(DISPLAY_LOCALE, {
     style: 'currency',
-    currency: 'INR',
+    currency: DISPLAY_CURRENCY,
     maximumFractionDigits: 0,
   }).format(Number.isFinite(value) ? value : 0);
 
@@ -175,8 +177,15 @@ const sortVehiclesForDisplay = (list: ConfigVehicle[]) => {
 
 const formatPriceBadge = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) return 'Price on request';
-  if (value >= 10000000) return `₹${(value / 10000000).toFixed(2)} Cr`;
-  if (value >= 100000) return `₹${(value / 100000).toFixed(2)} L`;
+  if (value >= 1000000) {
+    return new Intl.NumberFormat(DISPLAY_LOCALE, {
+      style: 'currency',
+      currency: DISPLAY_CURRENCY,
+      notation: 'compact',
+      compactDisplay: 'short',
+      maximumFractionDigits: 1,
+    }).format(value);
+  }
   return formatCurrency(value);
 };
 
@@ -734,7 +743,7 @@ export default function CarConfiguratorExperience() {
                 <Card className="rounded-[1.25rem] border-emerald-400/40 bg-emerald-50/95 shadow-none dark:bg-emerald-950/35">
                   <CardContent className="p-4 sm:p-5">
                     <div className="mb-3 flex items-center gap-2">
-                      <BadgeIndianRupee className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
+                      <Banknote className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
                       <h3 className="text-base font-heading font-semibold text-emerald-900 dark:text-emerald-100">Finance Calculator</h3>
                     </div>
 
