@@ -25,13 +25,7 @@ export default function MarketingPageShell({
 
   return (
     <div className="min-h-screen bg-background text-foreground dark:text-white">
-      <SiteHeader
-        variant="landing"
-        showNav
-        showLogo
-        dealerName={brand.dealerName}
-        dealerLogoUrl={brand.dealerLogoUrl}
-      />
+    
       <main className={`landing-main bg-background text-foreground${resolvedTheme === 'dark' ? ' dark' : ''}`}>
         {children}
       </main>

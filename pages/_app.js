@@ -2,6 +2,7 @@ import '../src/index.css';
 import HeaderComponents from '@/components/common/HeaderComponents';
 import FooterComponent from '@/components/common/FooterComponent';
 import { useEffect, useState } from 'react';
+import SiteHeader from '@/components/SiteHeader';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -197,7 +198,7 @@ export default function App({ Component, pageProps }) {
             <Sonner />
             <AuthProvider>
               <DealerContextProvider>
-                {shouldRenderHeaderFooter && <HeaderComponents isLoggedIn={isLoggedIn} />}
+                {shouldRenderHeaderFooter &&   <SiteHeader isLoggedIn={isLoggedIn} />}
                 <Component {...pageProps} />
                 {shouldRenderHeaderFooter && <FooterComponent />}
               </DealerContextProvider>

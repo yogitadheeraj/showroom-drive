@@ -25,6 +25,7 @@ import DataCenterPage from "./pages/DataCenterPage.tsx";
 import WaitingBoardPage from "./pages/WaitingBoardPage.tsx";
 import EnquiriesPage from "./pages/EnquiriesPage.tsx";
 import ComparePage from "./pages/ComparePage.tsx";
+import ConfiguratorPage from "./pages/ConfiguratorPage.tsx";
 import DealerOnboardingPage from "./pages/DealerOnboardingPage.tsx";
 import DealerSettingsPage from "./pages/DealerSettingsPage.tsx";
 import FollowUpsPage from "./pages/FollowUpsPage.tsx";
@@ -92,6 +93,7 @@ const App = () => (
             <Route path="/customers/:customerId" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
             <Route path="/data-center" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.DATA_CENTER]}><DataCenterPage /></ProtectedRoute>} />
             <Route path="/compare" element={<ComparePage />} />
+            <Route path="/configurator" element={<ConfiguratorPage />} />
             <Route path="/follow-ups" element={<ProtectedRoute><FollowUpsPage /></ProtectedRoute>} />
             <Route path="/trade-in" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.TRADE_IN]}><TradeInPage /></ProtectedRoute>} />
             <Route path="/car-bookings" element={<ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.BOOKINGS]}><CarBookingsPage /></ProtectedRoute>} />

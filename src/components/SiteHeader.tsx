@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { useAuthOptional } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { Globe, LogOut, MapPin, Moon, Sun, UserRound } from 'lucide-react';
@@ -33,7 +32,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
   };
 
   return (
-    <header className={isLanding ? 'sticky top-0 z-30 px-3 pt-6 text-foreground sm:px-5 lg:px-8' : 'sticky top-0 z-30 px-3 pt-3 text-foreground sm:px-5 lg:px-8'}>
+    <header className={isLanding ? 'sticky top-0 z-30 px-3 pt-2 text-foreground sm:px-5 lg:px-8' : 'sticky top-0 z-30 px-3 pt-3 text-foreground sm:px-5 lg:px-8'}>
       <div
         className={
           isLanding
@@ -96,8 +95,8 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
             <a href="/#features" className="transition hover:text-slate-950 dark:hover:text-white">Features</a>
             <a href="/#benefits" className="transition hover:text-slate-950 dark:hover:text-white">Benefits</a>
             <a href="/#contact" className="transition hover:text-slate-950 dark:hover:text-white">Contact</a>
-            <Link to="/dealer-onboarding" className="transition hover:text-slate-950 dark:hover:text-white">Entity Onboarding</Link>
-            <Link to="/compare" className="transition hover:text-slate-950 dark:hover:text-white">Compare Vehicles</Link>
+            <a href="/dealer-onboarding" className="transition hover:text-slate-950 dark:hover:text-white">Entity Onboarding</a>
+            <a href="/compare" className="transition hover:text-slate-950 dark:hover:text-white">Compare Vehicles</a>
           </nav>
         )}
 
@@ -148,14 +147,14 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
               >
                 <Globe className="h-4 w-4" />
               </a>
-              <Link
-                to={staffEntryPath}
+              <a
+                href={staffEntryPath}
                 aria-label="Staff login"
                 title="Staff login"
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 dark:border-white/15 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
               >
                 <UserRound className="h-4 w-4" />
-              </Link>
+              </a>
             </>
           )}
         </div>

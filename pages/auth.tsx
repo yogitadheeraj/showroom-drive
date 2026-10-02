@@ -163,7 +163,6 @@ const THEME_STORAGE_KEY = 'autoadvant-theme';
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
-      <HeaderComponents isLoggedIn={!!user} />
       {/* SaaS dark backdrop with subtle grid + glows */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Car, Building2, MapPin, User, CheckCircle, ArrowRight, ArrowLeft, Plus, X, Eye, EyeOff } from 'lucide-react';
+import SiteHeader from '@/components/SiteHeader';
 
 const STEPS = [
   { id: 'account', label: 'Admin Account', icon: User },
@@ -156,7 +157,7 @@ const DealerOnboardingPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-      {/* Hero banner */}
+    <SiteHeader showLogo={true} variant="landing" showNav={true} />
       <div className="relative overflow-hidden border-b border-border/50">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-[-30%] left-[-10%] w-[500px] h-[500px] bg-primary/6 rounded-full blur-[130px]" />
