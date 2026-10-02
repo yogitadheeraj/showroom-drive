@@ -749,8 +749,8 @@ export default function CarConfiguratorExperience() {
 
                     <div className="grid gap-3 sm:grid-cols-3">
                       <div className="space-y-1.5 sm:col-span-1">
-                        <Label htmlFor="down-payment" className="text-xs text-emerald-900/75 dark:text-emerald-200/80">Down payment</Label>
-                        <Input id="down-payment" value={downPayment} onChange={(event) => setDownPayment(event.target.value)} placeholder="250000" className="h-9" />
+                        <Label htmlFor="down-payment" className="text-xs text-emerald-900/75 dark:text-emerald-200/80">Down payment (AED)</Label>
+                        <Input id="down-payment" value={downPayment} onChange={(event) => setDownPayment(event.target.value)} placeholder="AED 250,000" className="h-9" />
                       </div>
                       <div className="space-y-1.5 sm:col-span-1">
                         <Label htmlFor="interest-rate" className="text-xs text-emerald-900/75 dark:text-emerald-200/80">Interest %</Label>
@@ -770,9 +770,9 @@ export default function CarConfiguratorExperience() {
                     </div>
 
                     <div className="mt-3 rounded-xl border border-emerald-300 bg-white/80 p-3 dark:border-emerald-800 dark:bg-emerald-950/30">
-                      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Estimated EMI</p>
+                      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Estimated EMI (AED)</p>
                       <p className="mt-1 text-2xl font-heading font-bold text-emerald-800 dark:text-emerald-200">{formatCurrency(estimatedMonthly || 0)}</p>
-                      <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-300/80">{termMonths} months at {interestRate}% annual rate</p>
+                      <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-300/80">{termMonths} months at {interestRate}% annual rate (all amounts in AED)</p>
                     </div>
                   </CardContent>
                 </Card>
