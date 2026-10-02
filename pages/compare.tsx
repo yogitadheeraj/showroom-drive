@@ -34,6 +34,8 @@ import {
 } from 'lucide-react';
 import VehicleImage from '@/components/common/VehicleImage';
 import MarketingPageShell from '../src/components/public/MarketingPageShell';
+import { ROUTE_ALLOWED_ROLES } from '@/constants/roles';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 const MAX_COMPARE = 4;
 
@@ -282,7 +284,8 @@ const ComparePage = () => {
   };
 
   return (
-    <MarketingPageShell>
+    
+    <ProtectedRoute allowedRoles={[...ROUTE_ALLOWED_ROLES.BOOKINGS]}>
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.12),_transparent_34%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.35))]">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-10">
         <div className="mb-8 rounded-3xl border border-border/60 bg-card/85 p-5 shadow-card backdrop-blur sm:p-6">
@@ -801,7 +804,7 @@ const ComparePage = () => {
         </SheetContent>
       </Sheet>
     </div>
-    </MarketingPageShell>
+    </ProtectedRoute>
   );
 };
 

@@ -42,6 +42,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   [APP_ROLE.SUPERADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Leads Follow-up', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'Compare Control', path: '/compare', icon: BarChart3 },
+    { label: 'Configurator', path: '/configurator', icon: Sparkles },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
     { label: 'Service Bookings', path: '/service-bookings', icon: ClipboardCheck },
@@ -63,6 +65,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   [APP_ROLE.DEALER_ADMIN]: [
     { label: 'Dashboards', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Leads Follow-up', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'Compare Control', path: '/compare', icon: BarChart3 },
+    { label: 'Configurator', path: '/configurator', icon: Sparkles },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
@@ -85,6 +89,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   [APP_ROLE.SALES_ADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Leads Follow-up', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'Compare Control', path: '/compare', icon: BarChart3 },
+    { label: 'Configurator', path: '/configurator', icon: Sparkles },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
@@ -107,6 +113,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   [APP_ROLE.BRAND_ADMIN]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Brands', path: '/brands', icon: Tag },
+    { label: 'Compare Control', path: '/compare', icon: BarChart3 },
+    { label: 'Configurator', path: '/configurator', icon: Sparkles },
     { label: 'Vehicles', path: '/vehicles', icon: Car },
     { label: 'Locations', path: '/locations', icon: MapPin },
     { label: 'Customers', path: '/customers', icon: Users },
@@ -118,6 +126,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   [APP_ROLE.GRO]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Leads Follow-up', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'Compare Control', path: '/compare', icon: BarChart3 },
+    { label: 'Configurator', path: '/configurator', icon: Sparkles },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Trade-in', path: '/trade-in', icon: ArrowLeftRight },
@@ -133,6 +143,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   [APP_ROLE.SALES]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Leads Follow-up', path: '/follow-ups', icon: ClipboardCheck },
+    { label: 'Compare Control', path: '/compare', icon: BarChart3 },
+    { label: 'Configurator', path: '/configurator', icon: Sparkles },
     { label: 'Walk-in', path: '/walkin', icon: Users },
     { label: 'My Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Car Bookings', path: '/car-bookings', icon: BookOpen },
@@ -147,6 +159,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   ],
   [APP_ROLE.SERVICE_EXPERT]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'Compare Control', path: '/compare', icon: BarChart3 },
+    { label: 'Configurator', path: '/configurator', icon: Sparkles },
     { label: 'Service Bookings', path: '/service-bookings', icon: ClipboardCheck },
     { label: 'Communications', path: '/communications', icon: MessageSquare },
     { label: 'AI Insights', path: '/reports/ai-insights', icon: Sparkles },
@@ -154,6 +168,8 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   ],
   [APP_ROLE.SECURITY]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'Compare Control', path: '/compare', icon: BarChart3 },
+    { label: 'Configurator', path: '/configurator', icon: Sparkles },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
     { label: 'Fleet', path: '/fleet', icon: Car },
@@ -262,7 +278,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     },
     {
       title: 'Daily Work',
-      items: navItems.filter((item) => ['/walkin', '/test-drives', '/car-bookings', '/service-bookings', '/trade-in', '/customers', '/enquiries', '/communications', '/incoming-vehicles'].includes(item.path)),
+      items: navItems.filter((item) => ['/walkin', '/test-drives', '/car-bookings', '/service-bookings', '/trade-in', '/customers', '/enquiries', '/communications', '/incoming-vehicles', '/compare', '/configurator'].includes(item.path)),
     },
     {
       title: 'Setup & Reports',

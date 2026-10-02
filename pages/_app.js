@@ -33,9 +33,9 @@ const SHOW_HEADER_ROUTES = [
   '/privacy-policy',
   '/terms-and-conditions',
   '/sitemap',
-  '/walkin',
   '/contact',
   '/demo/route',
+  '/configurator',
 ];
 
 const HIDE_HEADER_ROUTES = [
