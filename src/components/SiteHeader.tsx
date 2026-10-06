@@ -89,14 +89,12 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
             </div>
           )}
         </div>
-
         {showNav && variant === 'landing' && (
           <nav className="hidden items-center gap-7 text-[15px] font-medium text-slate-700 md:flex dark:text-slate-300">
             <a href="/#features" className="transition hover:text-slate-950 dark:hover:text-white">Features</a>
             <a href="/#benefits" className="transition hover:text-slate-950 dark:hover:text-white">Benefits</a>
             <a href="/#contact" className="transition hover:text-slate-950 dark:hover:text-white">Contact</a>
             <a href="/dealer-onboarding" className="transition hover:text-slate-950 dark:hover:text-white">Entity Onboarding</a>
-            <a href="/compare" className="transition hover:text-slate-950 dark:hover:text-white">Compare Vehicles</a>
           </nav>
         )}
 

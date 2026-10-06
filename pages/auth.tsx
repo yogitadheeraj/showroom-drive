@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import HeaderComponents from '@/components/common/HeaderComponents';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/hooks/useAuth';
 import { apiGet } from '@/lib/apiClient';

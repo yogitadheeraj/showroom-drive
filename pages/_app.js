@@ -1,5 +1,4 @@
 import '../src/index.css';
-import HeaderComponents from '@/components/common/HeaderComponents';
 import FooterComponent from '@/components/common/FooterComponent';
 import { useEffect, useState } from 'react';
 import SiteHeader from '@/components/SiteHeader';

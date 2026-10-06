@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
-import HeaderComponents from '../common/HeaderComponents';
 import SiteHeader from '@/components/SiteHeader';
 
 type MarketingPageShellProps = {
