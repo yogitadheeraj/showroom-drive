@@ -1,0 +1,102 @@
+# Auto Advant
+
+AI/LLM project map for this repository.
+
+## Overview
+
+This repository is a dealership operations platform with a web frontend, a Node.js API, and shared packages.
+
+- Frontend: Next.js + React + TypeScript at the repository root
+- API: Express + Mongoose in `apps/api`
+- Shared code: `packages/shared`
+
+## What This App Does
+
+- Staff management and role-based access
+- Dashboard views for superadmin, dealer admin, branch admin, GRO, sales, security, and service roles
+- Customer, enquiry, booking, vehicle, fleet, and reporting workflows
+- Firebase authentication with backend session/profile lookup
+- MongoDB-backed API models and controllers
+
+## Important Paths
+
+- `src/pages/` - main application pages
+- `src/components/` - reusable UI and dashboard layouts
+- `src/hooks/` - auth, dealer context, theme, and browser helpers
+- `src/lib/` - API client, activity logger, role helpers, customer timeline helpers
+- `apps/api/src/controllers/` - HTTP request handlers
+- `apps/api/src/models/` - Mongoose schemas and models
+- `apps/api/src/routes/` - API route wiring
+- `apps/api/src/middleware/` - auth, scoping, and request guards
+- `packages/shared/` - shared types and utilities
+
+## URLs
+
+### App Pages
+
+- https://www.autoadvant.com/
+- https://www.autoadvant.com/auth
+- https://www.autoadvant.com/dashboard
+- https://www.autoadvant.com/users
+- https://www.autoadvant.com/customers
+- https://www.autoadvant.com/enquiries
+- https://www.autoadvant.com/communications
+- https://www.autoadvant.com/follow-ups
+- https://www.autoadvant.com/compare
+- https://www.autoadvant.com/configurator
+- https://www.autoadvant.com/walkin
+- https://www.autoadvant.com/test-drives
+- https://www.autoadvant.com/car-bookings
+- https://www.autoadvant.com/service-bookings
+- https://www.autoadvant.com/trade-in
+- https://www.autoadvant.com/vehicles
+- https://www.autoadvant.com/fleet
+- https://www.autoadvant.com/locations
+- https://www.autoadvant.com/brands
+- https://www.autoadvant.com/waiting-board
+- https://www.autoadvant.com/data-center
+- https://www.autoadvant.com/settings
+- https://www.autoadvant.com/reports/monitoring
+- https://www.autoadvant.com/reports/ai-insights
+- https://www.autoadvant.com/activity-logs
+- https://www.autoadvant.com/incoming-vehicles
+- https://www.autoadvant.com/my-profile
+
+## Key Behaviors
+
+- Auth is handled through Firebase client auth plus backend `/api/auth/me`
+- Role-based UI and route access depend on the current role returned by the API
+- Staff activity logging is centralized through the activity logger helpers
+- Location and dealer scope matter for many queries and views
+- Some pages use Next.js routing, while the API is a separate Express app
+
+## Useful Commands
+
+- `npm install` - install dependencies
+- `npm run dev` - run the Next.js frontend
+- `npm run dev:web` - run the Vite frontend variant
+- `npm run dev:api` - run the API server
+- `npm run build` - build the Next.js app
+- `npm run lint` - lint the repository
+- `npm run test` - run tests
+
+## Editing Guidance For AI
+
+- Prefer minimal, focused changes.
+- Preserve existing role permissions and scoping rules.
+- Do not replace Next.js pages with React Router implementations.
+- When changing auth or role behavior, update both frontend guards and API authorization logic.
+- Validate edited files after changes.
+
+## Common Gotchas
+
+- Some views look similar but are backed by different roles and scopes.
+- Staff impersonation/switch-login should remain safe and reversible.
+- Keep mobile and tablet layouts responsive when modifying dashboards and management screens.
+- Do not assume a UI-only fix is enough if the backend authorization or data model is involved.
+
+## Repository Notes
+
+- Root README describes the monorepo structure and local ports.
+- The API runs on port 4000 and the frontend on port 3000 in local development.
+- This app includes several business dashboards, so changes should keep investor/demo clarity in mind.
