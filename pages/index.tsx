@@ -1092,7 +1092,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                     </div>
                 </section>
 
-                <section id="platform-features" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+                <section id="platform-features" id="features" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
                     <div className="max-w-full">
                         <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Core Features</p>
                         <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Built for modern automotive operations</h2>

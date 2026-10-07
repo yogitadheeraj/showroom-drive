@@ -117,6 +117,12 @@ const SuperAdminDashboard = () => {
   const [activitySessions, setActivitySessions] = useState<any[]>([]);
   const [activityEvents, setActivityEvents] = useState<any[]>([]);
   const [selectedActivityStaff, setSelectedActivityStaff] = useState<any | null>(null);
+  const [selectedStaffDriveStatus, setSelectedStaffDriveStatus] = useState<'all' | 'scheduled' | 'confirmed' | 'show' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'rescheduled' | 'key_handover_to_sales'>('all');
+  const [selectedStaffDriveBrand, setSelectedStaffDriveBrand] = useState('all');
+  const [selectedStaffDriveSales, setSelectedStaffDriveSales] = useState('all');
+  const [userInsightBrandFilter, setUserInsightBrandFilter] = useState('all');
+  const [userInsightStaffFilter, setUserInsightStaffFilter] = useState('all');
+  const [showUserInsightFilters, setShowUserInsightFilters] = useState(false);
   const [authDiagnostics, setAuthDiagnostics] = useState({
     loading: false,
     totalAuthEmails24h: 0,
@@ -144,7 +150,7 @@ const SuperAdminDashboard = () => {
   const [selectedLocation, setSelectedLocation] = useState(savedPrefs.selectedLocation || 'all');
   // For dealer_admin, the global context selection drives filtering; superadmin uses internal state.
   const activeSelectedLocation = isSuperAdmin ? selectedLocation : (selectedLocationId ?? 'all');
-  const [testDriveView, setTestDriveView] = useState<'grid' | 'chart' | 'calendar'>(() => (savedPrefs.testDriveView === 'chart' ? 'chart' : 'grid'));
+  const [testDriveView, setTestDriveView] = useState<'grid' | 'chart' | 'calendar'>(() => ('grid'));
   const [testDriveChartType, setTestDriveChartType] = useState<'pie' | 'line' | 'bar'>(() => {
     const type = savedPrefs.testDriveChartType;
     if (type === 'pie' || type === 'line' || type === 'bar') return type;
@@ -552,9 +558,9 @@ const SuperAdminDashboard = () => {
 
   const statCards = [
     { label: 'Dealers', value: dealerCount, icon: Users, color: 'text-primary', bg: 'bg-primary/10' },
+    { label: 'Brands', value: brandCount, icon: Car, color: 'text-info', bg: 'bg-info/10' },
     { label: 'Locations', value: locationCount, icon: MapPin, color: 'text-primary', bg: 'bg-primary/10' },
     { label: 'Users', value: userCount, icon: Users, color: 'text-accent', bg: 'bg-accent/10' },
-    { label: 'Brands', value: brandCount, icon: Car, color: 'text-info', bg: 'bg-info/10' },
     { label: 'Total Vehicles', value: totalVehicles, icon: Car, color: 'text-sky-600', bg: 'bg-sky-100' },
     { label: 'Total Drives', value: stats.total, icon: CalendarCheck, color: 'text-primary', bg: 'bg-primary/10' },
     { label: 'Service Bookings', value: serviceBookingTotal, icon: BookOpen, color: 'text-success', bg: 'bg-success/10' },
@@ -741,6 +747,26 @@ const SuperAdminDashboard = () => {
     };
   };
 
+  const getInsightRoleFromStaff = (staff: any): 'sales' | 'gro' =>
+    staff?.role === APP_ROLE.GRO || staff?.role === 'gro' ? 'gro' : 'sales';
+
+  const getDrivesForStaff = (staff: any) => {
+    if (!staff?.id) return [] as any[];
+    const roleType = getInsightRoleFromStaff(staff);
+    return testDrives
+      .filter((drive) => {
+        const matchesRole = roleType === 'sales'
+          ? drive.assigned_sales_person_id === staff.id
+          : drive.assigned_gro_id === staff.id;
+        return matchesRole && isDriveInInsightWindow(drive);
+      })
+      .sort((left, right) => {
+        const leftTime = new Date(`${left.scheduled_date || ''}T${left.scheduled_time || '00:00:00'}`).getTime();
+        const rightTime = new Date(`${right.scheduled_date || ''}T${right.scheduled_time || '00:00:00'}`).getTime();
+        return rightTime - leftTime;
+      });
+  };
+
   const userWiseInsights = filteredStaff
     .filter((staff) => {
       if (userInsightRoleFilter === 'sales') return staff.role === APP_ROLE.SALES;
@@ -766,6 +792,87 @@ const SuperAdminDashboard = () => {
     : 0;
   const topPerformer = userWiseInsights[0] || null;
   const bestCompletionRateUser = userWiseInsights.filter(r => r.total > 0).sort((a, b) => b.completionRate - a.completionRate)[0] || null;
+  const selectedStaffInsight = selectedActivityStaff
+    ? buildUserInsight(selectedActivityStaff, getInsightRoleFromStaff(selectedActivityStaff))
+    : null;
+  const selectedStaffDrives = selectedActivityStaff ? getDrivesForStaff(selectedActivityStaff) : [];
+  const staffInsightBrandOptions = Array.from(
+    new Set(
+      testDrives
+        .map((drive) => String(drive?.vehicles?.brand || '').trim())
+        .filter(Boolean),
+    ),
+  ).sort((left, right) => left.localeCompare(right));
+  const staffInsightNameOptions = Array.from(
+    new Set(
+      filteredStaff
+        .filter((staff) => staff.role === APP_ROLE.SALES || staff.role === APP_ROLE.GRO)
+        .map((staff) => String(staff.full_name || '').trim())
+        .filter(Boolean),
+    ),
+  ).sort((left, right) => left.localeCompare(right));
+
+  const filteredUserWiseInsights = userWiseInsights.filter((row) => {
+    const selectedStaffMatches = userInsightStaffFilter === 'all' ? true : row.name === userInsightStaffFilter;
+    const brandMatches = userInsightBrandFilter === 'all'
+      ? true
+      : testDrives.some((drive) => {
+          const driveBrand = String(drive?.vehicles?.brand || '').trim();
+          const driveStaffName = String(drive?.assigned_sales_person?.full_name || drive?.assigned_gro?.full_name || drive?.salesPerson?.full_name || '').trim();
+          const rowMatchesDrive = row.role === 'gro'
+            ? drive.assigned_gro_id === row.id
+            : drive.assigned_sales_person_id === row.id;
+          return rowMatchesDrive && driveBrand === userInsightBrandFilter && (userInsightStaffFilter === 'all' ? true : driveStaffName === userInsightStaffFilter);
+        });
+
+    return selectedStaffMatches && brandMatches;
+  });
+
+  const filteredTotalUserwiseDrives = filteredUserWiseInsights.reduce((sum, row) => sum + row.total, 0);
+  const filteredAvgCompletionRate = filteredUserWiseInsights.length > 0
+    ? Math.round(filteredUserWiseInsights.reduce((sum, row) => sum + row.completionRate, 0) / filteredUserWiseInsights.length)
+    : 0;
+  const filteredAvgNoShowRate = filteredUserWiseInsights.length > 0
+    ? Math.round(filteredUserWiseInsights.reduce((sum, row) => sum + row.noShowRate, 0) / filteredUserWiseInsights.length)
+    : 0;
+  const filteredAvgJourneyMinutes = filteredUserWiseInsights.length > 0
+    ? Math.round(
+        filteredUserWiseInsights
+          .filter((row) => row.avgJourneyMinutes !== null)
+          .reduce((sum, row, _, arr) => sum + ((row.avgJourneyMinutes || 0) / Math.max(arr.length, 1)), 0)
+      )
+    : 0;
+  const filteredTopPerformer = filteredUserWiseInsights[0] || null;
+  const filteredBestCompletionRateUser = filteredUserWiseInsights.filter(r => r.total > 0).sort((a, b) => b.completionRate - a.completionRate)[0] || null;
+  const selectedStaffDriveBrandOptions = Array.from(
+    new Set(
+      selectedStaffDrives
+        .map((drive) => String(drive?.vehicles?.brand || '').trim())
+        .filter(Boolean),
+    ),
+  ).sort((left, right) => left.localeCompare(right));
+  const selectedStaffDriveSalesOptions = Array.from(
+    new Set(
+      selectedStaffDrives
+        .map((drive) => String(drive?.assigned_sales_person?.full_name || drive?.salesPerson?.full_name || '').trim())
+        .filter(Boolean),
+    ),
+  ).sort((left, right) => left.localeCompare(right));
+  const filteredSelectedStaffDrives = selectedStaffDrives.filter((drive) => {
+    const matchesStatus = selectedStaffDriveStatus === 'all' ? true : drive.status === selectedStaffDriveStatus;
+    const matchesBrand = selectedStaffDriveBrand === 'all' ? true : String(drive?.vehicles?.brand || '').trim() === selectedStaffDriveBrand;
+    const assignedSalesName = String(drive?.assigned_sales_person?.full_name || drive?.salesPerson?.full_name || '').trim();
+    const matchesSales = selectedStaffDriveSales === 'all' ? true : assignedSalesName === selectedStaffDriveSales;
+
+    return matchesStatus && matchesBrand && matchesSales;
+  });
+  const recentTestDrives = [...testDrives]
+    .sort((left, right) => {
+      const leftTime = new Date(`${left.scheduled_date || ''}T${left.scheduled_time || '00:00:00'}`).getTime();
+      const rightTime = new Date(`${right.scheduled_date || ''}T${right.scheduled_time || '00:00:00'}`).getTime();
+      return rightTime - leftTime;
+    })
+    .slice(0, 10);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -774,7 +881,7 @@ const SuperAdminDashboard = () => {
 
      
       {/* ── KPI Stat Cards ── */}
-      <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 sm:gap-4">
         {statCards.map(stat => {
           const Icon = stat.icon;
           return (
@@ -793,9 +900,9 @@ const SuperAdminDashboard = () => {
                 else if (stat.label === 'Paid Sales') navigateTo('/car-bookings?payment_status=paid&booking_status=confirmed');
               }}
             >
-              <CardContent className="p-3 sm:p-4 min-w-0 flex items-center gap-2.5 sm:gap-3 min-h-[88px] sm:min-h-[96px]">
-                <div className={`h-10 w-10 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
-                  <Icon className={`h-5 w-5 ${stat.color}`} />
+              <CardContent className="flex min-h-[88px] min-w-0 items-center gap-2.5 p-3 sm:min-h-[96px] sm:gap-3 sm:p-4">
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${stat.bg} sm:h-10 sm:w-10`}>
+                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
                 </div>
                 <div className="min-w-0">
                   {showStatSkeleton ? (
@@ -805,7 +912,7 @@ const SuperAdminDashboard = () => {
                     </>
                   ) : (
                     <>
-                      <p className="text-xl font-heading font-bold leading-none text-foreground">{stat.value}</p>
+                      <p className="font-heading text-base font-bold leading-tight text-foreground sm:text-xl">{stat.value}</p>
                       <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide leading-tight mt-1 break-words">{stat.label}</p>
                     </>
                   )}
@@ -826,15 +933,12 @@ const SuperAdminDashboard = () => {
         }}
         serviceBookingStatusCounts={serviceBookingStatusCounts}
       />
-      <HierarchyOverview />
-
-
-      <Card className="shadow-card border-primary/20 relative overflow-hidden">
+         <Card className="shadow-card border-primary/20 relative overflow-hidden">
         {/* Gradient accent line at top */}
         <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-primary via-success to-info" />
 
         <CardHeader className="pb-3 pt-5">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <CardTitle className="font-heading text-base sm:text-lg flex items-center gap-2 flex-wrap">
               <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               Staff-wise Test Drive Insights
@@ -845,7 +949,7 @@ const SuperAdminDashboard = () => {
               <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-primary/70 bg-primary/8 border border-primary/15 rounded-full px-2 py-0.5">
                 <Zap className="h-2.5 w-2.5" /> AI Powered
               </span>
-              <Badge variant="secondary" className="text-xs font-normal">{userWiseInsights.length} users</Badge>
+              <Badge variant="secondary" className="font-semibold text-blue-800 bg-blue-100 border border-success/20 rounded-full px-2 py-0.5">{userWiseInsights.length} users</Badge>
               {tdUpdateCount > 0 && (
                 <span className="text-[10px] font-bold text-white bg-success rounded-full px-2 py-0.5 animate-bounce">
                   +{tdUpdateCount} live
@@ -853,21 +957,21 @@ const SuperAdminDashboard = () => {
               )}
             </CardTitle>
 
-            <div className="flex items-center gap-2 flex-wrap ">
+            <div className="flex items-center justify-end gap-2 flex-wrap sm:flex-nowrap">
               {tdRefreshing ? (
-                <span className="flex items-center gap-1 text-[11px] text-success font-medium animate-pulse">
+                <span className="flex shrink-0 items-center gap-1 text-[11px] text-success font-medium animate-pulse">
                   <RefreshCw className="h-3 w-3 animate-spin" />
                   Updating...
                 </span>
               ) : tdLastUpdated ? (
-                <span className="text-[11px] text-muted-foreground">
+                <span className="shrink-0 text-[11px] text-muted-foreground">
                   Updated {tdLastUpdated.toLocaleTimeString()}
                 </span>
               ) : null}
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
-                className="h-7 w-7 bg-success/10"
+                className="h-7 w-7 shrink-0 bg-white/5 hover:bg-white/10 text-muted-foreground"
                 title="Refresh now"
                 onClick={() => {
                   setTdRefreshing(true);
@@ -877,10 +981,25 @@ const SuperAdminDashboard = () => {
                   });
                 }}
               >
-                <RefreshCw className={`h-3.5 w-3.5 bg-success/10 text-muted-foreground ${tdRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-3.5 w-3.5 bg-white/5 ${tdRefreshing ? 'animate-spin' : ''}`} />
               </Button>
+              <Button
+                variant={showUserInsightFilters ? 'default' : 'outline'}
+                size="icon"
+                className={showUserInsightFilters ? 'h-7 w-7 shrink-0' : 'h-7 w-7 shrink-0 bg-white/5 hover:bg-white/10 text-muted-foreground'}
+                title="Toggle filters"
+                onClick={() => setShowUserInsightFilters((value) => !value)}
+              >
+                <Filter className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+          <div className={`grid transition-all duration-300 ease-out ${showUserInsightFilters ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
+            <div className="overflow-hidden">
+              <div className="w-full max-w-full overflow-x-auto pb-1">
+                <div className={`ml-auto flex min-w-max items-center justify-end gap-2 flex-nowrap whitespace-nowrap ${showUserInsightFilters ? 'animate-slide-in' : ''}`}>
               <Select value={userInsightRoleFilter} onValueChange={(v: 'all' | 'sales' | 'gro') => setUserInsightRoleFilter(v)}>
-                <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectTrigger className="h-8 w-[120px] shrink-0 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -891,7 +1010,7 @@ const SuperAdminDashboard = () => {
               </Select>
 
               <Select value={userInsightWindow} onValueChange={(v: 'all' | 'today' | 'week' | 'month') => setUserInsightWindow(v)}>
-                <SelectTrigger className="w-[130px] h-8 text-xs">
+                <SelectTrigger className="h-8 w-[130px] shrink-0 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -901,50 +1020,90 @@ const SuperAdminDashboard = () => {
                   <SelectItem value="all">All Time</SelectItem>
                 </SelectContent>
               </Select>
+
+              <Select value={userInsightBrandFilter} onValueChange={setUserInsightBrandFilter}>
+                <SelectTrigger className="h-8 w-[140px] shrink-0 text-xs">
+                  <SelectValue placeholder="Brand" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Brands</SelectItem>
+                  {staffInsightBrandOptions.map((brand) => (
+                    <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={userInsightStaffFilter} onValueChange={setUserInsightStaffFilter}>
+                <SelectTrigger className="h-8 w-[160px] shrink-0 text-xs">
+                  <SelectValue placeholder="Staff name" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Staff</SelectItem>
+                  {staffInsightNameOptions.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0 text-xs"
+                onClick={() => {
+                  setUserInsightBrandFilter('all');
+                  setUserInsightStaffFilter('all');
+                  setUserInsightRoleFilter('all');
+                  setUserInsightWindow('month');
+                }}
+              >
+                Clear filters
+              </Button>
+                </div>
+              </div>
             </div>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-4">
           {/* ── Summary metrics ── */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
             <div className="rounded-xl border border-info/20 bg-info/5 p-3 flex flex-col gap-1">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><Car className="h-3 w-3" /> Total Drives</p>
-              <p className="text-2xl font-heading font-bold text-foreground">{totalUserwiseDrives}</p>
+              <p className="font-heading text-lg font-bold text-foreground sm:text-2xl">{filteredTotalUserwiseDrives}</p>
             </div>
             <div className="rounded-xl border border-success/20 bg-success/5 p-3 flex flex-col gap-1">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><CheckCheck className="h-3 w-3 text-success" /> Avg Completion</p>
-              <p className="text-2xl font-heading font-bold text-success">{avgCompletionRate}%</p>
-              <div className="h-1 bg-success/20 rounded-full"><div className="h-full bg-success rounded-full" style={{ width: `${Math.min(avgCompletionRate, 100)}%` }} /></div>
+              <p className="font-heading text-lg font-bold text-success sm:text-2xl">{filteredAvgCompletionRate}%</p>
+              <div className="h-1 bg-success/20 rounded-full"><div className="h-full bg-success rounded-full" style={{ width: `${Math.min(filteredAvgCompletionRate, 100)}%` }} /></div>
             </div>
             <div className="rounded-xl border border-warning/20 bg-warning/5 p-3 flex flex-col gap-1">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><TrendingDown className="h-3 w-3 text-warning" /> Avg No-show</p>
-              <p className="text-2xl font-heading font-bold text-warning">{avgNoShowRate}%</p>
-              <div className="h-1 bg-warning/20 rounded-full"><div className="h-full bg-warning rounded-full" style={{ width: `${Math.min(avgNoShowRate, 100)}%` }} /></div>
+              <p className="font-heading text-lg font-bold text-warning sm:text-2xl">{filteredAvgNoShowRate}%</p>
+              <div className="h-1 bg-warning/20 rounded-full"><div className="h-full bg-warning rounded-full" style={{ width: `${Math.min(filteredAvgNoShowRate, 100)}%` }} /></div>
             </div>
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex flex-col gap-1">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><Clock className="h-3 w-3 text-primary" /> Avg Journey</p>
-              <p className="text-2xl font-heading font-bold text-foreground">{avgJourneyMinutes > 0 ? `${avgJourneyMinutes}m` : '—'}</p>
+              <p className="font-heading text-lg font-bold text-foreground sm:text-2xl">{filteredAvgJourneyMinutes > 0 ? `${filteredAvgJourneyMinutes}m` : '—'}</p>
             </div>
             <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/30 p-3 flex flex-col gap-1">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><TrendingUp className="h-3 w-3 text-amber-600" /> Top Performer</p>
-              <p className="text-sm font-bold text-foreground truncate leading-tight">{topPerformer?.name || '—'}</p>
-              <p className="text-[11px] text-muted-foreground">{topPerformer ? `${topPerformer.completed} completed` : 'No data'}</p>
+              <p className="text-sm font-bold text-foreground break-words leading-tight">{filteredTopPerformer?.name || '—'}</p>
+              <p className="text-[11px] text-muted-foreground">{filteredTopPerformer ? `${filteredTopPerformer.completed} completed` : 'No data'}</p>
             </div>
             <div className="rounded-xl border border-success/30 bg-success/5 p-3 flex flex-col gap-1">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1"><Zap className="h-3 w-3 text-success" /> Best Rate</p>
-              {bestCompletionRateUser ? (
+              {filteredBestCompletionRateUser ? (
                 <>
-                  <p className="text-2xl font-heading font-bold text-success leading-tight">{bestCompletionRateUser.completionRate}%</p>
-                  <p className="text-[11px] font-semibold text-foreground truncate">{bestCompletionRateUser.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{bestCompletionRateUser.completed}/{bestCompletionRateUser.total} drives</p>
+                  <p className="font-heading text-lg font-bold text-success leading-tight sm:text-2xl">{filteredBestCompletionRateUser.completionRate}%</p>
+                  <p className="text-[11px] font-semibold text-foreground break-words leading-tight">{filteredBestCompletionRateUser.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{filteredBestCompletionRateUser.completed}/{filteredBestCompletionRateUser.total} drives</p>
                 </>
               ) : <p className="text-sm text-muted-foreground">—</p>}
             </div>
           </div>
 
           {/* ── AI Insight bar ── */}
-          {userWiseInsights.length > 0 && (
+          {filteredUserWiseInsights.length > 0 && (
             <div className="flex items-start gap-3 rounded-xl bg-gradient-to-r from-primary/5 to-info/5 border border-primary/15 px-4 py-3">
               <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
                 <Zap className="h-3.5 w-3.5 text-primary" />
@@ -952,13 +1111,13 @@ const SuperAdminDashboard = () => {
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-0.5">AI Summary</p>
                 <p className="text-xs text-foreground/80 leading-relaxed">
-                  {bestCompletionRateUser
-                    ? <><span className="font-semibold text-foreground">{bestCompletionRateUser.name}</span> leads with <span className="font-semibold text-success">{bestCompletionRateUser.completionRate}%</span> completion ({bestCompletionRateUser.completed}/{bestCompletionRateUser.total} drives). </>
+                  {filteredBestCompletionRateUser
+                    ? <><span className="font-semibold text-foreground">{filteredBestCompletionRateUser.name}</span> leads with <span className="font-semibold text-success">{filteredBestCompletionRateUser.completionRate}%</span> completion ({filteredBestCompletionRateUser.completed}/{filteredBestCompletionRateUser.total} drives). </>
                     : null}
-                  {avgNoShowRate > 20
-                    ? <><span className="text-warning font-medium">No-show rate is elevated at {avgNoShowRate}%</span> — consider sending follow-up reminders. </>
-                    : <>No-show rate is healthy at <span className="text-success font-medium">{avgNoShowRate}%</span>. </>}
-                  {userWiseInsights.length} staff tracked
+                  {filteredAvgNoShowRate > 20
+                    ? <><span className="text-warning font-medium">No-show rate is elevated at {filteredAvgNoShowRate}%</span> — consider sending follow-up reminders. </>
+                    : <>No-show rate is healthy at <span className="text-success font-medium">{filteredAvgNoShowRate}%</span>. </>}
+                  {filteredUserWiseInsights.length} staff tracked
                   {userInsightWindow === 'today' ? ' today' : userInsightWindow === 'week' ? ' over the last 7 days' : userInsightWindow === 'month' ? ' over the last 30 days' : ' across all time'}.
                 </p>
               </div>
@@ -966,13 +1125,13 @@ const SuperAdminDashboard = () => {
           )}
 
           {/* ── Staff rows ── */}
-          {userWiseInsights.length === 0 ? (
+          {filteredUserWiseInsights.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
               No user-wise drive data found for selected filters.
             </div>
           ) : (
             <div className="space-y-2">
-              {userWiseInsights.map((row, idx) => {
+              {filteredUserWiseInsights.map((row, idx) => {
                 const tier = row.completionRate >= 70 ? 'elite' : row.completionRate >= 40 ? 'good' : 'review';
                 const tierConfig = {
                   elite: { label: '🔥 Top', bg: 'bg-success/10', text: 'text-success', border: 'border-success/20' },
@@ -987,42 +1146,81 @@ const SuperAdminDashboard = () => {
                 return (
                   <div
                     key={`${row.role}-${row.id}`}
-                    className="group flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-border hover:border-primary/30 hover:bg-muted/20 transition-all duration-200"
+                    className="group flex cursor-pointer flex-col gap-3 rounded-xl border border-border p-3 transition-all duration-200 hover:border-primary/30 hover:bg-muted/20 sm:flex-row sm:items-center sm:p-4"
+                    onClick={() => {
+                      const matchedStaff = filteredStaff.find((staff) => staff.id === row.id) || {
+                        id: row.id,
+                        full_name: row.name,
+                        role: row.role === 'gro' ? APP_ROLE.GRO : APP_ROLE.SALES,
+                      };
+                      setSelectedActivityStaff(matchedStaff);
+                      setSelectedStaffDriveStatus('all');
+                      setSelectedStaffDriveBrand('all');
+                      setSelectedStaffDriveSales('all');
+                    }}
                   >
                     {/* Rank */}
-                    <span className="w-6 text-xs font-bold text-muted-foreground text-center shrink-0">
+                    <span className="w-6 shrink-0 text-left text-xs font-bold text-muted-foreground sm:text-center">
                       {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
                     </span>
 
-                    {/* Avatar */}
-                    <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${avatarBg}`}>
-                      {initials}
-                    </div>
-
-                    {/* Name + bar */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold text-sm text-foreground">{row.name}</span>
-                        <Badge className={row.role === 'sales' ? 'bg-info/10 text-info text-[10px] border-none' : 'bg-success/10 text-success text-[10px] border-none'}>
-                          {row.role === 'sales' ? 'Sales' : 'GRO'}
-                        </Badge>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${tierConfig.bg} ${tierConfig.text} ${tierConfig.border}`}>
-                          {tierConfig.label}
-                        </span>
+                    <div className="flex w-full min-w-0 items-start gap-3">
+                      {/* Avatar */}
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarBg}`}>
+                        {initials}
                       </div>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[180px]">
-                          <div
-                            className={`h-full rounded-full transition-all duration-700 ${barColor}`}
-                            style={{ width: `${row.completionRate}%` }}
-                          />
+
+                      {/* Name + bar */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-sm text-foreground break-words">{row.name}</span>
+                          <Badge className={row.role === 'sales' ? 'bg-info/10 text-info text-[10px] border-none' : 'bg-success/10 text-success text-[10px] border-none'}>
+                            {row.role === 'sales' ? 'Sales' : 'GRO'}
+                          </Badge>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${tierConfig.bg} ${tierConfig.text} ${tierConfig.border}`}>
+                            {tierConfig.label}
+                          </span>
                         </div>
-                        <span className={`text-xs font-bold ${textColor}`}>{row.completionRate}%</span>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <div className="h-1.5 max-w-[180px] flex-1 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 ${barColor}`}
+                              style={{ width: `${row.completionRate}%` }}
+                            />
+                          </div>
+                          <span className={`text-xs font-bold ${textColor}`}>{row.completionRate}%</span>
+                        </div>
                       </div>
                     </div>
 
                     {/* Stats */}
-                    <div className="hidden sm:flex items-center gap-4 shrink-0 text-xs text-center">
+                    <div className="grid w-full grid-cols-3 gap-2 text-xs text-left sm:hidden">
+                      <div className="rounded-lg bg-muted/30 p-2">
+                        <p className="font-bold text-foreground leading-tight">{row.total}</p>
+                        <p className="text-muted-foreground leading-tight">Total</p>
+                      </div>
+                      <div className="rounded-lg bg-success/5 p-2">
+                        <p className="font-bold text-success leading-tight">{row.completed}</p>
+                        <p className="text-muted-foreground leading-tight">Done</p>
+                      </div>
+                      <div className="rounded-lg bg-info/5 p-2">
+                        <p className="font-bold text-info leading-tight">{row.active}</p>
+                        <p className="text-muted-foreground leading-tight">Active</p>
+                      </div>
+                      <div className="rounded-lg bg-warning/5 p-2">
+                        <p className="font-bold text-warning leading-tight">{row.noShow}</p>
+                        <p className="text-muted-foreground leading-tight">No-show</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/30 p-2">
+                        <p className="font-bold text-foreground leading-tight">{row.cancelled}</p>
+                        <p className="text-muted-foreground leading-tight">Cancelled</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/30 p-2">
+                        <p className="font-bold text-foreground leading-tight">{row.avgJourneyMinutes ? `${row.avgJourneyMinutes}m` : '—'}</p>
+                        <p className="text-muted-foreground leading-tight">Avg Trip</p>
+                      </div>
+                    </div>
+                    <div className="hidden shrink-0 items-center gap-4 text-center text-xs sm:flex">
                       <div>
                         <p className="font-bold text-foreground leading-tight">{row.total}</p>
                         <p className="text-muted-foreground leading-tight">Total</p>
@@ -1061,7 +1259,53 @@ const SuperAdminDashboard = () => {
           )}
         </CardContent>
       </Card>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="font-heading text-lg flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" /> Drive Status Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={statusChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,15%,88%)" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  {statusChartData.map((_, index) => (
+                    <Cell key={index} fill={STATUS_COLORS[index % STATUS_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="font-heading text-lg flex items-center gap-2">
+              <Users className="h-5 w-5 text-info" /> Staff Role Distribution
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie data={staffRoleChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85} label>
+                  {staffRoleChartData.map((entry, index) => (
+                    <Cell key={index} fill={ROLE_COLORS[entry.name] || STATUS_COLORS[index % STATUS_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+     
+   
    
       <Card className="shadow-card">
         <CardHeader className="space-y-3">
@@ -1072,27 +1316,30 @@ const SuperAdminDashboard = () => {
               <Badge variant="secondary" className="text-xs font-normal">{testDrives.length}</Badge>
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant={testDriveView === 'grid' ? 'default' : 'outline'}
-                onClick={() => setTestDriveView('grid')}
-              >
-                Grid
-              </Button>
-              <Button
-                size="sm"
-                variant={testDriveView === 'chart' ? 'default' : 'outline'}
-                onClick={() => setTestDriveView('chart')}
-              >
-                Chart
-              </Button>
-              <Button
-                size="sm"
-                variant={testDriveView === 'calendar' ? 'default' : 'outline'}
-                onClick={() => setTestDriveView('calendar')}
-              >
-                Calendar
-              </Button>
+              {([
+                ['grid', 'Grid'],
+                ['chart', 'Chart'],
+                ['calendar', 'Calendar'],
+              ] as const).map(([view, label]) => {
+                const isActive = testDriveView === view;
+
+                return (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => setTestDriveView(view)}
+                    className={[
+                      'inline-flex h-9 items-center justify-center rounded-xl px-3 text-sm font-medium transition-all duration-200',
+                      isActive
+                        ? 'bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/30'
+                        : 'border border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground hover:bg-muted/40',
+                    ].join(' ')}
+                    aria-pressed={isActive}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
               {testDriveView === 'chart' && (
                 <Select value={testDriveChartType} onValueChange={(v: 'pie' | 'line' | 'bar') => setTestDriveChartType(v)}>
                   <SelectTrigger className="w-[120px] h-9 text-sm">
@@ -1157,7 +1404,7 @@ const SuperAdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {testDrives.map(td => (
+                    {recentTestDrives.map(td => (
                       <tr key={td.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                         <td className="p-3">
                           <p className="font-medium text-foreground">{td.customers?.full_name}</p>
@@ -1175,17 +1422,24 @@ const SuperAdminDashboard = () => {
                         <td className="p-3 text-muted-foreground">{getAssignedName(td)}</td>
                       </tr>
                     ))}
-                    {testDrives.length === 0 && (
+                    {recentTestDrives.length === 0 && (
                       <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No test drives found</td></tr>
                     )}
                   </tbody>
                 </table>
+                {testDrives.length > 10 && (
+                  <div className="flex justify-end px-3 py-3">
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => navigateTo('/test-drives')}>
+                      View more test drives
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="lg:hidden space-y-3">
-                {testDrives.length === 0 ? (
+                {recentTestDrives.length === 0 ? (
                   <Card className="shadow-card"><CardContent className="p-8 text-center text-muted-foreground">No test drives found</CardContent></Card>
-                ) : testDrives.map(td => (
+                ) : recentTestDrives.map(td => (
                   <Card key={td.id} className="shadow-card hover:shadow-elevated transition-shadow">
                     <CardContent className="p-3.5 space-y-2">
                       <div className="flex items-start justify-between">
@@ -1209,57 +1463,20 @@ const SuperAdminDashboard = () => {
                     </CardContent>
                   </Card>
                 ))}
+                {testDrives.length > 10 && (
+                  <div className="flex justify-center pt-1">
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => navigateTo('/test-drives')}>
+                      View more test drives
+                    </Button>
+                  </div>
+                )}
               </div>
             </>
           )}
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="font-heading text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" /> Drive Status Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={statusChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,15%,88%)" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                  {statusChartData.map((_, index) => (
-                    <Cell key={index} fill={STATUS_COLORS[index % STATUS_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="font-heading text-lg flex items-center gap-2">
-              <Users className="h-5 w-5 text-info" /> Staff Role Distribution
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={staffRoleChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85} label>
-                  {staffRoleChartData.map((entry, index) => (
-                    <Cell key={index} fill={ROLE_COLORS[entry.name] || STATUS_COLORS[index % STATUS_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+  
 
       <Card className="shadow-card">
         <CardHeader>
@@ -1338,6 +1555,8 @@ const SuperAdminDashboard = () => {
           </div>
         </CardContent>
       </Card>
+ <HierarchyOverview />
+
 
       <Dialog open={!!selectedActivityStaff} onOpenChange={(open) => !open && setSelectedActivityStaff(null)}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
@@ -1352,6 +1571,117 @@ const SuperAdminDashboard = () => {
 
           {selectedActivityStaff && selectedActivitySummary && (
             <div className="space-y-4">
+              {selectedStaffInsight && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <Card>
+                    <CardContent className="p-3">
+                      <p className="text-xs text-muted-foreground">Total Drives</p>
+                      <p className="text-sm font-semibold text-foreground">{selectedStaffInsight.total}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3">
+                      <p className="text-xs text-muted-foreground">Completed</p>
+                      <p className="text-sm font-semibold text-success">{selectedStaffInsight.completed}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3">
+                      <p className="text-xs text-muted-foreground">Active</p>
+                      <p className="text-sm font-semibold text-info">{selectedStaffInsight.active}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3">
+                      <p className="text-xs text-muted-foreground">Completion Rate</p>
+                      <p className="text-sm font-semibold text-foreground">{selectedStaffInsight.completionRate}%</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-foreground">Test Drive Filters</p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 px-2 text-xs text-primary"
+                    onClick={() => {
+                      setSelectedStaffDriveStatus('all');
+                      setSelectedStaffDriveBrand('all');
+                      setSelectedStaffDriveSales('all');
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Status</p>
+                    <Select value={selectedStaffDriveStatus} onValueChange={(value) => setSelectedStaffDriveStatus(value as typeof selectedStaffDriveStatus)}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="All statuses" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem value="scheduled">Scheduled</SelectItem>
+                        <SelectItem value="confirmed">Confirmed</SelectItem>
+                        <SelectItem value="show">Show</SelectItem>
+                        <SelectItem value="in_progress">In progress</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                        <SelectItem value="no_show">No show</SelectItem>
+                        <SelectItem value="rescheduled">Rescheduled</SelectItem>
+                        <SelectItem value="key_handover_to_sales">Key handover</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Brand</p>
+                    <Select value={selectedStaffDriveBrand} onValueChange={setSelectedStaffDriveBrand}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="All brands" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All brands</SelectItem>
+                        {selectedStaffDriveBrandOptions.map((brand) => (
+                          <SelectItem key={brand} value={brand}>
+                            {brand}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Sales name</p>
+                    <Select value={selectedStaffDriveSales} onValueChange={setSelectedStaffDriveSales}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="All sales" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All sales</SelectItem>
+                        {selectedStaffDriveSalesOptions.map((salesName) => (
+                          <SelectItem key={salesName} value={salesName}>
+                            {salesName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="secondary" className="text-[11px]">{filteredSelectedStaffDrives.length} drives</Badge>
+                  {selectedStaffDriveStatus !== 'all' && <Badge variant="outline" className="text-[11px]">{formatStatusLabel(selectedStaffDriveStatus)}</Badge>}
+                  {selectedStaffDriveBrand !== 'all' && <Badge variant="outline" className="text-[11px]">{selectedStaffDriveBrand}</Badge>}
+                  {selectedStaffDriveSales !== 'all' && <Badge variant="outline" className="text-[11px]">{selectedStaffDriveSales}</Badge>}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Card>
                   <CardContent className="p-3">
@@ -1379,29 +1709,78 @@ const SuperAdminDashboard = () => {
                 </Card>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="font-heading text-base">Activity Timeline</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {selectedActivitySummary.events.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No activity recorded today.</p>
-                    ) : (
-                      selectedActivitySummary.events.map((event: any) => (
-                        <div key={event.id} className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">{event.event_label}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{event.event_type.replace(/_/g, ' ')}</p>
-                            {event.route && <p className="text-xs text-muted-foreground">Route: {event.route}</p>}
+         
+              <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="font-heading text-base">Activity Timeline</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {selectedActivitySummary.events.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No activity recorded today.</p>
+                      ) : (
+                        selectedActivitySummary.events.map((event: any) => (
+                          <div key={event.id} className="flex items-start justify-between gap-4 rounded-lg border border-border p-3">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{event.event_label}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{event.event_type.replace(/_/g, ' ')}</p>
+                              {event.route && <p className="text-xs text-muted-foreground">Route: {event.route}</p>}
+                            </div>
+                            <div className="text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(event.happened_at)}</div>
                           </div>
-                          <div className="text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(event.happened_at)}</div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="font-heading text-base flex items-center gap-2">
+                      <Car className="h-4 w-4 text-primary" /> Filtered Test Drives
+                      <Badge variant="secondary" className="text-xs font-normal">{filteredSelectedStaffDrives.length}</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                      {filteredSelectedStaffDrives.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No test drives match the selected filters.</p>
+                      ) : (
+                        filteredSelectedStaffDrives.map((drive) => (
+                          <div key={drive.id} className="rounded-lg border border-border p-3 space-y-2">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-medium text-foreground">{drive.customers?.full_name || 'Customer'}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {drive.vehicles?.brand} {drive.vehicles?.model}
+                                </p>
+                              </div>
+                              <Badge variant="secondary" className="text-xs">
+                                {formatStatusLabel(drive.status)}
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                              <div>
+                                <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">Sales</span>
+                                <span className="text-foreground">{drive.assigned_sales_person?.full_name || drive.salesPerson?.full_name || 'Unassigned'}</span>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">Brand</span>
+                                <span className="text-foreground">{drive.vehicles?.brand || '-'}</span>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">Date</span>
+                                <span className="text-foreground">{drive.scheduled_date} {(drive.scheduled_time || '').substring(0, 5)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
         </DialogContent>

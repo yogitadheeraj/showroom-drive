@@ -94,9 +94,14 @@ const FollowUpOverview = () => {
     <Card className="shadow-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
+          
           <Flame className="h-4 w-4 text-destructive" />
+           <Badge variant="secondary">{totalCount}</Badge>
           Priority Follow-ups
-          <Badge variant="secondary">{totalCount}</Badge>
+         
+           <a href="/follow-ups" className="text-xs text-primary flex items-center gap-1 hover:underline">
+            View all follow-ups <ArrowRight className="h-3 w-3" />
+          </a>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -135,13 +140,7 @@ const FollowUpOverview = () => {
           )
         ))}
       </CardContent>
-      {totalCount > 0 && (
-        <CardFooter className="pt-0">
-          <a href="/follow-ups" className="text-xs text-primary flex items-center gap-1 hover:underline">
-            View all follow-ups <ArrowRight className="h-3 w-3" />
-          </a>
-        </CardFooter>
-      )}
+     
     </Card>
   );
 };

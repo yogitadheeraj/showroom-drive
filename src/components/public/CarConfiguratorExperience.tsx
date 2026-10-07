@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiDbQuery } from '@/lib/apiClient';
 import { navigateTo } from '@/lib/browserNavigation';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,8 @@ import {
   Banknote,
   CarFront,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   ChevronUp,
   CircleDot,
@@ -39,6 +41,13 @@ type ConfigVehicle = {
   seating_capacity?: number | string | null;
   set_price?: number | string | null;
   price?: number | string | null;
+  config_image_urls?: string[] | null;
+  config_grades?: string[] | null;
+  config_exterior_options?: Array<Record<string, unknown>> | null;
+  config_interior_options?: Array<Record<string, unknown>> | null;
+  config_extras_options?: Array<Record<string, unknown>> | null;
+  config_accessories_options?: Array<Record<string, unknown>> | null;
+  config_addons_options?: Array<Record<string, unknown>> | null;
   location_id?: string | null;
   locations?: { id: string; name: string } | null;
 };
@@ -74,7 +83,7 @@ const staticBrandImageCatalog = {
   ],
 } as const;
 
-const exteriorOptions: SingleOption[] = [
+const defaultExteriorOptions: SingleOption[] = [
   { id: 'graphite', name: 'Graphite Metallic', detail: 'Deep metallic finish with satin clear coat', price: 0, swatch: 'linear-gradient(135deg,#5f6772,#c1c7d0)' },
   { id: 'arctic', name: 'Arctic Pearl', detail: 'Premium tri-coat white with crystal lift', price: 32000, swatch: 'linear-gradient(135deg,#f8fafc,#dbe5f0)' },
   { id: 'crimson', name: 'Crimson Velocity', detail: 'High-energy ruby tone for launch presence', price: 46000, swatch: 'linear-gradient(135deg,#7f1d1d,#ef4444)' },
@@ -87,24 +96,30 @@ const wheelOptions: SingleOption[] = [
   { id: 'black21', name: '21" Black Edition', detail: 'Gloss black forged package', price: 92000 },
 ];
 
-const interiorOptions: SingleOption[] = [
+const defaultInteriorOptions: SingleOption[] = [
   { id: 'obsidian', name: 'Obsidian Black', detail: 'Monotone cabin with satin chrome accents', price: 0 },
   { id: 'sandstone', name: 'Sandstone Beige', detail: 'Open-pore wood and warm ambient palette', price: 36000 },
   { id: 'oxblood', name: 'Oxblood Atelier', detail: 'Performance quilt with contrast piping', price: 52000 },
 ];
 
-const extrasOptions: ToggleOption[] = [
+const defaultExtrasOptions: ToggleOption[] = [
   { id: 'adas', name: 'Autonomy Suite', detail: 'Adaptive cruise, lane-centering, 360 safety sensors', price: 145000 },
   { id: 'panoramic', name: 'Panoramic Glass Roof', detail: 'Electrochromic glass roof with solar tint', price: 96000 },
   { id: 'audio', name: 'Immersive 18-Speaker Audio', detail: 'Premium surround audio with active noise shaping', price: 88000 },
   { id: 'performance', name: 'Performance Boost', detail: 'Enhanced drive mode and dynamic chassis tune', price: 110000 },
 ];
 
-const accessoryOptions: ToggleOption[] = [
+const defaultAccessoryOptions: ToggleOption[] = [
   { id: 'charger', name: 'Home Charger Kit', detail: 'Smart wall box with app scheduling', price: 74000 },
   { id: 'protection', name: 'Protection Pack', detail: 'All-weather mats, sill guards, cargo liner', price: 18000 },
   { id: 'carrier', name: 'Roof Carrier System', detail: 'Low-profile modular crossbar package', price: 26000 },
   { id: 'dashcam', name: 'Dual Dashcam', detail: 'Front and rear event recording setup', price: 22000 },
+];
+
+const defaultAddonOptions: ToggleOption[] = [
+  { id: 'ceramic-coating', name: 'Ceramic Coating', detail: '5-year paint and gloss protection', price: 22000 },
+  { id: 'extended-warranty', name: 'Extended Warranty', detail: 'Additional 2-year comprehensive coverage', price: 30000 },
+  { id: 'concierge', name: 'Concierge Pickup', detail: 'Doorstep pickup and return for servicing', price: 14000 },
 ];
 
 const interiorColorById: Record<string, string> = {
@@ -135,6 +150,7 @@ const financeTerms = [24, 36, 48, 60, 72];
 const MAX_COMPARE = 4;
 const DISPLAY_LOCALE = 'en-AE';
 const DISPLAY_CURRENCY = 'AED';
+const NIGHT_FX_STORAGE_KEY = 'car-configurator-night-fx';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat(DISPLAY_LOCALE, {
@@ -152,6 +168,57 @@ const normalizeSearchVehicleId = () => {
 const parseCurrencyNumber = (value: string) => Number(value.replace(/[^0-9.]/g, '')) || 0;
 
 const getVehiclePrice = (vehicle: ConfigVehicle | null) => Number(vehicle?.set_price || vehicle?.price || 0);
+
+const normalizeStringList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => String(entry || '').trim()).filter(Boolean);
+};
+
+const toOptionId = (value: string, fallback: string) => {
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return normalized || fallback;
+};
+
+const normalizeSingleOptions = (value: unknown, fallback: SingleOption[]): SingleOption[] => {
+  if (!Array.isArray(value) || value.length === 0) return fallback;
+  const parsed = value.reduce<SingleOption[]>((acc, entry, index) => {
+      const record = entry as Record<string, unknown>;
+      const name = String(record?.name || '').trim();
+      if (!name) return acc;
+      acc.push({
+        id: String(record?.id || toOptionId(name, `option-${index + 1}`)),
+        name,
+        detail: String(record?.detail || '').trim(),
+        price: Number(record?.price || 0) || 0,
+        swatch: record?.swatch ? String(record.swatch) : undefined,
+      });
+      return acc;
+    }, []);
+  return parsed.length ? parsed : fallback;
+};
+
+const normalizeToggleOptions = (value: unknown, fallback: ToggleOption[]): ToggleOption[] => {
+  if (!Array.isArray(value) || value.length === 0) return fallback;
+  const parsed = value.reduce<ToggleOption[]>((acc, entry, index) => {
+      const record = entry as Record<string, unknown>;
+      const name = String(record?.name || '').trim();
+      if (!name) return acc;
+      acc.push({
+        id: String(record?.id || toOptionId(name, `option-${index + 1}`)),
+        name,
+        detail: String(record?.detail || '').trim(),
+        price: Number(record?.price || 0) || 0,
+      });
+      return acc;
+    }, []);
+  return parsed.length ? parsed : fallback;
+};
+
+const getPrimaryVehicleImage = (vehicle: ConfigVehicle | null) => {
+  if (!vehicle) return null;
+  const gallery = normalizeStringList(vehicle.config_image_urls);
+  return gallery[0] || vehicle.image_url || null;
+};
 
 const brandOrderPriority = ['toyota', 'lexus'];
 
@@ -215,18 +282,25 @@ export default function CarConfiguratorExperience() {
   const [vehicles, setVehicles] = useState<ConfigVehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
-  const [selectedExteriorId, setSelectedExteriorId] = useState(exteriorOptions[0].id);
+  const [selectedExteriorId, setSelectedExteriorId] = useState(defaultExteriorOptions[0].id);
   const [selectedWheelId, setSelectedWheelId] = useState(wheelOptions[0].id);
-  const [selectedInteriorId, setSelectedInteriorId] = useState(interiorOptions[0].id);
+  const [selectedInteriorId, setSelectedInteriorId] = useState(defaultInteriorOptions[0].id);
+  const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedExtras, setSelectedExtras] = useState<string[]>(['adas']);
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>(['protection']);
+  const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [downPayment, setDownPayment] = useState('250000');
   const [interestRate, setInterestRate] = useState('8.75');
   const [termMonths, setTermMonths] = useState('48');
-  const [showBottomPanel, setShowBottomPanel] = useState(true);
+  const [showBottomPanel, setShowBottomPanel] = useState(false);
   const [visualPulse, setVisualPulse] = useState(false);
+  const [nightFxEnabled, setNightFxEnabled] = useState(false);
   const [compareVehicleIds, setCompareVehicleIds] = useState<string[]>([]);
   const [showCompareCanvas, setShowCompareCanvas] = useState(false);
+  const [active360Index, setActive360Index] = useState(0);
+  const [autoRotate360, setAutoRotate360] = useState(true);
+  const [isDragging360, setIsDragging360] = useState(false);
+  const drag360Ref = useRef({ isDragging: false, lastX: 0, accumulatedDelta: 0 });
   const staticCatalogVehicles = useMemo(() => buildStaticCatalogVehicles(), []);
 
   useEffect(() => {
@@ -300,11 +374,77 @@ export default function CarConfiguratorExperience() {
     [vehicles, selectedVehicleId],
   );
 
+  const gradeOptions = useMemo(() => {
+    const configured = normalizeStringList(selectedVehicle?.config_grades);
+    if (configured.length) return configured;
+    if (selectedVehicle?.variant) return [selectedVehicle.variant];
+    return ['Standard'];
+  }, [selectedVehicle]);
+
+  const exteriorOptions = useMemo(
+    () => normalizeSingleOptions(selectedVehicle?.config_exterior_options, defaultExteriorOptions),
+    [selectedVehicle],
+  );
+
+  const interiorOptions = useMemo(
+    () => normalizeSingleOptions(selectedVehicle?.config_interior_options, defaultInteriorOptions),
+    [selectedVehicle],
+  );
+
+  const extrasOptions = useMemo(
+    () => normalizeToggleOptions(selectedVehicle?.config_extras_options, defaultExtrasOptions),
+    [selectedVehicle],
+  );
+
+  const accessoryOptions = useMemo(
+    () => normalizeToggleOptions(selectedVehicle?.config_accessories_options, defaultAccessoryOptions),
+    [selectedVehicle],
+  );
+
+  const addonOptions = useMemo(
+    () => normalizeToggleOptions(selectedVehicle?.config_addons_options, defaultAddonOptions),
+    [selectedVehicle],
+  );
+
+  useEffect(() => {
+    setSelectedGrade((prev) => (gradeOptions.includes(prev) ? prev : gradeOptions[0] || 'Standard'));
+  }, [gradeOptions]);
+
+  useEffect(() => {
+    setSelectedExteriorId((prev) => (exteriorOptions.some((option) => option.id === prev) ? prev : exteriorOptions[0]?.id || ''));
+  }, [exteriorOptions]);
+
+  useEffect(() => {
+    setSelectedInteriorId((prev) => (interiorOptions.some((option) => option.id === prev) ? prev : interiorOptions[0]?.id || ''));
+  }, [interiorOptions]);
+
+  useEffect(() => {
+    const available = new Set(extrasOptions.map((option) => option.id));
+    setSelectedExtras((prev) => {
+      const filtered = prev.filter((id) => available.has(id));
+      return filtered.length ? filtered : extrasOptions.slice(0, 1).map((option) => option.id);
+    });
+  }, [extrasOptions]);
+
+  useEffect(() => {
+    const available = new Set(accessoryOptions.map((option) => option.id));
+    setSelectedAccessories((prev) => {
+      const filtered = prev.filter((id) => available.has(id));
+      return filtered.length ? filtered : accessoryOptions.slice(0, 1).map((option) => option.id);
+    });
+  }, [accessoryOptions]);
+
+  useEffect(() => {
+    const available = new Set(addonOptions.map((option) => option.id));
+    setSelectedAddons((prev) => prev.filter((id) => available.has(id)));
+  }, [addonOptions]);
+
   const selectedExterior = exteriorOptions.find((option) => option.id === selectedExteriorId) || exteriorOptions[0];
   const selectedWheel = wheelOptions.find((option) => option.id === selectedWheelId) || wheelOptions[0];
   const selectedInterior = interiorOptions.find((option) => option.id === selectedInteriorId) || interiorOptions[0];
   const chosenExtras = extrasOptions.filter((option) => selectedExtras.includes(option.id));
   const chosenAccessories = accessoryOptions.filter((option) => selectedAccessories.includes(option.id));
+  const chosenAddons = addonOptions.filter((option) => selectedAddons.includes(option.id));
   const selectedBrandKey = (selectedVehicle?.brand || '').toLowerCase();
   const selectedBrandTheme = brandVisualTheme[selectedBrandKey] || brandVisualTheme.default;
   const selectedInteriorColor = interiorColorById[selectedInterior.id] || '#334155';
@@ -314,11 +454,20 @@ export default function CarConfiguratorExperience() {
       .filter((vehicle): vehicle is ConfigVehicle => Boolean(vehicle)),
     [compareVehicleIds, vehicles],
   );
+  const exploreVehicle = selectedVehicle || vehicles[0] || null;
+  const exploreBrandKey = (exploreVehicle?.brand || '').toLowerCase() as keyof typeof staticBrandImageCatalog;
+  const exploreImageFrames = useMemo(() => {
+    const brandFrames = staticBrandImageCatalog[exploreBrandKey] ? [...staticBrandImageCatalog[exploreBrandKey]] : [];
+    const configuredFrames = normalizeStringList(exploreVehicle?.config_image_urls);
+    const primaryImage = exploreVehicle?.image_url ? [exploreVehicle.image_url] : [];
+    return Array.from(new Set([...configuredFrames, ...primaryImage, ...brandFrames])).filter(Boolean);
+  }, [exploreBrandKey, exploreVehicle?.config_image_urls, exploreVehicle?.image_url]);
 
   const basePrice = getVehiclePrice(selectedVehicle);
   const optionsTotal = [selectedExterior.price, selectedWheel.price, selectedInterior.price]
     .concat(chosenExtras.map((option) => option.price))
     .concat(chosenAccessories.map((option) => option.price))
+    .concat(chosenAddons.map((option) => option.price))
     .reduce((sum, amount) => sum + amount, 0);
   const subtotal = basePrice + optionsTotal;
   const parsedDownPayment = Math.max(0, parseCurrencyNumber(downPayment));
@@ -362,47 +511,91 @@ export default function CarConfiguratorExperience() {
     navigateTo(`/book?vehicleId=${encodeURIComponent(selectedVehicle.id)}&modelName=${modelName}`);
   };
 
+  const step360Frame = (direction: 1 | -1) => {
+    if (exploreImageFrames.length <= 1) return;
+    setActive360Index((prev) => (prev + direction + exploreImageFrames.length) % exploreImageFrames.length);
+  };
+
+  const handle360PointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (exploreImageFrames.length <= 1) return;
+    drag360Ref.current = { isDragging: true, lastX: event.clientX, accumulatedDelta: 0 };
+    setIsDragging360(true);
+    setAutoRotate360(false);
+    if (event.currentTarget.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handle360PointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag360Ref.current.isDragging || exploreImageFrames.length <= 1) return;
+
+    const deltaX = event.clientX - drag360Ref.current.lastX;
+    drag360Ref.current.lastX = event.clientX;
+    drag360Ref.current.accumulatedDelta += deltaX;
+
+    const threshold = 22;
+    while (drag360Ref.current.accumulatedDelta >= threshold) {
+      step360Frame(-1);
+      drag360Ref.current.accumulatedDelta -= threshold;
+    }
+    while (drag360Ref.current.accumulatedDelta <= -threshold) {
+      step360Frame(1);
+      drag360Ref.current.accumulatedDelta += threshold;
+    }
+  };
+
+  const stop360Drag = () => {
+    drag360Ref.current.isDragging = false;
+    drag360Ref.current.accumulatedDelta = 0;
+    setIsDragging360(false);
+  };
+
   useEffect(() => {
     setVisualPulse(true);
     const timer = setTimeout(() => setVisualPulse(false), 320);
     return () => clearTimeout(timer);
   }, [selectedVehicleId, selectedExteriorId, selectedInteriorId]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const savedPreference = window.localStorage.getItem(NIGHT_FX_STORAGE_KEY);
+    if (savedPreference === 'on') {
+      setNightFxEnabled(true);
+      return;
+    }
+
+    if (savedPreference === 'off') {
+      setNightFxEnabled(false);
+      return;
+    }
+
+    setNightFxEnabled(document.documentElement.classList.contains('dark'));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(NIGHT_FX_STORAGE_KEY, nightFxEnabled ? 'on' : 'off');
+  }, [nightFxEnabled]);
+
+  useEffect(() => {
+    setActive360Index(0);
+  }, [exploreVehicle?.id]);
+
+  useEffect(() => {
+    if (!showCompareCanvas || !autoRotate360 || exploreImageFrames.length <= 1) return;
+
+    const timer = setInterval(() => {
+      setActive360Index((prev) => (prev + 1) % exploreImageFrames.length);
+    }, 1300);
+
+    return () => clearInterval(timer);
+  }, [showCompareCanvas, autoRotate360, exploreImageFrames]);
+
+  const fxIntensityMultiplier = nightFxEnabled ? 1 : 0.6;
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(15,118,110,0.16),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(249,115,22,0.12),_transparent_24%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.25))]">
-      <div className="mx-auto max-w-7xl px-4 py-8 pb-40 sm:px-6 lg:px-8 lg:py-10 lg:pb-48">
-        <div className="mb-3 rounded-[2rem] border border-border/60 bg-card/85 p-4 shadow-card backdrop-blur sm:p-4">
-          <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.24em] text-primary shadow-sm">
-                <Sparkles className="h-3.5 w-3.5" />
-                Car Configurator
-              </div>
-              <h1 className="mt-4 max-w-3xl text-2xl font-heading font-extrabold tracking-tight text-foreground sm:text-2xl">
-                Configure Your Car
-              </h1>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                { label: 'Live Models', value: vehicles.length || '—', note: 'Available to configure', icon: CarFront, tone: 'text-rose-600 bg-rose-50 border-rose-200 dark:text-rose-300 dark:bg-rose-950/40 dark:border-rose-900/70' },
-                { label: 'Exterior Themes', value: exteriorOptions.length, note: 'Paint options', icon: Palette, tone: 'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-950/40 dark:border-indigo-900/70' },
-                { label: 'Extras', value: extrasOptions.length, note: 'Feature packs', icon: Layers3, tone: 'text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-950/40 dark:border-emerald-900/70' },
-                { label: 'Accessories', value: accessoryOptions.length, note: 'Add-ons', icon: Wrench, tone: 'text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/40 dark:border-amber-900/70' },
-              ].map((stat) => {
-                const StatIcon = stat.icon;
-                return (
-                  <div key={stat.label} className="rounded-2xl border border-border bg-background/90 px-4 py-3 shadow-sm">
-                  
-                    <p className="text-3xl font-heading font-extrabold leading-none text-foreground">{stat.value}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{stat.note}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
+      <div className="mx-auto max-w-[1440px] px-2 py-4 pb-40 sm:px-2 lg:px-4 lg:py-5 lg:pb-0">
+       
         <div className="grid gap-6 xl:grid-cols-[0.38fr_0.9fr_0.72fr]">
           <div className="xl:sticky xl:top-24 xl:h-[calc(100vh-7rem)]">
             <Card className="flex h-full flex-col overflow-hidden rounded-[2rem] border-border/70 shadow-card">
@@ -448,26 +641,12 @@ export default function CarConfiguratorExperience() {
           <div className="space-y-6 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:pr-1">
             <Card className="overflow-hidden rounded-[2rem] border-border/70">
               <CardContent className="p-0">
-                <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 sm:px-6">
-                  <div className="min-w-0 pr-2">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Selected model</p>
-                    <p className="whitespace-normal break-words text-base font-semibold text-foreground">{selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}` : 'Choose a model'}</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="rounded-xl"
-                    onClick={openCompareCanvas}
-                    disabled={!selectedVehicle}
-                  >
-                    Compare In Canvas
-                  </Button>
-                </div>
-
+             
                 <div className="relative min-h-[360px] overflow-hidden bg-gradient-to-br from-slate-100 via-white to-amber-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
                   {selectedVehicle ? (
                     <>
                       <VehicleImage
-                        imageUrl={selectedVehicle.image_url}
+                        imageUrl={getPrimaryVehicleImage(selectedVehicle)}
                         brand={selectedVehicle.brand}
                         model={selectedVehicle.model}
                         className={`h-full w-full object-cover transition-all duration-500 ${visualPulse ? 'scale-[1.02]' : 'scale-100'}`}
@@ -493,9 +672,68 @@ export default function CarConfiguratorExperience() {
                         className="pointer-events-none absolute inset-0 transition-opacity duration-500"
                         style={{
                           background: selectedBrandTheme.glow,
-                          opacity: visualPulse ? 1 : 0.72,
+                          opacity: (visualPulse ? 1 : 0.72) * fxIntensityMultiplier,
                         }}
                       />
+
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 overflow-hidden">
+                        <div
+                          className="absolute -left-16 bottom-0 h-20 w-72 rounded-full bg-white/22 blur-3xl"
+                          style={{
+                            opacity: (visualPulse ? 0.55 : 0.33) * fxIntensityMultiplier,
+                            animation: 'fogFloatLeft 8.5s ease-in-out infinite',
+                          }}
+                        />
+                        <div
+                          className="absolute -right-14 bottom-1 h-20 w-64 rounded-full bg-slate-100/20 blur-3xl"
+                          style={{
+                            opacity: (visualPulse ? 0.5 : 0.3) * fxIntensityMultiplier,
+                            animation: 'fogFloatRight 9.25s ease-in-out infinite',
+                          }}
+                        />
+                        <div
+                          className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-r from-transparent via-white/20 to-transparent blur-2xl"
+                          style={{ opacity: (visualPulse ? 0.55 : 0.35) * fxIntensityMultiplier }}
+                        />
+                      </div>
+
+                      <div className="pointer-events-none absolute inset-0">
+                        <div
+                          className="absolute left-[21%] top-[44%] h-14 w-16 rounded-full bg-amber-100/60 blur-xl"
+                          style={{ opacity: (visualPulse ? 0.78 : 0.5) * fxIntensityMultiplier }}
+                        />
+                        <div
+                          className="absolute right-[21%] top-[44%] h-14 w-16 rounded-full bg-amber-100/60 blur-xl"
+                          style={{ opacity: (visualPulse ? 0.74 : 0.46) * fxIntensityMultiplier }}
+                        />
+                        <div
+                          className="absolute left-[23%] top-[45.5%] h-20 w-[30%] rounded-r-full bg-gradient-to-r from-amber-200/28 via-amber-100/16 to-transparent blur-2xl"
+                          style={{
+                            opacity: (visualPulse ? 0.65 : 0.4) * fxIntensityMultiplier,
+                            transform: 'skewX(-8deg)',
+                            mixBlendMode: 'screen',
+                          }}
+                        />
+                        <div
+                          className="absolute right-[23%] top-[45.5%] h-20 w-[30%] rounded-l-full bg-gradient-to-l from-amber-200/28 via-amber-100/16 to-transparent blur-2xl"
+                          style={{
+                            opacity: (visualPulse ? 0.62 : 0.38) * fxIntensityMultiplier,
+                            transform: 'skewX(8deg)',
+                            mixBlendMode: 'screen',
+                          }}
+                        />
+                      </div>
+
+                      <style jsx>{`
+                        @keyframes fogFloatLeft {
+                          0%, 100% { transform: translateX(0px) translateY(0px) scale(1); }
+                          50% { transform: translateX(10px) translateY(-4px) scale(1.03); }
+                        }
+                        @keyframes fogFloatRight {
+                          0%, 100% { transform: translateX(0px) translateY(0px) scale(1); }
+                          50% { transform: translateX(-12px) translateY(-3px) scale(1.02); }
+                        }
+                      `}</style>
 
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-5 text-white sm:p-6">
                         <p className="text-[11px] uppercase tracking-[0.18em] text-white/70">{selectedVehicle.year || 'Latest'} Edition</p>
@@ -518,6 +756,34 @@ export default function CarConfiguratorExperience() {
                     <div className="flex h-full items-center justify-center text-muted-foreground">Choose a vehicle to start configuring.</div>
                   )}
                 </div>
+   <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 sm:px-6">
+                  
+                  <div className="flex items-center gap-2">
+                     <Button className="gap-2 rounded-xl" onClick={handleReserve} disabled={!selectedVehicle}>
+                        Reserve Car
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" className="rounded-xl" onClick={openCompareCanvas}>
+                        Explore More
+                      </Button>
+                    <Button
+                      type="button"
+                      variant={nightFxEnabled ? 'default' : 'outline'}
+                      className="rounded-xl"
+                      onClick={() => setNightFxEnabled((prev) => !prev)}
+                    >
+                      Night FX {nightFxEnabled ? 'On' : 'Off'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={openCompareCanvas}
+                      disabled={!selectedVehicle}
+                    >
+                      Compare
+                    </Button>
+                  </div>
+                </div>
 
                 <div className="border-t border-border/70 px-5 py-4 sm:px-6">
                   <p className="mb-3 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Model image scroller</p>
@@ -532,7 +798,7 @@ export default function CarConfiguratorExperience() {
                           className={`relative h-20 w-28 shrink-0 overflow-hidden rounded-xl border transition ${isActive ? 'border-primary ring-2 ring-primary/30' : 'border-border hover:border-primary/40'}`}
                         >
                           <VehicleImage
-                            imageUrl={vehicle.image_url}
+                            imageUrl={getPrimaryVehicleImage(vehicle)}
                             brand={vehicle.brand}
                             model={vehicle.model}
                             className="h-full w-full object-cover"
@@ -569,12 +835,7 @@ export default function CarConfiguratorExperience() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Button className="gap-2 rounded-xl" onClick={handleReserve} disabled={!selectedVehicle}>
-                Reserve Car
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
+           
           </div>
 
           <div className="space-y-6 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:pr-1">
@@ -586,8 +847,15 @@ export default function CarConfiguratorExperience() {
                 </div>
                 <div className="space-y-3">
                   <div className="rounded-2xl border border-border bg-muted/20 p-3">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Selected Grade</p>
-                    <p className="mt-1 text-base font-semibold text-foreground">{selectedVehicle?.variant || 'Standard'}</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Grade</p>
+                    <Select value={selectedGrade} onValueChange={setSelectedGrade}>
+                      <SelectTrigger className="mt-2"><SelectValue placeholder="Select grade" /></SelectTrigger>
+                      <SelectContent>
+                        {gradeOptions.map((grade) => (
+                          <SelectItem key={grade} value={grade}>{grade}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">
@@ -715,6 +983,32 @@ export default function CarConfiguratorExperience() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="rounded-[2rem] border-border/70 shadow-card">
+              <CardContent className="p-5 sm:p-6">
+                <div className="mb-4 flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-heading font-semibold text-foreground">Add-ons</h3>
+                </div>
+                <div className="space-y-3">
+                  {addonOptions.map((option) => {
+                    const checked = selectedAddons.includes(option.id);
+                    return (
+                      <label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition ${checked ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
+                        <Checkbox checked={checked} onCheckedChange={() => toggleSelection(option.id, selectedAddons, setSelectedAddons)} className="mt-1" />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-3">
+                            <span className="font-semibold text-foreground">{option.name}</span>
+                            <span className="text-sm font-semibold text-primary">{formatCurrency(option.price)}</span>
+                          </span>
+                          <span className="mt-1 block text-sm text-muted-foreground">{option.detail}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
         </div>
@@ -810,7 +1104,8 @@ export default function CarConfiguratorExperience() {
                       <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Wheels</span><span className="font-medium text-foreground">{selectedWheel.name}</span></div>
                       <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Interior</span><span className="font-medium text-foreground">{selectedInterior.name}</span></div>
                       <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Extras</span><span className="font-medium text-foreground">{chosenExtras.length || 0}</span></div>
-                      <div className="flex items-center justify-between gap-2 sm:col-span-2"><span className="text-muted-foreground">Accessories</span><span className="font-medium text-foreground">{chosenAccessories.length || 0}</span></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Accessories</span><span className="font-medium text-foreground">{chosenAccessories.length || 0}</span></div>
+                      <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Add-ons</span><span className="font-medium text-foreground">{chosenAddons.length || 0}</span></div>
                     </div>
 
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -836,6 +1131,120 @@ export default function CarConfiguratorExperience() {
             <SheetTitle className="text-base font-semibold text-foreground">Compare Your Drive</SheetTitle>
             <SheetDescription>View and compare your selected vehicles side by side.</SheetDescription>
           </SheetHeader>
+
+          {exploreVehicle && (
+            <div className="border-b border-border/70 px-5 py-4 sm:px-6">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Explore More</p>
+              <h3 className="mt-1 text-xl font-heading font-bold text-foreground">{exploreVehicle.brand} {exploreVehicle.model}</h3>
+              <p className="text-sm text-muted-foreground">{exploreVehicle.variant || 'Standard'} • {exploreVehicle.year || 'Latest'} • {exploreVehicle.locations?.name || 'Showroom location pending'}</p>
+
+              <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-muted/20">
+                <div
+                  className={`relative h-56 select-none sm:h-64 ${exploreImageFrames.length > 1 ? (isDragging360 ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+                  onPointerDown={handle360PointerDown}
+                  onPointerMove={handle360PointerMove}
+                  onPointerUp={stop360Drag}
+                  onPointerCancel={stop360Drag}
+                  onPointerLeave={stop360Drag}
+                >
+                  <VehicleImage
+                    imageUrl={exploreImageFrames[active360Index] || exploreVehicle.image_url}
+                    brand={exploreVehicle.brand}
+                    model={exploreVehicle.model}
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-x-0 top-0 flex items-center justify-between p-2">
+                    <span className="rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">360 View {exploreImageFrames.length > 1 ? '• Drag' : ''}</span>
+                    <button
+                      type="button"
+                      onClick={() => setAutoRotate360((prev) => !prev)}
+                      className="rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white"
+                    >
+                      {autoRotate360 ? 'Auto Rotate On' : 'Auto Rotate Off'}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                      onClick={() => step360Frame(-1)}
+                    disabled={exploreImageFrames.length <= 1}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full border border-white/40 bg-black/45 p-1.5 text-white disabled:opacity-40"
+                    aria-label="Previous angle"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                      onClick={() => step360Frame(1)}
+                    disabled={exploreImageFrames.length <= 1}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-white/40 bg-black/45 p-1.5 text-white disabled:opacity-40"
+                    aria-label="Next angle"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex gap-2 overflow-x-auto border-t border-border/70 p-2">
+                  {exploreImageFrames.map((frame, index) => (
+                    <button
+                      key={`360-frame-${frame}-${index}`}
+                      type="button"
+                      onClick={() => {
+                        setActive360Index(index);
+                        setAutoRotate360(false);
+                      }}
+                      className={`h-14 w-20 shrink-0 overflow-hidden rounded-lg border ${active360Index === index ? 'border-primary ring-1 ring-primary/40' : 'border-border'}`}
+                    >
+                      <VehicleImage imageUrl={frame} brand={exploreVehicle.brand} model={exploreVehicle.model} className="h-full w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-border bg-background p-3">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">About Car</p>
+                  <div className="mt-2 space-y-1.5 text-sm">
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Brand</span><span className="font-medium text-foreground">{exploreVehicle.brand || '—'}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Model</span><span className="font-medium text-foreground">{exploreVehicle.model || '—'}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Variant</span><span className="font-medium text-foreground">{exploreVehicle.variant || 'Standard'}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Grade</span><span className="font-medium text-foreground">{selectedGrade || 'Standard'}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Year</span><span className="font-medium text-foreground">{exploreVehicle.year || 'Latest'}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Location</span><span className="font-medium text-foreground">{exploreVehicle.locations?.name || 'Pending'}</span></p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-background p-3">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">All Specs</p>
+                  <div className="mt-2 space-y-1.5 text-sm">
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Power</span><span className="font-medium text-foreground">{exploreVehicle.horsepower ? `${exploreVehicle.horsepower} HP` : '—'}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Range</span><span className="font-medium text-foreground">{exploreVehicle.range_km ? `${exploreVehicle.range_km} km` : '—'}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Seats</span><span className="font-medium text-foreground">{exploreVehicle.seating_capacity || '—'}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Exterior</span><span className="font-medium text-foreground">{selectedExterior.name}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Wheels</span><span className="font-medium text-foreground">{selectedWheel.name}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Interior</span><span className="font-medium text-foreground">{selectedInterior.name}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Extras</span><span className="font-medium text-foreground">{chosenExtras.length || 0}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Accessories</span><span className="font-medium text-foreground">{chosenAccessories.length || 0}</span></p>
+                    <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Add-ons</span><span className="font-medium text-foreground">{chosenAddons.length || 0}</span></p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-xl border border-border bg-background p-3">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Price Details (AED)</p>
+                <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+                  <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Base price</span><span className="font-medium text-foreground">{basePrice ? formatCurrency(basePrice) : 'On request'}</span></p>
+                  <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Exterior</span><span className="font-medium text-foreground">{formatCurrency(selectedExterior.price)}</span></p>
+                  <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Wheels</span><span className="font-medium text-foreground">{formatCurrency(selectedWheel.price)}</span></p>
+                  <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Interior</span><span className="font-medium text-foreground">{formatCurrency(selectedInterior.price)}</span></p>
+                  <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Extras total</span><span className="font-medium text-foreground">{formatCurrency(chosenExtras.reduce((sum, item) => sum + item.price, 0))}</span></p>
+                  <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Accessories total</span><span className="font-medium text-foreground">{formatCurrency(chosenAccessories.reduce((sum, item) => sum + item.price, 0))}</span></p>
+                  <p className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Add-ons total</span><span className="font-medium text-foreground">{formatCurrency(chosenAddons.reduce((sum, item) => sum + item.price, 0))}</span></p>
+                  <p className="flex items-center justify-between gap-2 sm:col-span-2"><span className="text-muted-foreground">Config total</span><span className="font-semibold text-foreground">{formatCurrency(optionsTotal)}</span></p>
+                  <p className="flex items-center justify-between gap-2 sm:col-span-2"><span className="text-muted-foreground">Drive-away total</span><span className="text-base font-bold text-foreground">{formatCurrency(subtotal)}</span></p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="border-b border-border/70 px-5 py-4 sm:px-6">
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
@@ -871,7 +1280,7 @@ export default function CarConfiguratorExperience() {
                   return (
                     <div key={`compare-card-${vehicle.id}`} className="overflow-hidden rounded-2xl border border-border bg-background">
                       <div className="h-36 w-full overflow-hidden">
-                        <VehicleImage imageUrl={vehicle.image_url} brand={vehicle.brand} model={vehicle.model} className="h-full w-full object-cover" />
+                        <VehicleImage imageUrl={getPrimaryVehicleImage(vehicle)} brand={vehicle.brand} model={vehicle.model} className="h-full w-full object-cover" />
                       </div>
                       <div className="space-y-2 p-3">
                         <p className="text-sm font-semibold text-foreground">{vehicle.brand} {vehicle.model}</p>

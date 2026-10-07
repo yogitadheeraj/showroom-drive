@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useDealerContext } from '@/hooks/useDealerContext';
@@ -35,6 +36,14 @@ type VehicleCompareSpecsDraft = {
   battery_capacity: string;
   range_km: string;
   seating_capacity: string;
+};
+
+type ConfigOptionDraft = {
+  id: string;
+  name: string;
+  detail: string;
+  price: number;
+  swatch?: string;
 };
 
 const emptyCompareSpecsDraft = (): VehicleCompareSpecsDraft => ({
@@ -68,6 +77,34 @@ const toCompareSpecsDraft = (vehicle?: any): VehicleCompareSpecsDraft => ({
   range_km: vehicle?.range_km != null ? String(vehicle.range_km) : '',
   seating_capacity: vehicle?.seating_capacity != null ? String(vehicle.seating_capacity) : '',
 });
+
+const buildCompareSpecsPayload = (draft: VehicleCompareSpecsDraft): Record<string, unknown> => {
+  const payload: Record<string, unknown> = {};
+
+  const assignNumber = (key: keyof VehicleCompareSpecsDraft, target: 'horsepower' | 'range_km' | 'seating_capacity') => {
+    const value = draft[key].trim();
+    if (value !== '') payload[target] = Number(value);
+  };
+
+  const assignText = (key: keyof VehicleCompareSpecsDraft, target: 'torque' | 'top_speed' | 'acceleration' | 'fuel_type' | 'drive_type' | 'transmission' | 'mileage' | 'battery_capacity') => {
+    const value = draft[key].trim();
+    if (value !== '') payload[target] = value;
+  };
+
+  assignNumber('horsepower', 'horsepower');
+  assignText('torque', 'torque');
+  assignText('top_speed', 'top_speed');
+  assignText('acceleration', 'acceleration');
+  assignText('fuel_type', 'fuel_type');
+  assignText('drive_type', 'drive_type');
+  assignText('transmission', 'transmission');
+  assignText('mileage', 'mileage');
+  assignText('battery_capacity', 'battery_capacity');
+  assignNumber('range_km', 'range_km');
+  assignNumber('seating_capacity', 'seating_capacity');
+
+  return payload;
+};
 
 const CONDITION_LABEL: Record<string, string> = { new: 'New', used: 'Used', demo: 'Demo' };
 const CONDITION_CLASS: Record<string, string> = {
@@ -110,6 +147,79 @@ const normalizeIdList = (value: unknown): string[] => {
   return [];
 };
 
+const parseLinesToList = (value: string): string[] => {
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+};
+
+const listToLines = (value: unknown): string => {
+  if (!Array.isArray(value)) return '';
+  return value.map((item) => String(item || '').trim()).filter(Boolean).join('\n');
+};
+
+const parseOptionLines = (value: string): ConfigOptionDraft[] => {
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const [nameRaw, detailRaw, priceRaw, swatchRaw] = line.split('|').map((part) => part.trim());
+      const name = nameRaw || `Option ${index + 1}`;
+      const detail = detailRaw || '';
+      const price = Number(priceRaw || 0) || 0;
+      const swatch = swatchRaw || undefined;
+      return {
+        id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `option-${index + 1}`,
+        name,
+        detail,
+        price,
+        swatch,
+      };
+    });
+};
+
+const optionLinesFromArray = (value: unknown): string => {
+  if (!Array.isArray(value)) return '';
+  return value
+    .map((item) => {
+      const option = item as Record<string, unknown>;
+      const name = String(option?.name || '').trim();
+      const detail = String(option?.detail || '').trim();
+      const price = option?.price != null && option?.price !== '' ? String(option.price) : '0';
+      const swatch = String(option?.swatch || '').trim();
+      if (!name) return '';
+      return [name, detail, price, swatch].join(' | ').replace(/\s+\|\s+$/, '');
+    })
+    .filter(Boolean)
+    .join('\n');
+};
+
+const optionRowsToLines = (rows: ConfigOptionDraft[]): string => {
+  return rows
+    .map((row) => {
+      const name = String(row.name || '').trim();
+      if (!name) return '';
+      const detail = String(row.detail || '').trim();
+      const price = Number(row.price || 0) || 0;
+      const swatch = String(row.swatch || '').trim();
+      return [name, detail, String(price), swatch].join(' | ').replace(/\s+\|\s+$/, '');
+    })
+    .filter(Boolean)
+    .join('\n');
+};
+
+const moveArrayItem = <T,>(rows: T[], fromIndex: number, direction: 'up' | 'down'): T[] => {
+  const toIndex = direction === 'up' ? fromIndex - 1 : fromIndex + 1;
+  if (toIndex < 0 || toIndex >= rows.length) return rows;
+  const next = [...rows];
+  const temp = next[fromIndex];
+  next[fromIndex] = next[toIndex];
+  next[toIndex] = temp;
+  return next;
+};
+
 const VehiclesPage = () => {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -134,6 +244,13 @@ const VehiclesPage = () => {
     set_price: '', vehicle_time_days: '', vehicle_condition: 'new' as 'new' | 'used' | 'demo', demo_for_vehicle_id: '',
     workflow_status: 'shipped' as VehicleWorkflowStatus,
     showWheelSegment: true, is_shared: false, shared_location_ids: [] as string[],
+    config_image_urls_text: '',
+    config_grades_text: '',
+    config_exterior_options_text: '',
+    config_interior_options_text: '',
+    config_extras_options_text: '',
+    config_accessories_options_text: '',
+    config_addons_options_text: '',
   });
   const { toast } = useToast();
   const { dealerId, loading: dealerLoading } = useDealerContext();
@@ -156,7 +273,8 @@ const VehiclesPage = () => {
   const [inventoryFiltersOpen, setInventoryFiltersOpen] = useState(false);
   const [inventorySearch, setInventorySearch] = useState('');
   const showDemoSetupStep = !editingId && formData.vehicle_condition === 'new' && createDemoForNew;
-  const totalSteps = showDemoSetupStep ? 3 : 2;
+  const totalSteps = 2;
+  const stepTwoSections = showDemoSetupStep ? ['inventory', 'configurator', 'demo'] : ['inventory', 'configurator'];
 
   // Only new, non-demo vehicles at the selected location can be the parent of a demo
   const associatedNewVariantOptions = vehicles.filter((v) => {
@@ -293,6 +411,30 @@ const VehiclesPage = () => {
     }
     return map;
   }, [vehicles]);
+
+  const configImageRows = useMemo(() => parseLinesToList(formData.config_image_urls_text), [formData.config_image_urls_text]);
+  const configGradeRows = useMemo(() => parseLinesToList(formData.config_grades_text), [formData.config_grades_text]);
+  const configExteriorRows = useMemo(() => parseOptionLines(formData.config_exterior_options_text), [formData.config_exterior_options_text]);
+  const configInteriorRows = useMemo(() => parseOptionLines(formData.config_interior_options_text), [formData.config_interior_options_text]);
+  const configExtrasRows = useMemo(() => parseOptionLines(formData.config_extras_options_text), [formData.config_extras_options_text]);
+  const configAccessoriesRows = useMemo(() => parseOptionLines(formData.config_accessories_options_text), [formData.config_accessories_options_text]);
+  const configAddonsRows = useMemo(() => parseOptionLines(formData.config_addons_options_text), [formData.config_addons_options_text]);
+
+  const updateListRows = (field: 'config_image_urls_text' | 'config_grades_text', rows: string[]) => {
+    setFormData((prev) => ({ ...prev, [field]: rows.map((row) => row.trim()).filter(Boolean).join('\n') }));
+  };
+
+  const updateOptionRows = (
+    field:
+      | 'config_exterior_options_text'
+      | 'config_interior_options_text'
+      | 'config_extras_options_text'
+      | 'config_accessories_options_text'
+      | 'config_addons_options_text',
+    rows: ConfigOptionDraft[],
+  ) => {
+    setFormData((prev) => ({ ...prev, [field]: optionRowsToLines(rows) }));
+  };
 
   // ── Initial data load ───────────────────────────────────────
   useEffect(() => {
@@ -432,6 +574,13 @@ const VehiclesPage = () => {
       demo_for_vehicle_id: v.demo_for_vehicle_id || '',
       workflow_status: getWorkflowStatus(v.status),
       showWheelSegment: true, is_shared: !!v.is_shared, shared_location_ids: (v.shared_location_ids as string[]) || [],
+      config_image_urls_text: listToLines(v.config_image_urls),
+      config_grades_text: listToLines(v.config_grades),
+      config_exterior_options_text: optionLinesFromArray(v.config_exterior_options),
+      config_interior_options_text: optionLinesFromArray(v.config_interior_options),
+      config_extras_options_text: optionLinesFromArray(v.config_extras_options),
+      config_accessories_options_text: optionLinesFromArray(v.config_accessories_options),
+      config_addons_options_text: optionLinesFromArray(v.config_addons_options),
     });
     setDemoFormData({
       variant: 'Demo', year: String(v.year || new Date().getFullYear()), color: '', registration_number: '', image_url: '',
@@ -463,6 +612,13 @@ const VehiclesPage = () => {
       set_price: '', vehicle_time_days: '', vehicle_condition: 'new', demo_for_vehicle_id: '',
       workflow_status: 'shipped',
       showWheelSegment: true, is_shared: false, shared_location_ids: [] as string[],
+      config_image_urls_text: '',
+      config_grades_text: '',
+      config_exterior_options_text: '',
+      config_interior_options_text: '',
+      config_extras_options_text: '',
+      config_accessories_options_text: '',
+      config_addons_options_text: '',
     });
     setDemoFormData({
       variant: 'Demo', year: new Date().getFullYear().toString(), color: '', registration_number: '', image_url: '',
@@ -483,6 +639,7 @@ const VehiclesPage = () => {
     }
 
     const condition = formData.vehicle_condition;
+    const compareSpecsPayload = buildCompareSpecsPayload(specDraft);
     const payload: Record<string, unknown> = {
       brand: formData.brand,
       brandId: formData.brand_id || null,
@@ -519,6 +676,14 @@ const VehiclesPage = () => {
       is_shared: formData.is_shared,
       // empty = all locations; non-empty = specific location IDs only
       shared_location_ids: formData.is_shared ? formData.shared_location_ids : [],
+      config_image_urls: parseLinesToList(formData.config_image_urls_text),
+      config_grades: parseLinesToList(formData.config_grades_text),
+      config_exterior_options: parseOptionLines(formData.config_exterior_options_text),
+      config_interior_options: parseOptionLines(formData.config_interior_options_text),
+      config_extras_options: parseOptionLines(formData.config_extras_options_text),
+      config_accessories_options: parseOptionLines(formData.config_accessories_options_text),
+      config_addons_options: parseOptionLines(formData.config_addons_options_text),
+      ...compareSpecsPayload,
     };
 
     try {
@@ -534,10 +699,6 @@ const VehiclesPage = () => {
             metadata: { vehicleId: editingId, brand: formData.brand, model: formData.model, condition: formData.vehicle_condition, registrationNumber: formData.registration_number || null },
           });
         }
-
-        setSpecPromptVehicle({ id: editingId, name: `${formData.brand} ${formData.model}`.trim() });
-        const currentVehicle = vehicles.find((vehicle) => vehicle.id === editingId);
-        setSpecDraft(toCompareSpecsDraft({ ...currentVehicle, ...payload }));
       } else {
         const created = await apiPost<any>('/api/vehicles', payload);
         const createdId: string = Array.isArray(created) ? created[0]?.id : created?.id;
@@ -564,6 +725,14 @@ const VehiclesPage = () => {
             is_new: true, is_used: false, is_demo: true,
             set_price: null, vehicle_time_days: null,
             demo_for_vehicle_id: createdId,
+            config_image_urls: parseLinesToList(formData.config_image_urls_text),
+            config_grades: parseLinesToList(formData.config_grades_text),
+            config_exterior_options: parseOptionLines(formData.config_exterior_options_text),
+            config_interior_options: parseOptionLines(formData.config_interior_options_text),
+            config_extras_options: parseOptionLines(formData.config_extras_options_text),
+            config_accessories_options: parseOptionLines(formData.config_accessories_options_text),
+            config_addons_options: parseOptionLines(formData.config_addons_options_text),
+            ...compareSpecsPayload,
           };
           await apiPost('/api/vehicles', demoPayload);
           toast({ title: 'Vehicle + Demo added', description: 'New vehicle and linked demo vehicle created.' });
@@ -588,13 +757,9 @@ const VehiclesPage = () => {
             });
           }
         }
-
-        if (createdId) {
-          setSpecPromptVehicle({ id: createdId, name: `${formData.brand} ${formData.model}`.trim() });
-          setSpecDraft(emptyCompareSpecsDraft());
-        }
       }
 
+      setSpecDraft(emptyCompareSpecsDraft());
       setShowDialog(false);
       fetchVehicles();
     } catch (err: any) {
@@ -605,27 +770,7 @@ const VehiclesPage = () => {
   const handleSaveCompareSpecs = async () => {
     if (!specPromptVehicle) return;
 
-    const payload: Record<string, unknown> = {};
-    const assignNumber = (key: keyof VehicleCompareSpecsDraft, target: 'horsepower' | 'range_km' | 'seating_capacity') => {
-      const value = specDraft[key].trim();
-      if (value !== '') payload[target] = Number(value);
-    };
-    const assignText = (key: keyof VehicleCompareSpecsDraft, target: 'torque' | 'top_speed' | 'acceleration' | 'fuel_type' | 'drive_type' | 'transmission' | 'mileage' | 'battery_capacity') => {
-      const value = specDraft[key].trim();
-      if (value !== '') payload[target] = value;
-    };
-
-    assignNumber('horsepower', 'horsepower');
-    assignText('torque', 'torque');
-    assignText('top_speed', 'top_speed');
-    assignText('acceleration', 'acceleration');
-    assignText('fuel_type', 'fuel_type');
-    assignText('drive_type', 'drive_type');
-    assignText('transmission', 'transmission');
-    assignText('mileage', 'mileage');
-    assignText('battery_capacity', 'battery_capacity');
-    assignNumber('range_km', 'range_km');
-    assignNumber('seating_capacity', 'seating_capacity');
+    const payload = buildCompareSpecsPayload(specDraft);
 
     try {
       if (Object.keys(payload).length > 0) {
@@ -801,6 +946,8 @@ const VehiclesPage = () => {
                 const demoAvail = linkedDemos.reduce((s: number, d: any) => s + (d.available_units || 0), 0);
                 const demoTotal = linkedDemos.reduce((s: number, d: any) => s + (d.total_units || 0), 0);
                 const cond: string = v.vehicle_condition || (v.is_demo ? 'demo' : v.is_used ? 'used' : 'new');
+                const galleryImages: string[] = Array.isArray(v.config_image_urls) ? v.config_image_urls.filter(Boolean) : [];
+                const cardImage = galleryImages[0] || v.image_url;
 
                 return (
                   <Card key={v.id} className={`shadow-card hover:shadow-elevated transition-shadow border-l-4 ${
@@ -816,7 +963,7 @@ const VehiclesPage = () => {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <VehicleImage
-                            imageUrl={v.image_url}
+                            imageUrl={cardImage}
                             brand={v.brand}
                             model={v.model}
                             className="h-10 w-10 rounded-lg object-cover border border-border shrink-0"
@@ -854,7 +1001,7 @@ const VehiclesPage = () => {
                               size="sm"
                               variant="outline"
                               className="h-6 w-6 p-0 border-primary/20"
-                              title="Add or update specs"
+                              title="Add or update technical specs"
                               onClick={() => openVehicleSpecsPrompt(v)}
                             >
                               <NotebookPen className="h-3 w-3" />
@@ -889,11 +1036,12 @@ const VehiclesPage = () => {
                       <div className="mt-2 flex flex-wrap gap-1">
                         <Badge variant="secondary" className="text-[10px]">{v.vehicle_segment === 'two_wheeler' ? '2W' : '4W'}</Badge>
                         {v.engine_type && <Badge variant="secondary" className="text-[10px] uppercase">{v.engine_type}</Badge>}
+                        {galleryImages.length > 0 && <Badge variant="outline" className="text-[10px]">Gallery {galleryImages.length}</Badge>}
                         {cond !== 'demo' && v.set_price != null && (
                           <Badge variant="outline" className="text-[10px] border-emerald-200 text-emerald-700">₹{Number(v.set_price).toLocaleString()}</Badge>
                         )}
                         {cond !== 'demo' && v.vehicle_time_days != null && (
-                          <Badge variant="secondary" className="text-[10px]">{v.vehicle_time_days}d slot</Badge>
+                          <Badge variant="secondary" className="text-[10px]">{v.vehicle_time_days} day lead time</Badge>
                         )}
                         {/* Demo: show parent vehicle */}
                         {cond === 'demo' && v.demo_for_vehicle_id && (
@@ -932,7 +1080,7 @@ const VehiclesPage = () => {
                           )}
                           {cond === 'new' && linkedDemos.length === 0 && (
                             <span className="flex items-center gap-0.5 text-muted-foreground">
-                              <AlertCircle className="h-3 w-3" /> No demo
+                              <AlertCircle className="h-3 w-3" /> Demo not linked
                             </span>
                           )}
                         </div>
@@ -1256,239 +1404,427 @@ const VehiclesPage = () => {
                 </Card>
               )}
 
-              {/* ── Step 2: Specs & Availability ── */}
+              {/* ── Step 2: Details, Configurator & Demo ── */}
               {formStep === 2 && (
                 <Card className="border-2 border-primary">
-                  <CardContent className="p-4 space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label>Powertrain</Label>
-                        <Select value={formData.engine_type} onValueChange={(v) => setFormData((p) => ({ ...p, engine_type: v }))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="electric">Electric</SelectItem>
-                            <SelectItem value="hybrid">Hybrid</SelectItem>
-                            <SelectItem value="petrol">Petrol</SelectItem>
-                            <SelectItem value="diesel">Diesel</SelectItem>
-                            <SelectItem value="cng">CNG</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {formData.vehicle_condition !== 'demo' && (
-                        <div className="space-y-2">
-                          <Label>Set Price (₹)</Label>
-                          <Input type="number" min="0" value={formData.set_price} onChange={(e) => setFormData((p) => ({ ...p, set_price: e.target.value }))} placeholder="e.g. 1450000" />
-                        </div>
-                      )}
-                    </div>
-
-                    {formData.vehicle_condition !== 'demo' && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label>Color (Hex)</Label>
-                          <Input
-                            value={formData.color}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (/^#([0-9a-fA-F]{0,6})$/.test(val) || val === '') setFormData((p) => ({ ...p, color: val }));
-                            }}
-                            placeholder="#RRGGBB" maxLength={7}
-                          />
-                          {formData.color && !/^#([0-9a-fA-F]{6})$/.test(formData.color) && (
-                            <p className="text-xs text-destructive">Valid format: #AABBCC</p>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Vehicle Time (days)</Label>
-                          <Input type="number" min="0" value={formData.vehicle_time_days} onChange={(e) => setFormData((p) => ({ ...p, vehicle_time_days: e.target.value }))} placeholder="e.g. 7" />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Location (non-demo only, demo sets location in step 1) */}
-                    {formData.vehicle_condition !== 'demo' && (
-                      <div className="space-y-2">
-                        <Label>Branch / Showroom *</Label>
-                        <Select value={formData.location_id} onValueChange={(v) => setFormData((p) => ({ ...p, location_id: v }))}>
-                          <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
-                          <SelectContent>
-                            {assignableLocations.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-[11px] text-muted-foreground">This branch will receive the vehicle and track the ship-to-sale journey.</p>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <Label>Initial Journey Status</Label>
-                      <Select value={formData.workflow_status} onValueChange={(v) => setFormData((p) => ({ ...p, workflow_status: v as VehicleWorkflowStatus }))}>
-                        <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                        <SelectContent>
-                          {(['shipped', 'in_stock', 'sold', 'returned'] as VehicleWorkflowStatus[]).map((status) => (
-                            <SelectItem key={status} value={status}>{VEHICLE_WORKFLOW_LABELS[status]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label>Total Units</Label>
-                        <Input type="number" min="1" value={formData.total_units} onChange={(e) => setFormData((p) => ({ ...p, total_units: e.target.value }))} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Available Units</Label>
-                        <Input type="number" min="0" value={formData.available_units} onChange={(e) => setFormData((p) => ({ ...p, available_units: e.target.value }))} />
-                      </div>
-                    </div>
-
-                    {/* Shared fleet toggle */}
-                    {formData.vehicle_condition === 'demo' && (
-                      <div className="space-y-2">
-                        {/* Main toggle row */}
-                        <div
-                          className={`flex items-center justify-between gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                            formData.is_shared ? 'border-info/50 bg-info/5' : 'border-border bg-muted/20'
-                          }`}
-                          onClick={() => setFormData((p) => ({ ...p, is_shared: !p.is_shared, shared_location_ids: [] }))}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
-                              formData.is_shared ? 'bg-info/15' : 'bg-muted'
-                            }`}>
-                              <Truck className={`h-4 w-4 ${formData.is_shared ? 'text-info' : 'text-muted-foreground'}`} />
-                            </div>
-                            <div>
-                              <p className={`text-sm font-medium ${formData.is_shared ? 'text-info' : 'text-foreground'}`}>Shared Fleet Vehicle</p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {formData.is_shared
-                                  ? formData.shared_location_ids.length === 0
-                                    ? 'Available at all locations'
-                                    : `Available at ${formData.shared_location_ids.length} selected location${formData.shared_location_ids.length > 1 ? 's' : ''}`
-                                  : 'Available for booking at all locations with transit time shown'}
-                              </p>
-                            </div>
+                  <CardContent className="p-4">
+                    <Accordion type="multiple" defaultValue={stepTwoSections} className="space-y-3">
+                      <AccordionItem value="inventory" className="rounded-xl border border-border bg-background/40 px-4">
+                        <AccordionTrigger className="py-3 text-left no-underline hover:no-underline">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">Stock & Pricing</p>
+                            <p className="text-[11px] text-muted-foreground">Branch allocation, workflow, stock count, pricing, and basic vehicle availability.</p>
                           </div>
-                          <div className={`h-5 w-9 rounded-full transition-colors flex items-center px-0.5 ${
-                            formData.is_shared ? 'bg-info' : 'bg-muted-foreground/30'
-                          }`}>
-                            <div className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                              formData.is_shared ? 'translate-x-4' : 'translate-x-0'
-                            }`} />
-                          </div>
-                        </div>
-
-                        {/* Location scope selector (only when shared is on) */}
-                        {formData.is_shared && assignableLocations.length > 0 && (
-                          <div className="rounded-lg border border-info/20 bg-info/3 p-3 space-y-2">
-                            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Available At</p>
-                            {/* "All Locations" pill */}
-                            <button
-                              type="button"
-                              onClick={() => setFormData((p) => ({ ...p, shared_location_ids: [] }))}
-                              className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-md border text-sm transition-all ${
-                                formData.shared_location_ids.length === 0
-                                  ? 'border-info bg-info/10 text-info font-medium'
-                                  : 'border-border text-muted-foreground hover:border-info/40 hover:bg-info/5'
-                              }`}
-                            >
-                              <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                                formData.shared_location_ids.length === 0 ? 'border-info bg-info' : 'border-muted-foreground'
-                              }`}>
-                                {formData.shared_location_ids.length === 0 && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                        </AccordionTrigger>
+                        <AccordionContent className="space-y-4">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label>Powertrain</Label>
+                              <Select value={formData.engine_type} onValueChange={(v) => setFormData((p) => ({ ...p, engine_type: v }))}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="electric">Electric</SelectItem>
+                                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                                  <SelectItem value="petrol">Petrol</SelectItem>
+                                  <SelectItem value="diesel">Diesel</SelectItem>
+                                  <SelectItem value="cng">CNG</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            {formData.vehicle_condition !== 'demo' && (
+                              <div className="space-y-2">
+                                <Label>Set Price (₹)</Label>
+                                <Input type="number" min="0" value={formData.set_price} onChange={(e) => setFormData((p) => ({ ...p, set_price: e.target.value }))} placeholder="e.g. 1450000" />
                               </div>
-                              All Locations
-                              <span className="ml-auto text-[10px] text-muted-foreground">{assignableLocations.length} locations</span>
-                            </button>
-                            {/* Individual location checkboxes */}
-                            {assignableLocations
-                              .filter((loc) => loc.id !== formData.location_id) // home location is always implicit
-                              .map((loc) => {
-                                const checked = formData.shared_location_ids.includes(loc.id);
-                                const toggle = () =>
-                                  setFormData((p) => ({
-                                    ...p,
-                                    shared_location_ids: checked
-                                      ? p.shared_location_ids.filter((id) => id !== loc.id)
-                                      : [...p.shared_location_ids, loc.id],
-                                  }));
-                                return (
+                            )}
+                          </div>
+
+                          {formData.vehicle_condition !== 'demo' && (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label>Color (Hex)</Label>
+                                <Input
+                                  value={formData.color}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (/^#([0-9a-fA-F]{0,6})$/.test(val) || val === '') setFormData((p) => ({ ...p, color: val }));
+                                  }}
+                                  placeholder="#RRGGBB" maxLength={7}
+                                />
+                                {formData.color && !/^#([0-9a-fA-F]{6})$/.test(formData.color) && (
+                                  <p className="text-xs text-destructive">Valid format: #AABBCC</p>
+                                )}
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Vehicle Time (days)</Label>
+                                <Input type="number" min="0" value={formData.vehicle_time_days} onChange={(e) => setFormData((p) => ({ ...p, vehicle_time_days: e.target.value }))} placeholder="e.g. 7" />
+                              </div>
+                            </div>
+                          )}
+
+                          {formData.vehicle_condition !== 'demo' && (
+                            <div className="space-y-2">
+                              <Label>Branch / Showroom *</Label>
+                              <Select value={formData.location_id} onValueChange={(v) => setFormData((p) => ({ ...p, location_id: v }))}>
+                                <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                                <SelectContent>
+                                  {assignableLocations.map((l: any) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <p className="text-[11px] text-muted-foreground">This branch will receive the vehicle and track the ship-to-sale journey.</p>
+                            </div>
+                          )}
+
+                          <div className="space-y-2">
+                            <Label>Initial Journey Status</Label>
+                            <Select value={formData.workflow_status} onValueChange={(v) => setFormData((p) => ({ ...p, workflow_status: v as VehicleWorkflowStatus }))}>
+                              <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                              <SelectContent>
+                                {(['shipped', 'in_stock', 'sold', 'returned'] as VehicleWorkflowStatus[]).map((status) => (
+                                  <SelectItem key={status} value={status}>{VEHICLE_WORKFLOW_LABELS[status]}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label>Total Units</Label>
+                              <Input type="number" min="1" value={formData.total_units} onChange={(e) => setFormData((p) => ({ ...p, total_units: e.target.value }))} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Available Units</Label>
+                              <Input type="number" min="0" value={formData.available_units} onChange={(e) => setFormData((p) => ({ ...p, available_units: e.target.value }))} />
+                            </div>
+                          </div>
+
+                          {formData.vehicle_condition === 'demo' && (
+                            <div className="space-y-2">
+                              <div
+                                className={`flex items-center justify-between gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                  formData.is_shared ? 'border-info/50 bg-info/5' : 'border-border bg-muted/20'
+                                }`}
+                                onClick={() => setFormData((p) => ({ ...p, is_shared: !p.is_shared, shared_location_ids: [] }))}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                                    formData.is_shared ? 'bg-info/15' : 'bg-muted'
+                                  }`}>
+                                    <Truck className={`h-4 w-4 ${formData.is_shared ? 'text-info' : 'text-muted-foreground'}`} />
+                                  </div>
+                                  <div>
+                                    <p className={`text-sm font-medium ${formData.is_shared ? 'text-info' : 'text-foreground'}`}>Shared Fleet Vehicle</p>
+                                    <p className="text-[11px] text-muted-foreground">
+                                      {formData.is_shared
+                                        ? formData.shared_location_ids.length === 0
+                                          ? 'Available at all locations'
+                                          : `Available at ${formData.shared_location_ids.length} selected location${formData.shared_location_ids.length > 1 ? 's' : ''}`
+                                        : 'Available for booking at all locations with transit time shown'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className={`h-5 w-9 rounded-full transition-colors flex items-center px-0.5 ${
+                                  formData.is_shared ? 'bg-info' : 'bg-muted-foreground/30'
+                                }`}>
+                                  <div className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                                    formData.is_shared ? 'translate-x-4' : 'translate-x-0'
+                                  }`} />
+                                </div>
+                              </div>
+
+                              {formData.is_shared && assignableLocations.length > 0 && (
+                                <div className="rounded-lg border border-info/20 bg-info/3 p-3 space-y-2">
+                                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Available At</p>
                                   <button
-                                    key={loc.id}
                                     type="button"
-                                    onClick={toggle}
+                                    onClick={() => setFormData((p) => ({ ...p, shared_location_ids: [] }))}
                                     className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-md border text-sm transition-all ${
-                                      checked
-                                        ? 'border-info/50 bg-info/8 text-foreground'
-                                        : 'border-border text-muted-foreground hover:border-info/30 hover:bg-info/4'
+                                      formData.shared_location_ids.length === 0
+                                        ? 'border-info bg-info/10 text-info font-medium'
+                                        : 'border-border text-muted-foreground hover:border-info/40 hover:bg-info/5'
                                     }`}
                                   >
-                                    <div className={`h-4 w-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                      checked ? 'border-info bg-info' : 'border-muted-foreground'
+                                    <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                      formData.shared_location_ids.length === 0 ? 'border-info bg-info' : 'border-muted-foreground'
                                     }`}>
-                                      {checked && (
-                                        <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 8">
-                                          <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                      )}
+                                      {formData.shared_location_ids.length === 0 && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
                                     </div>
-                                    <span className="flex-1 truncate">{loc.name}</span>
-                                    {loc.city && <span className="text-[10px] text-muted-foreground shrink-0">{loc.city}</span>}
+                                    All Locations
+                                    <span className="ml-auto text-[10px] text-muted-foreground">{assignableLocations.length} locations</span>
                                   </button>
-                                );
-                              })}
+                                  {assignableLocations.filter((loc) => loc.id !== formData.location_id).map((loc) => {
+                                    const checked = formData.shared_location_ids.includes(loc.id);
+                                    const toggle = () =>
+                                      setFormData((p) => ({
+                                        ...p,
+                                        shared_location_ids: checked
+                                          ? p.shared_location_ids.filter((id) => id !== loc.id)
+                                          : [...p.shared_location_ids, loc.id],
+                                      }));
+                                    return (
+                                      <button
+                                        key={loc.id}
+                                        type="button"
+                                        onClick={toggle}
+                                        className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-md border text-sm transition-all ${
+                                          checked
+                                            ? 'border-info/50 bg-info/8 text-foreground'
+                                            : 'border-border text-muted-foreground hover:border-info/30 hover:bg-info/4'
+                                        }`}
+                                      >
+                                        <div className={`h-4 w-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                          checked ? 'border-info bg-info' : 'border-muted-foreground'
+                                        }`}>
+                                          {checked && (
+                                            <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 10 8">
+                                              <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                          )}
+                                        </div>
+                                        <span className="flex-1 truncate">{loc.name}</span>
+                                        {loc.city && <span className="text-[10px] text-muted-foreground shrink-0">{loc.city}</span>}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {(formData.vehicle_condition === 'used' || formData.vehicle_condition === 'demo') && (
+                            <div className="space-y-2">
+                              <Label>VIN / Registration Number</Label>
+                              <Input value={formData.registration_number} onChange={(e) => setFormData((p) => ({ ...p, registration_number: e.target.value }))} />
+                            </div>
+                          )}
+                          <div className="space-y-2">
+                            <Label>Image URL</Label>
+                            <Input value={formData.image_url} onChange={(e) => setFormData((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://..." />
                           </div>
-                        )}
-                      </div>
-                    )}
+                          <div className="rounded-xl border border-dashed border-border bg-muted/10 p-3 text-[11px] text-muted-foreground">
+                            Technical specifications are optional during initial save. You can add or update horsepower, range, seating, transmission, and more later from the vehicle card using the specs button. Colors, grade options, interiors, extras, accessories, and add-ons can also be updated later from Edit Vehicle.
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
 
-                    {(formData.vehicle_condition === 'used' || formData.vehicle_condition === 'demo') && (
-                      <div className="space-y-2">
-                        <Label>VIN / Registration Number</Label>
-                        <Input value={formData.registration_number} onChange={(e) => setFormData((p) => ({ ...p, registration_number: e.target.value }))} />
-                      </div>
-                    )}
-                    <div className="space-y-2">
-                      <Label>Image URL</Label>
-                      <Input value={formData.image_url} onChange={(e) => setFormData((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://..." />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                      <AccordionItem value="configurator" className="rounded-xl border border-border bg-background/40 px-4">
+                        <AccordionTrigger className="py-3 text-left no-underline hover:no-underline">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">Colors & Options</p>
+                            <p className="text-[11px] text-muted-foreground">Set vehicle images, grade choices, exterior colors, interior themes, extras, accessories, and add-ons.</p>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="space-y-3">
 
-              {/* ── Step 3: Demo setup (optional) ── */}
-              {formStep === 3 && showDemoSetupStep && (
-                <Card className="border-2 border-violet-400">
-                  <CardContent className="p-4 space-y-4">
-                    <p className="text-sm font-medium text-violet-700">⚡ Demo vehicle details (linked to new car above)</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label>Demo Variant Label</Label>
-                        <Input value={demoFormData.variant} onChange={(e) => setDemoFormData((p) => ({ ...p, variant: e.target.value }))} placeholder="Demo" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Year</Label>
-                        <Input value={demoFormData.year} onChange={(e) => setDemoFormData((p) => ({ ...p, year: e.target.value }))} />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label>Color (Hex)</Label>
-                        <Input value={demoFormData.color} onChange={(e) => setDemoFormData((p) => ({ ...p, color: e.target.value }))} placeholder="#RRGGBB" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>VIN / Reg No</Label>
-                        <Input value={demoFormData.registration_number} onChange={(e) => setDemoFormData((p) => ({ ...p, registration_number: e.target.value }))} />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2"><Label>Total Units</Label><Input type="number" min="1" value={demoFormData.total_units} onChange={(e) => setDemoFormData((p) => ({ ...p, total_units: e.target.value }))} /></div>
-                      <div className="space-y-2"><Label>Available Units</Label><Input type="number" min="0" value={demoFormData.available_units} onChange={(e) => setDemoFormData((p) => ({ ...p, available_units: e.target.value }))} /></div>
-                    </div>
                     <div className="space-y-2">
-                      <Label>Image URL</Label>
-                      <Input value={demoFormData.image_url} onChange={(e) => setDemoFormData((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://..." />
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Vehicle Images</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={() => updateListRows('config_image_urls_text', [...configImageRows, 'https://'])}>
+                          Add Image
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {configImageRows.length === 0 && <p className="text-[11px] text-muted-foreground">No gallery image added yet.</p>}
+                        {configImageRows.map((url, index) => (
+                          <div key={`config-image-${index}`} className="flex items-center gap-2">
+                            <Input
+                              value={url}
+                              onChange={(e) => {
+                                const next = [...configImageRows];
+                                next[index] = e.target.value;
+                                updateListRows('config_image_urls_text', next);
+                              }}
+                              placeholder="https://.../front.jpg"
+                            />
+                            <Button type="button" variant="outline" size="sm" onClick={() => updateListRows('config_image_urls_text', moveArrayItem(configImageRows, index, 'up'))} disabled={index === 0}>Up</Button>
+                            <Button type="button" variant="outline" size="sm" onClick={() => updateListRows('config_image_urls_text', moveArrayItem(configImageRows, index, 'down'))} disabled={index === configImageRows.length - 1}>Down</Button>
+                            <Button type="button" variant="outline" size="sm" onClick={() => updateListRows('config_image_urls_text', configImageRows.filter((_, rowIndex) => rowIndex !== index))}>Remove</Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Grade / Variant Options</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={() => updateListRows('config_grades_text', [...configGradeRows, 'Standard'])}>Add Grade</Button>
+                      </div>
+                      <div className="space-y-2">
+                        {configGradeRows.length === 0 && <p className="text-[11px] text-muted-foreground">No grade added yet.</p>}
+                        {configGradeRows.map((grade, index) => (
+                          <div key={`config-grade-${index}`} className="flex items-center gap-2">
+                            <Input
+                              value={grade}
+                              onChange={(e) => {
+                                const next = [...configGradeRows];
+                                next[index] = e.target.value;
+                                updateListRows('config_grades_text', next);
+                              }}
+                              placeholder="Premium"
+                            />
+                            <Button type="button" variant="outline" size="sm" onClick={() => updateListRows('config_grades_text', moveArrayItem(configGradeRows, index, 'up'))} disabled={index === 0}>Up</Button>
+                            <Button type="button" variant="outline" size="sm" onClick={() => updateListRows('config_grades_text', moveArrayItem(configGradeRows, index, 'down'))} disabled={index === configGradeRows.length - 1}>Down</Button>
+                            <Button type="button" variant="outline" size="sm" onClick={() => updateListRows('config_grades_text', configGradeRows.filter((_, rowIndex) => rowIndex !== index))}>Remove</Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Exterior Colors</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_exterior_options_text', [...configExteriorRows, { id: `ext-${Date.now()}`, name: 'New Exterior', detail: '', price: 0, swatch: '' }])}>Add Exterior</Button>
+                      </div>
+                      <div className="space-y-2">
+                        {configExteriorRows.length === 0 && <p className="text-[11px] text-muted-foreground">No exterior option added yet.</p>}
+                        {configExteriorRows.map((option, index) => (
+                          <div key={`config-exterior-${option.id}-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-background/70 p-2 md:grid-cols-12">
+                            <Input className="md:col-span-3" value={option.name} placeholder="Name" onChange={(e) => { const next = [...configExteriorRows]; next[index] = { ...next[index], name: e.target.value }; updateOptionRows('config_exterior_options_text', next); }} />
+                            <Input className="md:col-span-4" value={option.detail} placeholder="Detail" onChange={(e) => { const next = [...configExteriorRows]; next[index] = { ...next[index], detail: e.target.value }; updateOptionRows('config_exterior_options_text', next); }} />
+                            <Input className="md:col-span-2" type="number" min="0" value={String(option.price)} placeholder="Price" onChange={(e) => { const next = [...configExteriorRows]; next[index] = { ...next[index], price: Number(e.target.value || 0) }; updateOptionRows('config_exterior_options_text', next); }} />
+                            <Input className="md:col-span-2" value={option.swatch || ''} placeholder="Swatch" onChange={(e) => { const next = [...configExteriorRows]; next[index] = { ...next[index], swatch: e.target.value }; updateOptionRows('config_exterior_options_text', next); }} />
+                            <div className="md:col-span-1 flex flex-col gap-1">
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_exterior_options_text', moveArrayItem(configExteriorRows, index, 'up'))} disabled={index === 0}>Up</Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_exterior_options_text', moveArrayItem(configExteriorRows, index, 'down'))} disabled={index === configExteriorRows.length - 1}>Down</Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_exterior_options_text', configExteriorRows.filter((_, rowIndex) => rowIndex !== index))}>Remove</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Interior Themes</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_interior_options_text', [...configInteriorRows, { id: `int-${Date.now()}`, name: 'New Interior', detail: '', price: 0 }])}>Add Interior</Button>
+                      </div>
+                      <div className="space-y-2">
+                        {configInteriorRows.length === 0 && <p className="text-[11px] text-muted-foreground">No interior option added yet.</p>}
+                        {configInteriorRows.map((option, index) => (
+                          <div key={`config-interior-${option.id}-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-background/70 p-2 md:grid-cols-10">
+                            <Input className="md:col-span-3" value={option.name} placeholder="Name" onChange={(e) => { const next = [...configInteriorRows]; next[index] = { ...next[index], name: e.target.value }; updateOptionRows('config_interior_options_text', next); }} />
+                            <Input className="md:col-span-4" value={option.detail} placeholder="Detail" onChange={(e) => { const next = [...configInteriorRows]; next[index] = { ...next[index], detail: e.target.value }; updateOptionRows('config_interior_options_text', next); }} />
+                            <Input className="md:col-span-2" type="number" min="0" value={String(option.price)} placeholder="Price" onChange={(e) => { const next = [...configInteriorRows]; next[index] = { ...next[index], price: Number(e.target.value || 0) }; updateOptionRows('config_interior_options_text', next); }} />
+                            <div className="md:col-span-1 flex flex-col gap-1">
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_interior_options_text', moveArrayItem(configInteriorRows, index, 'up'))} disabled={index === 0}>Up</Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_interior_options_text', moveArrayItem(configInteriorRows, index, 'down'))} disabled={index === configInteriorRows.length - 1}>Down</Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_interior_options_text', configInteriorRows.filter((_, rowIndex) => rowIndex !== index))}>Remove</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Extras / Feature Packs</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_extras_options_text', [...configExtrasRows, { id: `extra-${Date.now()}`, name: 'New Extra', detail: '', price: 0 }])}>Add Extra</Button>
+                      </div>
+                      <div className="space-y-2">
+                        {configExtrasRows.length === 0 && <p className="text-[11px] text-muted-foreground">No extra added yet.</p>}
+                        {configExtrasRows.map((option, index) => (
+                          <div key={`config-extra-${option.id}-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-background/70 p-2 md:grid-cols-10">
+                            <Input className="md:col-span-3" value={option.name} placeholder="Name" onChange={(e) => { const next = [...configExtrasRows]; next[index] = { ...next[index], name: e.target.value }; updateOptionRows('config_extras_options_text', next); }} />
+                            <Input className="md:col-span-4" value={option.detail} placeholder="Detail" onChange={(e) => { const next = [...configExtrasRows]; next[index] = { ...next[index], detail: e.target.value }; updateOptionRows('config_extras_options_text', next); }} />
+                            <Input className="md:col-span-2" type="number" min="0" value={String(option.price)} placeholder="Price" onChange={(e) => { const next = [...configExtrasRows]; next[index] = { ...next[index], price: Number(e.target.value || 0) }; updateOptionRows('config_extras_options_text', next); }} />
+                            <div className="md:col-span-1 flex flex-col gap-1">
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_extras_options_text', moveArrayItem(configExtrasRows, index, 'up'))} disabled={index === 0}>Up</Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_extras_options_text', moveArrayItem(configExtrasRows, index, 'down'))} disabled={index === configExtrasRows.length - 1}>Down</Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_extras_options_text', configExtrasRows.filter((_, rowIndex) => rowIndex !== index))}>Remove</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Accessories</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_accessories_options_text', [...configAccessoriesRows, { id: `acc-${Date.now()}`, name: 'New Accessory', detail: '', price: 0 }])}>Add Accessory</Button>
+                      </div>
+                      <div className="space-y-2">
+                        {configAccessoriesRows.length === 0 && <p className="text-[11px] text-muted-foreground">No accessory added yet.</p>}
+                        {configAccessoriesRows.map((option, index) => (
+                          <div key={`config-accessory-${option.id}-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-background/70 p-2 md:grid-cols-10">
+                            <Input className="md:col-span-3" value={option.name} placeholder="Name" onChange={(e) => { const next = [...configAccessoriesRows]; next[index] = { ...next[index], name: e.target.value }; updateOptionRows('config_accessories_options_text', next); }} />
+                            <Input className="md:col-span-4" value={option.detail} placeholder="Detail" onChange={(e) => { const next = [...configAccessoriesRows]; next[index] = { ...next[index], detail: e.target.value }; updateOptionRows('config_accessories_options_text', next); }} />
+                            <Input className="md:col-span-2" type="number" min="0" value={String(option.price)} placeholder="Price" onChange={(e) => { const next = [...configAccessoriesRows]; next[index] = { ...next[index], price: Number(e.target.value || 0) }; updateOptionRows('config_accessories_options_text', next); }} />
+                            <div className="md:col-span-1 flex flex-col gap-1">
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_accessories_options_text', moveArrayItem(configAccessoriesRows, index, 'up'))} disabled={index === 0}>Up</Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_accessories_options_text', moveArrayItem(configAccessoriesRows, index, 'down'))} disabled={index === configAccessoriesRows.length - 1}>Down</Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_accessories_options_text', configAccessoriesRows.filter((_, rowIndex) => rowIndex !== index))}>Remove</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Add-ons</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_addons_options_text', [...configAddonsRows, { id: `addon-${Date.now()}`, name: 'New Add-on', detail: '', price: 0 }])}>Add Add-on</Button>
+                      </div>
+                      <div className="space-y-2">
+                        {configAddonsRows.length === 0 && <p className="text-[11px] text-muted-foreground">No add-on added yet.</p>}
+                        {configAddonsRows.map((option, index) => (
+                          <div key={`config-addon-${option.id}-${index}`} className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-background/70 p-2 md:grid-cols-10">
+                            <Input className="md:col-span-3" value={option.name} placeholder="Name" onChange={(e) => { const next = [...configAddonsRows]; next[index] = { ...next[index], name: e.target.value }; updateOptionRows('config_addons_options_text', next); }} />
+                            <Input className="md:col-span-4" value={option.detail} placeholder="Detail" onChange={(e) => { const next = [...configAddonsRows]; next[index] = { ...next[index], detail: e.target.value }; updateOptionRows('config_addons_options_text', next); }} />
+                            <Input className="md:col-span-2" type="number" min="0" value={String(option.price)} placeholder="Price" onChange={(e) => { const next = [...configAddonsRows]; next[index] = { ...next[index], price: Number(e.target.value || 0) }; updateOptionRows('config_addons_options_text', next); }} />
+                            <div className="md:col-span-1 flex flex-col gap-1">
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_addons_options_text', moveArrayItem(configAddonsRows, index, 'up'))} disabled={index === 0}>Up</Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_addons_options_text', moveArrayItem(configAddonsRows, index, 'down'))} disabled={index === configAddonsRows.length - 1}>Down</Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => updateOptionRows('config_addons_options_text', configAddonsRows.filter((_, rowIndex) => rowIndex !== index))}>Remove</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      {showDemoSetupStep && (
+                        <AccordionItem value="demo" className="rounded-xl border border-violet-200 bg-violet-50/30 px-4">
+                          <AccordionTrigger className="py-3 text-left no-underline hover:no-underline">
+                            <div>
+                              <p className="text-sm font-semibold text-violet-700">Demo Setup</p>
+                              <p className="text-[11px] text-violet-600">Optional linked demo setup for this new vehicle.</p>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label>Demo Variant Label</Label>
+                                <Input value={demoFormData.variant} onChange={(e) => setDemoFormData((p) => ({ ...p, variant: e.target.value }))} placeholder="Demo" />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Year</Label>
+                                <Input value={demoFormData.year} onChange={(e) => setDemoFormData((p) => ({ ...p, year: e.target.value }))} />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label>Color (Hex)</Label>
+                                <Input value={demoFormData.color} onChange={(e) => setDemoFormData((p) => ({ ...p, color: e.target.value }))} placeholder="#RRGGBB" />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>VIN / Reg No</Label>
+                                <Input value={demoFormData.registration_number} onChange={(e) => setDemoFormData((p) => ({ ...p, registration_number: e.target.value }))} />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-2"><Label>Total Units</Label><Input type="number" min="1" value={demoFormData.total_units} onChange={(e) => setDemoFormData((p) => ({ ...p, total_units: e.target.value }))} /></div>
+                              <div className="space-y-2"><Label>Available Units</Label><Input type="number" min="0" value={demoFormData.available_units} onChange={(e) => setDemoFormData((p) => ({ ...p, available_units: e.target.value }))} /></div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Image URL</Label>
+                              <Input value={demoFormData.image_url} onChange={(e) => setDemoFormData((p) => ({ ...p, image_url: e.target.value }))} placeholder="https://..." />
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                    </Accordion>
                   </CardContent>
                 </Card>
               )}
@@ -1496,9 +1832,10 @@ const VehiclesPage = () => {
               {/* Stepper controls */}
               <div className="flex gap-2">
                 {formStep > 1 && <Button variant="outline" onClick={() => setFormStep((s) => Math.max(s - 1, 1))} className="flex-1">Back</Button>}
+                {formStep === 2 && <Button variant="outline" onClick={() => void handleSubmit()} className="flex-1">Skip Optional Setup</Button>}
                 {formStep < totalSteps && (
                   <Button onClick={() => setFormStep((s) => Math.min(s + 1, totalSteps))} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">
-                    {formStep === 2 && showDemoSetupStep ? 'Configure Demo →' : 'Next →'}
+                    Next →
                   </Button>
                 )}
                 {formStep === totalSteps && (
@@ -1514,15 +1851,15 @@ const VehiclesPage = () => {
         <Dialog open={!!specPromptVehicle} onOpenChange={(open) => { if (!open) handleSkipCompareSpecs(); }}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-heading">{editingId ? 'Update Compare Specs' : 'Add Compare Specs'}</DialogTitle>
+              <DialogTitle className="font-heading">{editingId ? 'Update Technical Specs' : 'Add Technical Specs'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
                 <p className="text-sm font-medium text-foreground">{specPromptVehicle?.name}</p>
                 <p className="text-xs text-muted-foreground">
                   {editingId
-                    ? 'Review and update the compare specs now so the vehicle stays useful in compare views.'
-                    : 'Add key specs now so this vehicle shows richer details on the compare page.'}
+                    ? 'Review and update the technical specifications for this vehicle.'
+                    : 'Add the technical specifications for this vehicle now or later.'}
                 </p>
               </div>
 
@@ -1600,18 +1937,13 @@ const VehiclesPage = () => {
                 </div>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-3">
-                <Button variant="outline" className="gap-2" onClick={handleSkipCompareSpecs}>
-                  <FilePlus2 className="h-4 w-4" />
-                  Extra Info Later
-                </Button>
-                <Button variant="outline" className="gap-2" onClick={handleSkipCompareSpecs}>
-                  <FilePlus2 className="h-4 w-4" />
-                  Skip
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button variant="secondary" className="gap-2" onClick={handleSkipCompareSpecs}>
+                  Close
                 </Button>
                 <Button className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => void handleSaveCompareSpecs()}>
                   <Save className="h-4 w-4" />
-                  {editingId ? 'Update Specs' : 'Save Specs'}
+                  {editingId ? 'Update Technical Specs' : 'Save Technical Specs'}
                 </Button>
               </div>
             </div>

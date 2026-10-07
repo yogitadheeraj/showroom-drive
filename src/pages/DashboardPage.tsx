@@ -84,14 +84,16 @@ const getDefaultColumns = (role: string | null): 1 | 2 => {
 const WIDGET_LABELS: Record<DashboardWidgetId, string> = {
   main: 'Operations Overview',
   followups: 'Priority Follow-ups',
-  hierarchy: 'Organization Map',
+  hierarchy: 'Layout Controls & Quick Actions',
 };
 
 const WIDGET_DESCRIPTIONS: Record<DashboardWidgetId, string> = {
   main: 'Your live numbers, bookings, drives, and performance view.',
   followups: 'The most urgent customer tasks and opportunities to act on.',
-  hierarchy: 'Your business structure, branch coverage, and operating footprint.',
+  hierarchy: 'Quickly access layout controls and perform key actions from one place.',
 };
+
+const BUSINESS_WIDGET_ORDER: DashboardWidgetId[] = ['main', 'followups', 'hierarchy'];
 
 const ROLE_SUMMARY: Partial<Record<AppRole, string>> = {
   [APP_ROLE.SUPERADMIN]: 'See business performance clearly, spot issues faster, and move straight to the next action.',
@@ -237,7 +239,8 @@ const DashboardPage = () => {
     const filtered = configured.filter((widgetId): widgetId is DashboardWidgetId =>
       availableWidgets.includes(widgetId as DashboardWidgetId)
     );
-    return filtered.length > 0 ? filtered : ['main'];
+    const base: DashboardWidgetId[] = filtered.length > 0 ? filtered : ['main'];
+    return [...base].sort((left, right) => BUSINESS_WIDGET_ORDER.indexOf(left) - BUSINESS_WIDGET_ORDER.indexOf(right));
   }, [availableWidgets, dashboardPreferences.widgetsByRole, defaultWidgets, roleKey]);
 
   const columns = (dashboardPreferences.columnsByRole[roleKey] || getDefaultColumns(role)) as 1 | 2;
@@ -321,19 +324,45 @@ const DashboardPage = () => {
         return renderMainDashboard();
       case 'followups':
         return <FollowUpOverview />;
-      case 'hierarchy':
-        return <HierarchyOverview />;
-      default:
-        return null;
-    }
-  };
+        case 'hierarchy':
+          return <>   
+          <section className="overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
+          <div className="grid gap-4 p-4 sm:p-6 xl:grid-cols-[1.35fr_0.95fr] xl:items-start">
+           
 
-  const gridClass = columns === 2 ? 'xl:grid-cols-2' : 'xl:grid-cols-1';
-  const gapClass = density === 'compact' ? 'gap-3' : 'gap-5';
-
-  return (
-    <DashboardLayout>
-      <div className="space-y-5">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Quick Actions</p>
+                  <p className="text-xs text-muted-foreground">Open the main business tasks directly.</p>
+                </div>
+                <Button variant="outline" className="gap-2" onClick={() => setPreferencesOpen((prev) => !prev)}>
+                  <SlidersHorizontal className="h-4 w-4" />
+                  {preferencesOpen ? 'Hide Layout' : 'Layout Controls'}
+                </Button>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-4">
+                {quickActions.map(({ label, href, icon: Icon, description }) => (
+                  <button
+                    key={href}
+                    type="button"
+                    onClick={() => window.location.assign(href)}
+                    className="rounded-2xl border border-border/60 bg-card/85 p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="rounded-xl bg-primary/10 p-2 text-primary">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-foreground">{label}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
        
         {preferencesOpen && (
           <Card className="border-border/60 bg-card/95 shadow-card">
@@ -389,7 +418,7 @@ const DashboardPage = () => {
 
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Visible Sections</p>
-                <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-2">
                   {availableWidgets.map((widgetId) => {
                     const checked = visibleWidgets.includes(widgetId);
                     const disabled = widgetId === 'main' && visibleWidgets.length === 1;
@@ -418,12 +447,25 @@ const DashboardPage = () => {
             </CardContent>
           </Card>
         )}
+        </>
+        break;
+      default:
+        return null;
+    }
+  };
 
+  const gridClass = columns === 2 ? 'xl:grid-cols-2' : 'xl:grid-cols-1';
+  const gapClass = density === 'compact' ? 'gap-3' : 'gap-5';
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-5">
+       
         <div className={`grid grid-cols-1 ${gridClass} ${gapClass}`}>
           {visibleWidgets.map((widgetId) => (
             <section
               key={widgetId}
-              className={widgetId === 'main' && columns === 2 ? 'xl:col-span-2' : ''}
+              className={'xl:col-span-2'}
             >
               {widgetId === 'main' ? (
                 renderWidget(widgetId)

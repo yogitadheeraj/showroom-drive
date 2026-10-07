@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +36,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { APP_ROLE, DEFAULT_APP_ROLE, STAFF_ROLE_OPTIONS, DEALER_ASSIGNABLE_ROLES, type AppRole } from '@/constants/roles';
 import { getAppRoleBadgeClass, getAppRoleLabel } from '@/lib/roles';
 import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
+import { navigateTo } from '@/lib/browserNavigation';
 
 type BrandMultiSelectProps = {
   brands: { id: string; name: string }[];
@@ -168,12 +170,16 @@ const UsersPage = () => {
     type: 'delete' | 'toggle-block';
     user: any;
   }>(null);
+  const [staffDetailOpen, setStaffDetailOpen] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<any | null>(null);
   const { toast } = useToast();
-  const { user, role, profile } = useAuth();
-  const { dealerId, dealerLocationIds, loading: dealerLoading } = useDealerContext();
+  const { user, role, profile, switchToUser } = useAuth();
+  const [switchingAsUserId, setSwitchingAsUserId] = useState<string | null>(null);
+  const { dealerId, loading: dealerLoading } = useDealerContext();
   const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
   const isDealerAdmin = role === APP_ROLE.DEALER_ADMIN;
   const isSalesAdmin = role === APP_ROLE.SALES_ADMIN;
+  const canSwitchProfileLogin = isSuperAdmin || isDealerAdmin || isSalesAdmin;
   const canManageStaff = isSuperAdmin || isDealerAdmin || isSalesAdmin;
   const canBlockDeleteStaff = isSuperAdmin || isDealerAdmin;
   const assignableRolesForCurrentUser = isSuperAdmin
@@ -191,6 +197,7 @@ const UsersPage = () => {
   };
 
   const isUserActive = (u: any) => u?.is_active !== false;
+  const canSwitchAsUser = (u: any) => canSwitchProfileLogin && !!u?.user_id && u.user_id !== user?.id;
 
   useEffect(() => {
     if (!dealerLoading) {
@@ -347,6 +354,15 @@ const UsersPage = () => {
 
   const getStaffDriveMetrics = (profileId: string) =>
     staffDriveMetrics[profileId] || { assigned: 0, active: 0, completed: 0 };
+
+  const openStaffDetail = (staff: any) => {
+    setSelectedStaff(staff);
+    setStaffDetailOpen(true);
+  };
+
+  const closeStaffDetail = () => {
+    setStaffDetailOpen(false);
+  };
 
   const handleCreateUser = async () => {
     if (!createForm.email || !createForm.password || !createForm.fullName || !createForm.role) {
@@ -515,6 +531,27 @@ const UsersPage = () => {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSwitchAsUser = async (u: any) => {
+    if (!canSwitchAsUser(u)) return;
+    setSwitchingAsUserId(u.user_id);
+    try {
+      await switchToUser({ targetUserId: u.user_id, targetName: u.full_name || null });
+      toast({
+        title: 'Switched successfully',
+        description: `You are now viewing as ${u.full_name || 'staff user'}.`,
+      });
+      navigateTo('/dashboard', true);
+    } catch (err: any) {
+      toast({
+        title: 'Switch failed',
+        description: err?.message || 'Unable to switch user right now.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSwitchingAsUserId(null);
     }
   };
 
@@ -766,7 +803,11 @@ const UsersPage = () => {
               </thead>
               <tbody>
                 {displayUsers.map(u => (
-                  <tr key={u.id} className="border-b border-border/50 hover:bg-muted/20">
+                  <tr
+                    key={u.id}
+                    className="border-b border-border/50 hover:bg-muted/20 cursor-pointer"
+                    onClick={() => openStaffDetail(u)}
+                  >
                     {(() => {
                       const driveStats = getStaffDriveMetrics(u.id);
                       return (
@@ -832,10 +873,16 @@ const UsersPage = () => {
                         )}
                       </div>
                     </td>
-                    <td className="p-3">
+                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled={saving}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0"
+                            disabled={saving}
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -850,6 +897,15 @@ const UsersPage = () => {
                             <Mail className="h-3.5 w-3.5 mr-2" />
                             {resendingVerificationByUserId[u.user_id] ? 'Sending Verification...' : 'Send Verification'}
                           </DropdownMenuItem>
+                          {canSwitchProfileLogin && (
+                            <DropdownMenuItem
+                              onClick={() => void handleSwitchAsUser(u)}
+                              disabled={!canSwitchAsUser(u) || saving || switchingAsUserId === u.user_id}
+                            >
+                              <Shield className="h-3.5 w-3.5 mr-2" />
+                              {switchingAsUserId === u.user_id ? 'Switching...' : 'Login As This User'}
+                            </DropdownMenuItem>
+                          )}
                           {canManageStaff && (
                             <DropdownMenuItem
                               onClick={() => handleToggleOnLeave(u)}
@@ -902,7 +958,11 @@ const UsersPage = () => {
         {/* Mobile Cards */}
         <div className="lg:hidden space-y-3">
           {displayUsers.map(u => (
-            <Card key={u.id} className="shadow-card hover:shadow-elevated transition-shadow">
+            <Card
+              key={u.id}
+              className="shadow-card hover:shadow-elevated transition-shadow cursor-pointer"
+              onClick={() => openStaffDetail(u)}
+            >
               <CardContent className="p-4 space-y-3">
                 {(() => {
                   const driveStats = getStaffDriveMetrics(u.id);
@@ -984,10 +1044,16 @@ const UsersPage = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled={saving}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 w-8 p-0"
+                        disabled={saving}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -1002,6 +1068,13 @@ const UsersPage = () => {
                         <Mail className="h-3.5 w-3.5 mr-2" />
                         {resendingVerificationByUserId[u.user_id] ? 'Sending Verification...' : 'Send Verification'}
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                          onClick={() => void handleSwitchAsUser(u)}
+                          disabled={!canSwitchAsUser(u) || saving || switchingAsUserId === u.user_id}
+                        >
+                          <Shield className="h-3.5 w-3.5 mr-2" />
+                          {switchingAsUserId === u.user_id ? 'Switching...' : 'Login As This User'}
+                        </DropdownMenuItem>
                       {canManageStaff && (
                         <DropdownMenuItem
                           onClick={() => handleToggleOnLeave(u)}
@@ -1130,6 +1203,183 @@ const UsersPage = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        <Sheet
+          open={staffDetailOpen}
+          onOpenChange={(open) => {
+            setStaffDetailOpen(open);
+            if (!open) setSelectedStaff(null);
+          }}
+        >
+          <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+            {selectedStaff && (
+              <div className="space-y-5 pr-2">
+                <SheetHeader>
+                  <SheetTitle className="font-heading text-xl">{selectedStaff.full_name}</SheetTitle>
+                  <SheetDescription>
+                    Staff profile details and management actions
+                  </SheetDescription>
+                </SheetHeader>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Email</p>
+                    <p className="text-sm font-medium text-foreground mt-1 break-all">{selectedStaff.email || 'N/A'}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Verification</p>
+                    <div className="mt-1">
+                      {verificationByUserId[selectedStaff.user_id] ? (
+                        <Badge variant="secondary" className="bg-success/10 text-success">Verified</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-destructive/10 text-destructive">Not Verified</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Role</p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {selectedStaff.user_roles?.length > 0 ? (
+                        selectedStaff.user_roles.map((r: any) => (
+                          <Badge key={r.role} variant="secondary" className={getAppRoleBadgeClass(r.role)}>
+                            {getAppRoleLabel(r.role)}
+                          </Badge>
+                        ))
+                      ) : (
+                        <Badge variant="outline">No role</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Status</p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <Badge variant="secondary" className={isUserActive(selectedStaff) ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
+                        {isUserActive(selectedStaff) ? 'Active' : 'Inactive'}
+                      </Badge>
+                      {selectedStaff.on_leave && (
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                          On Leave
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border p-3 space-y-2">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Assignment</p>
+                  <div className="text-sm text-foreground space-y-1">
+                    <p><span className="text-muted-foreground">Brand:</span> {getBrandName(selectedStaff) || 'N/A'}</p>
+                    <p><span className="text-muted-foreground">Location:</span> {getLocationName(selectedStaff.location_id) || 'N/A'}</p>
+                    <p><span className="text-muted-foreground">Dealer:</span> {getDealerNameByLocation(selectedStaff.location_id) || 'N/A'}</p>
+                  </div>
+                </div>
+
+                {(() => {
+                  const driveStats = getStaffDriveMetrics(selectedStaff.id);
+                  return (
+                    <div className="rounded-lg border border-border p-3 space-y-2">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Test Drive Summary</p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Badge variant="secondary" className="bg-info/10 text-info">Assigned: {driveStats.assigned}</Badge>
+                        <Badge variant="secondary" className="bg-warning/10 text-warning">Active: {driveStats.active}</Badge>
+                        <Badge variant="secondary" className="bg-success/10 text-success">Completed: {driveStats.completed}</Badge>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="rounded-lg border border-border p-3 space-y-3">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Actions</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      disabled={!canEditTargetUser(selectedStaff) || saving}
+                      onClick={() => {
+                        openEditDialog(selectedStaff);
+                        closeStaffDetail();
+                      }}
+                      className="justify-start"
+                    >
+                      <Pencil className="h-4 w-4 mr-2" /> Edit
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      disabled={!canEditTargetUser(selectedStaff) || saving}
+                      onClick={() => void handleResendVerificationForUser(selectedStaff)}
+                      className="justify-start"
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      {resendingVerificationByUserId[selectedStaff.user_id] ? 'Sending Verification...' : 'Send Verification'}
+                    </Button>
+
+                    {isSuperAdmin && (
+                      <Button
+                        variant="outline"
+                        disabled={!canSwitchAsUser(selectedStaff) || saving || switchingAsUserId === selectedStaff.user_id}
+                        onClick={() => void handleSwitchAsUser(selectedStaff)}
+                        className="justify-start"
+                      >
+                        <Shield className="h-4 w-4 mr-2" />
+                        {switchingAsUserId === selectedStaff.user_id ? 'Switching...' : 'Login As This User'}
+                      </Button>
+                    )}
+
+                    {canManageStaff && (
+                      <Button
+                        variant="outline"
+                        disabled={selectedStaff.user_id === user?.id || saving}
+                        onClick={() => {
+                          void handleToggleOnLeave(selectedStaff);
+                          closeStaffDetail();
+                        }}
+                        className="justify-start"
+                      >
+                        {selectedStaff.on_leave ? (
+                          <><PlaneLanding className="h-4 w-4 mr-2 text-success" /> End Leave</>
+                        ) : (
+                          <><PlaneTakeoff className="h-4 w-4 mr-2 text-amber-500" /> Mark On Leave</>
+                        )}
+                      </Button>
+                    )}
+
+                    {canBlockDeleteStaff && (
+                      <Button
+                        variant="outline"
+                        disabled={selectedStaff.user_id === user?.id || saving}
+                        onClick={() => {
+                          openConfirmAction('toggle-block', selectedStaff);
+                          closeStaffDetail();
+                        }}
+                        className="justify-start"
+                      >
+                        {isUserActive(selectedStaff) ? (
+                          <><Lock className="h-4 w-4 mr-2" /> Block User</>
+                        ) : (
+                          <><Unlock className="h-4 w-4 mr-2" /> Unblock User</>
+                        )}
+                      </Button>
+                    )}
+
+                    {canBlockDeleteStaff && (
+                      <Button
+                        variant="outline"
+                        disabled={selectedStaff.user_id === user?.id || saving}
+                        onClick={() => {
+                          openConfirmAction('delete', selectedStaff);
+                          closeStaffDetail();
+                        }}
+                        className="justify-start text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete User
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
 
         <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) { setEditingUser(null); setEditFormBrandIds([]); } }}>
           <DialogContent>

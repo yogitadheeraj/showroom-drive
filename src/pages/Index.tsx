@@ -1219,7 +1219,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                         <button
                                             type="submit"
                                             disabled={demoLoading}
-                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:opacity-50"
+                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:scale-[1.01] disabled:opacity-50"
                                         >
                                             {demoLoading ? 'Sending...' : <><Send className="h-4 w-4" /> Book a Demo</>}
                                         </button>

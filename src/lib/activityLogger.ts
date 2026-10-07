@@ -188,11 +188,6 @@ export const logStaffActivity = async ({
 
   if (eventResult.status === 'rejected') console.error('Failed to log staff activity', eventResult.reason);
   if (sessionResult.status === 'rejected') console.error('Failed to update activity session', sessionResult.reason);
-
-  // Mirror to MongoDB (backend API) so apiDbQuery-based readers (e.g. ActivityInsightsMini) see the event.
-  apiPost('/api/activity/events', eventPayload).catch((err) =>
-    console.error('Failed to mirror activity event to API', err)
-  );
 };
 
 export const updateActivitySession = async (

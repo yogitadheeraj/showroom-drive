@@ -180,7 +180,7 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
 };
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
-  const { user, role, profile, signOut, refreshProfile } = useAuth();
+  const { user, role, profile, signOut, refreshProfile, isImpersonating, impersonationContext, switchBackToSuperadmin } = useAuth();
   const { dealerLocations, selectedLocationId, setSelectedLocationId, dealerName: ctxDealerName, dealerLogoUrl: ctxDealerLogoUrl } = useDealerContext();
   const wl = useWhitelabel();
   // Whitelabel branding takes precedence; fall back to DealerContext values
@@ -202,6 +202,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
   const [newLeadCount, setNewLeadCount] = useState(0);
   const [endingLeave, setEndingLeave] = useState(false);
+  const [switchingBack, setSwitchingBack] = useState(false);
   const leadPollRef = useRef({
     lastCheckedAt: new Date().toISOString(),
     seenIds: new Set<string>(),
@@ -296,6 +297,20 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const handleOpenLeadNotifications = () => {
     setNewLeadCount(0);
     navigateTo('/walkin?filter=new');
+  };
+
+  const handleSwitchBack = async () => {
+    if (switchingBack) return;
+    setSwitchingBack(true);
+    try {
+      await switchBackToSuperadmin();
+      toast({ title: 'Returned to your account', description: 'You are back in your main admin account.' });
+      navigateTo('/users', true);
+    } catch (err: any) {
+      toast({ title: 'Unable to switch back', description: err?.message || 'Please try again.', variant: 'destructive' });
+    } finally {
+      setSwitchingBack(false);
+    }
   };
 
   useEffect(() => {
@@ -721,6 +736,18 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
             }
             rightSlot={
               <>
+                {isImpersonating && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleSwitchBack()}
+                    disabled={switchingBack}
+                    className="rounded-full border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700/50 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                  >
+                    <ArrowLeftRight className="h-4 w-4 mr-1.5" />
+                    {switchingBack ? 'Switching...' : 'Back to My Account'}
+                  </Button>
+                )}
                 {role === APP_ROLE.DEALER_ADMIN && dealerLocations.length > 1 && (
                   <div className="hidden items-center gap-3 rounded-full border border-border/70 bg-background/65 px-3 py-1.5 shadow-sm backdrop-blur xl:flex dark:border-white/15 dark:bg-white/5">
                     <MapPin className="h-4 w-4 shrink-0 text-muted-foreground dark:text-slate-300" />
@@ -780,6 +807,29 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
             }
           />
           <div className="p-3 sm:p-6 animate-fade-in">
+          {isImpersonating && (
+            <div className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 dark:border-blue-700/50 dark:bg-blue-900/20">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                  Demo Mode: Viewing As {impersonationContext?.targetName || displayName}
+                </p>
+                <p className="mt-0.5 text-xs text-blue-800 dark:text-blue-300">
+                  Current role view: {displayRole}
+                  {impersonationContext?.rootName ? ` • Switched by ${impersonationContext.rootName}` : ''}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleSwitchBack()}
+                disabled={switchingBack}
+                className="h-8 border-blue-300 bg-white text-blue-800 hover:bg-blue-100 dark:border-blue-700/60 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/50"
+              >
+                {switchingBack ? 'Switching...' : 'Return'}
+              </Button>
+            </div>
+          )}
+
           {/* ── On-Leave Banner ── */}
           {profile?.on_leave && (
             <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700/50 dark:bg-amber-900/20">

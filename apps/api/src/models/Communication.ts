@@ -11,6 +11,8 @@ export interface ICommunication extends Document {
   subject: string | null;
   body: string | null;
   status: string;
+  is_read: boolean;
+  read_at: string | null;
   external_id: string | null;
   sent_at: string | null;
   created_at: string;
@@ -28,6 +30,8 @@ const CommunicationSchema = new Schema<ICommunication>(
     subject: { type: String, default: null },
     body: { type: String, default: null },
     status: { type: String, default: 'pending', index: true },
+    is_read: { type: Boolean, default: false, index: true },
+    read_at: { type: String, default: null },
     external_id: { type: String, default: null },
     sent_at: { type: String, default: null },
     created_at: { type: String, default: () => new Date().toISOString() },

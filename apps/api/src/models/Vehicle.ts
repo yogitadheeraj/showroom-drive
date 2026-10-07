@@ -33,6 +33,13 @@ export interface IVehicle extends Omit<Document, 'model'> {
   vehicle_condition: string | null;
   grade: string | null;
   image_url: string | null;
+  config_image_urls: string[];
+  config_grades: string[];
+  config_exterior_options: Array<Record<string, unknown>>;
+  config_interior_options: Array<Record<string, unknown>>;
+  config_extras_options: Array<Record<string, unknown>>;
+  config_accessories_options: Array<Record<string, unknown>>;
+  config_addons_options: Array<Record<string, unknown>>;
   registration_number: string | null;
   set_price: number | null;
   available_units: number;
@@ -99,6 +106,13 @@ const VehicleSchema = new Schema<IVehicle>(
     vehicle_condition: { type: String, default: null },
     grade: { type: String, default: null },
     image_url: { type: String, default: null },
+    config_image_urls: { type: [String], default: [] },
+    config_grades: { type: [String], default: [] },
+    config_exterior_options: { type: [Schema.Types.Mixed], default: [] },
+    config_interior_options: { type: [Schema.Types.Mixed], default: [] },
+    config_extras_options: { type: [Schema.Types.Mixed], default: [] },
+    config_accessories_options: { type: [Schema.Types.Mixed], default: [] },
+    config_addons_options: { type: [Schema.Types.Mixed], default: [] },
     registration_number: { type: String, default: null },
     set_price: { type: Number, default: null },
     available_units: { type: Number, default: 1 },

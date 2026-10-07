@@ -44,6 +44,8 @@ declare global {
         uid: string;
         email?: string;
         role?: string;
+        impersonated_by?: string | null;
+        impersonation_root_uid?: string | null;
         profile_id?: string | null;
         location_id?: string | null;
         location_ids?: string[];
@@ -68,9 +70,12 @@ export async function attachAuthUser(req: Request, _res: Response, next: NextFun
 
   try {
     const decoded = await verifyIdToken(token);
+    const decodedAny = decoded as any;
     req.authUser = {
       uid: decoded.uid,
       email: decoded.email,
+      impersonated_by: typeof decodedAny?.impersonated_by === 'string' ? decodedAny.impersonated_by : null,
+      impersonation_root_uid: typeof decodedAny?.impersonation_root_uid === 'string' ? decodedAny.impersonation_root_uid : null,
     };
 
     // Load role and location context for location-based filtering

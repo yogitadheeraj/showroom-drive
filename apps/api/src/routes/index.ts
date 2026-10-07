@@ -35,7 +35,7 @@ import {
   signedUrlController,
   uploadController,
 } from '../controllers/storageController.js';
-import { meController, resendVerificationController } from '../controllers/authController.js';
+import { meController, resendVerificationController, switchUserController } from '../controllers/authController.js';
 import { requireAuth, requireSuperAdmin } from '../middleware/auth.js';
 import {
   createLocationController,
@@ -285,6 +285,7 @@ apiRouter.get('/public/landing-stats', publicLandingStatsController);
 // Auth
 apiRouter.get('/auth/me', requireAuth, meController);
 apiRouter.post('/auth/resend-verification', resendVerificationController);
+apiRouter.post('/auth/switch-user', requireAuth, switchUserController);
 
 // Locations
 apiRouter.get('/locations', getLocationsController);
