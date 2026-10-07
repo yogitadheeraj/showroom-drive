@@ -389,9 +389,9 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
         ],
     };
 
-        const homeTitle = 'AutoAdvant - Automotive Dealership CRM & Test Drive Management Platform';
+        const homeTitle = 'AutoAdvant | Online Dealership Portal Software & Car Dealership CRM';
         const homeDescription =
-            'AutoAdvant helps automotive dealerships manage leads, schedule test drives, optimize showroom operations, and improve conversions with real-time dashboards and automation.';
+            'AutoAdvant is online dealership portal software that helps automotive dealerships manage leads, test drives, service bookings, showroom operations, and customer follow-ups with real-time dashboards and automation.';
         const homeCanonicalUrl = 'https://www.autoadvant.com/';
         const homeOgImage = 'https://www.autoadvant.com/images/autoadvant-logo.png';
 
@@ -455,10 +455,10 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                 Built for modern dealerships
                             </div>
                             <h1 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-                                One platform for leads, test drives, and showroom performance
+                                Online dealership portal software for leads, test drives, and showroom performance
                             </h1>
                             <p className="mt-5 max-w-xl text-sm leading-7 text-muted-foreground sm:mt-6 sm:text-lg">
-                                Capture leads, run test drives smoothly, and convert faster with one clear dealership workflow.
+                                Capture leads, run test drives smoothly, and convert faster with one car dealership CRM and showroom software workflow.
                             </p>
 
                             <div className="mt-5 space-y-2">

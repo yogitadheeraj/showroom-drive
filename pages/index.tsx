@@ -557,9 +557,9 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
         ],
     };
 
-        const homeTitle = 'AutoAdvant | Car Dealership CRM, Test Drive & Service Booking Software in Dubai, UAE, KSA & GCC';
+        const homeTitle = 'AutoAdvant | Online Dealership Portal Software, Car Dealership CRM, Test Drive & Service Booking Platform';
         const homeDescription =
-            'AutoAdvant is automotive dealership software for BMW, Audi, Mercedes-Benz, Toyota, Honda, Porsche, Lexus, Nissan, Range Rover, Volvo, and other car brands. Manage leads, test drives, service bookings, inventory, and showroom operations in Dubai, UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, and globally.';
+            'AutoAdvant is online dealership portal software and automotive dealership software for multi-brand showrooms. Manage leads, test drives, service bookings, inventory, sales follow-ups, and daily showroom operations in one platform across Dubai, UAE, Saudi Arabia, and GCC markets.';
         const homeCanonicalUrl = 'https://www.autoadvant.com/';
         const homeOgImage = 'https://www.autoadvant.com/images/autoadvant-logo.png';
 
@@ -722,11 +722,11 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                             </div>
 
                             <h1 className="max-w-2xl text-4xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl">
-                                Turn every lead and service booking into a smoother customer journey.
+                                Online dealership portal software for leads, test drives, and service bookings.
                             </h1>
 
                             <p className="mt-5 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
-                                AutoAdvant gives dealership teams one clear place to manage leads, test drives, service bookings, inventory, and day-to-day operations across the showroom.
+                                AutoAdvant gives dealership teams one clear platform to run car dealership CRM workflows, showroom software operations, and customer follow-ups across branches.
                             </p>
 
                             <div className="mt-6 flex flex-wrap gap-2 text-sm text-slate-200">
