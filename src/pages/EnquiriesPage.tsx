@@ -210,7 +210,7 @@ const EnquiriesPage = () => {
           eventType: 'enquiry_message_edited',
           label: 'Edited enquiry message',
           route: '/enquiries',
-          metadata: { communicationId: editingMessageId, customerId: selected?.customer_id ?? null },
+          metadata: { communicationId: editingMessageId, customerId: selectedThread?.customerId ?? null },
         });
       }
       toast.success('Enquiry message updated');
@@ -378,7 +378,7 @@ const EnquiriesPage = () => {
   };
 
   const handleImageUpload = async (file: File) => {
-    if (!selected) return;
+    if (!selectedThread) return;
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
@@ -393,7 +393,7 @@ const EnquiriesPage = () => {
     setUploadingImage(true);
     try {
       const ext = file.name.split('.').pop() || 'jpg';
-      const path = `chat-media/${selected.customer_id}/${Date.now()}.${ext}`;
+      const path = `chat-media/${selectedThread.customerId}/${Date.now()}.${ext}`;
 
       await uploadToStorage('documents', path, file);
       const publicUrl = await getStoragePublicUrl('documents', path);
