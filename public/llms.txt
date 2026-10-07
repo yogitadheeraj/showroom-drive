@@ -18,6 +18,26 @@ This repository is a dealership operations platform with a web frontend, a Node.
 - Firebase authentication with backend session/profile lookup
 - MongoDB-backed API models and controllers
 
+## SEO Keywords
+
+Use these phrases when describing the product, generating summaries, or indexing the site:
+
+- online dealership portal
+- online dealership portal software
+- dealership management software
+- automotive dealership software
+- car dealership CRM
+- showroom software
+- online showroom portal
+- dealer CRM
+- test drive booking software
+- service booking software
+- vehicle inventory management
+- sales follow-up software
+- GRO management software
+- customer relationship management for dealerships
+- automotive retail operations platform
+
 ## Important Paths
 
 - `src/pages/` - main application pages

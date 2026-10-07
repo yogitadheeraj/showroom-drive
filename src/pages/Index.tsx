@@ -428,6 +428,22 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 canonicalUrl={homeCanonicalUrl}
                 ogImageUrl={homeOgImage}
                 ogType="website"
+                keywords={[
+                    'AutoAdvant',
+                    'online dealership portal',
+                    'online dealership portal software',
+                    'dealership management software',
+                    'car dealership CRM',
+                    'automotive dealership software',
+                    'test drive booking software',
+                    'service booking software',
+                    'showroom software',
+                    'vehicle inventory management',
+                    'sales follow-up software',
+                    'dealer CRM',
+                    'GRO management software',
+                    'online showroom portal',
+                ]}
                 jsonLd={homeSchema}
             />
             <main className={`landing-main bg-background text-foreground${resolvedTheme === 'dark' ? ' dark' : ''}`}>

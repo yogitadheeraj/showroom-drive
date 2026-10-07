@@ -9,6 +9,7 @@ type SeoMetaProps = {
   ogImageUrl?: string;
   ogType?: 'website' | 'article';
   robots?: string;
+  keywords?: string[];
   jsonLd?: JsonLd | JsonLd[];
 };
 
@@ -65,13 +66,18 @@ export default function SeoMeta({
   ogImageUrl = DEFAULT_OG_IMAGE,
   ogType = 'website',
   robots = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
+  keywords = [],
   jsonLd,
 }: SeoMetaProps) {
   useEffect(() => {
     const canonical = canonicalUrl || `${window.location.origin}${window.location.pathname}`;
+    const normalizedKeywords = keywords.map((keyword) => keyword.trim()).filter(Boolean);
 
     document.title = title;
     upsertMeta('description', description);
+    if (normalizedKeywords.length > 0) {
+      upsertMeta('keywords', normalizedKeywords.join(', '));
+    }
     upsertMeta('robots', robots);
 
     upsertCanonical(canonical);
@@ -90,7 +96,7 @@ export default function SeoMeta({
     upsertMeta('twitter:image', ogImageUrl);
 
     upsertJsonLd(jsonLd);
-  }, [title, description, canonicalUrl, ogImageUrl, ogType, robots, jsonLd]);
+  }, [title, description, canonicalUrl, ogImageUrl, ogType, robots, jsonLd, keywords]);
 
   return null;
 }
