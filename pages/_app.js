@@ -18,9 +18,10 @@ import { onAuthStateChanged } from 'firebase/auth';
 
 const queryClient = new QueryClient();
 const SITE_URL = 'https://www.autoadvant.com';
-const DEFAULT_TITLE = 'AutoAdvant | Car Dealership CRM, Test Drive & Service Booking Software in Dubai, UAE, KSA & GCC';
+const GA_MEASUREMENT_ID = 'G-QSBYHHR3H1';
+const DEFAULT_TITLE = 'AutoAdvant (Auto Advant) | Car Dealership CRM, Test Drive & Service Booking Software in Dubai, UAE, KSA & GCC';
 const DEFAULT_DESCRIPTION =
-  'AutoAdvant is automotive dealership software for BMW, Audi, Mercedes-Benz, Toyota, Honda, Porsche, Lexus, Nissan, Range Rover, Volvo, and other car brands. Manage leads, test drives, service bookings, inventory, and showroom operations in Dubai, UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, and globally.';
+  'AutoAdvant (also searched as Auto Advant) is a dealer CRM and automotive dashboard software for BMW, Audi, Mercedes-Benz, Toyota, Honda, Porsche, Lexus, Nissan, Range Rover, Volvo, and other car brands. Manage leads, test drives, service bookings, inventory, and showroom operations in Dubai, UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman, and globally.';
 const DEFAULT_OG_IMAGE = 'https://www.autoadvant.com/images/autoadvant-logo.png';
 
 const SHOW_HEADER_ROUTES = [
@@ -100,6 +101,7 @@ export default function App({ Component, pageProps }) {
       '@context': 'https://schema.org',
       '@type': 'Organization',
       name: 'AutoAdvant',
+      alternateName: 'Auto Advant',
       url: SITE_URL,
       logo: DEFAULT_OG_IMAGE,
     },
@@ -107,6 +109,7 @@ export default function App({ Component, pageProps }) {
       '@context': 'https://schema.org',
       '@type': 'WebSite',
       name: 'AutoAdvant',
+      alternateName: 'Auto Advant',
       url: SITE_URL,
       potentialAction: {
         '@type': 'SearchAction',
@@ -118,22 +121,20 @@ export default function App({ Component, pageProps }) {
       '@context': 'https://schema.org',
       '@type': 'SoftwareApplication',
       name: 'AutoAdvant',
+      alternateName: 'Auto Advant',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       url: SITE_URL,
       description: DEFAULT_DESCRIPTION,
       offers: {
-        '@type': 'Offer',
+        '@type': 'AggregateOffer',
         name: 'AutoAdvant SaaS Subscription',
         category: 'Automotive Dealership Software',
         url: `${SITE_URL}/#pricing`,
         priceCurrency: 'AED',
-        priceSpecification: {
-          '@type': 'PriceSpecification',
-          minPrice: 199,
-          maxPrice: 999,
-          priceCurrency: 'AED',
-        },
+        lowPrice: 199,
+        highPrice: 999,
+        offerCount: 3,
         availability: 'https://schema.org/InStock',
       },
       aggregateRating: {
@@ -154,6 +155,21 @@ export default function App({ Component, pageProps }) {
     };
   }, [router]);
 
+  useEffect(() => {
+    const trackPage = (url) => {
+      if (typeof window === 'undefined' || typeof window.gtag !== 'function') return;
+      window.gtag('config', GA_MEASUREMENT_ID, {
+        page_path: url,
+      });
+    };
+
+    trackPage(router.asPath || '/');
+    router.events.on('routeChangeComplete', trackPage);
+    return () => {
+      router.events.off('routeChangeComplete', trackPage);
+    };
+  }, [router]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Head>
@@ -162,7 +178,7 @@ export default function App({ Component, pageProps }) {
         <meta name="description" content={DEFAULT_DESCRIPTION} />
         <meta
           name="keywords"
-          content="AutoAdvant, automotive CRM, dealership CRM, car dealership software, test drive booking software, service booking platform, BMW dealership software, Audi dealership CRM, Mercedes-Benz showroom software, Toyota CRM, Honda dealer system, Dubai automotive software, UAE car dealership CRM, KSA dealership software, GCC automotive platform, global car showroom management, vehicle sales CRM, auto leads management"
+          content="AutoAdvant, Auto Advant, dealer CRM, automotive dashboard, automotive CRM, dealership CRM, car dealership software, test drive booking software, service booking platform, BMW dealership software, Audi dealership CRM, Mercedes-Benz showroom software, Toyota CRM, Honda dealer system, Dubai automotive software, UAE car dealership CRM, KSA dealership software, GCC automotive platform, global car showroom management, vehicle sales CRM, auto leads management"
         />
         <meta name="robots" content="index, follow, max-image-preview:large" />
         <meta name="theme-color" content="#0f172a" />
@@ -200,14 +216,14 @@ export default function App({ Component, pageProps }) {
       />
       {/* End Google Tag Manager */}
       {/* Google tag (gtag.js) */}
-      <script async src="https://www.googletagmanager.com/gtag/js?id=G-QSBYHHR3H1"></script>
+      <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}></script>
       <script
         dangerouslySetInnerHTML={{
           __html: `
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
-            gtag('config', 'G-QSBYHHR3H1');
+            gtag('config', '${GA_MEASUREMENT_ID}', { send_page_view: false });
           `,
         }}
       />

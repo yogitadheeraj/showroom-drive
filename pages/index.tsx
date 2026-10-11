@@ -558,9 +558,9 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
         ],
     };
 
-        const homeTitle = 'AutoAdvant | Online Dealership Portal Software, Car Dealership CRM, Test Drive & Service Booking Platform';
+        const homeTitle = 'AutoAdvant (Auto Advant) | Dealer CRM, Automotive Dashboard, Test Drive & Service Booking Platform';
         const homeDescription =
-            'AutoAdvant is online dealership portal software and automotive dealership software for multi-brand showrooms. Manage leads, test drives, service bookings, inventory, sales follow-ups, and daily showroom operations in one platform across Dubai, UAE, Saudi Arabia, and GCC markets.';
+            'AutoAdvant (also searched as Auto Advant) is a dealer CRM and automotive dashboard software for multi-brand showrooms. Manage leads, test drives, service bookings, inventory, sales follow-ups, and daily showroom operations in one platform across Dubai, UAE, Saudi Arabia, and GCC markets.';
         const homeCanonicalUrl = 'https://www.autoadvant.com/';
         const homeOgImage = 'https://www.autoadvant.com/images/autoadvant-logo.png';
 
@@ -569,6 +569,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 '@context': 'https://schema.org',
                 '@type': 'Organization',
                 name: 'AutoAdvant',
+                alternateName: 'Auto Advant',
                 url: homeCanonicalUrl,
                 logo: homeOgImage,
                 sameAs: [
@@ -580,6 +581,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 '@context': 'https://schema.org',
                 '@type': 'WebSite',
                 name: 'AutoAdvant',
+                alternateName: 'Auto Advant',
                 url: homeCanonicalUrl,
                 description: homeDescription,
                 potentialAction: {
@@ -592,22 +594,20 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 '@context': 'https://schema.org',
                 '@type': 'SoftwareApplication',
                 name: 'AutoAdvant',
+                alternateName: 'Auto Advant',
                 applicationCategory: 'BusinessApplication',
                 operatingSystem: 'Web',
                 url: homeCanonicalUrl,
                 description: homeDescription,
                 offers: {
-                    '@type': 'Offer',
+                    '@type': 'AggregateOffer',
                     name: 'AutoAdvant SaaS Subscription',
                     category: 'Automotive Dealership Software',
                     url: 'https://www.autoadvant.com/#pricing',
                     priceCurrency: 'AED',
-                    priceSpecification: {
-                        '@type': 'PriceSpecification',
-                        minPrice: 199,
-                        maxPrice: 999,
-                        priceCurrency: 'AED',
-                    },
+                    lowPrice: 199,
+                    highPrice: 999,
+                    offerCount: 3,
                     availability: 'https://schema.org/InStock',
                 },
                 aggregateRating: {
@@ -669,6 +669,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                             ogType="website"
                             keywords={[
                                 'AutoAdvant',
+                                'Auto Advant',
                                 'online dealership portal',
                                 'online dealership portal software',
                                 'dealership management software',
@@ -680,6 +681,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                 'vehicle inventory management',
                                 'sales follow-up software',
                                 'dealer CRM',
+                                'automotive dashboard',
                                 'GRO management software',
                                 'online showroom portal',
                             ]}
