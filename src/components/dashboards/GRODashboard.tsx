@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
+import { useDealerContext } from '@/hooks/useDealerContext';
 import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useToast } from '@/hooks/use-toast';
@@ -25,6 +26,7 @@ import { getAvailableTimeSlots } from '@/lib/slotAvailability';
 
 const GRODashboard = () => {
   const { profile } = useAuth();
+  const { dealerLocations } = useDealerContext();
   const { toast } = useToast();
   const [showInsights, setShowInsights] = useState(false);
   const [boardMode, setBoardMode] = useState<'guest-list' | 'operations'>('guest-list');
@@ -48,6 +50,7 @@ const GRODashboard = () => {
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [noShowConfirmId, setNoShowConfirmId] = useState<string | null>(null);
   const [driveView, setDriveView] = useState<'list' | 'grid'>('list');
+  const [queueView, setQueueView] = useState<'list' | 'grid' | 'calendar'>('list');
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
   const [selectedStatusBucket, setSelectedStatusBucket] = useState<'all' | 'scheduled' | 'confirmed' | 'show' | 'in_progress' | 'completed' | 'no_show' | 'cancelled' | 'rescheduled'>('all');
   const formatStatusLabel = (status: string) =>
@@ -240,8 +243,193 @@ const GRODashboard = () => {
     ? `/waiting-board?location=${profile.location_id}`
     : '/waiting-board';
 
+  const currentLocationName = useMemo(() => {
+    if (!profile?.location_id) return null;
+    const fromDealerContext = dealerLocations.find((entry) => entry.id === profile.location_id)?.name;
+    if (fromDealerContext) return fromDealerContext;
+    const fromLoadedRows = testDrives.find((drive) => drive.location_id === profile.location_id)?.locations?.name;
+    return fromLoadedRows || profile.location_id;
+  }, [dealerLocations, profile?.location_id, testDrives]);
+
+  const groStatusCounts = buildTestDriveStatusCounts(testDrives || []);
+  const groQueueRows = [...testDrives]
+    .sort((a, b) => {
+      const left = `${a.scheduled_date || ''} ${a.scheduled_time || ''}`;
+      const right = `${b.scheduled_date || ''} ${b.scheduled_time || ''}`;
+      return right.localeCompare(left);
+    })
+    .slice(0, 6);
+
+  const groQueueCalendarGroups = useMemo(() => {
+    const grouped = new Map<string, any[]>();
+    groQueueRows.forEach((drive) => {
+      const key = drive.scheduled_date || 'Unscheduled';
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)?.push(drive);
+    });
+    return Array.from(grouped.entries());
+  }, [groQueueRows]);
+
   return (
     <div className="space-y-5 sm:space-y-6 animate-fade-in">
+      <section className="rounded-3xl border border-border/60 bg-card shadow-card">
+        <div className="grid gap-4 p-4 sm:p-6 xl:grid-cols-[1.45fr_0.9fr]">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">GRO workspace</p>
+                <h2 className="text-lg font-heading font-bold text-foreground">Showroom live queue</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 rounded-2xl border border-border/80 bg-muted/50 p-1.5 shadow-inner">
+                  <Button size="sm" variant={queueView === 'list' ? 'default' : 'outline'} aria-pressed={queueView === 'list'} className={`h-9 rounded-xl px-3.5 text-xs font-semibold transition ${queueView === 'list' ? 'bg-primary text-primary-foreground border-primary shadow-md ring-1 ring-primary/20 hover:bg-primary/90' : 'border-transparent bg-transparent text-muted-foreground opacity-80 hover:border-border/60 hover:bg-background/90 hover:text-foreground hover:opacity-100'}`} onClick={() => setQueueView('list')}>
+                    <LayoutList className="mr-1.5 h-3.5 w-3.5" /> List
+                    <span className={`ml-1 inline-block h-1.5 w-1.5 rounded-full transition ${queueView === 'list' ? 'bg-current opacity-100' : 'opacity-0'}`} />
+                  </Button>
+                  <Button size="sm" variant={queueView === 'grid' ? 'default' : 'outline'} aria-pressed={queueView === 'grid'} className={`h-9 rounded-xl px-3.5 text-xs font-semibold transition ${queueView === 'grid' ? 'bg-primary text-primary-foreground border-primary shadow-md ring-1 ring-primary/20 hover:bg-primary/90' : 'border-transparent bg-transparent text-muted-foreground opacity-80 hover:border-border/60 hover:bg-background/90 hover:text-foreground hover:opacity-100'}`} onClick={() => setQueueView('grid')}>
+                    <LayoutGrid className="mr-1.5 h-3.5 w-3.5" /> Grid
+                    <span className={`ml-1 inline-block h-1.5 w-1.5 rounded-full transition ${queueView === 'grid' ? 'bg-current opacity-100' : 'opacity-0'}`} />
+                  </Button>
+                  <Button size="sm" variant={queueView === 'calendar' ? 'default' : 'outline'} aria-pressed={queueView === 'calendar'} className={`h-9 rounded-xl px-3.5 text-xs font-semibold transition ${queueView === 'calendar' ? 'bg-primary text-primary-foreground border-primary shadow-md ring-1 ring-primary/20 hover:bg-primary/90' : 'border-transparent bg-transparent text-muted-foreground opacity-80 hover:border-border/60 hover:bg-background/90 hover:text-foreground hover:opacity-100'}`} onClick={() => setQueueView('calendar')}>
+                    <CalendarCheck className="mr-1.5 h-3.5 w-3.5" /> Calendar
+                    <span className={`ml-1 inline-block h-1.5 w-1.5 rounded-full transition ${queueView === 'calendar' ? 'bg-current opacity-100' : 'opacity-0'}`} />
+                  </Button>
+                </div>
+                <Button size="sm" variant="outline" className="rounded-full" onClick={() => navigateTo('/test-drives')}>
+                  Open Full Board
+                </Button>
+              </div>
+            </div>
+
+            {queueView === 'list' ? (
+              <div className="overflow-hidden rounded-2xl border border-border/70">
+                <div className="grid grid-cols-[1.1fr_1fr_0.8fr_0.8fr] gap-2 bg-muted/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <span>Guest</span>
+                  <span>Vehicle</span>
+                  <span>Time</span>
+                  <span>Status</span>
+                </div>
+                <div className="divide-y divide-border/60 bg-background">
+                  {groQueueRows.map((drive) => (
+                    <button
+                      key={drive.id}
+                      type="button"
+                      onClick={() => setDetailSheetDrive(drive)}
+                      className="grid w-full grid-cols-[1.1fr_1fr_0.8fr_0.8fr] gap-2 px-3 py-2.5 text-left transition hover:bg-muted/35"
+                    >
+                      <span className="truncate text-sm font-medium text-foreground">{drive.customers?.full_name || 'Guest'}</span>
+                      <span className="truncate text-sm text-muted-foreground">{`${drive.vehicles?.brand || ''} ${drive.vehicles?.model || ''}`.trim() || 'Unassigned'}</span>
+                      <span className="text-sm text-muted-foreground">{(drive.scheduled_time || '').substring(0, 5) || '--:--'}</span>
+                      <span>
+                        <Badge variant="secondary" className={`text-[11px] ${statusColor[drive.status] || ''}`}>
+                          {formatStatusLabel(drive.status)}
+                        </Badge>
+                      </span>
+                    </button>
+                  ))}
+                  {groQueueRows.length === 0 && (
+                    <div className="px-3 py-5 text-sm text-muted-foreground">No active queue items yet.</div>
+                  )}
+                </div>
+              </div>
+            ) : queueView === 'grid' ? (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {groQueueRows.map((drive) => (
+                  <button
+                    key={drive.id}
+                    type="button"
+                    onClick={() => setDetailSheetDrive(drive)}
+                    className="rounded-2xl border border-border/70 bg-background p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{drive.customers?.full_name || 'Guest'}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">{`${drive.vehicles?.brand || ''} ${drive.vehicles?.model || ''}`.trim() || 'Unassigned'}</p>
+                      </div>
+                      <Badge variant="secondary" className={`text-[11px] ${statusColor[drive.status] || ''}`}>
+                        {formatStatusLabel(drive.status)}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      {(drive.scheduled_date || '--').toString()} • {(drive.scheduled_time || '').substring(0, 5) || '--:--'}
+                    </div>
+                  </button>
+                ))}
+                {groQueueRows.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-border/70 bg-background px-3 py-5 text-sm text-muted-foreground">No active queue items yet.</div>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-3 lg:grid-cols-3">
+                {groQueueCalendarGroups.map(([date, drives]) => (
+                  <div key={date} className="rounded-2xl border border-border/70 bg-background p-3 shadow-sm">
+                    <div className="border-b border-border/60 pb-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{date === 'Unscheduled' ? 'Unscheduled' : format(new Date(`${date}T00:00:00`), 'EEE, MMM d')}</p>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {drives.map((drive) => (
+                        <button key={drive.id} type="button" onClick={() => setDetailSheetDrive(drive)} className="w-full rounded-xl border border-border/60 bg-card/80 p-3 text-left transition hover:bg-muted/30">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-medium text-foreground">{drive.customers?.full_name || 'Guest'}</span>
+                            <span className="text-xs text-muted-foreground">{(drive.scheduled_time || '').substring(0, 5) || '--:--'}</span>
+                          </div>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{`${drive.vehicles?.brand || ''} ${drive.vehicles?.model || ''}`.trim() || 'Unassigned'}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {groQueueRows.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-border/70 bg-background px-3 py-5 text-sm text-muted-foreground">No active queue items yet.</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-4">
+            <p className="text-sm font-semibold text-foreground">Operations snapshot</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl border border-border/60 bg-background p-3">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Today</p>
+                <p className="mt-1 text-xl font-heading font-bold text-foreground">{stats.today}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background p-3">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Completion</p>
+                <p className="mt-1 text-xl font-heading font-bold text-foreground">{stats.completionRate}%</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {[
+                { label: 'Scheduled', value: groStatusCounts.scheduled, tone: 'bg-sky-500' },
+                { label: 'Confirmed', value: groStatusCounts.confirmed, tone: 'bg-violet-500' },
+                { label: 'Show', value: groStatusCounts.show, tone: 'bg-emerald-500' },
+                { label: 'Completed', value: groStatusCounts.completed, tone: 'bg-primary' },
+              ].map((row) => {
+                const max = Math.max(1, testDrives.length || 1);
+                const width = `${Math.min(100, Math.round((row.value / max) * 100))}%`;
+                return (
+                  <div key={row.label} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{row.label}</span>
+                      <span>{row.value}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted">
+                      <div className={`h-2 rounded-full ${row.tone}`} style={{ width }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <details className="rounded-3xl border border-border/60 bg-card/70 px-4 py-3 shadow-sm sm:px-5 hidden" open>
+        <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">
+          More details and legacy controls
+        </summary>
+        <div className="mt-4 space-y-5">
       <section className="overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-background via-background to-primary/5 shadow-card">
         <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-[1.25fr_0.95fr] xl:items-start">
           <div className="space-y-4">
@@ -251,7 +439,7 @@ const GRODashboard = () => {
                 GRO live board
               </div>
               <div className="rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
-                {profile?.location_id ? `Location ${profile.location_id}` : 'All showroom activity'}
+                {currentLocationName ? `Location ${currentLocationName}` : 'All showroom activity'}
               </div>
             </div>
 
@@ -268,9 +456,6 @@ const GRODashboard = () => {
               </Button>
               <Button variant={boardMode === 'operations' ? 'default' : 'outline'} className={boardMode === 'operations' ? 'rounded-full bg-foreground text-background hover:bg-foreground/90' : 'rounded-full'} onClick={() => setBoardMode('operations')}>
                 Operations
-              </Button>
-              <Button variant="outline" className="rounded-full" onClick={() => setShowInsights((prev) => !prev)}>
-                {showInsights ? 'Hide insights' : 'Show insights'}
               </Button>
               <Button className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => window.open(waitingBoardUrl, '_blank')}>
                 <Monitor className="mr-2 h-4 w-4" /> Waiting board
@@ -357,19 +542,29 @@ const GRODashboard = () => {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
-        <Card className="shadow-card border-border/60">
+      <section className="grid gap-4 lg:grid-cols-[1]">
+        <Card className="shadow-card border-0">
           <CardContent className="space-y-4 p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-heading font-bold text-foreground">Showroom board</h2>
                 <p className="text-sm text-muted-foreground">A live sequence of guests, handovers, and next moves.</p>
               </div>
-              <div className="flex items-center gap-1 rounded-full border border-border bg-muted/30 p-1">
-                <Button size="sm" variant={driveView === 'list' ? 'secondary' : 'ghost'} className="h-8 rounded-full px-3 text-xs" onClick={() => setDriveView('list')}>
+              <div className="flex items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-8 rounded-full px-3 text-xs transition ${driveView === 'list' ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setDriveView('list')}
+                >
                   <LayoutList className="mr-1 h-3.5 w-3.5" /> List
                 </Button>
-                <Button size="sm" variant={driveView === 'grid' ? 'secondary' : 'ghost'} className="h-8 rounded-full px-3 text-xs" onClick={() => setDriveView('grid')}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={`h-8 rounded-full px-3 text-xs transition ${driveView === 'grid' ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => setDriveView('grid')}
+                >
                   <LayoutGrid className="mr-1 h-3.5 w-3.5" /> Grid
                 </Button>
               </div>
@@ -445,26 +640,22 @@ const GRODashboard = () => {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-heading font-bold text-foreground">Action lane</h2>
-                  <p className="text-sm text-muted-foreground">Fast access to the work you actually need today.</p>
+                  <p className="max-w-sm text-xs leading-relaxed text-muted-foreground sm:text-sm">Fast access to the work you actually need today.</p>
                 </div>
                 <Activity className="h-5 w-5 text-primary" />
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <Button variant="outline" className="h-auto flex-col items-start justify-start rounded-2xl p-4 text-left" onClick={() => navigateTo('/walkin')}>
                   <span className="text-sm font-semibold">Walk-in desk</span>
-                  <span className="text-xs font-normal text-muted-foreground">Open new guests and assign the right next step.</span>
-                </Button>
-                <Button variant="outline" className="h-auto flex-col items-start justify-start rounded-2xl p-4 text-left" onClick={() => navigateTo('/test-drives')}>
-                  <span className="text-sm font-semibold">All test drives</span>
-                  <span className="text-xs font-normal text-muted-foreground">Track bookings, statuses, and current work.</span>
+                  <span className="text-xs font-normal text-muted-foreground">Open new guests and assign</span>
                 </Button>
                 <Button variant="outline" className="h-auto flex-col items-start justify-start rounded-2xl p-4 text-left" onClick={() => navigateTo('/service-bookings')}>
                   <span className="text-sm font-semibold">Service bookings</span>
-                  <span className="text-xs font-normal text-muted-foreground">Keep handovers and service flow visible.</span>
+                  <span className="text-xs font-normal text-muted-foreground">Service flow</span>
                 </Button>
                 <Button variant="outline" className="h-auto flex-col items-start justify-start rounded-2xl p-4 text-left" onClick={() => navigateTo('/vehicles')}>
                   <span className="text-sm font-semibold">Vehicle inventory</span>
-                  <span className="text-xs font-normal text-muted-foreground">Open the showroom stock behind every booking.</span>
+                  <span className="text-xs font-normal text-muted-foreground">Showroom stock</span>
                 </Button>
               </div>
             </CardContent>
@@ -500,26 +691,21 @@ const GRODashboard = () => {
         </div>
       </section>
 
+        </div>
+      </details>
+
       <Tabs defaultValue="calendar" className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
-          <TabsList className="order-2 grid w-full grid-cols-4 rounded-md border bg-muted p-1 sm:order-none sm:w-auto sm:flex">
-            <TabsTrigger value="calendar" className="text-xs sm:text-sm">Calendar</TabsTrigger>
-            <TabsTrigger value="test-drives" className="text-xs sm:text-sm">Test Drives</TabsTrigger>
-            <TabsTrigger value="staff-activity" className="text-xs sm:text-sm">
+          <TabsList className="order-2 grid w-full grid-cols-4 rounded-xl border bg-muted/40 p-1 sm:order-none sm:w-auto sm:flex">
+            <TabsTrigger value="calendar" className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Calendar</TabsTrigger>
+            <TabsTrigger value="staff-activity" className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Activity className="mr-1 h-3.5 w-3.5" /> Staff
             </TabsTrigger>
-            <TabsTrigger value="blocked" className="text-xs sm:text-sm">
+            <TabsTrigger value="blocked" className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <ShieldAlert className="mr-1 h-3.5 w-3.5" /> Blocked
             </TabsTrigger>
           </TabsList>
-          <div className="order-1 flex w-full gap-2 sm:order-none sm:w-auto">
-            <Button variant="outline" className="w-full rounded-full sm:w-auto" onClick={() => setShowInsights((prev) => !prev)}>
-              {showInsights ? 'Hide insights' : 'Show insights'}
-            </Button>
-            <Button className="w-full rounded-full bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto" onClick={() => window.open(waitingBoardUrl, '_blank')}>
-              <Monitor className="mr-2 h-4 w-4" /> Waiting board
-            </Button>
-          </div>
+       
         </div>
 
         <TabsContent value="calendar" className="space-y-4">
@@ -574,11 +760,21 @@ const GRODashboard = () => {
         <TabsContent value="test-drives" className="space-y-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium text-foreground">All Test Drives <span className="text-muted-foreground">({testDrives.length})</span></p>
-            <div className="flex items-center gap-1 rounded-full border border-border bg-muted/30 p-1">
-              <Button size="sm" variant={driveView === 'list' ? 'secondary' : 'ghost'} className="h-7 rounded-full px-2.5 text-xs" onClick={() => setDriveView('list')}>
+            <div className="flex items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                className={`h-7 rounded-full px-2.5 text-xs transition ${driveView === 'list' ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setDriveView('list')}
+              >
                 <LayoutList className="mr-1 h-3.5 w-3.5" /> List
               </Button>
-              <Button size="sm" variant={driveView === 'grid' ? 'secondary' : 'ghost'} className="h-7 rounded-full px-2.5 text-xs" onClick={() => setDriveView('grid')}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className={`h-7 rounded-full px-2.5 text-xs transition ${driveView === 'grid' ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setDriveView('grid')}
+              >
                 <LayoutGrid className="mr-1 h-3.5 w-3.5" /> Grid
               </Button>
             </div>

@@ -158,6 +158,27 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
           )}
         </div>
       </div>
+
+      {showNav && variant === 'landing' && (
+        <div className="mx-auto mt-2 flex w-full max-w-[1320px] items-center gap-2 px-1 md:hidden">
+          <a
+            href="/pricing"
+            aria-label="Pricing"
+            title="Pricing"
+            className="inline-flex h-9 flex-1 items-center justify-center rounded-full border border-sky-400/40 bg-gradient-to-r from-sky-600 to-blue-600 px-3 text-xs font-semibold tracking-[0.1em] text-white shadow-[0_8px_20px_rgba(14,116,214,0.35)] transition hover:from-sky-500 hover:to-blue-500"
+          >
+            Pricing
+          </a>
+          <a
+            href="/dealer-onboarding"
+            aria-label="Entity Onboarding"
+            title="Entity Onboarding"
+            className="inline-flex h-9 flex-1 items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold tracking-[0.06em] text-slate-700 transition hover:bg-slate-100 dark:border-white/15 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+          >
+            Entity Onboarding
+          </a>
+        </div>
+      )}
     </header>
   );
 };

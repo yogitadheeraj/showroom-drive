@@ -91,9 +91,14 @@ export function DealerContextProvider({ children }: { children: ReactNode }) {
     const fetchDealer = async () => {
       setLoading(true);
       try {
-        // Resolve dealer_id: profile.location_id → location.dealer_id
-        const locationId = profile?.location_id;
-        if (!locationId) {
+        // Resolve dealer_id from primary profile location.
+        // Some users may only have location_ids populated.
+        const fallbackLocationId = Array.isArray((profile as any)?.location_ids)
+          ? String((profile as any).location_ids[0] || '').trim()
+          : '';
+        const primaryLocationId = String((profile as any)?.location_id || '').trim() || fallbackLocationId || null;
+
+        if (!primaryLocationId) {
           setDealerId(null);
           setDealerName(null);
           setDealerLogoUrl(null);
@@ -103,7 +108,7 @@ export function DealerContextProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        const location = await apiGet<any>(`/api/locations/${locationId}`);
+        const location = await apiGet<any>(`/api/locations/${primaryLocationId}`);
         const resolvedDealerId: string | null = location?.dealer_id || null;
 
         setDealerId(resolvedDealerId);

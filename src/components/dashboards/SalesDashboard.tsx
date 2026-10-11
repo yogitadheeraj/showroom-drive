@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { apiGet, apiDbQuery, apiPatch, apiPost } from '@/lib/apiClient';
 import { sendTransactionalEmail } from '@/lib/functionService';
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone, UserCog, CalendarClock, ShieldCheck, AlertTriangle, TrendingUp, Filter, CheckSquare, CreditCard, Banknote, Link2, BookOpen } from 'lucide-react';
+import { CalendarCheck, Upload, FileCheck, ArrowRightLeft, RotateCcw, Key, Eye, ClipboardCheck, Car, Clock, Phone, UserCog, CalendarClock, ShieldCheck, AlertTriangle, TrendingUp, Filter, CheckSquare, CreditCard, Banknote, Link2, BookOpen, LayoutList, LayoutGrid } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SalesSwapDialog from './SalesSwapDialog';
 import {
@@ -69,6 +69,7 @@ const SalesDashboard = () => {
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [logFilter, setLogFilter] = useState<'all' | 'security' | 'status'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [queueView, setQueueView] = useState<'list' | 'grid' | 'calendar'>('list');
   const [inspectionViewDrive, setInspectionViewDrive] = useState<any>(null);
   const [inspectionDocsByDrive, setInspectionDocsByDrive] = useState<Record<string, any[]>>({});
   const [inspectionDocView, setInspectionDocView] = useState<{ url: string; filename: string } | null>(null);
@@ -185,8 +186,8 @@ const SalesDashboard = () => {
   };
 
   useEffect(() => {
-    fetchAssignedDrives();
-  }, [user]);
+    void fetchAssignedDrives();
+  }, [profile?.id, profile?.location_id]);
 
   useEffect(() => {
     void fetchLeadWorkspace();
@@ -987,6 +988,33 @@ const SalesDashboard = () => {
     return true;
   });
 
+  const salesQueueRows = useMemo(() => {
+    return [...filteredDrives]
+      .sort((a, b) => {
+        const left = `${a.scheduled_date || ''} ${a.scheduled_time || ''}`;
+        const right = `${b.scheduled_date || ''} ${b.scheduled_time || ''}`;
+        return right.localeCompare(left);
+      })
+      .slice(0, 6);
+  }, [filteredDrives]);
+
+  const salesQueueCalendarGroups = useMemo(() => {
+    const grouped = new Map<string, any[]>();
+    salesQueueRows.forEach((drive) => {
+      const key = drive.scheduled_date || 'Unscheduled';
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)?.push(drive);
+    });
+    return Array.from(grouped.entries());
+  }, [salesQueueRows]);
+
+  const salesStatusOverview = useMemo(() => ({
+    scheduled: testDrives.filter((td) => td.status === 'scheduled').length,
+    confirmed: testDrives.filter((td) => td.status === 'confirmed').length,
+    inProgress: testDrives.filter((td) => td.status === 'in_progress').length,
+    completed: testDrives.filter((td) => td.status === 'completed').length,
+  }), [testDrives]);
+
   return (
     <div className="space-y-4 sm:space-y-6">
 
@@ -1012,6 +1040,165 @@ const SalesDashboard = () => {
           </Select>
         </div>
       </div>
+
+      <section className="rounded-3xl border border-border/60 bg-card shadow-card">
+        <div className="grid gap-4 p-4 sm:p-6 xl:grid-cols-[1.45fr_0.9fr]">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Sales workspace</p>
+                <h2 className="text-lg font-heading font-bold text-foreground">Assigned drive queue</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 rounded-2xl border border-border/80 bg-muted/50 p-1.5 shadow-inner">
+                  <Button size="sm" variant={queueView === 'list' ? 'default' : 'outline'} aria-pressed={queueView === 'list'} className={`h-9 rounded-xl px-3.5 text-xs font-semibold transition ${queueView === 'list' ? 'bg-primary text-primary-foreground border-primary shadow-md ring-1 ring-primary/20 hover:bg-primary/90' : 'border-transparent bg-transparent text-muted-foreground opacity-80 hover:border-border/60 hover:bg-background/90 hover:text-foreground hover:opacity-100'}`} onClick={() => setQueueView('list')}>
+                    <LayoutList className="mr-1.5 h-3.5 w-3.5" /> List
+                    <span className={`ml-1 inline-block h-1.5 w-1.5 rounded-full transition ${queueView === 'list' ? 'bg-current opacity-100' : 'opacity-0'}`} />
+                  </Button>
+                  <Button size="sm" variant={queueView === 'grid' ? 'default' : 'outline'} aria-pressed={queueView === 'grid'} className={`h-9 rounded-xl px-3.5 text-xs font-semibold transition ${queueView === 'grid' ? 'bg-primary text-primary-foreground border-primary shadow-md ring-1 ring-primary/20 hover:bg-primary/90' : 'border-transparent bg-transparent text-muted-foreground opacity-80 hover:border-border/60 hover:bg-background/90 hover:text-foreground hover:opacity-100'}`} onClick={() => setQueueView('grid')}>
+                    <LayoutGrid className="mr-1.5 h-3.5 w-3.5" /> Grid
+                    <span className={`ml-1 inline-block h-1.5 w-1.5 rounded-full transition ${queueView === 'grid' ? 'bg-current opacity-100' : 'opacity-0'}`} />
+                  </Button>
+                  <Button size="sm" variant={queueView === 'calendar' ? 'default' : 'outline'} aria-pressed={queueView === 'calendar'} className={`h-9 rounded-xl px-3.5 text-xs font-semibold transition ${queueView === 'calendar' ? 'bg-primary text-primary-foreground border-primary shadow-md ring-1 ring-primary/20 hover:bg-primary/90' : 'border-transparent bg-transparent text-muted-foreground opacity-80 hover:border-border/60 hover:bg-background/90 hover:text-foreground hover:opacity-100'}`} onClick={() => setQueueView('calendar')}>
+                    <CalendarCheck className="mr-1.5 h-3.5 w-3.5" /> Calendar
+                    <span className={`ml-1 inline-block h-1.5 w-1.5 rounded-full transition ${queueView === 'calendar' ? 'bg-current opacity-100' : 'opacity-0'}`} />
+                  </Button>
+                </div>
+                <Button size="sm" variant="outline" className="rounded-full" onClick={() => navigateTo('/test-drives')}>
+                  Open Full Queue
+                </Button>
+              </div>
+            </div>
+
+            {queueView === 'list' ? (
+              <div className="overflow-hidden rounded-2xl border border-border/70">
+                <div className="grid grid-cols-[1.1fr_1fr_0.8fr_0.8fr] gap-2 bg-muted/40 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <span>Customer</span>
+                  <span>Vehicle</span>
+                  <span>Time</span>
+                  <span>Status</span>
+                </div>
+                <div className="divide-y divide-border/60 bg-background">
+                  {salesQueueRows.map((drive) => (
+                    <button
+                      key={drive.id}
+                      type="button"
+                      onClick={() => setDetailSheetDrive(drive)}
+                      className="grid w-full grid-cols-[1.1fr_1fr_0.8fr_0.8fr] gap-2 px-3 py-2.5 text-left transition hover:bg-muted/35"
+                    >
+                      <span className="truncate text-sm font-medium text-foreground">{drive.customers?.full_name || 'Customer'}</span>
+                      <span className="truncate text-sm text-muted-foreground">{`${drive.vehicles?.brand || ''} ${drive.vehicles?.model || ''}`.trim() || 'Unassigned'}</span>
+                      <span className="text-sm text-muted-foreground">{(drive.scheduled_time || '').substring(0, 5) || '--:--'}</span>
+                      <span>
+                        <Badge variant="secondary" className={`text-[11px] ${statusColor[drive.status] || ''}`}>
+                          {formatStatusLabel(drive.status)}
+                        </Badge>
+                      </span>
+                    </button>
+                  ))}
+                  {salesQueueRows.length === 0 && (
+                    <div className="px-3 py-5 text-sm text-muted-foreground">No assigned records in this filter.</div>
+                  )}
+                </div>
+              </div>
+            ) : queueView === 'grid' ? (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {salesQueueRows.map((drive) => (
+                  <button
+                    key={drive.id}
+                    type="button"
+                    onClick={() => setDetailSheetDrive(drive)}
+                    className="rounded-2xl border border-border/70 bg-background p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{drive.customers?.full_name || 'Customer'}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">{`${drive.vehicles?.brand || ''} ${drive.vehicles?.model || ''}`.trim() || 'Unassigned'}</p>
+                      </div>
+                      <Badge variant="secondary" className={`text-[11px] ${statusColor[drive.status] || ''}`}>
+                        {formatStatusLabel(drive.status)}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 text-xs text-muted-foreground">
+                      {(drive.scheduled_date || '--').toString()} • {(drive.scheduled_time || '').substring(0, 5) || '--:--'}
+                    </div>
+                  </button>
+                ))}
+                {salesQueueRows.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-border/70 bg-background px-3 py-5 text-sm text-muted-foreground">No assigned records in this filter.</div>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-3 lg:grid-cols-3">
+                {salesQueueCalendarGroups.map(([date, drives]) => (
+                  <div key={date} className="rounded-2xl border border-border/70 bg-background p-3 shadow-sm">
+                    <div className="border-b border-border/60 pb-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{date === 'Unscheduled' ? 'Unscheduled' : format(new Date(`${date}T00:00:00`), 'EEE, MMM d')}</p>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {drives.map((drive) => (
+                        <button key={drive.id} type="button" onClick={() => setDetailSheetDrive(drive)} className="w-full rounded-xl border border-border/60 bg-card/80 p-3 text-left transition hover:bg-muted/30">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-medium text-foreground">{drive.customers?.full_name || 'Customer'}</span>
+                            <span className="text-xs text-muted-foreground">{(drive.scheduled_time || '').substring(0, 5) || '--:--'}</span>
+                          </div>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{`${drive.vehicles?.brand || ''} ${drive.vehicles?.model || ''}`.trim() || 'Unassigned'}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {salesQueueRows.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-border/70 bg-background px-3 py-5 text-sm text-muted-foreground">No assigned records in this filter.</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-4">
+            <p className="text-sm font-semibold text-foreground">Performance snapshot</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl border border-border/60 bg-background p-3">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Bookings</p>
+                <p className="mt-1 text-xl font-heading font-bold text-foreground">{serviceBookingCount}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-background p-3">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Paid Sales</p>
+                <p className="mt-1 text-xl font-heading font-bold text-foreground">{formatCurrencyValue(paidSalesAmount, paidSalesCurrency)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {[
+                { label: 'Scheduled', value: salesStatusOverview.scheduled, tone: 'bg-sky-500' },
+                { label: 'Confirmed', value: salesStatusOverview.confirmed, tone: 'bg-violet-500' },
+                { label: 'In Progress', value: salesStatusOverview.inProgress, tone: 'bg-amber-500' },
+                { label: 'Completed', value: salesStatusOverview.completed, tone: 'bg-emerald-500' },
+              ].map((row) => {
+                const max = Math.max(1, testDrives.length || 1);
+                const width = `${Math.min(100, Math.round((row.value / max) * 100))}%`;
+                return (
+                  <div key={row.label} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{row.label}</span>
+                      <span>{row.value}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted">
+                      <div className={`h-2 rounded-full ${row.tone}`} style={{ width }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <details className="rounded-3xl border border-border/60 bg-card/70 px-4 py-3 shadow-sm sm:px-5 hidden">
+        <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">
+          More details and legacy controls
+        </summary>
+        <div className="mt-4 space-y-4 sm:space-y-5">
 
       <Card className="shadow-card border-amber-300/30 bg-amber-50/40 dark:bg-amber-950/20">
         <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -1140,6 +1327,9 @@ const SalesDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+        </div>
+      </details>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4">
         <Card className="shadow-card border-destructive/20">
@@ -1580,29 +1770,33 @@ const SalesDashboard = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
+                    aria-pressed={leadTemperature === 'hot'}
                     onClick={() => setLeadTemperature('hot')}
-                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 py-4 px-3 transition-colors ${
+                    className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 py-4 px-3 shadow-sm transition ${
                       leadTemperature === 'hot'
-                        ? 'border-warning bg-warning/10 text-warning'
-                        : 'border-border bg-background text-muted-foreground hover:border-warning/40'
+                        ? 'border-warning bg-warning/12 text-warning shadow-md ring-1 ring-warning/20'
+                        : 'border-border bg-background text-muted-foreground opacity-80 hover:border-warning/40 hover:text-foreground hover:opacity-100'
                     }`}
                   >
                     <span className="text-2xl">🔥</span>
                     <span className="text-sm font-semibold">Hot Lead</span>
                     <span className="text-[11px] text-center leading-tight opacity-80">Customer wants to buy now</span>
+                    <span className={`mt-1 inline-block h-1.5 w-1.5 rounded-full transition ${leadTemperature === 'hot' ? 'bg-current opacity-100' : 'opacity-0'}`} />
                   </button>
                   <button
                     type="button"
+                    aria-pressed={leadTemperature === 'cold'}
                     onClick={() => setLeadTemperature('cold')}
-                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 py-4 px-3 transition-colors ${
+                    className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 py-4 px-3 shadow-sm transition ${
                       leadTemperature === 'cold'
-                        ? 'border-info bg-info/10 text-info'
-                        : 'border-border bg-background text-muted-foreground hover:border-info/40'
+                        ? 'border-info bg-info/12 text-info shadow-md ring-1 ring-info/20'
+                        : 'border-border bg-background text-muted-foreground opacity-80 hover:border-info/40 hover:text-foreground hover:opacity-100'
                     }`}
                   >
                     <span className="text-2xl">❄️</span>
                     <span className="text-sm font-semibold">Cold Lead</span>
                     <span className="text-[11px] text-center leading-tight opacity-80">Follow up later</span>
+                    <span className={`mt-1 inline-block h-1.5 w-1.5 rounded-full transition ${leadTemperature === 'cold' ? 'bg-current opacity-100' : 'opacity-0'}`} />
                   </button>
                 </div>
               </div>
@@ -1680,28 +1874,32 @@ const SalesDashboard = () => {
 
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium">Payment Method</Label>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 rounded-2xl border border-border/80 bg-muted/40 p-1.5 shadow-inner">
                       <button
                         type="button"
+                        aria-pressed={bookingPaymentMethod === 'cash'}
                         onClick={() => setBookingPaymentMethod('cash')}
-                        className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition ${
                           bookingPaymentMethod === 'cash'
-                            ? 'border-success bg-success/10 text-success'
-                            : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
+                            ? 'border-success bg-success/12 text-success shadow-md ring-1 ring-success/20'
+                            : 'border-transparent bg-transparent text-muted-foreground opacity-80 hover:border-border/60 hover:bg-background/90 hover:text-foreground hover:opacity-100'
                         }`}
                       >
                         <Banknote className="h-4 w-4" /> Cash
+                        <span className={`inline-block h-1.5 w-1.5 rounded-full transition ${bookingPaymentMethod === 'cash' ? 'bg-current opacity-100' : 'opacity-0'}`} />
                       </button>
                       <button
                         type="button"
+                        aria-pressed={bookingPaymentMethod === 'payment_link'}
                         onClick={() => setBookingPaymentMethod('payment_link')}
-                        className={`flex-1 flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-medium transition-colors ${
+                        className={`flex-1 flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-semibold transition ${
                           bookingPaymentMethod === 'payment_link'
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border bg-background text-muted-foreground hover:border-muted-foreground'
+                            ? 'border-primary bg-primary/12 text-primary shadow-md ring-1 ring-primary/20'
+                            : 'border-transparent bg-transparent text-muted-foreground opacity-80 hover:border-border/60 hover:bg-background/90 hover:text-foreground hover:opacity-100'
                         }`}
                       >
                         <Link2 className="h-4 w-4" /> Payment Link
+                        <span className={`inline-block h-1.5 w-1.5 rounded-full transition ${bookingPaymentMethod === 'payment_link' ? 'bg-current opacity-100' : 'opacity-0'}`} />
                       </button>
                     </div>
                   </div>

@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2, CalendarDays, Clock, Truck, Navigation } from 'lucide-react';
+import { UserPlus, Car, Camera, ImagePlus, CheckCircle2, ArrowRight, ArrowLeft, X, Loader2, CalendarDays, Clock, Truck, Navigation, Search } from 'lucide-react';
 import RouteCalculator, { RouteResult } from '@/components/RouteCalculator';
 
 type Step = 'customer' | 'license' | 'confirm';
@@ -71,9 +71,15 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
       });
       setLicenseFile(null);
       setLicensePreview(null);
+      setMatchedCustomer(null);
       setRouteData(null);
     }
   }, [open, defaultDate, defaultTime, defaultLocationId]);
+
+  useEffect(() => {
+    if (rebookCustomerId) return;
+    setMatchedCustomer(null);
+  }, [formData.phone, rebookCustomerId]);
 
   const [timeSlots, setTimeSlots] = useState<Array<{ startTime: string; endTime: string }>>([]);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
@@ -82,6 +88,8 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
   const [licensePreview, setLicensePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLicenseUploading, setIsLicenseUploading] = useState(false);
+  const [lookupCustomerLoading, setLookupCustomerLoading] = useState(false);
+  const [matchedCustomer, setMatchedCustomer] = useState<any | null>(null);
   const [routeData, setRouteData] = useState<RouteResult | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -233,6 +241,41 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
     if (!isBookingToday && !formData.scheduledTime) return false;
     return true;
   })();
+
+  const handleLookupCustomerByPhone = async () => {
+    if (rebookCustomerId) return;
+
+    const phone = formData.phone.trim();
+    if (!phone) {
+      toast({ title: 'Phone required', description: 'Enter mobile number to search customer.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setLookupCustomerLoading(true);
+      const matched = await findCustomerByPhone(phone);
+
+      if (!matched) {
+        setMatchedCustomer(null);
+        toast({ title: 'No customer found', description: 'No existing customer matched this mobile number.', variant: 'destructive', duration: 2000 });
+        return;
+      }
+
+      setMatchedCustomer(matched);
+      setFormData((prev) => ({
+        ...prev,
+        fullName: prev.fullName || matched.full_name || '',
+        email: prev.email || matched.email || '',
+        preferredContact: prev.preferredContact || matched.preferred_contact || 'phone',
+      }));
+      toast({ title: 'Customer found', description: `${matched.full_name || 'Existing customer'} details loaded.` });
+    } catch {
+      setMatchedCustomer(null);
+      toast({ title: 'Lookup failed', description: 'Could not search customer right now. Please try again.', variant: 'destructive' });
+    } finally {
+      setLookupCustomerLoading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -390,7 +433,19 @@ const WalkinDialog = ({ open, onClose, defaultDate, defaultTime, defaultLocation
                 {rebookCustomerId ? (
                   <div className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">{formData.phone || '—'}</div>
                 ) : (
-                  <Input placeholder="+91 8*********" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
+                  <div className="flex gap-2">
+                    <Input placeholder="+91 8*********" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
+                    <Button type="button" variant="outline" onClick={handleLookupCustomerByPhone} disabled={lookupCustomerLoading || !formData.phone.trim()}>
+                      {lookupCustomerLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                      <span className="ml-1 hidden sm:inline">Search</span>
+                    </Button>
+                  </div>
+                )}
+                {matchedCustomer && !rebookCustomerId && (
+                  <div className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-xs text-success">
+                    Existing customer found: <span className="font-semibold">{matchedCustomer.full_name || 'Unnamed customer'}</span>
+                    {matchedCustomer.email ? ` • ${matchedCustomer.email}` : ''}
+                  </div>
                 )}
               </div>
             </div>

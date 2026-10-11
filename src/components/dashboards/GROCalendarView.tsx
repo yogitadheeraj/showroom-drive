@@ -708,13 +708,13 @@ const GROCalendarView = () => {
     <div className="space-y-5 pt-3 sm:pt-5">
       <Tabs defaultValue="date-planner" className="space-y-4">
         {/* Header */}
-        <div className="rounded-2xl border border-border bg-card/80 shadow-card p-3 sm:p-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="rounded-2xl border border-border bg-card/80 shadow-card p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 flex-col xl:flex-row xl:items-center">
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h2 className="text-lg font-heading font-semibold text-foreground min-w-[200px] text-center">
+              <h2 className="text-lg font-heading font-semibold text-foreground min-w-[240px] text-center">
                 {viewMode === 'day'
                   ? format(currentDate, 'EEEE, MMM d, yyyy')
                   : `${format(weekDays[0], 'MMM d')} — ${format(weekDays[6], 'MMM d, yyyy')}`
@@ -726,28 +726,36 @@ const GROCalendarView = () => {
               <Button variant="ghost" size="sm" onClick={() => setCurrentDate(new Date())}>Today</Button>
             </div>
 
-            <div className="flex items-center flex-wrap gap-2">
-              <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+     
+          </div>
+            <div className="flex items-center gap-1 rounded-2xl border border-border/80 bg-muted/50 p-1.5 shadow-inner">
                 <Button
-                  variant={viewMode === 'day' ? 'default' : 'ghost'}
+                  variant={viewMode === 'day' ? 'default' : 'outline'}
                   size="sm"
+                  aria-pressed={viewMode === 'day'}
+                  className={`h-9 rounded-xl px-3.5 text-xs font-semibold transition ${viewMode === 'day' ? 'bg-primary text-primary-foreground border-primary shadow-md ring-1 ring-primary/20 hover:bg-primary/90' : 'border-transparent bg-transparent text-muted-foreground opacity-80 hover:border-border/60 hover:bg-background/90 hover:text-foreground hover:opacity-100'}`}
                   onClick={() => setViewMode('day')}
                 >
-                  <Calendar className="h-4 w-4 mr-1" /> Day
+                  <Calendar className="mr-1.5 h-4 w-4" /> Day
+                  <span className={`ml-1 inline-block h-1.5 w-1.5 rounded-full transition ${viewMode === 'day' ? 'bg-current opacity-100' : 'opacity-0'}`} />
                 </Button>
                 <Button
-                  variant={viewMode === 'week' ? 'default' : 'ghost'}
+                  variant={viewMode === 'week' ? 'default' : 'outline'}
                   size="sm"
+                  aria-pressed={viewMode === 'week'}
+                  className={`h-9 rounded-xl px-3.5 text-xs font-semibold transition ${viewMode === 'week' ? 'bg-primary text-primary-foreground border-primary shadow-md ring-1 ring-primary/20 hover:bg-primary/90' : 'border-transparent bg-transparent text-muted-foreground opacity-80 hover:border-border/60 hover:bg-background/90 hover:text-foreground hover:opacity-100'}`}
                   onClick={() => setViewMode('week')}
                 >
-                  <LayoutGrid className="h-4 w-4 mr-1" /> Week
+                  <LayoutGrid className="mr-1.5 h-4 w-4" /> Week
+                  <span className={`ml-1 inline-block h-1.5 w-1.5 rounded-full transition ${viewMode === 'week' ? 'bg-current opacity-100' : 'opacity-0'}`} />
                 </Button>
               </div>
-
-              <div className={`w-full sm:w-auto ${viewMode === 'week' ? 'overflow-x-auto sm:overflow-visible' : ''}`}>
-                <TabsList className={`grid grid-cols-2 sm:flex rounded-xl border border-border bg-card p-1 ${viewMode === 'week' ? 'min-w-[240px]' : ''}`}>
-                  <TabsTrigger value="date-planner" className="text-xs sm:text-sm">Date Planner</TabsTrigger>
-                  <TabsTrigger value="model-planner" className="text-xs sm:text-sm">Model Planner</TabsTrigger>
+        </div>
+       <div className="flex items-center flex-wrap gap-2 w-full xl:w-auto">
+               <div className="w-full sm:w-auto overflow-x-auto sm:overflow-visible">
+                <TabsList className="grid min-w-[240px] grid-cols-2 rounded-2xl border border-border/80 bg-muted/50 p-1.5 shadow-inner sm:flex">
+                  <TabsTrigger value="date-planner" className="rounded-xl text-xs font-semibold opacity-80 transition data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-primary/20 data-[state=active]:opacity-100 sm:text-sm">Date Planner</TabsTrigger>
+                  <TabsTrigger value="model-planner" className="rounded-xl text-xs font-semibold opacity-80 transition data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-primary/20 data-[state=active]:opacity-100 sm:text-sm">Model Planner</TabsTrigger>
                 </TabsList>
               </div>
 
@@ -797,9 +805,6 @@ const GROCalendarView = () => {
                 </Button>
               )}
             </div>
-          </div>
-        </div>
-
         <TabsContent value="model-planner">
           <Card className="shadow-card overflow-hidden">
             <CardHeader className="pb-3">
