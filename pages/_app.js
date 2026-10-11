@@ -122,6 +122,27 @@ export default function App({ Component, pageProps }) {
       operatingSystem: 'Web',
       url: SITE_URL,
       description: DEFAULT_DESCRIPTION,
+      offers: {
+        '@type': 'Offer',
+        name: 'AutoAdvant SaaS Subscription',
+        category: 'Automotive Dealership Software',
+        url: `${SITE_URL}/#pricing`,
+        priceCurrency: 'AED',
+        priceSpecification: {
+          '@type': 'PriceSpecification',
+          minPrice: 199,
+          maxPrice: 999,
+          priceCurrency: 'AED',
+        },
+        availability: 'https://schema.org/InStock',
+      },
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: 4.8,
+        ratingCount: 26,
+        bestRating: 5,
+        worstRating: 1,
+      },
     },
   ];
 

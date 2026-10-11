@@ -598,7 +598,24 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 description: homeDescription,
                 offers: {
                     '@type': 'Offer',
+                    name: 'AutoAdvant SaaS Subscription',
                     category: 'Automotive Dealership Software',
+                    url: 'https://www.autoadvant.com/#pricing',
+                    priceCurrency: 'AED',
+                    priceSpecification: {
+                        '@type': 'PriceSpecification',
+                        minPrice: 199,
+                        maxPrice: 999,
+                        priceCurrency: 'AED',
+                    },
+                    availability: 'https://schema.org/InStock',
+                },
+                aggregateRating: {
+                    '@type': 'AggregateRating',
+                    ratingValue: 4.8,
+                    ratingCount: 26,
+                    bestRating: 5,
+                    worstRating: 1,
                 },
             },
         ];
