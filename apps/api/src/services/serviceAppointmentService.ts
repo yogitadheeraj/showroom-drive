@@ -20,6 +20,7 @@ import {
   updateCustomer,
 } from './customerService.js';
 import { sendTransactionalEmail } from './reportEmailService.js';
+import { enforceDealerResourceLimit, resolveDealerIdFromLocation } from './subscriptionPolicyService.js';
 import { env } from '../config/env.js';
 
 export type ServicePackage = {
@@ -384,6 +385,11 @@ async function sendServiceCustomerEmail(args: {
 }
 
 export async function createServiceBooking(input: ServiceBookingInput) {
+  const dealerId = await resolveDealerIdFromLocation(input.location_id);
+  if (dealerId) {
+    await enforceDealerResourceLimit(dealerId, 'service_bookings');
+  }
+
   const selectedPackage = getPackageByCode(input.package_code);
   if (!selectedPackage) {
     throw new Error('Selected service package is not available.');

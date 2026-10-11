@@ -4,6 +4,7 @@ import { VehicleTransit } from '../models/VehicleTransit.js';
 import { TestDrive } from '../models/TestDrive.js';
 import { Location } from '../models/Location.js';
 import { getVehicleAvailabilityAtLocation, osrmRoute } from './vehicleFleetService.js';
+import { enforceDealerResourceLimit, resolveDealerIdFromLocation } from './subscriptionPolicyService.js';
 
 function lean(doc: any) {
   const o = doc.toObject ? doc.toObject() : { ...doc };
@@ -66,6 +67,13 @@ function normalizeVehiclePayload(data: Record<string, unknown>) {
 export async function createVehicle(data: Record<string, unknown>) {
   const now = new Date().toISOString();
   const payload = normalizeVehiclePayload(data);
+  const locationId = typeof payload.location_id === 'string' ? payload.location_id : '';
+  if (locationId) {
+    const dealerId = await resolveDealerIdFromLocation(locationId);
+    if (dealerId) {
+      await enforceDealerResourceLimit(dealerId, 'vehicles');
+    }
+  }
 
   // For demo vehicles, ensure brand linkage is persisted even if client omitted brandId.
   const isDemo = payload.vehicle_condition === 'demo' || payload.is_demo === true;

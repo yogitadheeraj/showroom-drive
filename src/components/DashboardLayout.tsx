@@ -704,7 +704,6 @@ console.log('Setting up follow-up reminder polling with config:', followUpRemind
                       <LogOut className="h-4 w-4" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="right" className="text-xs">Sign Out</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             ) : (

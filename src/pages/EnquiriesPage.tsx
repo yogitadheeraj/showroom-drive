@@ -641,7 +641,7 @@ const EnquiriesPage = () => {
                           key={thread.customerId}
                           type="button"
                           onClick={() => setSelectedThreadId(thread.customerId)}
-                          className={`w-full rounded-2xl border p-3 text-left transition-all duration-200 ${isActive ? 'border-primary/40 bg-primary/10 shadow-sm' : 'border-border bg-card hover:border-primary/20 hover:bg-muted/30'}`}
+                          className={`w-[90%] rounded-2xl  border p-3 text-left transition-all duration-200 ${isActive ? 'border-primary/40 bg-primary/10 shadow-sm' : 'border-border bg-card hover:border-primary/20 hover:bg-muted/30'}`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">

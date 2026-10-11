@@ -10,6 +10,48 @@ type MailInput = {
   attachments?: nodemailer.SendMailOptions['attachments'];
 };
 
+const STANDARD_SIGNATURE_TEXT = [
+  '',
+  'Regards,',
+  'Team Auto Advant',
+  'https://autoadvant.com',
+].join('\n');
+
+function appendStandardSignatureHtml(html: string) {
+  const source = String(html || '');
+  if (!source) return source;
+
+  // Skip if already has a recognizable signature/footer.
+  if (
+    /data-auto-advant-signature="1"/i.test(source) ||
+    /powered by\s*<a[^>]*>\s*autoadvant\.com\s*<\/a>/i.test(source) ||
+    /team\s+auto\s+advant/i.test(source)
+  ) {
+    return source;
+  }
+
+  const signatureBlock = `
+    <div data-auto-advant-signature="1" style="margin-top:20px;padding-top:12px;border-top:1px solid #e5e7eb;font-family:Arial,sans-serif;line-height:1.5;color:#4b5563;font-size:12px;">
+      <p style="margin:0 0 4px;">Regards,</p>
+      <p style="margin:0 0 4px;font-weight:600;color:#111827;">Team Auto Advant</p>
+      <p style="margin:0;">Powered by <a href="https://autoadvant.com" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:none;">AutoAdvant.com</a></p>
+    </div>
+  `;
+
+  if (/<\/body>/i.test(source)) {
+    return source.replace(/<\/body>/i, `${signatureBlock}</body>`);
+  }
+
+  return `${source}${signatureBlock}`;
+}
+
+function appendStandardSignatureText(text?: string) {
+  const base = String(text || '').trim();
+  if (!base) return STANDARD_SIGNATURE_TEXT.trim();
+  if (/team\s+auto\s+advant/i.test(base) || /autoadvant\.com/i.test(base)) return base;
+  return `${base}${STANDARD_SIGNATURE_TEXT}`;
+}
+
 function smtpReady() {
   return Boolean(env.smtpHost && env.smtpPort && env.smtpUser && env.smtpPass && env.mailFrom);
 }
@@ -43,13 +85,15 @@ export async function sendMail(input: MailInput) {
   try {
     const fromLabel = input._dealerName || env.mailFrom || 'Auto Dealer';
     const from = env.smtpUser ? `${fromLabel} <${env.smtpUser}>` : fromLabel;
+    const normalizedHtml = appendStandardSignatureHtml(input.html);
+    const normalizedText = appendStandardSignatureText(input.text);
 
     const info = await tx.sendMail({
       from,
       to: input.to,
       subject: input.subject,
-      html: input.html,
-      text: input.text,
+      html: normalizedHtml,
+      text: normalizedText,
       attachments: input.attachments,
     });
     console.log(`[mail] ✅ Sent → ${input.to} | subject: "${input.subject}" | msgId: ${info.messageId}`);

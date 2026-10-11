@@ -16,6 +16,7 @@ import { dispatchNotification, IntegrationEvent } from './notificationDispatcher
 import { generateBookingToken } from '../controllers/customerBookingController.js';
 import { env } from '../config/env.js';
 import { autoTransitAfterDrive } from './vehicleFleetService.js';
+import { enforceDealerResourceLimit, resolveDealerIdFromLocation } from './subscriptionPolicyService.js';
 
 // ─── Resolve dealer branding from a location_id ─────────────────────────────
 async function resolveDealerBranding(locationId: string | undefined): Promise<Record<string, unknown>> {
@@ -319,6 +320,13 @@ export async function createTestDrive(data: Record<string, unknown>) {
   const now = new Date().toISOString();
   const assignedGroId = (data.assigned_gro_id as string | null | undefined) ?? (data.gro_id as string | null | undefined) ?? null;
   const cancelledReason = (data.cancelled_reason as string | null | undefined) ?? (data.cancellation_reason as string | null | undefined) ?? null;
+  const locationId = typeof data.location_id === 'string' ? data.location_id : '';
+  if (locationId) {
+    const dealerId = await resolveDealerIdFromLocation(locationId);
+    if (dealerId) {
+      await enforceDealerResourceLimit(dealerId, 'test_drives');
+    }
+  }
 
   // ── Check vehicle slot availability to prevent double-booking ────────────
   if (data.vehicle_id && data.scheduled_date && data.scheduled_time) {

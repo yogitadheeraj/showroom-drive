@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Location } from '../models/Location.js';
+import { enforceDealerResourceLimit } from './subscriptionPolicyService.js';
 
 function toPlain(doc: any) {
   const obj = doc.toObject ? doc.toObject() : { ...doc };
@@ -37,6 +38,14 @@ export async function getLocationById(id: string) {
 }
 
 export async function createLocation(data: Record<string, unknown>) {
+  const dealerId = typeof data.dealer_id === 'string' && data.dealer_id.trim()
+    ? data.dealer_id.trim()
+    : typeof data.orgId === 'string' && data.orgId.trim()
+      ? data.orgId.trim()
+      : null;
+  if (dealerId) {
+    await enforceDealerResourceLimit(dealerId, 'locations');
+  }
   const now = new Date().toISOString();
   const doc = new Location({
     ...data,

@@ -8,13 +8,8 @@ const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.
 
 const DEFAULT_CORS_ORIGINS = [
   'http://localhost:3000',
-  'http://localhost:8081',
   'https://www.autoadvant.com',
   'https://autoadvant.com',
-  'https://autoadvant-staging.web.app',
-  'https://autoadvant-staging.firebaseapp.com',
-  'https://autoadvant.web.app',
-  'https://autoadvant.firebaseapp.com',
 ];
 
 const parseOrigins = (value?: string) =>

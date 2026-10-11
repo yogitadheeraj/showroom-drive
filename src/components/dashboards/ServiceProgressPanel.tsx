@@ -31,7 +31,7 @@ const PAYMENT_STATUS_OPTIONS = ['pending', 'partial', 'paid'];
 
 export default function ServiceProgressPanel({ title = 'Service Appointment Progress' }: ServiceProgressPanelProps) {
   const { toast } = useToast();
-  const { loading: authLoading } = useAuth();
+  const { loading: authLoading, user } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -64,6 +64,11 @@ export default function ServiceProgressPanel({ title = 'Service Appointment Prog
   }, []);
 
   const loadRows = async () => {
+    if (authLoading || !user) {
+      setRows([]);
+      return;
+    }
+
     setLoading(true);
     try {
       const filters: Record<string, string> = {};
@@ -71,17 +76,24 @@ export default function ServiceProgressPanel({ title = 'Service Appointment Prog
       const data = await listStaffServiceBookings(filters);
       setRows(data || []);
     } catch (error: any) {
-      toast({ title: 'Failed to load service appointments', description: error?.message, variant: 'destructive' });
+      const message = String(error?.message || '').toLowerCase();
+      const isAuthError = message.includes('unauthorized') || message.includes('401') || message.includes('forbidden');
+      if (!isAuthError) {
+        toast({ title: 'Failed to load service appointments', description: error?.message, variant: 'destructive' });
+      }
     } finally {
       setLoading(false);
     }
   };
   useEffect(() => {
-    if (!authLoading) {
-       void loadRows();
-       void loadServiceExperts();
+    if (authLoading || !user) {
+      setRows([]);
+      return;
     }
-  }, [authLoading, statusFilter]);
+
+    void loadRows();
+    void loadServiceExperts();
+  }, [authLoading, user, statusFilter]);
  
   useEffect(() => {
  
@@ -89,6 +101,7 @@ export default function ServiceProgressPanel({ title = 'Service Appointment Prog
 
   useEffect(() => {
     const handleBookingUpdated = () => {
+      if (authLoading || !user) return;
       void loadRows();
     };
 
@@ -98,7 +111,7 @@ export default function ServiceProgressPanel({ title = 'Service Appointment Prog
     }
 
     return undefined;
-  }, []);
+  }, [authLoading, user, statusFilter]);
 
   const orderedRows = useMemo(() => {
     return [...rows].sort((a, b) => {

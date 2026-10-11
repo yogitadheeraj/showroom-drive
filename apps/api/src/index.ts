@@ -8,6 +8,7 @@ import { attachAuthUser } from './middleware/auth.js';
 import { apiRouter } from './routes/index.js';
 import { Vehicle } from './models/Vehicle.js';
 import { processEmailQueues } from './services/emailProcessorService.js';
+import { processExpiredDealerSubscriptions, processExpiringSoonDealerSubscriptions } from './services/subscriptionPolicyService.js';
 import { runTestDriveReminderJobs } from './services/testDriveReminderService.js';
 import { runTimesheetReminderJobs } from './services/timesheetReminderService.js';
 
@@ -16,6 +17,7 @@ let startupReady = false;
 let emailInterval: NodeJS.Timeout | null = null;
 let reminderInterval: NodeJS.Timeout | null = null;
 let timesheetReminderInterval: NodeJS.Timeout | null = null;
+let subscriptionExpiryInterval: NodeJS.Timeout | null = null;
 
 const normalizeOrigin = (value?: string) => {
   if (!value) return '';
@@ -73,6 +75,7 @@ async function start() {
     if (emailInterval) clearInterval(emailInterval);
     if (reminderInterval) clearInterval(reminderInterval);
     if (timesheetReminderInterval) clearInterval(timesheetReminderInterval);
+    if (subscriptionExpiryInterval) clearInterval(subscriptionExpiryInterval);
     server.close();
     await mongoose.disconnect();
     const apps = getApps();
@@ -125,6 +128,14 @@ async function start() {
   timesheetReminderInterval = setInterval(() => {
     void runTimesheetReminderJobs();
   }, TIMESHEET_REMINDER_INTERVAL_MS);
+
+  const SUBSCRIPTION_EXPIRY_INTERVAL_MS = 60 * 60_000;
+  void processExpiringSoonDealerSubscriptions();
+  void processExpiredDealerSubscriptions();
+  subscriptionExpiryInterval = setInterval(() => {
+    void processExpiringSoonDealerSubscriptions();
+    void processExpiredDealerSubscriptions();
+  }, SUBSCRIPTION_EXPIRY_INTERVAL_MS);
 
   startupReady = true;
 }

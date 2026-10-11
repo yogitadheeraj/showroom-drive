@@ -35,7 +35,7 @@ import {
   signedUrlController,
   uploadController,
 } from '../controllers/storageController.js';
-import { meController, resendVerificationController, switchUserController } from '../controllers/authController.js';
+import { meController, requestPasswordResetController, resendVerificationController, switchUserController } from '../controllers/authController.js';
 import { requireAuth, requireSuperAdmin } from '../middleware/auth.js';
 import {
   createLocationController,
@@ -99,6 +99,15 @@ import {
   listDealersController,
   updateDealerController,
 } from '../controllers/dealerController.js';
+import {
+  approveDealerSubscriptionRequestController,
+  createDealerSubscriptionRequestController,
+  getDealerSubscriptionController,
+  listDealerSubscriptionRequestsController,
+  rejectDealerSubscriptionRequestController,
+  runSubscriptionReminderJobsController,
+  upsertDealerSubscriptionController,
+} from '../controllers/dealerSubscriptionController.js';
 import {
   getMyProfileController,
   getProfileController,
@@ -285,6 +294,7 @@ apiRouter.get('/public/landing-stats', publicLandingStatsController);
 // Auth
 apiRouter.get('/auth/me', requireAuth, meController);
 apiRouter.post('/auth/resend-verification', resendVerificationController);
+apiRouter.post('/auth/request-password-reset', requestPasswordResetController);
 apiRouter.post('/auth/switch-user', requireAuth, switchUserController);
 
 // Locations
@@ -378,8 +388,15 @@ apiRouter.patch('/service-bookings/:id/progress', requireAuth, updateServiceProg
 apiRouter.get('/dealers/branding/:slug', getDealerBrandingController); // public — no auth
 apiRouter.get('/dealers', listDealersController);
 apiRouter.get('/dealers/:id', getDealerController);
+apiRouter.get('/dealers/:id/subscription', requireAuth, getDealerSubscriptionController);
+apiRouter.post('/dealers/:id/subscription-requests', requireAuth, createDealerSubscriptionRequestController);
 apiRouter.post('/dealers', requireAuth, createDealerController);
 apiRouter.patch('/dealers/:id', requireAuth, updateDealerController);
+apiRouter.put('/dealers/:id/subscription', requireAuth, upsertDealerSubscriptionController);
+apiRouter.get('/subscription-requests', requireAuth, listDealerSubscriptionRequestsController);
+apiRouter.post('/subscription-requests/:requestId/approve', requireAuth, approveDealerSubscriptionRequestController);
+apiRouter.post('/subscription-requests/:requestId/reject', requireAuth, rejectDealerSubscriptionRequestController);
+apiRouter.post('/subscriptions/reminders/run-now', requireAuth, runSubscriptionReminderJobsController);
 apiRouter.delete('/dealers/:id', requireAuth, deleteDealerController);
 
 // Profiles

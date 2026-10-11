@@ -52,11 +52,25 @@ const THEME_STORAGE_KEY = 'autoadvant-theme';
   useEffect(() => {
     if (!router.isReady) return;
     const verified = router.query.verified === 'true';
+    const reason = typeof router.query.reason === 'string' ? router.query.reason : '';
+    const message = typeof router.query.message === 'string' ? router.query.message : '';
     if (verified) {
       setEmailVerifiedBanner(true);
       // Clean up query param without a full page reload
       const nextQuery = { ...router.query };
       delete nextQuery.verified;
+      router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
+    }
+
+    if (reason === 'subscription-expired' || message) {
+      toast({
+        title: 'Access blocked',
+        description: message || 'Subscription expired. Please contact your Super Admin to renew access',
+        variant: 'destructive',
+      });
+      const nextQuery = { ...router.query };
+      delete nextQuery.reason;
+      delete nextQuery.message;
       router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
     }
   }, [router.isReady, router.query.verified, router]);

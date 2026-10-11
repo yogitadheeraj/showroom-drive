@@ -5,6 +5,7 @@ import { Profile } from '../models/Profile.js';
 import { Location } from '../models/Location.js';
 import { BrandLocation } from '../models/BrandLocation.js';
 import { applyLocationScope } from '../middleware/locationFilter.js';
+import { assertDealerSubscriptionActive } from '../services/subscriptionPolicyService.js';
 
 import { z } from 'zod';
 
@@ -225,6 +226,18 @@ function enforceScope(body: ParsedQuery, req: Request): void {
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
     if (!req.authUser?.uid) {
         res.status(401).json({ error: { message: 'Unauthorized' } });
+        return;
+    }
+    if (req.authUser.dealer_id && req.authUser.role !== 'superadmin' && req.authUser.role !== 'super_admin') {
+        assertDealerSubscriptionActive(req.authUser.dealer_id)
+          .then(() => {
+            const filters = req.query as Record<string, unknown>;
+            applyLocationScope(req, filters);
+            next();
+          })
+          .catch((error: Error) => {
+            res.status(403).json({ error: { message: error.message } });
+          });
         return;
     }
     const filters = req.query as Record<string, unknown>;

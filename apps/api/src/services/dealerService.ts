@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Dealer } from '../models/Dealer.js';
+import { createDealerSubscription, deleteDealerSubscriptionByDealerId } from './dealerSubscriptionService.js';
 
 function lean(doc: any) {
   const o = doc.toObject ? doc.toObject() : { ...doc };
@@ -33,6 +34,14 @@ export async function createDealer(data: Record<string, unknown>) {
   const now = new Date().toISOString();
   const doc = new Dealer({ ...data, id: String(data.id || randomUUID()), created_at: now, updated_at: now });
   await doc.save();
+  await createDealerSubscription({
+    dealer_id: String(doc.id),
+    package_name: 'Free Package',
+    billing_period: 'monthly',
+    expires_at: null,
+    is_active: true,
+    notes: 'Default package assigned on dealer creation',
+  });
   return lean(doc);
 }
 
@@ -43,4 +52,5 @@ export async function updateDealer(id: string, data: Record<string, unknown>) {
 
 export async function deleteDealer(id: string) {
   await Dealer.deleteOne({ id });
+  await deleteDealerSubscriptionByDealerId(id);
 }

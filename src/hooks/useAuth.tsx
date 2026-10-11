@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth';
 import { firebaseAuth, isFirebaseClientConfigured, type Session, type User } from '@/integrations/supabase/client';
 import { apiGet, apiPatch, apiPost } from '@/lib/apiClient';
+import { clearAuthTeardownInProgress, markAuthTeardownInProgress } from '@/lib/apiClient';
 import { AppRole } from '@/constants/roles';
 import { isAppRole } from '@/lib/roles';
 import { ensureActivitySession, endActivitySession } from '@/lib/activityLogger';
@@ -46,6 +47,19 @@ export const useAuth = () => {
 export const useAuthOptional = () => useContext(AuthContext);
 
 const IMPERSONATION_STORAGE_KEY = 'impersonation_context_v1';
+const SUBSCRIPTION_EXPIRED_MESSAGE = 'Subscription expired. Please contact your Super Admin to renew access';
+
+function readErrorMessage(error: unknown) {
+  if (typeof error === 'string') return error;
+  if (error instanceof Error) return error.message || '';
+  if (error && typeof error === 'object' && typeof (error as any).message === 'string') return (error as any).message;
+  return '';
+}
+
+function isForbiddenError(error: unknown) {
+  const message = readErrorMessage(error).toLowerCase();
+  return message.includes('403') || message.includes('forbidden') || message.includes('subscription expired');
+}
 
 type ImpersonationContext = {
   rootUserId: string;
@@ -98,20 +112,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const fetchUserData = async (authUser: User) => {
-    const me = await apiGet<{ user: User; profile: any; role: string | null }>('/api/auth/me').catch(() => null);
-    const resolvedRole = isAppRole(me?.role) ? me!.role as AppRole : null;
-    setRole(resolvedRole);
-    const profileData = me?.profile ?? null;
-    setProfile(profileData);
+    try {
+      const me = await apiGet<{ user: User; profile: any; role: string | null }>('/api/auth/me');
+      const resolvedRole = isAppRole(me?.role) ? me.role as AppRole : null;
+      setRole(resolvedRole);
+      const profileData = me?.profile ?? null;
+      setProfile(profileData);
 
-    if (profileData) {
-      await ensureActivitySession({
-        userId: authUser.id,
-        profileId: profileData.id,
-        locationId: profileData.location_id,
-        role: resolvedRole,
-      });
+      if (profileData) {
+        await ensureActivitySession({
+          userId: authUser.id,
+          profileId: profileData.id,
+          locationId: profileData.location_id,
+          role: resolvedRole,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch user data:', error);
+      if (isForbiddenError(error)) {
+        const message = SUBSCRIPTION_EXPIRED_MESSAGE;
+        await signOut();
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams({
+            reason: 'subscription-expired',
+            message,
+          });
+          window.location.replace(`/auth?${params.toString()}`);
+        }
+      }
     }
+   
   };
 
   useEffect(() => {
@@ -122,6 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const unsubscribe = onIdTokenChanged(firebaseAuth, async (firebaseUser) => {
       if (firebaseUser) {
+        clearAuthTeardownInProgress();
         const mappedUser: User = { id: firebaseUser.uid, email: firebaseUser.email, user_metadata: { full_name: firebaseUser.displayName } };
         const token = await firebaseUser.getIdToken();
         const session: Session = { user: mappedUser, access_token: token };
@@ -171,14 +202,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('Email not verified yet. Please verify from your inbox or resend verification email.');
     }
     // Check profile active status
-    const me = await apiGet<{ profile: any }>('/api/auth/me').catch(() => null);
-    if (me?.profile?.is_active === false) {
-      await firebaseSignOut(firebaseAuth);
-      throw new Error('Your account is blocked. Contact superadmin.');
-    }
-    // Update last login (best-effort)
-    if (me?.profile?.id) {
-      apiPatch(`/api/profiles/${me.profile.id}`, { last_login_at: new Date().toISOString() }).catch(() => null);
+    try {
+      const me = await apiGet<{ profile: any }>('/api/auth/me');
+      if (me?.profile?.is_active === false) {
+        await firebaseSignOut(firebaseAuth);
+        throw new Error('Your account is blocked. Contact superadmin.');
+      }
+      // Update last login (best-effort)
+      if (me?.profile?.id) {
+        apiPatch(`/api/profiles/${me.profile.id}`, { last_login_at: new Date().toISOString() }).catch(() => null);
+      }
+    } catch (error) {
+      if (isForbiddenError(error)) {
+        await firebaseSignOut(firebaseAuth);
+        throw new Error(SUBSCRIPTION_EXPIRED_MESSAGE);
+      }
+      throw error;
     }
   };
 
@@ -203,6 +242,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
+    markAuthTeardownInProgress();
+
       if (user) {
       await endActivitySession({
         userId: user.id,
@@ -222,6 +263,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setRole(null);
     setProfile(null);
+
+    // Keep suppression briefly to absorb late effects while the app redirects.
+    setTimeout(() => clearAuthTeardownInProgress(), 2000);
   };
 
   const refreshProfile = async () => {

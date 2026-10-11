@@ -17,6 +17,61 @@ type DbQueryPayload = {
 };
 
 const API_BASE_URL = getApiBaseUrl();
+const AUTH_TEARDOWN_KEY = 'auth_teardown_in_progress';
+const AUTH_TEARDOWN_TTL_MS = 5000;
+
+function isAuthTeardownInProgress() {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = window.sessionStorage.getItem(AUTH_TEARDOWN_KEY);
+    if (!raw) return false;
+
+    const startedAt = Number(raw);
+    if (!Number.isFinite(startedAt)) {
+      window.sessionStorage.removeItem(AUTH_TEARDOWN_KEY);
+      return false;
+    }
+
+    const isActive = Date.now() - startedAt < AUTH_TEARDOWN_TTL_MS;
+    if (!isActive) {
+      window.sessionStorage.removeItem(AUTH_TEARDOWN_KEY);
+    }
+    return isActive;
+  } catch {
+    return false;
+  }
+}
+
+export function markAuthTeardownInProgress() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(AUTH_TEARDOWN_KEY, String(Date.now()));
+  } catch {
+    // ignore storage failures
+  }
+}
+
+export function clearAuthTeardownInProgress() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(AUTH_TEARDOWN_KEY);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    const json = atob(padded);
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
 
 async function buildHeaders(init?: HeadersInit, includeJson = true) {
   const headers = new Headers(init || {});
@@ -25,14 +80,18 @@ async function buildHeaders(init?: HeadersInit, includeJson = true) {
   }
 
   const token = await getFirebaseIdToken();
+  let isSuperAdmin = false;
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+    const claims = decodeJwtPayload(token);
+    const role = String(claims?.role || '').trim().toLowerCase();
+    isSuperAdmin = role === 'superadmin' || role === 'super_admin';
   }
 
-  // Forward the dealer-admin selected location so the backend can scope queries
+  // Forward selected location scope only for non-superadmin users.
   try {
     const selectedLocId = localStorage.getItem(SELECTED_LOCATION_KEY);
-    if (selectedLocId) headers.set('X-Selected-Location-Id', selectedLocId);
+    if (selectedLocId && !isSuperAdmin) headers.set('X-Selected-Location-Id', selectedLocId);
   } catch { /* storage unavailable */ }
 
   return headers;
@@ -41,10 +100,32 @@ async function buildHeaders(init?: HeadersInit, includeJson = true) {
 async function request<T>(path: string, init: RequestInit = {}) {
   const headers = await buildHeaders(init.headers, !(init.body instanceof FormData));
   const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
-  const json = await response.json().catch(() => ({}));
+  const raw = await response.text();
+  let json: any = {};
+  if (raw) {
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      json = {};
+    }
+  }
+
+  const bodyError = json?.error;
+  const messageFromBody =
+    (typeof bodyError === 'string' ? bodyError : bodyError?.message) ||
+    json?.message ||
+    (raw && !raw.trim().startsWith('<') ? raw.trim() : '');
+
+  if ((!response.ok || json?.error) && isAuthTeardownInProgress()) {
+    const normalized = String(messageFromBody || '').toLowerCase();
+    const isAuthError = response.status === 401 || response.status === 403 || normalized.includes('unauthorized') || normalized.includes('forbidden');
+    if (isAuthError) {
+      return null as T;
+    }
+  }
 
   if (!response.ok || json?.error) {
-    throw new Error(json?.error?.message || `Request failed (${response.status})`);
+    throw new Error(messageFromBody || `Request failed (${response.status})`);
   }
 
   return (json?.data ?? null) as T;

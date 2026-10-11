@@ -77,6 +77,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
         serviceBookingsCancelled: 0,
         serviceBookingsRescheduled: 0,
     });
+    const [planPrefilled, setPlanPrefilled] = useState(false);
 
     const fetchJson = async (url: string, init?: RequestInit) => {
         const normalizedUrl = /^https?:\/\//i.test(url) ? url : `${getApiBaseUrl()}${url.startsWith('/') ? url : `/${url}`}`;
@@ -602,6 +603,45 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
             },
         ];
 
+        const subscriptionPackages = [
+            {
+                name: 'Full Functionality',
+                price: 'Custom Pricing',
+                subtitle: 'Enterprise plan with all modules enabled',
+                features: [
+                    { label: 'Unlimited record creation', included: true },
+                    { label: 'Photo and document storage included', included: true },
+                    { label: 'Email setup and automation included', included: true },
+                    { label: 'Follow-up and reminder workflows included', included: true },
+                    { label: 'All dashboard, analytics, and integrations', included: true },
+                ],
+            },
+            {
+                name: 'Smart 100',
+                price: 'AED 999 / month',
+                subtitle: 'For growing teams with capped usage',
+                features: [
+                    { label: 'Allow only 100 record creation total', included: true },
+                    { label: 'No photo/document storage', included: false },
+                    { label: 'No email setup', included: false },
+                    { label: 'Core operational modules available', included: true },
+                    { label: 'Basic reporting dashboard', included: true },
+                ],
+            },
+            {
+                name: 'Starter 5',
+                price: 'AED 199 / month',
+                subtitle: 'Light package for small pilot usage',
+                features: [
+                    { label: 'Allow only 5 records in each functionality', included: true },
+                    { label: 'No photo/document storage', included: false },
+                    { label: 'No email setup', included: false },
+                    { label: 'No follow-up workflows', included: false },
+                    { label: 'No advanced automation', included: false },
+                ],
+            },
+        ];
+
     return (
         <div className="min-h-screen bg-background text-foreground dark:text-white">
                         <SeoMeta
@@ -659,7 +699,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                         className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-6 ${
                                             message.sender === 'user'
                                                 ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white'
-                                                : 'border border-white/10 bg-white/5 text-slate-200'
+                                                : 'border border-white/10 bg-white/5 text-slate-400'
                                         }`}
                                     >
                                         {message.text}
@@ -713,7 +753,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
             </div>
       
             <main className={`landing-main bg-background text-foreground${resolvedTheme === 'dark' ? ' dark' : ''}`}>
-                <section className="relative overflow-hidden">
+               <section className="relative overflow-hidden">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_28%),radial-gradient(circle_at_left,rgba(59,130,246,0.16),transparent_22%)]" />
                     <div className="relative z-10 mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 sm:py-16 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:px-8 lg:py-18">
                         <div className="flex flex-col">
@@ -729,7 +769,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                 AutoAdvant gives dealership teams one clear platform to run car dealership CRM workflows, showroom software operations, and customer follow-ups across branches.
                             </p>
 
-                            <div className="mt-6 flex flex-wrap gap-2 text-sm text-slate-200">
+                            <div className="mt-6 flex flex-wrap gap-2 text-sm text-slate-400">
                                 {['Lead capture', 'Test drive flow', 'Service visibility'].map((item) => (
                                     <div key={item} className="rounded-full border text-white border-white/10 bg-white/5 px-3 py-1.5 backdrop-blur-sm">
                                         {item}
@@ -1360,8 +1400,9 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                     </div>
                 </section>
 
+            
                 {/* ── Strong CTA Section ── */}
-                <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+                <section className="mx-auto max-w-7xl px-2 py-16 sm:px-4 lg:px-4 lg:py-20">
                     <div className="rounded-[32px] border border-sky-400/20 bg-gradient-to-br from-sky-950/60 via-blue-950/40 to-slate-900/60 p-8 md:p-12 text-center">
                         <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Choose Your Entry Point</p>
                         <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl text-white">Ready to run your dealership smarter?</h2>

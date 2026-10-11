@@ -95,6 +95,92 @@ export async function resendVerificationController(req: Request, res: Response) 
   }
 }
 
+function passwordResetTemplate(params: { fullName: string; resetLink: string; loginUrl: string }) {
+  const { fullName, resetLink, loginUrl } = params;
+  const text = [
+    `Hi ${fullName},`,
+    '',
+    'We received a request to reset your password.',
+    'Use the link below to set a new password:',
+    resetLink,
+    '',
+    `After reset, sign in here: ${loginUrl}`,
+  ].join('\n');
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height:1.5; color:#111;">
+      <h2 style="margin:0 0 12px;">Reset Your Password</h2>
+      <p>Hi ${fullName},</p>
+      <p>We received a request to reset your password.</p>
+      <p>
+        <a href="${resetLink}" style="display:inline-block;padding:10px 16px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:8px;">
+          Reset Password
+        </a>
+      </p>
+      <p>If the button does not work, open this link in your browser:</p>
+      <p><a href="${resetLink}">${resetLink}</a></p>
+      <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
+      <p>After reset, sign in here:</p>
+      <p><a href="${loginUrl}">${loginUrl}</a></p>
+    </div>
+  `;
+
+  return { text, html };
+}
+
+export async function requestPasswordResetController(req: Request, res: Response) {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+
+  if (!email) {
+    res.status(400).json({ data: null, error: { message: 'Email is required.' } });
+    return;
+  }
+
+  if (!getApps().length) {
+    res.status(503).json({ data: null, error: { message: 'Auth service is not configured.' } });
+    return;
+  }
+
+  try {
+    const user = await getAuth().getUserByEmail(email);
+    const link = await getAuth().generatePasswordResetLink(email, { url: `${env.corsOrigin}/auth` });
+    const template = passwordResetTemplate({
+      fullName: user.displayName || 'there',
+      resetLink: link,
+      loginUrl: `${env.corsOrigin}/auth`,
+    });
+
+    const mailStatus = await sendMail({
+      to: email,
+      subject: 'Reset your Auto Advant password',
+      html: template.html,
+      text: template.text,
+    });
+
+    res.status(200).json({
+      data: {
+        message: mailStatus.sent ? 'Password reset email sent.' : 'Password reset link generated. Email send skipped.',
+        sent: mailStatus.sent,
+        skipped: mailStatus.skipped,
+        link: mailStatus.sent ? null : link,
+      },
+      error: null,
+    });
+  } catch (error: any) {
+    const code = error?.errorInfo?.code || '';
+    if (code === 'auth/user-not-found') {
+      // Avoid account enumeration while keeping UX friendly.
+      res.status(200).json({
+        data: { message: 'If this email exists, a password reset link has been sent.' },
+        error: null,
+      });
+      return;
+    }
+
+    res.status(500).json({ data: null, error: { message: error?.message || 'Failed to send password reset email.' } });
+  }
+}
+
 export async function switchUserController(req: Request, res: Response) {
   if (!req.authUser?.uid) {
     res.status(401).json({ data: null, error: { message: 'Unauthorized' } });

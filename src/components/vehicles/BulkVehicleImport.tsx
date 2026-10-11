@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { apiDbQuery } from '@/lib/apiClient';
+import { getReadableErrorMessage } from '@/lib/errorMessage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -131,8 +132,8 @@ const BulkVehicleImport = ({ locations, onImportComplete }: BulkVehicleImportPro
       setParsedData([]);
       setFileName('');
       onImportComplete();
-    } catch (err: any) {
-      toast({ title: 'Import failed', description: err?.message || 'Unable to import vehicles', variant: 'destructive' });
+    } catch (error: unknown) {
+      toast({ title: 'Import failed', description: getReadableErrorMessage(error, 'Unable to import vehicles.'), variant: 'destructive' });
     } finally {
       setImporting(false);
     }

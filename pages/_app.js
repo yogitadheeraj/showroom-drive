@@ -35,6 +35,8 @@ const SHOW_HEADER_ROUTES = [
   '/contact',
   '/demo/route',
   '/configurator',
+  '/pricing',
+  '/dealer-onboarding'
 ];
 
 const HIDE_HEADER_ROUTES = [
@@ -59,7 +61,6 @@ const HIDE_HEADER_ROUTES = [
   '/reports',
   '/data-center',
   '/my-profile',
-  '/dealer-onboarding',
   '/customer',
   '/bookings',
   '/location',

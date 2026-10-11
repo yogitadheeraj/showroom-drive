@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Profile } from '../models/Profile.js';
 import { UserRole } from '../models/UserRole.js';
 import { Location } from '../models/Location.js';
+import { enforceDealerResourceLimit, resolveDealerIdFromProfilePayload } from './subscriptionPolicyService.js';
 
 function lean(doc: any) {
   const o = doc.toObject ? doc.toObject() : { ...doc };
@@ -82,6 +83,13 @@ export async function listProfiles(filters: Record<string, unknown> = {}) {
 }
 
 export async function upsertProfile(data: Record<string, unknown>) {
+  const existing = data.user_id ? await Profile.findOne({ user_id: data.user_id }, { id: 1 }).lean() : null;
+  if (!existing) {
+    const dealerId = await resolveDealerIdFromProfilePayload(data);
+    if (dealerId) {
+      await enforceDealerResourceLimit(dealerId, 'profiles');
+    }
+  }
   const now = new Date().toISOString();
   const id = String(data.id || randomUUID());
   const doc = await Profile.findOneAndUpdate(

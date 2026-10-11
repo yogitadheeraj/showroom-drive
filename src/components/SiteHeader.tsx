@@ -95,6 +95,8 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
             <a href="/#benefits" className="transition hover:text-slate-950 dark:hover:text-white">Benefits</a>
             <a href="/#contact" className="transition hover:text-slate-950 dark:hover:text-white">Contact</a>
             <a href="/dealer-onboarding" className="transition hover:text-slate-950 dark:hover:text-white">Entity Onboarding</a>
+            <a href="/pricing" className="transition hover:text-slate-950 dark:hover:text-white">Pricing</a>
+
           </nav>
         )}
 
@@ -109,7 +111,6 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-muted px-3 text-sm font-medium text-foreground transition hover:bg-muted/70 dark:border-white/15 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10"
             >
               <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign out</span>
             </button>
           )}
           <button

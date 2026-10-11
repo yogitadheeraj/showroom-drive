@@ -85,7 +85,7 @@ const formatCurrencyValue = (value: number, currencyCode?: string | null) => {
 };
 
 const SuperAdminDashboard = () => {
-  const { role } = useAuth();
+  const { role, user, loading: authLoading } = useAuth();
   const { dealerId: contextDealerId, loading: dealerLoading, selectedLocationId } = useDealerContext();
   const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
 
@@ -146,8 +146,9 @@ const SuperAdminDashboard = () => {
   const [failedAuthEmailLogs, setFailedAuthEmailLogs] = useState<any[]>([]);
   const [authFailuresDialogOpen, setAuthFailuresDialogOpen] = useState(false);
 
-  const [selectedDealer, setSelectedDealer] = useState(savedPrefs.selectedDealer || 'all');
-  const [selectedLocation, setSelectedLocation] = useState(savedPrefs.selectedLocation || 'all');
+  // Always start unfiltered for Super Admin; filters apply only after explicit selection in UI.
+  const [selectedDealer, setSelectedDealer] = useState('all');
+  const [selectedLocation, setSelectedLocation] = useState('all');
   // For dealer_admin, the global context selection drives filtering; superadmin uses internal state.
   const activeSelectedLocation = isSuperAdmin ? selectedLocation : (selectedLocationId ?? 'all');
   const [testDriveView, setTestDriveView] = useState<'grid' | 'chart' | 'calendar'>(() => ('grid'));
@@ -233,6 +234,7 @@ const SuperAdminDashboard = () => {
   }, [activeDealerId, dealerLoading, isSuperAdmin]);
 
   useEffect(() => {
+    if (authLoading || !user) return;
     if (dealerLoading && !isSuperAdmin) return;
     const fetchStaff = async () => {
       const locationIds = activeSelectedLocation !== 'all'
@@ -264,9 +266,10 @@ const SuperAdminDashboard = () => {
       setStaffMembers(merged);
     };
     fetchStaff();
-  }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin]);
+  }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin, authLoading, user]);
 
   useEffect(() => {
+    if (authLoading || !user) return;
     if (dealerLoading && !isSuperAdmin) return;
 
     const fetchVehicleCount = async () => {
@@ -290,9 +293,10 @@ const SuperAdminDashboard = () => {
     };
 
     void fetchVehicleCount();
-  }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin]);
+  }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin, authLoading, user]);
 
   const fetchTestDrivesData = useCallback(async () => {
+    if (authLoading || !user) return;
     setIsDashboardLoading(true);
     if (dealerLoading && !isSuperAdmin) return;
     try {
@@ -360,7 +364,7 @@ const SuperAdminDashboard = () => {
     } finally {
       setIsDashboardLoading(false);
     }
-  }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin]);
+  }, [activeSelectedLocation, locations, dealerLoading, isSuperAdmin, authLoading, user]);
 
   useEffect(() => {
     void fetchTestDrivesData();

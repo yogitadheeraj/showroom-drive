@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { demoAutofillData } from '@/lib/demoAutofillData';
 import { apiGet, apiPost, apiPatch } from '@/lib/apiClient';
 import { logStaffActivity } from '@/lib/activityLogger';
+import { getReadableErrorMessage } from '@/lib/errorMessage';
 import DashboardLayout from '@/components/DashboardLayout';
 import LoadingState from '@/components/common/LoadingState';
 import { Card, CardContent } from '@/components/ui/card';
@@ -550,7 +551,7 @@ const VehiclesPage = () => {
       setVehicles(filtered);
     } catch (error) {
       console.error('Failed to fetch vehicles', error);
-      toast({ title: 'Error', description: 'Failed to load vehicles list', variant: 'destructive' });
+      toast({ title: 'Error', description: getReadableErrorMessage(error, 'Failed to load vehicles list.'), variant: 'destructive' });
       setVehicles([]);
     }
   };
@@ -762,8 +763,8 @@ const VehiclesPage = () => {
       setSpecDraft(emptyCompareSpecsDraft());
       setShowDialog(false);
       fetchVehicles();
-    } catch (err: any) {
-      toast({ title: 'Save failed', description: err?.message || 'Please try again.', variant: 'destructive' });
+    } catch (error: unknown) {
+      toast({ title: 'Save failed', description: getReadableErrorMessage(error), variant: 'destructive' });
     }
   };
 
@@ -780,8 +781,8 @@ const VehiclesPage = () => {
       }
       setSpecPromptVehicle(null);
       setSpecDraft(emptyCompareSpecsDraft());
-    } catch (err: any) {
-      toast({ title: 'Specs save failed', description: err?.message || 'Please try again.', variant: 'destructive' });
+    } catch (error: unknown) {
+      toast({ title: 'Specs save failed', description: getReadableErrorMessage(error), variant: 'destructive' });
     }
   };
 
@@ -838,8 +839,8 @@ const VehiclesPage = () => {
       toast({ title: 'Vehicle updated', description: `${quantity} unit${quantity !== 1 ? 's' : ''} ${VEHICLE_WORKFLOW_LABELS[nextStatus].toLowerCase()} saved.` });
       setWorkflowActionTarget(null);
       fetchVehicles();
-    } catch (err: any) {
-      toast({ title: 'Status update failed', description: err?.message || 'Please try again.', variant: 'destructive' });
+    } catch (error: unknown) {
+      toast({ title: 'Status update failed', description: getReadableErrorMessage(error), variant: 'destructive' });
     }
   };
 

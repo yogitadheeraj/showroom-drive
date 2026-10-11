@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDealerContext } from '@/hooks/useDealerContext';
-import { apiPatch } from '@/lib/apiClient';
+import { apiGet, apiPatch, apiPost, apiPut } from '@/lib/apiClient';
 import { logStaffActivity } from '@/lib/activityLogger';
 import { useToast } from '@/hooks/use-toast';
+import { APP_ROLE } from '@/constants/roles';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,9 +21,19 @@ import {
 } from 'firebase/auth';
 import { firebaseAuth, isFirebaseClientConfigured } from '@/integrations/supabase/client';
 
+const SUBSCRIPTION_PACKAGES = ['Free Package', 'Starter 5', 'Smart 100', 'Full Functionality'];
+const BILLING_PERIODS = ['monthly', 'yearly'] as const;
+
+const formatExpiryDate = (value: string) => {
+  if (!value) return 'Not set';
+  const dt = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(dt.getTime())) return value;
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
 const MyProfilePage = () => {
   const { profile, role, refreshProfile } = useAuth();
-  const { dealerLocations } = useDealerContext();
+  const { dealerLocations, dealerId } = useDealerContext();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const todayIso = new Date().toISOString().split('T')[0];
@@ -31,11 +42,81 @@ const MyProfilePage = () => {
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
   const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
   const [isSavingPw, setIsSavingPw] = useState(false);
- const displayRole = role ? getAppRoleLabel(role) : 'Staff';
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [subscriptionSaving, setSubscriptionSaving] = useState(false);
+  const [subscription, setSubscription] = useState({ package_name: 'Free Package', billing_period: 'monthly' as 'monthly' | 'yearly', expires_at: '' });
+  const [subscriptionRequestNote, setSubscriptionRequestNote] = useState('');
+  const displayRole = role ? getAppRoleLabel(role) : 'Staff';
   const [leaveForm, setLeaveForm] = useState({
     startDate: todayIso,
     endDate: todayIso,
   });
+
+  const isSuperAdmin = role === APP_ROLE.SUPERADMIN;
+  const canRequestSubscriptionChange = role === APP_ROLE.BRAND_ADMIN || role === APP_ROLE.SALES_ADMIN;
+
+  useEffect(() => {
+    if (!dealerId) return;
+    let cancelled = false;
+    setSubscriptionLoading(true);
+    apiGet<any>(`/api/dealers/${dealerId}/subscription`)
+      .then((data) => {
+        if (cancelled) return;
+        setSubscription({
+          package_name: data?.package_name || 'Free Package',
+          billing_period: data?.billing_period === 'yearly' ? 'yearly' : 'monthly',
+          expires_at: typeof data?.expires_at === 'string' ? data.expires_at.slice(0, 10) : '',
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSubscription({ package_name: 'Free Package', billing_period: 'monthly', expires_at: '' });
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setSubscriptionLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dealerId]);
+
+  const handleSaveSubscription = async () => {
+    if (!dealerId || !isSuperAdmin) return;
+    setSubscriptionSaving(true);
+    try {
+      await apiPut(`/api/dealers/${dealerId}/subscription`, {
+        package_name: subscription.package_name,
+        billing_period: subscription.billing_period,
+        expires_at: subscription.expires_at || null,
+        is_active: true,
+      });
+      toast({ title: 'Subscription updated' });
+    } catch (err: any) {
+      toast({ title: 'Update failed', description: err?.message || 'Unable to update subscription.', variant: 'destructive' });
+    } finally {
+      setSubscriptionSaving(false);
+    }
+  };
+
+  const handleRequestSubscriptionChange = async () => {
+    if (!dealerId || !canRequestSubscriptionChange) return;
+    setSubscriptionSaving(true);
+    try {
+      await apiPost(`/api/dealers/${dealerId}/subscription-requests`, {
+        package_name: subscription.package_name,
+        billing_period: subscription.billing_period,
+        note: subscriptionRequestNote.trim() || null,
+      });
+      toast({ title: 'Request sent', description: 'Your subscription change request was sent to Super Admin.' });
+      setSubscriptionRequestNote('');
+    } catch (err: any) {
+      toast({ title: 'Request failed', description: err?.message || 'Unable to submit request.', variant: 'destructive' });
+    } finally {
+      setSubscriptionSaving(false);
+    }
+  };
 
   const isCurrentlyOnLeave = (() => {
     if (!profile) return false;
@@ -230,6 +311,104 @@ const MyProfilePage = () => {
                     </div>
                   )}
                 </div>
+
+                {dealerId ? (
+                  <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Subscription Plan</p>
+                    {subscriptionLoading ? (
+                      <p className="text-sm text-muted-foreground">Loading plan details...</p>
+                    ) : isSuperAdmin ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>Package Name</Label>
+                          <select
+                            value={subscription.package_name}
+                            onChange={(e) => setSubscription((prev) => ({ ...prev, package_name: e.target.value }))}
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          >
+                            {SUBSCRIPTION_PACKAGES.map((pkg) => (
+                              <option key={pkg} value={pkg}>{pkg}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Billing Period</Label>
+                          <select
+                            value={subscription.billing_period}
+                            onChange={(e) => setSubscription((prev) => ({ ...prev, billing_period: e.target.value as 'monthly' | 'yearly' }))}
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          >
+                            {BILLING_PERIODS.map((period) => (
+                              <option key={period} value={period} className="capitalize">{period}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Expiry Date</Label>
+                          <Input
+                            type="date"
+                            value={subscription.expires_at}
+                            onChange={(e) => setSubscription((prev) => ({ ...prev, expires_at: e.target.value }))}
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <Button type="button" onClick={handleSaveSubscription} disabled={subscriptionSaving} className="w-full sm:w-auto">
+                            {subscriptionSaving ? 'Saving...' : 'Update Subscription'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : canRequestSubscriptionChange ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="sm:col-span-2 rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+                          <span className="font-semibold text-foreground">Current Expiry:</span> {formatExpiryDate(subscription.expires_at)}
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Requested Package</Label>
+                          <select
+                            value={subscription.package_name}
+                            onChange={(e) => setSubscription((prev) => ({ ...prev, package_name: e.target.value }))}
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          >
+                            {SUBSCRIPTION_PACKAGES.map((pkg) => (
+                              <option key={pkg} value={pkg}>{pkg}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Requested Billing Period</Label>
+                          <select
+                            value={subscription.billing_period}
+                            onChange={(e) => setSubscription((prev) => ({ ...prev, billing_period: e.target.value as 'monthly' | 'yearly' }))}
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          >
+                            {BILLING_PERIODS.map((period) => (
+                              <option key={period} value={period} className="capitalize">{period}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2 space-y-1.5">
+                          <Label>Request Note (optional)</Label>
+                          <Input
+                            value={subscriptionRequestNote}
+                            onChange={(e) => setSubscriptionRequestNote(e.target.value)}
+                            placeholder="Why this change is needed for your branch/brand"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <Button type="button" onClick={handleRequestSubscriptionChange} disabled={subscriptionSaving} className="w-full sm:w-auto">
+                            {subscriptionSaving ? 'Sending...' : 'Send Request to Super Admin'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">
+                        <p><strong className="text-foreground">Package:</strong> {subscription.package_name || 'Free Package'}</p>
+                        <p><strong className="text-foreground">Billing:</strong> {subscription.billing_period === 'yearly' ? 'Yearly' : 'Monthly'}</p>
+                        <p><strong className="text-foreground">Expiry:</strong> {formatExpiryDate(subscription.expires_at)}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </TabsContent>
