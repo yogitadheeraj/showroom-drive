@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,6 +29,7 @@ const AuthPage = () => {
   const [forgotEmail, setForgotEmail] = useState('');
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const accessToastShownRef = useRef(false);
   const { signIn, resendVerificationEmail, user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -62,7 +63,8 @@ const THEME_STORAGE_KEY = 'autoadvant-theme';
       router.replace({ pathname: router.pathname, query: nextQuery }, undefined, { shallow: true });
     }
 
-    if (reason === 'subscription-expired' || message) {
+    if ((reason === 'subscription-expired' || message) && !accessToastShownRef.current) {
+      accessToastShownRef.current = true;
       toast({
         title: 'Access blocked',
         description: message || 'Subscription expired. Please contact your Super Admin to renew access',
@@ -262,12 +264,12 @@ const THEME_STORAGE_KEY = 'autoadvant-theme';
                       ? `Sign in to your ${brand.dealerName || 'dealership'} portal`
                       : 
                       
-                      <div >
-                    <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                      <span className="block">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
                       <BadgeCheck className="h-3.5 w-3.5" />
                      Sign in to your Auto Advant portal - Secure staff access
-                    </div>
-                  </div>}
+                    </span>
+                  </span>}
                   </CardDescription>
                   
                 </CardHeader>

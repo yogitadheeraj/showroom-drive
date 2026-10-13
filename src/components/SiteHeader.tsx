@@ -32,11 +32,11 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
   };
 
   return (
-    <header className={isLanding ? 'sticky top-0 z-30 px-3 pt-2 text-foreground sm:px-5 lg:px-8' : 'sticky top-0 z-30 px-3 pt-3 text-foreground sm:px-5 lg:px-8'}>
+    <header className={isLanding ? 'sticky top-0 z-30 md:px-3 md:pt-2 pt-0 text-foreground px-0 lg:px-8' : 'sticky top-0 z-30 px-3 pt-3 text-foreground sm:px-5 lg:px-8'}>
       <div
         className={
           isLanding
-            ? 'mx-auto flex w-full max-w-[1320px] items-center justify-between gap-3 rounded-full border border-slate-200 bg-white px-5 py-3 shadow-[0_8px_26px_rgba(15,23,42,0.08)] dark:border-white/15 dark:bg-slate-900 dark:text-slate-100 sm:px-7'
+            ? 'mx-auto flex w-full max-w-[1320px] items-center justify-between gap-3 md:rounded-full rounded-0 border border-slate-200 bg-white px-5 py-3 shadow-[0_8px_26px_rgba(15,23,42,0.08)] dark:border-white/15 dark:bg-slate-900 dark:text-slate-100 sm:px-7'
             : 'mx-auto flex w-full items-center justify-between gap-3 rounded-3xl border border-white/45 bg-gradient-to-r from-slate-100/85 via-white/80 to-amber-100/75 px-4 py-3 shadow-[0_14px_36px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/10 dark:from-slate-900/85 dark:via-slate-900/80 dark:to-slate-800/75 dark:text-slate-100 sm:px-6'
         }
       >
@@ -159,26 +159,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
         </div>
       </div>
 
-      {showNav && variant === 'landing' && (
-        <div className="mx-auto mt-2 flex w-full max-w-[1320px] items-center gap-2 px-1 md:hidden">
-          <a
-            href="/pricing"
-            aria-label="Pricing"
-            title="Pricing"
-            className="inline-flex h-9 flex-1 items-center justify-center rounded-full border border-sky-400/40 bg-gradient-to-r from-sky-600 to-blue-600 px-3 text-xs font-semibold tracking-[0.1em] text-white shadow-[0_8px_20px_rgba(14,116,214,0.35)] transition hover:from-sky-500 hover:to-blue-500"
-          >
-            Pricing
-          </a>
-          <a
-            href="/dealer-onboarding"
-            aria-label="Entity Onboarding"
-            title="Entity Onboarding"
-            className="inline-flex h-9 flex-1 items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold tracking-[0.06em] text-slate-700 transition hover:bg-slate-100 dark:border-white/15 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-          >
-            Entity Onboarding
-          </a>
-        </div>
-      )}
+    
     </header>
   );
 };

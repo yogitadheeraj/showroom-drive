@@ -432,7 +432,8 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
     const aiModules = (content?.aiModules || []).map((mod: any) => ({
         icon: iconMap[mod.title] || Car,
         title: mod.title,
-        desc: mod.desc,
+        desc: (mod.desc || '').replace(/\s*-\s*Coming soon\s*$/i, ''),
+        comingSoon: /coming soon/i.test(mod.desc || ''),
     }));
 
     const features = [
@@ -796,15 +797,18 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                 ))}
                             </div>
 
-                            <div className="mt-8 flex flex-wrap gap-3">
+                            <div className="mt-8 flex flex-wrap gap-2 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3">
                                 <a href="#contact" className="rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:translate-y-[-1px]">
-                                    Book a live demo
+                                    Book a demo
                                 </a>
                                 <a href="/service-booking" className="rounded-2xl border border-oranage-400/30 bg-orange-400/10 px-6 py-3 text-sm font-semibold text-oranage-200 transition hover:bg-orange-400/15">
                                     Book a service
                                 </a>
-                                <a href={staffEntryPath} className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+                                <a href={staffEntryPath} className="rounded-2xl border border-oranage-400/30 bg-orange-400/10 px-6 py-3 text-sm font-semibold text-oranage-200 transition hover:bg-orange-400/15">
                                     Staff login
+                                </a>
+                                 <a href={'/pricing'} className="rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:translate-y-[-1px] md:hidden">
+                                    Price Plan
                                 </a>
                             </div>
 
@@ -820,7 +824,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
 
                         <div className="relative">
                             <div className="rounded-[30px] border border-white/10 bg-white/5 p-3 shadow-2xl shadow-sky-950/20 backdrop-blur-xl sm:p-4">
-                                <div className="rounded-[24px] border border-white/10 bg-slate-950/80 p-4 sm:p-5">
+                                <div className="border-0 bg-slate-950/80 p-4 sm:p-5">
                                     <div className="flex items-center justify-between border-b border-white/10 pb-4">
                                         <div>
                                             <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Operations snapshot</p>
@@ -840,7 +844,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                         <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
                                             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Test drives</p>
                                             <p className="mt-2 text-3xl font-semibold text-white">{dynamicStats.testDrivesScheduled || 0}</p>
-                                            <p className="mt-1 text-xs text-sky-300">Booked today</p>
+                                            <p className="mt-1 text-xs text-sky-300">Total scheduled</p>
                                         </div>
                                         <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
                                             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Leads</p>
@@ -1095,7 +1099,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                 </section>
 
                 {/* ── Product Screenshots ── */}
-                <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+                <section className="mx-auto hidden max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
                     <div className="text-center mb-12">
                         <p className="text-sm font-medium uppercase tracking-[0.2em] text-sky-300">Product Screenshots</p>
                         <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">See the platform in action</h2>
@@ -1221,6 +1225,11 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
                                     </div>
                                     <p className="mt-3 text-sm leading-6 text-slate-400 mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
                                         {module.desc}
+                                        {module.comingSoon && (
+                                            <span className="ml-2 inline-block rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-orange-300">
+                                                Coming soon
+                                            </span>
+                                        )}
                                     </p>
                                 </motion.div>
                             );
