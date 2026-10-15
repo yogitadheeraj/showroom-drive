@@ -1,6 +1,6 @@
 import { useAuthOptional } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
-import { Globe, LogOut, MapPin, Moon, Sun, UserRound } from 'lucide-react';
+import { Globe, LogOut, MapPin, Moon, Sun, UserRound, Phone } from 'lucide-react';
 import { navigateTo } from '@/lib/browserNavigation';
 
 interface SiteHeaderProps {
@@ -113,19 +113,14 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
               <LogOut className="h-4 w-4" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label="Toggle theme"
-            title={resolvedTheme === 'dark' ? 'Switch to light' : 'Switch to dark'}
-            className={
-              isLanding
-                ? 'inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 dark:border-white/15 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
-                : 'inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-muted text-foreground transition hover:bg-muted/70 dark:border-white/15 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10'
-            }
-          >
-            {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
+          <a
+                href="/#contact"
+                aria-label="Contact"
+                title="Contact us"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 dark:border-white/15 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+              >
+                <Phone className="h-4 w-4" />
+              </a>
           {variant === 'landing' && (
             <>
               <a
@@ -136,16 +131,7 @@ const SiteHeader = ({ showLogo=true, variant = 'landing', showNav = true, rightS
               >
                 <MapPin className="h-4 w-4" />
               </a>
-              <a
-                href="https://autoadvant.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Website"
-                title="AutoAdvant website"
-                className="hidden h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 dark:border-white/15 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 sm:inline-flex"
-              >
-                <Globe className="h-4 w-4" />
-              </a>
+            
               <a
                 href={staffEntryPath}
                 aria-label="Staff login"
