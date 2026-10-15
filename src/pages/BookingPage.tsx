@@ -1283,14 +1283,14 @@ const BookingPage = ({ hideStandaloneHeader = false }: BookingPageProps) => {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name *</Label>
-                    <Input id="fullName" value={formData.fullName} onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))} placeholder="Your full name" />
-                    {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
-                  </div>
-                  <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number *</Label>
                     <Input id="phone" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} placeholder="+91 8*********" />
                     {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+                  </div>
+                   <div className="space-y-2">
+                    <Label htmlFor="fullName">Full Names *</Label>
+                    <Input id="fullName" value={formData.fullName} onChange={e => setFormData(p => ({ ...p, fullName: e.target.value }))} placeholder="Your full name" />
+                    {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

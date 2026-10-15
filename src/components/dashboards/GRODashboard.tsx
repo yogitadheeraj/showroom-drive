@@ -7,6 +7,8 @@ import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
+import CustomerSearch360 from '@/components/CustomerSearch360';
+import SalesAvailabilityStrip from '@/components/SalesAvailabilityStrip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -272,6 +274,10 @@ const GRODashboard = () => {
 
   return (
     <div className="space-y-5 sm:space-y-6 animate-fade-in">
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <CustomerSearch360 />
+        <SalesAvailabilityStrip />
+      </div>
       <section className="rounded-3xl border border-border/60 bg-card shadow-card">
         <div className="grid gap-4 p-4 sm:p-6 xl:grid-cols-[1.45fr_0.9fr]">
           <div className="space-y-3">

@@ -6,6 +6,8 @@ import { getStorageSignedUrl, listStorageFiles, uploadToStorage } from '@/lib/st
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
+import CustomerSearch360 from '@/components/CustomerSearch360';
+import SalesAvailabilityStrip from '@/components/SalesAvailabilityStrip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1039,6 +1041,11 @@ const SalesDashboard = () => {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <CustomerSearch360 />
+        <SalesAvailabilityStrip />
       </div>
 
       <section className="rounded-3xl border border-border/60 bg-card shadow-card">

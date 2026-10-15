@@ -54,9 +54,11 @@ export async function listCustomers(filters: Record<string, unknown> = {}) {
     if (ids.length > 0) q.id = { $in: ids };
   }
   if (filters.search) {
+    const term = escapeRegex(String(filters.search).trim());
     q.$or = [
-      { full_name: { $regex: String(filters.search), $options: 'i' } },
-      { phone: { $regex: String(filters.search), $options: 'i' } },
+      { full_name: { $regex: term, $options: 'i' } },
+      { phone: { $regex: term, $options: 'i' } },
+      { email: { $regex: term, $options: 'i' } },
     ];
   }
 
