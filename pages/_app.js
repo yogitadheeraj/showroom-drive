@@ -28,14 +28,12 @@ const SHOW_HEADER_ROUTES = [
   '/',
   '/book',
   '/brands',
-  '/compare',
   '/service-booking',
   '/privacy-policy',
   '/terms-and-conditions',
   '/sitemap',
   '/contact',
   '/demo/route',
-  '/configurator',
   '/pricing',
   '/dealer-onboarding'
 ];
@@ -66,6 +64,8 @@ const HIDE_HEADER_ROUTES = [
   '/bookings',
   '/location',
   '/locations',
+  '/configurator',
+  '/compare'
 ];
 
 export default function App({ Component, pageProps }) {

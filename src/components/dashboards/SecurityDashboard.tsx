@@ -492,7 +492,7 @@ const SecurityDashboard = () => {
 
   const handleStatClick = (filter: typeof viewFilter) => {
     setViewFilter(filter);
-    setTimeout(() => drivesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    //setTimeout(() => drivesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   // Urgency colour for a drive card

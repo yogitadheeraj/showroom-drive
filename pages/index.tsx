@@ -381,7 +381,7 @@ export default function AutoAdvantLandingPage({ initialContent = null }: AutoAdv
 
     useEffect(() => {
         if (chatScrollRef.current) {
-            chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+          //  chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
         }
     }, [chatMessages, chatOpen]);
 

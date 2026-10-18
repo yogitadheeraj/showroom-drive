@@ -1014,7 +1014,7 @@ export default function CarConfiguratorExperience() {
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3 sm:px-6 lg:px-8">
+      <div className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full px-3 pb-3 sm:px-6 sm:w-3/4 lg:px-8 xl:w-1/2">
         <div className="mx-auto max-w-7xl rounded-2xl border border-border/70 bg-slate-950/95 shadow-[0_-18px_50px_rgba(15,23,42,0.28)] backdrop-blur dark:bg-slate-950/95">
           <button
             type="button"
