@@ -8,6 +8,9 @@ import {
   CalendarArrowUp,
 } from 'lucide-react';
 import { format, parse, parseISO, isValid } from 'date-fns';
+import { TestDriveDocuments } from '@/components/TestDriveDocuments';
+import { useEffect, useState } from 'react';
+import { getTestDriveStatus, getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 
 interface Props {
   testDrive: any | null;
@@ -15,6 +18,7 @@ interface Props {
   onClose: () => void;
   /** Optional role-aware action cards shown in the details panel. */
   actions?: React.ReactNode;
+  onChanged?: () => void;
   /** Optional security events for this drive (from securityEventsByDrive map) */
   securityEvents?: {
     checkInBy?: string;
@@ -25,6 +29,7 @@ interface Props {
 }
 
 const STATUS_COLOR: Record<string, string> = {
+  key_assigned: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
   scheduled:              'bg-info/10 text-info border-info/20',
   confirmed:              'bg-primary/10 text-primary border-primary/20',
   show:                   'bg-success/10 text-success border-success/20',
@@ -85,12 +90,19 @@ function Row({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-export function TestDriveDetailSheet({ testDrive: td, open, onClose, securityEvents, actions }: Props) {
+export function TestDriveDetailSheet({ testDrive, open, onClose, securityEvents, actions, onChanged }: Props) {
+  const [uploadedLicense, setUploadedLicense] = useState<{ driveId: string; path: string } | null>(null);
+  useEffect(() => {
+    if (uploadedLicense && (!open || testDrive?.id !== uploadedLicense.driveId || testDrive?.customers?.driving_license_url === uploadedLicense.path)) {
+      setUploadedLicense(null);
+    }
+  }, [open, testDrive?.id, testDrive?.customers?.driving_license_url, uploadedLicense]);
+  const td = testDrive && uploadedLicense?.driveId === testDrive.id && testDrive.customers?.driving_license_url !== uploadedLicense.path
+    ? { ...testDrive, customers: { ...testDrive.customers, driving_license_url: uploadedLicense.path, driving_license_verified: false } }
+    : testDrive;
   if (!td) return null;
 
-  const statusLabel = (td.status || '')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c: string) => c.toUpperCase());
+  const statusLabel = getTestDriveStatusLabel(td);
 
   const preKm  = td.pre_drive_km  ?? td.pre_km  ?? null;
   const postKm = td.post_drive_km ?? td.post_km ?? null;
@@ -120,14 +132,22 @@ export function TestDriveDetailSheet({ testDrive: td, open, onClose, securityEve
           </Badge>
           <Badge
             variant="outline"
-            className={`w-fit text-xs mt-1 text-primary ${STATUS_COLOR[td.status] || ''}`}
+            className={`w-fit text-xs mt-1 text-primary ${STATUS_COLOR[getTestDriveStatus(td)] || ''}`}
           >
             
             {statusLabel}
           </Badge>
+          {getTestDriveStatus(td) === 'key_assigned' && (
+            <p className="text-xs text-muted-foreground">Awaiting Security Start</p>
+          )}
         </SheetHeader>
 
         <div className="px-5 py-4 space-y-5">
+          {actions && (
+            <Section title="Available Actions" icon={CheckSquare}>
+              {actions}
+            </Section>
+          )}
 
           {/* ── Customer ── */}
           <Section title="Customer" icon={User}>
@@ -146,6 +166,10 @@ export function TestDriveDetailSheet({ testDrive: td, open, onClose, securityEve
                 <Badge variant="outline" className="text-[10px] text-destructive">Not Uploaded</Badge>
               )}
             </div>
+          </Section>
+
+          <Section title="Documents" icon={FileCheck}>
+            {open && <TestDriveDocuments drive={td} onLicenseUploaded={(path) => setUploadedLicense({ driveId: td.id, path })} onChanged={onChanged} />}
           </Section>
 
           {/* ── Vehicle ── */}
@@ -242,13 +266,6 @@ export function TestDriveDetailSheet({ testDrive: td, open, onClose, securityEve
             </Section>
           )}
 
-          {/* ── Actions ── */}
-          {actions && (
-            <div className="border-t border-border pt-4">
-              <p className="mb-2 text-sm font-semibold text-foreground">Actions</p>
-              {actions}
-            </div>
-          )}
         </div>
       </SheetContent>
     </Sheet>

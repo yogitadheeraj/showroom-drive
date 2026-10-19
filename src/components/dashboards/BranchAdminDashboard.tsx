@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getTestDriveStatus, getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { useAuth } from '@/hooks/useAuth';
@@ -34,6 +35,7 @@ const STATUS_COLOR: Record<string, string> = {
   no_show: 'bg-warning/10 text-warning border-warning/20',
   in_progress: 'bg-purple-100 text-purple-700 border-purple-200',
   key_handover_to_sales: 'bg-warning/10 text-warning border-warning/20',
+  key_assigned: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
   completed: 'bg-success/10 text-success border-success/20',
   cancelled: 'bg-destructive/10 text-destructive border-destructive/20',
   rescheduled: 'bg-muted text-muted-foreground border-border',
@@ -108,7 +110,7 @@ const BranchAdminDashboard = () => {
 
   const fetchDrives = async () => {
     const drives = await apiGet<any[]>(`/api/test-drives?location_id=${locationId}&limit=300`);
-    setAllDrives(drives || []);
+    setAllDrives((drives || []).map((drive) => ({ ...drive, status: getTestDriveStatus(drive) })));
   };
 
   const fetchServiceBookingCount = async () => {
@@ -179,7 +181,7 @@ const BranchAdminDashboard = () => {
 
   const completedDrives = allDrives.filter(d => d.status === 'completed');
   const activeDrives = allDrives.filter(d =>
-    ['scheduled', 'confirmed', 'show', 'in_progress', 'key_handover_to_sales'].includes(d.status)
+    ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress', 'key_handover_to_sales'].includes(d.status)
   );
 
   const isDriveInInsightWindow = (drive: any) => {
@@ -225,7 +227,7 @@ const BranchAdminDashboard = () => {
     });
 
     const completed = memberDrives.filter(d => d.status === 'completed').length;
-    const active = memberDrives.filter(d => ['scheduled', 'confirmed', 'show', 'in_progress', 'key_handover_to_sales'].includes(d.status)).length;
+    const active = memberDrives.filter(d => ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress', 'key_handover_to_sales'].includes(d.status)).length;
     const noShow = memberDrives.filter(d => d.status === 'no_show').length;
     const cancelled = memberDrives.filter(d => d.status === 'cancelled').length;
     const rescheduled = memberDrives.filter(d => d.status === 'rescheduled').length;
@@ -292,7 +294,7 @@ const BranchAdminDashboard = () => {
       ...s,
       total: myDrives.length,
       completed: myDrives.filter(d => d.status === 'completed').length,
-      active: myDrives.filter(d => ['scheduled', 'confirmed', 'show', 'in_progress', 'key_handover_to_sales'].includes(d.status)).length,
+      active: myDrives.filter(d => ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress', 'key_handover_to_sales'].includes(d.status)).length,
       drives: myDrives,
     };
   });
@@ -304,7 +306,7 @@ const BranchAdminDashboard = () => {
       ...g,
       total: myDrives.length,
       completed: myDrives.filter(d => d.status === 'completed').length,
-      active: myDrives.filter(d => ['scheduled', 'confirmed', 'show', 'in_progress'].includes(d.status)).length,
+      active: myDrives.filter(d => ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'].includes(d.status)).length,
       drives: myDrives,
     };
   });
@@ -428,6 +430,7 @@ const BranchAdminDashboard = () => {
           scheduled: allDrives.filter((d) => d.status === 'scheduled').length,
           confirmed: allDrives.filter((d) => d.status === 'confirmed').length,
           show: allDrives.filter((d) => d.status === 'show').length,
+          key_assigned: allDrives.filter((d) => d.status === 'key_assigned').length,
           no_show: allDrives.filter((d) => d.status === 'no_show').length,
           completed: allDrives.filter((d) => d.status === 'completed').length,
           cancelled: allDrives.filter((d) => d.status === 'cancelled').length,
@@ -788,7 +791,7 @@ const BranchAdminDashboard = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
-                      {['scheduled', 'confirmed', 'show', 'no_show', 'in_progress', 'key_handover_to_sales', 'completed', 'cancelled', 'rescheduled'].map(s => (
+                      {['scheduled', 'confirmed', 'show', 'key_assigned', 'no_show', 'in_progress', 'key_handover_to_sales', 'completed', 'cancelled', 'rescheduled'].map(s => (
                         <SelectItem key={s} value={s}>{formatStatus(s)}</SelectItem>
                       ))}
                     </SelectContent>
@@ -921,7 +924,7 @@ const DriveRow = ({ drive, showAssigned, onViewDetails }: DriveRowProps) => (
       </div>
     </div>
     <Badge className={`text-xs shrink-0 border ${STATUS_COLOR[drive.status] || 'bg-muted text-muted-foreground'}`}>
-      {formatStatus(drive.status)}
+      {getTestDriveStatusLabel(drive)}
     </Badge>
   </div>
 );

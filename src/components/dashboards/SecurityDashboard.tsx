@@ -17,6 +17,7 @@ import {
 import VehicleInspectionDialog from './VehicleInspectionDialog';
 import { logStaffActivity } from '@/lib/activityLogger';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import { getTestDriveStatus, getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import IncomingVehiclesPanel from '@/components/IncomingVehiclesPanel';
 import { navigateTo } from '@/lib/browserNavigation';
@@ -60,11 +61,13 @@ const SecurityDashboard = () => {
   const todayDate = toLocalDateKey(new Date());
   const isTodaySelected = selectedDate === todayDate;
   const isTodayDrive = (drive: { scheduled_date?: string | null } | null | undefined) => drive?.scheduled_date === todayDate;
-  const requireTodayDrive = (drive: { scheduled_date?: string | null } | null | undefined) => {
-    if (isTodayDrive(drive)) return true;
+  const canManageDrive = (drive: { scheduled_date?: string | null; status?: string } | null | undefined) =>
+    isTodayDrive(drive) && ['scheduled', 'confirmed', 'rescheduled', 'show', 'key_assigned', 'in_progress', 'key_handover_to_sales'].includes(drive?.status || '');
+  const requireTodayDrive = (drive: { scheduled_date?: string | null; status?: string } | null | undefined) => {
+    if (canManageDrive(drive)) return true;
     toast({
       title: 'Action unavailable',
-      description: 'Security actions can only be performed on test drives scheduled for today.',
+      description: 'Security actions require an active booking scheduled for today.',
       variant: 'destructive',
     });
     return false;
@@ -100,7 +103,7 @@ const SecurityDashboard = () => {
     const params = new URLSearchParams();
     if (profile?.location_id) params.set('location_id', profile.location_id);
     const enrichedDrives = await apiGet<any[]>(`/api/test-drives?${params.toString()}`) || [];
-    setTestDrives(enrichedDrives);
+    setTestDrives(enrichedDrives.map((drive) => ({ ...drive, status: getTestDriveStatus(drive) })));
 
     if (profile?.location_id) {
       const vehicles = await apiGet<any[]>(`/api/vehicles?location_id=${encodeURIComponent(profile.location_id)}`).catch(() => [] as any[]);
@@ -584,6 +587,29 @@ const SecurityDashboard = () => {
     return 'neutral';
   };
 
+  const currentDetailDrive = testDrives.find((drive) => drive.id === detailSheetDrive?.id) || detailSheetDrive;
+  const renderDriveActions = (drive: any) => {
+    if (!isTodayDrive(drive)) return <Badge variant="outline">View only - actions available on the scheduled day</Badge>;
+    if (!['scheduled', 'confirmed', 'rescheduled', 'show', 'key_assigned', 'in_progress', 'key_handover_to_sales'].includes(drive.status)) {
+      return <Badge variant="outline">View only - booking is no longer active</Badge>;
+    }
+    return (
+      <div className="flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
+        {!drive.security_checked_in_at ? (
+          !drive.key_handed_at ? <Badge variant="outline">Awaiting Key</Badge>
+            : !drive.customers?.driving_license_verified ? <Badge variant="outline">Verify License First</Badge>
+              : !drive.pre_drive_km || !drive.pre_drive_fuel_level ? (
+                <Button size="sm" onClick={() => { setPendingStartDriveId(drive.id); openInspection(drive, 'pre'); }}>Pre-Drive &amp; Start</Button>
+              ) : <Button size="sm" onClick={() => void checkIn(drive.id)}>Start In Progress</Button>
+        ) : !drive.security_checked_out_at ? (
+          drive.key_handed_at
+            ? <Button size="sm" onClick={() => void checkOut(drive.id)}>Return &amp; Handover</Button>
+            : <Badge variant="outline">Awaiting Vehicle</Badge>
+        ) : <Badge variant="outline">Checked Out</Badge>}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5">
       {/* ── Page header ── */}
@@ -740,7 +766,7 @@ const SecurityDashboard = () => {
                         : 'bg-muted text-muted-foreground'
                       }`}
                     >
-                      {formatStatusLabel(testDrive.status)}
+                      {getTestDriveStatusLabel(testDrive)}
                     </Badge>
                     {urgency === 'critical' && <span className="text-[9px] font-bold text-destructive uppercase tracking-wide">Overdue</span>}
                   </div>
@@ -754,34 +780,7 @@ const SecurityDashboard = () => {
 
                 {/* Actions */}
                 <div className="flex gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
-                  {isTodayDrive(testDrive) ? !testDrive.security_checked_in_at ? (
-                    !testDrive.key_handed_at ? (
-                      <Badge className="bg-muted text-muted-foreground text-xs">Awaiting Key</Badge>
-                    ) : !testDrive.customers?.driving_license_verified ? (
-                      <Badge className="bg-warning/10 text-warning text-xs">Verify License First</Badge>
-                    ) : !(testDrive as any).pre_drive_km || !(testDrive as any).pre_drive_fuel_level ? (
-                      <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => { setPendingStartDriveId(testDrive.id); openInspection(testDrive, 'pre'); }}>
-                        <ClipboardCheck className="h-3.5 w-3.5 mr-1" /> Pre-Drive & Start
-                      </Button>
-                    ) : (
-                      <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => void checkIn(testDrive.id)}>
-                        <CheckCircle className="h-3.5 w-3.5 mr-1" /> Start In Progress
-                      </Button>
-                    )
-                  ) : !testDrive.security_checked_out_at ? (
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-success/10 text-success text-xs">In Progress</Badge>
-                      {testDrive.key_handed_at ? (
-                        <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => void checkOut(testDrive.id)}>
-                          <XCircle className="h-3.5 w-3.5 mr-1" /> Return & Handover
-                        </Button>
-                      ) : (
-                        <Badge className="bg-warning/10 text-warning text-xs">Awaiting Vehicle</Badge>
-                      )}
-                    </div>
-                  ) : (
-                    <Badge className="bg-muted text-muted-foreground text-xs">Checked Out</Badge>
-                  ) : <Badge variant="outline" className="text-xs">View only · actions available on the scheduled day</Badge>}
+                  {renderDriveActions(testDrive)}
                 </div>
 
                 {/* License */}
@@ -801,10 +800,10 @@ const SecurityDashboard = () => {
                       ) : (
                         <>
                           <Badge className="bg-warning/10 text-warning text-xs">Verify Pending</Badge>
-                          {isTodayDrive(testDrive) && <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" disabled={reuploadingId === testDrive.customer_id} onClick={() => void openLicensePreview(testDrive.customer_id, testDrive.customers.driving_license_url, testDrive.id)}>
+                          {canManageDrive(testDrive) && <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" disabled={reuploadingId === testDrive.customer_id} onClick={() => void openLicensePreview(testDrive.customer_id, testDrive.customers.driving_license_url, testDrive.id)}>
                             <FileCheck className="h-3 w-3 mr-1" /> Verify
                           </Button>}
-                          {isTodayDrive(testDrive) && <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs" disabled={reuploadingId === testDrive.customer_id} onClick={() => openRejectDialog(testDrive.customer_id, testDrive.id)}>
+                          {canManageDrive(testDrive) && <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs" disabled={reuploadingId === testDrive.customer_id} onClick={() => openRejectDialog(testDrive.customer_id, testDrive.id)}>
                             <XCircle className="h-3 w-3 mr-1" /> Reject
                           </Button>}
                         </>
@@ -812,12 +811,12 @@ const SecurityDashboard = () => {
                     ) : (
                       <>
                         <Badge className="bg-destructive/10 text-destructive text-xs">No License</Badge>
-                        {isTodayDrive(testDrive) && <Label htmlFor={`reupload-sec-${testDrive.customer_id}`} className="cursor-pointer">
+                        {canManageDrive(testDrive) && <Label htmlFor={`reupload-sec-${testDrive.customer_id}`} className="cursor-pointer">
                           <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" asChild>
                             <span><Upload className="h-3 w-3 mr-1" /> Upload</span>
                           </Button>
                         </Label>}
-                        {isTodayDrive(testDrive) && <input id={`reupload-sec-${testDrive.customer_id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={reuploadingId === testDrive.customer_id}
+                        {canManageDrive(testDrive) && <input id={`reupload-sec-${testDrive.customer_id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={reuploadingId === testDrive.customer_id}
                           onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleReuploadLicense(testDrive.customer_id, file, testDrive.id); }} />}
                       </>
                     )}
@@ -830,7 +829,7 @@ const SecurityDashboard = () => {
                   {(testDrive as any).post_drive_km && <Badge className="bg-success/10 text-success text-xs hover:bg-success/20">Post: {(testDrive as any).post_drive_km} km</Badge>}
                  
                   {(testDrive as any).inspection_submitted_at && <Badge className="bg-muted text-muted-foreground text-xs">Complete</Badge>}
-                  {((testDrive as any).pre_drive_km || (testDrive as any).post_drive_km) && (
+                  {(testDrive.pre_drive_km != null || testDrive.post_drive_km != null || testDrive.pre_drive_scratches?.trim() || testDrive.post_drive_scratches?.trim() || testDrive.pre_drive_notes?.trim() || testDrive.post_drive_notes?.trim()) && (
                     <Button size="sm" className="bg-muted text-foreground hover:bg-muted/80 text-xs" onClick={() => setInspectionViewDrive(testDrive)}>
                       <Eye className="h-3 w-3 mr-1" /> Details
                     </Button>
@@ -839,7 +838,7 @@ const SecurityDashboard = () => {
 
                 {/* Upload doc */}
                 <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-border" onClick={e => e.stopPropagation()}>
-                 {isTodayDrive(testDrive) && !(testDrive as any).inspection_submitted_at && (testDrive as any).key_handed_at && (
+                 {canManageDrive(testDrive) && (
                     <Label htmlFor={`doc-upload-${testDrive.id}`} className="cursor-pointer ml-auto">
                     <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 text-xs" asChild>
                       <span><Upload className="h-3 w-3 mr-1" /> Doc</span>
@@ -861,7 +860,7 @@ const SecurityDashboard = () => {
                           <button className="text-primary hover:underline" onClick={() => void viewDocument(testDrive.id, doc.name)}>
                             {doc.name.split('/').pop()?.substring(0, 18)}…
                           </button>
-                          {isTodayDrive(testDrive) && <button className="text-destructive hover:text-destructive/80 ml-1" onClick={() => void handleDeleteDocument(testDrive.id, doc.name)}>
+                          {canManageDrive(testDrive) && <button className="text-destructive hover:text-destructive/80 ml-1" onClick={() => void handleDeleteDocument(testDrive.id, doc.name)}>
                             <Trash2 className="h-3 w-3" />
                           </button>}
                         </div>
@@ -880,10 +879,24 @@ const SecurityDashboard = () => {
 
       {/* Test Drive Detail Sheet */}
       <TestDriveDetailSheet
-        testDrive={detailSheetDrive}
+        testDrive={currentDetailDrive}
         open={!!detailSheetDrive}
         onClose={() => setDetailSheetDrive(null)}
         securityEvents={detailSheetDrive ? { logs: securityLogsByDrive[detailSheetDrive.id] } : undefined}
+        onChanged={() => void fetchDrives()}
+        actions={currentDetailDrive && (
+          <div className="space-y-2">
+            {renderDriveActions(currentDetailDrive)}
+            {canManageDrive(currentDetailDrive) &&
+              currentDetailDrive.customers?.driving_license_url && !currentDetailDrive.customers?.driving_license_verified && (
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => void openLicensePreview(currentDetailDrive.customer_id, currentDetailDrive.customers.driving_license_url, currentDetailDrive.id)}>Verify License</Button>
+                <Button size="sm" variant="destructive" onClick={() => openRejectDialog(currentDetailDrive.customer_id, currentDetailDrive.id)}>Reject License</Button>
+              </div>
+            )}
+            <Button size="sm" variant="outline" onClick={() => setInspectionViewDrive(currentDetailDrive)}>View Inspection</Button>
+          </div>
+        )}
       />
           <Card className="flex gap-2 bg-transparent border-0 p-0">
           {/* ── Smart action queue ── */}
@@ -978,7 +991,7 @@ const SecurityDashboard = () => {
             ) : <p className="text-muted-foreground">Loading preview...</p>}
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={!testDrives.some((drive) => drive.id === pendingVerifyDriveId && isTodayDrive(drive))} onClick={() => {
+            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={!testDrives.some((drive) => drive.id === pendingVerifyDriveId && canManageDrive(drive))} onClick={() => {
               setPreviewOpen(false);
               if (pendingVerifyId && pendingVerifyDriveId) openRejectDialog(pendingVerifyId, pendingVerifyDriveId);
             }}>
@@ -989,7 +1002,7 @@ const SecurityDashboard = () => {
               setPendingVerifyId(null);
               setPendingVerifyDriveId(null);
             }}>Cancel</Button>
-            <Button className="bg-success text-success-foreground hover:bg-success/90" disabled={!testDrives.some((drive) => drive.id === pendingVerifyDriveId && isTodayDrive(drive))} onClick={() => void confirmVerify()}>
+            <Button className="bg-success text-success-foreground hover:bg-success/90" disabled={!testDrives.some((drive) => drive.id === pendingVerifyDriveId && canManageDrive(drive))} onClick={() => void confirmVerify()}>
               <CheckCircle className="h-4 w-4 mr-1" /> Verify
             </Button>
           </DialogFooter>
@@ -1010,7 +1023,7 @@ const SecurityDashboard = () => {
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => setRejectOpen(false)}>Cancel</Button>
-            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={!testDrives.some((drive) => drive.id === pendingRejectDriveId && isTodayDrive(drive))} onClick={() => void confirmReject()}>
+            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={!testDrives.some((drive) => drive.id === pendingRejectDriveId && canManageDrive(drive))} onClick={() => void confirmReject()}>
               <XCircle className="h-4 w-4 mr-1" /> Confirm Rejection
             </Button>
           </DialogFooter>
@@ -1052,20 +1065,22 @@ const SecurityDashboard = () => {
       </Card>
 
       <Dialog open={!!inspectionViewDrive} onOpenChange={() => setInspectionViewDrive(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary" />Inspection Report</DialogTitle>
             <DialogDescription>{inspectionViewDrive?.vehicles?.brand} {inspectionViewDrive?.vehicles?.model} — {inspectionViewDrive?.vehicles?.registration_number}</DialogDescription>
           </DialogHeader>
           {inspectionViewDrive && (
             <div className="space-y-4">
-              {(inspectionViewDrive as any).pre_drive_km && (
+              {(inspectionViewDrive.pre_drive_km != null || inspectionViewDrive.pre_drive_scratches?.trim() || inspectionViewDrive.pre_drive_notes?.trim()) && (
                 <div className="rounded-lg border border-border p-3 sm:p-4 space-y-2">
                   <h4 className="font-medium text-foreground flex items-center gap-2 text-sm"><span className="h-2 w-2 rounded-full bg-primary" /> Pre-Drive</h4>
                   <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
-                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_km} km</span></div>
+                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{inspectionViewDrive.pre_drive_km != null ? `${inspectionViewDrive.pre_drive_km} km` : 'N/A'}</span></div>
                     <div><span className="text-muted-foreground">Fuel:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_fuel_level || 'N/A'}</span></div>
                   </div>
+                  {inspectionViewDrive.pre_drive_scratches?.trim() && <div className="text-sm whitespace-pre-wrap break-words"><span className="text-muted-foreground">Scratches / Damage:</span> {inspectionViewDrive.pre_drive_scratches}</div>}
+                  {inspectionViewDrive.pre_drive_notes?.trim() && <div className="text-sm whitespace-pre-wrap break-words"><span className="text-muted-foreground">Additional Notes:</span> {inspectionViewDrive.pre_drive_notes}</div>}
                   {getInspectionMedia(inspectionViewDrive.id, 'pre').length > 0 && (
                     <div className="space-y-1 pt-1">
                       <p className="text-xs text-muted-foreground">Media</p>
@@ -1080,13 +1095,15 @@ const SecurityDashboard = () => {
                   )}
                 </div>
               )}
-              {(inspectionViewDrive as any).post_drive_km && (
+              {(inspectionViewDrive.post_drive_km != null || inspectionViewDrive.post_drive_scratches?.trim() || inspectionViewDrive.post_drive_notes?.trim()) && (
                 <div className="rounded-lg border border-border p-3 sm:p-4 space-y-2">
                   <h4 className="font-medium text-foreground flex items-center gap-2 text-sm"><span className="h-2 w-2 rounded-full bg-success" /> Post-Drive</h4>
                   <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
-                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_km} km</span></div>
+                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{inspectionViewDrive.post_drive_km != null ? `${inspectionViewDrive.post_drive_km} km` : 'N/A'}</span></div>
                     <div><span className="text-muted-foreground">Fuel:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_fuel_level || 'N/A'}</span></div>
                   </div>
+                  {inspectionViewDrive.post_drive_scratches?.trim() && <div className="text-sm whitespace-pre-wrap break-words"><span className="text-muted-foreground">Scratches / Damage:</span> {inspectionViewDrive.post_drive_scratches}</div>}
+                  {inspectionViewDrive.post_drive_notes?.trim() && <div className="text-sm whitespace-pre-wrap break-words"><span className="text-muted-foreground">Additional Notes:</span> {inspectionViewDrive.post_drive_notes}</div>}
                   {getInspectionMedia(inspectionViewDrive.id, 'post').length > 0 && (
                     <div className="space-y-1 pt-1">
                       <p className="text-xs text-muted-foreground">Media</p>
@@ -1101,7 +1118,7 @@ const SecurityDashboard = () => {
                   )}
                 </div>
               )}
-              {(inspectionViewDrive as any).pre_drive_km && (inspectionViewDrive as any).post_drive_km && (
+              {inspectionViewDrive.pre_drive_km != null && inspectionViewDrive.post_drive_km != null && (
                 <div className="rounded-lg bg-muted p-3 text-sm">
                   <p className="font-medium text-foreground">Distance: {((inspectionViewDrive as any).post_drive_km - (inspectionViewDrive as any).pre_drive_km).toFixed(1)} km</p>
                 </div>

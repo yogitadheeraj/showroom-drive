@@ -210,7 +210,7 @@ async function hasSlotConflict(vehicleId: string, date: string, startMinutes: nu
   const drives = await TestDrive.find({
     vehicle_id: vehicleId,
     scheduled_date: date,
-    status: { $in: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+    status: { $in: ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'] },
   }, { scheduled_time: 1, slot_duration_minutes: 1 }).lean();
 
   for (const d of drives) {

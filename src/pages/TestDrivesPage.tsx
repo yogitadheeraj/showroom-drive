@@ -12,13 +12,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,6 +23,7 @@ import WalkinDialog from '@/components/WalkinDialog';
 import useBrowserSearchParams from '@/hooks/useBrowserSearchParams';
 import { getAvailableTimeSlots } from '@/lib/slotAvailability';
 import VehicleImage from '@/components/common/VehicleImage';
+import { getTestDriveStatus, getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 
 type DurationBadge = 'Lightning Fast' | 'Smooth Experience' | 'Detailed Guidance' | 'Premium Attention';
 
@@ -103,9 +97,8 @@ const TestDrivesPage = () => {
 
   // Real-time: auto-refresh + toast when any test drive status changes at this location
   useTestDriveRealtime(profile?.location_id, (event) => {
-    const [testDriveId] = Object.keys(event);
-    const eventData = event[testDriveId];
-    const statusLabel = eventData.status.replace(/_/g, ' ');
+    const testDriveId = event.test_drive_id;
+    const statusLabel = event.status.replace(/_/g, ' ');
       toast({
       title: 'Test Drive Updated',
       description: `Test Drive Id : - ${testDriveId} is now "${statusLabel}"`,
@@ -141,12 +134,16 @@ const TestDrivesPage = () => {
       params.set('customer_id', customerFilter);
     }
 
-    if (activeFilter !== 'all' && activeFilter !== 'active' && activeFilter !== 'pending_license') {
+    if (activeFilter === 'key_assigned') {
+      params.set('statuses', 'key_assigned,scheduled,confirmed,rescheduled,show');
+    } else if (activeFilter !== 'all' && activeFilter !== 'active' && activeFilter !== 'pending_license') {
       params.set('status', activeFilter);
     }
 
     const drives = await apiGet<any[]>(`/api/test-drives?${params}`);
-    setTestDrives(applyStatusFilter(drives || [], activeFilter));
+    const stageDrives = (drives || []).map((drive) => ({ ...drive, status: getTestDriveStatus(drive) }));
+    setTestDrives(applyStatusFilter(stageDrives, activeFilter));
+    setDetailSheetDrive((current: any) => current ? stageDrives.find((drive) => drive.id === current.id) || current : null);
   };
 
   // Group drives by assigned sales person (for Branch Admin)
@@ -409,13 +406,13 @@ const TestDrivesPage = () => {
   const handleAssignKey = async (id: string) => {
     setAssigningKey(id);
     try {
-      await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { key_handed_at: new Date().toISOString(), status: 'in_progress' });
-      toast({ title: 'Key assigned', description: 'Test drive is now in progress.' });
+      await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { key_handed_at: new Date().toISOString(), status: 'key_assigned' });
+      toast({ title: 'Key assigned', description: 'Awaiting Security inspection and start.' });
       if (profile?.user_id) {
         void logStaffActivity({
           userId: profile.user_id, profileId: profile.id, locationId: profile.location_id, role: role as any,
           eventType: 'test_drive_key_assigned',
-          label: 'Assigned key and started test drive',
+          label: 'Assigned key; awaiting Security start',
           route: '/test-drives',
           metadata: { testDriveId: id },
         });
@@ -429,6 +426,15 @@ const TestDrivesPage = () => {
   const handleSecurityCheckIn = async (id: string, locationId?: string) => {
     setSecurityActionId(id);
     try {
+      const drive = await apiGet<any>(`/api/test-drives/${encodeURIComponent(id)}`);
+      if (!drive?.key_handed_at || !drive?.customers?.driving_license_verified || !drive?.pre_drive_km || !drive?.pre_drive_fuel_level) {
+        toast({
+          title: 'Not ready to start',
+          description: 'Assign the key, verify the license, and complete pre-drive inspection on the Security dashboard first.',
+          variant: 'destructive',
+        });
+        return;
+      }
       // Determine which security person to assign
       let securityPersonId: string | null = null;
       if (role === APP_ROLE.SECURITY && profile?.id) {
@@ -497,41 +503,6 @@ const TestDrivesPage = () => {
     setFollowUpTaskDueAt('');
   };
 
-  const getNextStepAction = (td: any) => {
-    const salesRoles = [APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[];
-    const adminRoles = [APP_ROLE.GRO, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[];
-
-    if (td.status === 'cancelled') {
-      return { label: 'New Test Drive', onClick: () => setRebookDrive(td), className: 'bg-primary text-primary-foreground hover:bg-primary/90' };
-    }
-
-    if (td.status === 'key_handover_to_sales' && salesRoles.includes(role ?? '')) {
-      return { label: 'Key Handover', onClick: () => handleKeyHandoverComplete(td), className: 'bg-success text-success-foreground hover:bg-success/90' };
-    }
-
-    if ((td.status === 'show' || td.status === 'scheduled' || td.status === 'rescheduled') && !td.key_handed_at && td.customers?.driving_license_verified && salesRoles.includes(role ?? '') && td.status !== 'key_handover_to_sales') {
-      return { label: 'Assign Key', onClick: () => handleAssignKey(td.id), className: 'bg-primary text-primary-foreground hover:bg-primary/90', disabled: assigningKey === td.id };
-    }
-
-    if (td.status === 'scheduled' && adminRoles.includes(role ?? '') && !td.key_handed_at) {
-      return { label: 'Confirm', onClick: () => updateStatus(td.id, 'confirmed'), className: 'bg-primary text-primary-foreground hover:bg-primary/90' };
-    }
-
-    if (['scheduled', 'confirmed', 'show', 'rescheduled'].includes(td.status) && adminRoles.includes(role ?? '')) {
-      return { label: 'Mark Show', onClick: () => updateStatus(td.id, 'show'), className: 'bg-success text-success-foreground hover:bg-success/90' };
-    }
-
-    if (canCreateOpportunity && ['completed', 'key_handover_to_sales'].includes(td.status) && td.scheduled_date && new Date(td.scheduled_date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)) {
-      return {
-        label: 'Create Lead',
-        onClick: () => { setLeadDialogDrive(td); setLeadTemperature('cold'); setFollowUpTaskTitle(''); setFollowUpTaskDueAt(''); },
-        className: 'bg-warning text-warning-foreground hover:bg-warning/90',
-      };
-    }
-
-    return null;
-  };
-
   const getAvailableActions = (td: any) => {
     const salesRoles = [APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[];
     const adminRoles = [APP_ROLE.GRO, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[];
@@ -561,20 +532,20 @@ const TestDrivesPage = () => {
       });
     }
     if (
-      ['show', 'scheduled', 'rescheduled'].includes(td.status) &&
+      ['scheduled', 'confirmed', 'show', 'rescheduled'].includes(td.status) &&
       !td.key_handed_at &&
       td.customers?.driving_license_verified &&
       salesRoles.includes(role ?? '')
     ) {
       actions.push({
         label: 'Assign Key',
-        description: 'Hand over the key and start the test drive.',
+        description: 'Assign the key. Security will inspect and start the drive.',
         icon: Key,
         onClick: () => handleAssignKey(td.id),
         disabled: assigningKey === td.id,
       });
     }
-    if (td.status === 'scheduled' && adminRoles.includes(role ?? '') && !td.key_handed_at) {
+    if (['scheduled', 'rescheduled'].includes(td.status) && adminRoles.includes(role ?? '') && !td.key_handed_at) {
       actions.push({
         label: 'Confirm',
         description: 'Confirm this scheduled test drive.',
@@ -585,7 +556,7 @@ const TestDrivesPage = () => {
     const canManageSecurityCheck = role === APP_ROLE.SECURITY || adminRoles.includes(role ?? '');
     if (
       canManageSecurityCheck &&
-      ['show', 'in_progress'].includes(td.status) &&
+      ['show', 'key_assigned', 'in_progress'].includes(td.status) &&
       !td.security_checked_in_at
     ) {
       actions.push({
@@ -621,7 +592,7 @@ const TestDrivesPage = () => {
         onClick: () => updateStatus(td.id, 'show'),
       });
     }
-    if (reschedulableStatuses.includes(td.status)) {
+    if (role !== APP_ROLE.SECURITY && reschedulableStatuses.includes(td.status)) {
       actions.push({
         label: 'Reschedule',
         description: 'Choose a new appointment date and time.',
@@ -629,7 +600,7 @@ const TestDrivesPage = () => {
         onClick: () => setRescheduleId(td.id),
       });
     }
-    if (showStatuses.includes(td.status)) {
+    if (role !== APP_ROLE.SECURITY && showStatuses.includes(td.status)) {
       actions.push({
         label: 'No Show',
         description: 'Record that the customer did not arrive.',
@@ -655,7 +626,7 @@ const TestDrivesPage = () => {
         },
       });
     }
-    if (['scheduled', 'confirmed', 'rescheduled'].includes(td.status)) {
+    if (role !== APP_ROLE.SECURITY && ['scheduled', 'confirmed', 'rescheduled'].includes(td.status)) {
       actions.push({
         label: 'Cancel',
         description: 'Cancel this test-drive appointment.',
@@ -665,10 +636,30 @@ const TestDrivesPage = () => {
       });
     }
 
-    return actions;
+    return role === APP_ROLE.SECURITY && td.scheduled_date !== new Date().toLocaleDateString('en-CA')
+      ? actions.filter((action) => action.label === 'Journey')
+      : actions;
   };
 
+  const renderAvailableActions = (td: any) => (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" onClick={(event) => event.stopPropagation()}>
+      {getAvailableActions(td).map(({ label, description, icon: Icon, onClick, disabled, destructive }) => (
+        <button key={label} type="button" onClick={onClick} disabled={disabled}
+          className={`flex min-h-16 items-start gap-3 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${
+            destructive ? 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10' : 'border-border bg-card hover:border-primary/40 hover:bg-muted/50'
+          }`}>
+          <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${destructive ? 'text-destructive' : 'text-primary'}`} />
+          <span className="min-w-0">
+            <span className={`block text-sm font-medium ${destructive ? 'text-destructive' : 'text-foreground'}`}>{label}</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+
   const statusColor: Record<string, string> = {
+    key_assigned: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
     scheduled: 'bg-info/10 text-info border-info/20',
     confirmed: 'bg-primary/10 text-primary border-primary/20',
     show: 'bg-success/10 text-success border-success/20',
@@ -715,6 +706,7 @@ const TestDrivesPage = () => {
   const MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
   const statusCalColor: Record<string, string> = {
+    key_assigned: 'bg-amber-500 text-white',
     scheduled: 'bg-blue-500 text-white',
     confirmed: 'bg-indigo-500 text-white',
     show: 'bg-emerald-500 text-white',
@@ -726,6 +718,7 @@ const TestDrivesPage = () => {
   };
 
   const statusDotColor: Record<string, string> = {
+    key_assigned: 'bg-amber-500',
     scheduled: 'bg-blue-500',
     confirmed: 'bg-indigo-500',
     show: 'bg-emerald-500',
@@ -865,6 +858,7 @@ const TestDrivesPage = () => {
               <SelectItem value="scheduled">Scheduled</SelectItem>
               <SelectItem value="confirmed">Confirmed</SelectItem>
               <SelectItem value="show">Show</SelectItem>
+              <SelectItem value="key_assigned">Key Assigned</SelectItem>
               <SelectItem value="no_show">No Show</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
@@ -1180,7 +1174,7 @@ const TestDrivesPage = () => {
                             </p>
                           </div>
                           <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium capitalize shrink-0 ${statusCalColor[td.status] ?? 'bg-slate-400 text-white'}`}>
-                            {td.status.replace(/_/g, ' ')}
+                            {getTestDriveStatusLabel(td)}
                           </span>
                         </button>
                       ))}
@@ -1220,15 +1214,6 @@ const TestDrivesPage = () => {
                         <div className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-primary" />{calendarSelectedDrive.scheduled_date} at {(calendarSelectedDrive.scheduled_time || '').substring(0, 5)}</div>
                         <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3 text-primary" />{calendarSelectedDrive.locations?.name}</div>
                       </div>
-                      {(() => {
-                        const quickAction = getNextStepAction(calendarSelectedDrive);
-                        if (!quickAction) return null;
-                        return (
-                          <Button size="sm" className={`${quickAction.className} w-full text-[11px] h-7`} onClick={quickAction.onClick} disabled={quickAction.disabled}>
-                            {quickAction.label}
-                          </Button>
-                        );
-                      })()}
                       <div className="flex gap-2">
                         <Button size="sm" className="flex-1 text-[11px] h-7" onClick={() => { setDetailSheetDrive(calendarSelectedDrive); setCalendarSelectedDrive(null); }}>
                           Full Details
@@ -1280,7 +1265,7 @@ const TestDrivesPage = () => {
                         )}
                       </div>
                       <Badge variant="secondary" className={`text-[10px] shrink-0 ${statusColor[td.status]}`}>
-                        {td.status.replace(/_/g, ' ')}
+                        {getTestDriveStatusLabel(td)}
                       </Badge>
                     </div>
 
@@ -1357,77 +1342,10 @@ const TestDrivesPage = () => {
                       </div>
                     )}
 
-                    {/* ── Actions ── */}
-                    <div className="flex items-center gap-1.5 pt-2 border-t border-border" onClick={e => e.stopPropagation()}>
-                      {/* Always-visible: Journey */}
-                      <Button size="sm" variant="outline" className="text-xs border-primary/40 text-primary hover:bg-primary/10" onClick={() => setJourneyDrive(td)}>
-                        <Route className="h-3 w-3 mr-1" /> Journey
+                    <div className="pt-2 border-t border-border">
+                      <Button size="sm" variant="outline" className="mt-2" onClick={(event) => { event.stopPropagation(); setDetailSheetDrive(td); }}>
+                        <FileCheck className="mr-1 h-3 w-3" /> Documents &amp; Details
                       </Button>
-
-                      {/* Primary next-step action */}
-                      {(() => {
-                        const quickAction = getNextStepAction(td);
-                        if (!quickAction) return null;
-                        return (
-                          <Button size="sm" className={`${quickAction.className} text-xs`} onClick={quickAction.onClick} disabled={quickAction.disabled}>
-                            {quickAction.label === 'New Test Drive' && <PlusCircle className="h-3 w-3 mr-1" />}
-                            {quickAction.label === 'Key Handover' && <FileCheck className="h-3 w-3 mr-1" />}
-                            {quickAction.label === 'Assign Key' && <Key className="h-3 w-3 mr-1" />}
-                            {quickAction.label === 'Confirm' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                            {quickAction.label === 'Mark Show' && <CheckCircle className="h-3 w-3 mr-1" />}
-                            {quickAction.label === 'Create Lead' && <TrendingUp className="h-3 w-3 mr-1" />}
-                            {quickAction.label}
-                          </Button>
-                        );
-                      })()}
-
-                      {/* Overflow menu — only shown when at least one item is available */}
-                      {(() => {
-                        const hasReschedule = (['scheduled', 'confirmed', 'show', 'no_show', 'rescheduled'] as string[]).includes(td.status);
-                        const hasNoShow = (['scheduled', 'confirmed', 'show', 'rescheduled'] as string[]).includes(td.status);
-                        const hasLead = canCreateOpportunity && (['completed', 'key_handover_to_sales'] as string[]).includes(td.status) && td.scheduled_date && new Date(td.scheduled_date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-                        const hasCancel = (['scheduled', 'confirmed', 'rescheduled'] as string[]).includes(td.status);
-                        if (!hasReschedule && !hasNoShow && !hasLead && !hasCancel) return null;
-                        return (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="outline" className="text-xs px-2 ml-auto">
-                            <MoreHorizontal className="h-3.5 w-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                          {(['scheduled', 'confirmed', 'show', 'no_show', 'rescheduled'] as string[]).includes(td.status) && (
-                            <DropdownMenuItem onClick={() => setRescheduleId(td.id)}>
-                              <RefreshCw className="h-3.5 w-3.5 mr-2 text-info" /> Reschedule
-                            </DropdownMenuItem>
-                          )}
-                          {(['scheduled', 'confirmed', 'show', 'rescheduled'] as string[]).includes(td.status) && ([APP_ROLE.GRO, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[]).includes(role ?? '') && (
-                            <DropdownMenuItem onClick={() => updateStatus(td.id, 'show')}>
-                              <CheckCircle className="h-3.5 w-3.5 mr-2 text-success" /> Mark Show
-                            </DropdownMenuItem>
-                          )}
-                          {(['scheduled', 'confirmed', 'show', 'rescheduled'] as string[]).includes(td.status) && (
-                            <DropdownMenuItem onClick={() => setNoShowId(td.id)}>
-                              <CalendarX className="h-3.5 w-3.5 mr-2 text-warning" /> No Show
-                            </DropdownMenuItem>
-                          )}
-                          {canCreateOpportunity && (['completed', 'key_handover_to_sales'] as string[]).includes(td.status) && td.scheduled_date && new Date(td.scheduled_date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) && (
-                            <DropdownMenuItem onClick={() => { setLeadDialogDrive(td); setLeadTemperature('cold'); setFollowUpTaskTitle(''); setFollowUpTaskDueAt(''); }}>
-                              <TrendingUp className="h-3.5 w-3.5 mr-2 text-warning" /> Create Lead
-                            </DropdownMenuItem>
-                          )}
-                          {(['scheduled', 'confirmed', 'rescheduled'] as string[]).includes(td.status) && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setCancelId(td.id)}>
-                                <Ban className="h-3.5 w-3.5 mr-2" /> Cancel
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                        );
-                      })()}
                     </div>
                   </CardContent>
                 </Card>
@@ -1443,29 +1361,8 @@ const TestDrivesPage = () => {
           testDrive={detailSheetDrive}
           open={!!detailSheetDrive}
           onClose={() => setDetailSheetDrive(null)}
-          actions={detailSheetDrive && (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {getAvailableActions(detailSheetDrive).map(({ label, description, icon: Icon, onClick, disabled, destructive }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={onClick}
-                  disabled={disabled}
-                  className={`flex min-h-16 items-start gap-3 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    destructive
-                      ? 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10'
-                      : 'border-border bg-card hover:border-primary/40 hover:bg-muted/50'
-                  }`}
-                >
-                  <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${destructive ? 'text-destructive' : 'text-primary'}`} />
-                  <span className="min-w-0">
-                    <span className={`block text-sm font-medium ${destructive ? 'text-destructive' : 'text-foreground'}`}>{label}</span>
-                    <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          actions={detailSheetDrive && renderAvailableActions(detailSheetDrive)}
+          onChanged={() => void fetchTestDrives()}
         />
 
         <Dialog open={!!rescheduleId} onOpenChange={(open) => {

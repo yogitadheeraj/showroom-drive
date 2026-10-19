@@ -50,7 +50,7 @@ async function buildDailyOpsMetrics(locationId: string, reportDate: string): Pro
   const completedTestDrives = drives.filter((d: any) => d.status === 'completed').length;
   const noShowTestDrives = drives.filter((d: any) => d.status === 'no_show').length;
   const inProgressTestDrives = drives.filter((d: any) => d.status === 'in_progress').length;
-  const scheduledTestDrives = drives.filter((d: any) => ['scheduled', 'confirmed', 'show'].includes(d.status)).length;
+  const scheduledTestDrives = drives.filter((d: any) => ['scheduled', 'confirmed', 'show', 'key_assigned'].includes(d.status)).length;
 
   const customerIds = Array.from(new Set(drives.map((d: any) => d.customer_id).filter(Boolean)));
   const pendingEnquiries = customerIds.length > 0

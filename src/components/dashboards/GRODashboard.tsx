@@ -22,6 +22,7 @@ import { TestDriveInsightGrid } from './TestDriveInsightGrid';
 import { StaffActivityGrid } from './StaffActivityGrid';
 import TodayView, { TodayOverviewSwitch } from './TodayView';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import { getTestDriveStatus, getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 import { navigateTo } from '@/lib/browserNavigation';
 import { DashboardStatusSections } from './DashboardStatusSections';
 import { buildServiceBookingStatusCounts, buildTestDriveStatusCounts } from '@/lib/dashboardMetrics';
@@ -56,17 +57,32 @@ const GRODashboard = () => {
   const [driveView, setDriveView] = useState<'list' | 'grid'>('list');
   const [queueView, setQueueView] = useState<'list' | 'grid' | 'calendar'>('list');
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
-  const [selectedStatusBucket, setSelectedStatusBucket] = useState<'all' | 'scheduled' | 'confirmed' | 'show' | 'in_progress' | 'completed' | 'no_show' | 'cancelled' | 'rescheduled'>('all');
+  const [selectedStatusBucket, setSelectedStatusBucket] = useState<'all' | 'scheduled' | 'confirmed' | 'show' | 'key_assigned' | 'in_progress' | 'completed' | 'no_show' | 'cancelled' | 'rescheduled'>('all');
   const formatStatusLabel = (status: string) =>
     status
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (char) => char.toUpperCase());
 
+  const currentDetailDrive = testDrives.find((drive) => drive.id === detailSheetDrive?.id) || detailSheetDrive;
+  const renderDriveActions = (td: any) => (
+    <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
+      {['scheduled', 'rescheduled'].includes(td.status) && <Button size="sm" onClick={() => void updateStatus(td.id, 'confirmed')}>Confirm</Button>}
+      {['scheduled', 'rescheduled', 'confirmed'].includes(td.status) && <Button size="sm" onClick={() => void updateStatus(td.id, 'show')}>Mark Show</Button>}
+      {td.status === 'in_progress' && <Button size="sm" onClick={() => void updateStatus(td.id, 'completed')}>Complete</Button>}
+      {['scheduled', 'confirmed', 'show', 'no_show', 'rescheduled'].includes(td.status) && (
+        <Button size="sm" variant="outline" onClick={() => { setRescheduleId(td.id); setNewDate(''); setNewTime(''); }}>Reschedule</Button>
+      )}
+      {['scheduled', 'confirmed', 'show', 'rescheduled'].includes(td.status) && (
+        <Button size="sm" variant="outline" onClick={() => setNoShowConfirmId(td.id)}>No Show</Button>
+      )}
+    </div>
+  );
+
   const boardBuckets = useMemo(() => {
-    const expected = testDrives.filter((drive) => ['scheduled', 'confirmed'].includes(drive.status));
-    const here = testDrives.filter((drive) => ['show', 'in_progress'].includes(drive.status));
+    const expected = testDrives.filter((drive) => ['scheduled', 'confirmed', 'rescheduled'].includes(drive.status));
+    const here = testDrives.filter((drive) => ['show', 'key_assigned', 'in_progress'].includes(drive.status));
     const withSales = testDrives.filter((drive) => drive.assigned_sales_person_id || drive.assigned_sales_person?.full_name);
-    const left = testDrives.filter((drive) => ['completed', 'no_show', 'cancelled', 'rescheduled'].includes(drive.status));
+    const left = testDrives.filter((drive) => ['completed', 'no_show', 'cancelled'].includes(drive.status));
 
     return { expected, here, withSales, left };
   }, [testDrives]);
@@ -88,9 +104,8 @@ const GRODashboard = () => {
 
   // Real-time: auto-refresh + toast when any test drive status changes
   useTestDriveRealtime(profile?.location_id, (event) => {
-    const [testDriveId] = Object.keys(event);
-    const eventData = event[testDriveId];
-    const statusLabel = eventData.status.replace(/_/g, ' ');
+    const testDriveId = event.test_drive_id;
+    const statusLabel = event.status.replace(/_/g, ' ');
      toast({
       title: 'Test Drive Updated',
       description: `Test Drive Id : - ${testDriveId} is now "${statusLabel}"`,
@@ -127,6 +142,7 @@ const GRODashboard = () => {
 
     const enriched = (drives || []).map((d) => ({
       ...d,
+      status: getTestDriveStatus(d),
       customers: customerMap.get(d.customer_id) || null,
       vehicles: vehicleMap.get(d.vehicle_id) || null,
       locations: locationMap.get(d.location_id) || null,
@@ -138,7 +154,7 @@ const GRODashboard = () => {
     const completedCount = enriched.filter(t => t.status === 'completed').length;
     setStats({
       today: enriched.filter(t => t.scheduled_date === today).length,
-      upcoming: enriched.filter(t => t.status === 'scheduled' || t.status === 'confirmed').length,
+      upcoming: enriched.filter(t => ['scheduled', 'confirmed', 'rescheduled'].includes(t.status)).length,
       completed: completedCount,
       completionRate: enriched.length > 0 ? Math.round((completedCount / enriched.length) * 100) : 0,
     });
@@ -241,6 +257,7 @@ const GRODashboard = () => {
     scheduled: 'bg-info/10 text-info',
     confirmed: 'bg-primary/10 text-primary',
     show: 'bg-success/10 text-success',
+    key_assigned: 'bg-amber-500/10 text-amber-600',
     no_show: 'bg-warning/10 text-warning',
     in_progress: 'bg-accent/10 text-accent-foreground',
     completed: 'bg-success/10 text-success',
@@ -338,7 +355,7 @@ const GRODashboard = () => {
                       <span className="text-sm text-muted-foreground">{(drive.scheduled_time || '').substring(0, 5) || '--:--'}</span>
                       <span>
                         <Badge variant="secondary" className={`text-[11px] ${statusColor[drive.status] || ''}`}>
-                          {formatStatusLabel(drive.status)}
+                          {getTestDriveStatusLabel(drive)}
                         </Badge>
                       </span>
                     </button>
@@ -363,7 +380,7 @@ const GRODashboard = () => {
                         <p className="mt-1 truncate text-xs text-muted-foreground">{`${drive.vehicles?.brand || ''} ${drive.vehicles?.model || ''}`.trim() || 'Unassigned'}</p>
                       </div>
                       <Badge variant="secondary" className={`text-[11px] ${statusColor[drive.status] || ''}`}>
-                        {formatStatusLabel(drive.status)}
+                        {getTestDriveStatusLabel(drive)}
                       </Badge>
                     </div>
                     <div className="mt-3 text-xs text-muted-foreground">
@@ -420,6 +437,7 @@ const GRODashboard = () => {
                 { label: 'Scheduled', value: groStatusCounts.scheduled, tone: 'bg-sky-500' },
                 { label: 'Confirmed', value: groStatusCounts.confirmed, tone: 'bg-violet-500' },
                 { label: 'Show', value: groStatusCounts.show, tone: 'bg-emerald-500' },
+                { label: 'Key Assigned', value: groStatusCounts.key_assigned, tone: 'bg-amber-500' },
                 { label: 'Completed', value: groStatusCounts.completed, tone: 'bg-primary' },
               ].map((row) => {
                 const max = Math.max(1, testDrives.length || 1);
@@ -538,7 +556,7 @@ const GRODashboard = () => {
                 </Button>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                {(['all', 'scheduled', 'confirmed', 'show', 'in_progress', 'completed', 'no_show', 'cancelled', 'rescheduled'] as const).map((status) => {
+                {(['all', 'scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress', 'completed', 'no_show', 'cancelled', 'rescheduled'] as const).map((status) => {
                   const active = selectedStatusBucket === status;
                   const count = status === 'all' ? testDrives.length : testDrives.filter((drive) => drive.status === status).length;
                   return (
@@ -623,7 +641,7 @@ const GRODashboard = () => {
                               </div>
                             </div>
                             <Badge variant="secondary" className={`shrink-0 text-[11px] ${statusColor[td.status] || ''}`}>
-                              {formatStatusLabel(td.status)}
+                              {getTestDriveStatusLabel(td)}
                             </Badge>
                           </div>
                           <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
@@ -687,7 +705,7 @@ const GRODashboard = () => {
                 <ShieldAlert className="h-5 w-5 text-warning" />
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                {(['scheduled', 'confirmed', 'show', 'in_progress', 'completed', 'no_show', 'rescheduled', 'cancelled'] as const).map((status) => (
+                {(['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress', 'completed', 'no_show', 'rescheduled', 'cancelled'] as const).map((status) => (
                   <button
                     key={status}
                     type="button"
@@ -807,7 +825,7 @@ const GRODashboard = () => {
                         <div className="flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="truncate text-sm font-semibold text-foreground">{td.customers?.full_name}</p>
-                            <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>{formatStatusLabel(td.status)}</Badge>
+                            <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>{getTestDriveStatusLabel(td)}</Badge>
                             <Badge variant="outline" className="text-xs capitalize">{td.source}</Badge>
                           </div>
                           <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
@@ -818,30 +836,7 @@ const GRODashboard = () => {
                             <span>{td.scheduled_date} {(td.scheduled_time || '').substring(0, 5)}</span>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-1.5" onClick={e => e.stopPropagation()}>
-                          {td.status === 'scheduled' && (
-                            <>
-                              <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => updateStatus(td.id, 'confirmed')}>Confirm</Button>
-                              <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>Show</Button>
-                            </>
-                          )}
-                          {td.status === 'confirmed' && (
-                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'show')}>Show</Button>
-                          )}
-                          {td.status === 'in_progress' && (
-                            <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 text-xs" onClick={() => updateStatus(td.id, 'completed')}>Complete</Button>
-                          )}
-                          {['scheduled', 'confirmed', 'show', 'no_show'].includes(td.status) && (
-                            <Button size="sm" variant="outline" className="border-info/50 text-info hover:bg-info/10 text-xs gap-1" onClick={() => { setRescheduleId(td.id); setNewDate(''); setNewTime(''); }}>
-                              <RefreshCw className="h-3 w-3" /> Reschedule
-                            </Button>
-                          )}
-                          {['scheduled', 'confirmed', 'show'].includes(td.status) && (
-                            <Button size="sm" variant="outline" className="border-warning/50 text-warning hover:bg-warning/10 text-xs gap-1" onClick={() => setNoShowConfirmId(td.id)}>
-                              <AlertTriangle className="h-3 w-3" /> No Show
-                            </Button>
-                          )}
-                        </div>
+                        {renderDriveActions(td)}
                       </div>
                     </div>
                   ))}
@@ -871,9 +866,11 @@ const GRODashboard = () => {
       </Tabs>
 
       <TestDriveDetailSheet
-        testDrive={detailSheetDrive}
+        testDrive={currentDetailDrive}
         open={!!detailSheetDrive}
         onClose={() => setDetailSheetDrive(null)}
+        actions={currentDetailDrive ? renderDriveActions(currentDetailDrive) : null}
+        onChanged={() => void fetchTestDrives()}
       />
 
       <Dialog open={!!rescheduleId} onOpenChange={(open) => {

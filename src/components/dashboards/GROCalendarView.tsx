@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { getTestDriveStatus, getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 import { useAuth } from '@/hooks/useAuth';
 import { goBack, goForward } from '@/lib/browserNavigation';
 import { apiGet, apiPatch, apiPost } from '@/lib/apiClient';
@@ -19,6 +20,7 @@ import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 import VehicleImage from '@/components/common/VehicleImage';
 
 const statusColor: Record<string, string> = {
+  key_assigned: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
   scheduled: 'bg-info/10 text-info border-info/20',
   confirmed: 'bg-primary/10 text-primary border-primary/20',
   show: 'bg-success/10 text-success border-success/20',
@@ -107,9 +109,8 @@ const GROCalendarView = () => {
 
   // Real-time: auto-refresh + toast when any test drive status changes
   useTestDriveRealtime(profile?.location_id, (event) => {
-   const [testDriveId] = Object.keys(event);
-    const eventData = event[testDriveId];
-    const statusLabel = eventData.status.replace(/_/g, ' ');
+    const testDriveId = event.test_drive_id;
+    const statusLabel = event.status.replace(/_/g, ' ');
     toast({
       title: 'Test Drive Updated',
       description: `Test Drive Id : - ${testDriveId} is now "${statusLabel}"`,
@@ -130,7 +131,7 @@ const GROCalendarView = () => {
       date_lte: format(endDate, 'yyyy-MM-dd'),
     });
     const enriched = await apiGet<any[]>(`/api/test-drives?${params.toString()}`) || [];
-    setTestDrives(enriched);
+    setTestDrives(enriched.map((drive) => ({ ...drive, status: getTestDriveStatus(drive) })));
   };
 
   const fetchSalesPersons = async () => {
@@ -554,7 +555,7 @@ const GROCalendarView = () => {
     return modelVehiclesForSlot.some((vehicle) => {
       const overlaps = testDrives.filter((td) => {
         if (td.vehicle_id !== vehicle.id || !td.scheduled_time || td.scheduled_date !== format(date, 'yyyy-MM-dd')) return false;
-        if (!['scheduled', 'confirmed', 'show', 'in_progress'].includes(td.status)) return false;
+        if (!['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'].includes(td.status)) return false;
 
         const bookingStart = toMinutes(td.scheduled_time);
         const bookingDuration = Number(td.slot_duration_minutes || slotDuration);
@@ -665,7 +666,7 @@ const GROCalendarView = () => {
       </p>
       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
-          {formatStatusLabel(td.status || 'scheduled')}
+          {getTestDriveStatusLabel(td)}
         </Badge>
         {td.source && (
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 capitalize">
@@ -949,7 +950,7 @@ const GROCalendarView = () => {
                   const driveCount = testDrives.filter(
                     td => td.assigned_sales_person_id === sp.id &&
                     td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
-                    ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                    ['show','scheduled','confirmed','key_assigned','in_progress','key_handover_to_sales'].includes(td.status)
                   ).length;
                   return (
                     <SelectItem key={sp.id} value={sp.id}>
@@ -1104,7 +1105,7 @@ const GROCalendarView = () => {
                       const driveCount = testDrives.filter(
                         td => td.assigned_sales_person_id === sp.id &&
                         td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
-                        ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                        ['show','scheduled','confirmed','key_assigned','in_progress','key_handover_to_sales'].includes(td.status)
                       ).length;
                       const isSelected = bulkSource === sp.id;
                       return (
@@ -1153,7 +1154,7 @@ const GROCalendarView = () => {
                           const driveCount = testDrives.filter(
                             td => td.assigned_sales_person_id === sp.id &&
                             td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
-                            ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                            ['show','scheduled','confirmed','key_assigned','in_progress','key_handover_to_sales'].includes(td.status)
                           ).length;
                           const isSelected = bulkTarget === sp.id;
                           return (
@@ -1213,7 +1214,7 @@ const GROCalendarView = () => {
                 const activeDrives = testDrives.filter(
                   td => td.assigned_sales_person_id === sp.id &&
                   td.scheduled_date === format(currentDate, 'yyyy-MM-dd') &&
-                  ['show','scheduled','confirmed','in_progress','key_handover_to_sales'].includes(td.status)
+                  ['show','scheduled','confirmed','key_assigned','in_progress','key_handover_to_sales'].includes(td.status)
                 );
                 return (
                   <div key={sp.id} className="flex items-center justify-between px-4 py-3">

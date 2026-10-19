@@ -4,6 +4,8 @@ export type TestDriveStatus =
   | 'scheduled'
   | 'confirmed'
   | 'show'
+  | 'key_assigned'
+  | 'key_handover_to_sales'
   | 'in_progress'
   | 'completed'
   | 'no_show'
@@ -71,7 +73,7 @@ const TestDriveSchema = new Schema<ITestDrive>(
     assigned_security_person_id: { type: String, default: null, index: true },
     status: {
       type: String,
-      enum: ['scheduled', 'confirmed', 'show', 'in_progress', 'completed', 'no_show', 'cancelled', 'rescheduled'],
+      enum: ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress', 'key_handover_to_sales', 'completed', 'no_show', 'cancelled', 'rescheduled'],
       default: 'scheduled',
       index: true,
     },

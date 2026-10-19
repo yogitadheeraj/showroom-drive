@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { getTestDriveStatus, getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 import { getDatabase, ref, onValue } from 'firebase/database';
 import { apiDbQuery, apiGet } from '@/lib/apiClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -117,7 +118,7 @@ const SuperAdminDashboard = () => {
   const [activitySessions, setActivitySessions] = useState<any[]>([]);
   const [activityEvents, setActivityEvents] = useState<any[]>([]);
   const [selectedActivityStaff, setSelectedActivityStaff] = useState<any | null>(null);
-  const [selectedStaffDriveStatus, setSelectedStaffDriveStatus] = useState<'all' | 'scheduled' | 'confirmed' | 'show' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'rescheduled' | 'key_handover_to_sales'>('all');
+  const [selectedStaffDriveStatus, setSelectedStaffDriveStatus] = useState<'all' | 'scheduled' | 'confirmed' | 'show' | 'key_assigned' | 'in_progress' | 'completed' | 'cancelled' | 'no_show' | 'rescheduled' | 'key_handover_to_sales'>('all');
   const [selectedStaffDriveBrand, setSelectedStaffDriveBrand] = useState('all');
   const [selectedStaffDriveSales, setSelectedStaffDriveSales] = useState('all');
   const [userInsightBrandFilter, setUserInsightBrandFilter] = useState('all');
@@ -336,7 +337,7 @@ const SuperAdminDashboard = () => {
       setPaidSalesCurrency(resolveCurrencyCode(paidRows[0]?.locations?.currency_type || locations.find((entry: any) => entry.id === activeSelectedLocation)?.currency_type || 'AED'));
 
       const serviceBookingCounts = buildServiceBookingStatusCounts(serviceBookings || []);
-      setTestDrives(td || []);
+      setTestDrives((td || []).map((drive) => ({ ...drive, status: getTestDriveStatus(drive) })));
       setServiceBookingTotal(serviceBookings?.length || 0);
       setServiceBookingStatusCounts(serviceBookingCounts);
       const total = td?.length || 0;
@@ -573,6 +574,7 @@ const SuperAdminDashboard = () => {
   const showStatSkeleton = dealerLoading || isDashboardLoading;
 
   const statusColor: Record<string, string> = {
+    key_assigned: 'bg-amber-500/10 text-amber-600',
     scheduled: 'bg-info/10 text-info',
     confirmed: 'bg-primary/10 text-primary',
     show: 'bg-success/10 text-success',
@@ -705,7 +707,7 @@ const SuperAdminDashboard = () => {
 
     const total = scopedDrives.length;
     const completed = scopedDrives.filter((d) => d.status === 'completed').length;
-    const active = scopedDrives.filter((d) => ['scheduled', 'confirmed', 'show', 'in_progress', 'key_handover_to_sales'].includes(d.status)).length;
+    const active = scopedDrives.filter((d) => ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress', 'key_handover_to_sales'].includes(d.status)).length;
     const noShow = scopedDrives.filter((d) => d.status === 'no_show').length;
     const cancelled = scopedDrives.filter((d) => d.status === 'cancelled').length;
     const rescheduled = scopedDrives.filter((d) => d.status === 'rescheduled').length;
@@ -931,6 +933,7 @@ const SuperAdminDashboard = () => {
           scheduled: stats.scheduled,
           confirmed: testDrives.filter((d) => d.status === 'confirmed').length,
           show: testDrives.filter((d) => d.status === 'show').length,
+          key_assigned: testDrives.filter((d) => d.status === 'key_assigned').length,
           no_show: stats.noShow,
           completed: stats.completed,
           cancelled: stats.cancelled,
@@ -1418,7 +1421,7 @@ const SuperAdminDashboard = () => {
                         <td className="p-3 text-muted-foreground">{td.locations?.name}</td>
                         <td className="p-3 text-muted-foreground">{td.scheduled_date} {td.scheduled_time}</td>
                         <td className="p-3">
-                          <Badge variant="secondary" className={statusColor[td.status] || ''}>{formatStatusLabel(td.status)}</Badge>
+                          <Badge variant="secondary" className={statusColor[td.status] || ''}>{getTestDriveStatusLabel(td)}</Badge>
                         </td>
                         <td className="p-3">
                           <Badge variant="outline" className="capitalize">{td.source}</Badge>
@@ -1453,7 +1456,7 @@ const SuperAdminDashboard = () => {
                             <Phone className="h-3 w-3" />{td.customers?.phone}
                           </div>
                         </div>
-                        <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>{formatStatusLabel(td.status)}</Badge>
+                        <Badge variant="secondary" className={`text-xs ${statusColor[td.status] || ''}`}>{getTestDriveStatusLabel(td)}</Badge>
                       </div>
                       <div className="grid grid-cols-2 gap-1.5 text-xs">
                         <div className="flex items-center gap-1"><Car className="h-3 w-3 text-muted-foreground" /><span className="text-foreground truncate">{td.vehicles?.brand} {td.vehicles?.model}</span></div>
@@ -1633,6 +1636,7 @@ const SuperAdminDashboard = () => {
                         <SelectItem value="scheduled">Scheduled</SelectItem>
                         <SelectItem value="confirmed">Confirmed</SelectItem>
                         <SelectItem value="show">Show</SelectItem>
+                        <SelectItem value="key_assigned">Key Assigned</SelectItem>
                         <SelectItem value="in_progress">In progress</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
                         <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -1761,7 +1765,7 @@ const SuperAdminDashboard = () => {
                                 </p>
                               </div>
                               <Badge variant="secondary" className="text-xs">
-                                {formatStatusLabel(drive.status)}
+                                {getTestDriveStatusLabel(drive)}
                               </Badge>
                             </div>
                             <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:grid-cols-3">

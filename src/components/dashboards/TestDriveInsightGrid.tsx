@@ -4,10 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Car, Calendar, Users, Tag, ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react';
 import VehicleImage from '@/components/common/VehicleImage';
+import { getTestDriveStatus, getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 
 type GroupBy = 'date' | 'staff' | 'source';
 
 const STATUS_STYLES: Record<string, string> = {
+  key_assigned: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
   scheduled:              'bg-info/10 text-info border-info/20',
   confirmed:              'bg-primary/10 text-primary border-primary/20',
   show:                   'bg-success/10 text-success border-success/20',
@@ -56,11 +58,12 @@ interface Props {
 }
 
 export function TestDriveInsightGrid({
-  testDrives,
+  testDrives: rows,
   loading = false,
   title = 'Test Drive Grid',
   defaultGroupBy = 'date',
 }: Props) {
+  const testDrives = useMemo(() => rows.map((drive) => ({ ...drive, status: getTestDriveStatus(drive) })), [rows]);
   const [groupBy, setGroupBy]           = useState<GroupBy>(defaultGroupBy);
   const [statusFilter, setStatusFilter] = useState('all');
   const [collapsed, setCollapsed]       = useState<Set<string>>(new Set());
@@ -139,7 +142,7 @@ export function TestDriveInsightGrid({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                {['scheduled','confirmed','show','in_progress','key_handover_to_sales','completed','no_show','cancelled','rescheduled'].map(s => (
+                {['scheduled','confirmed','show','key_assigned','in_progress','key_handover_to_sales','completed','no_show','cancelled','rescheduled'].map(s => (
                   <SelectItem key={s} value={s}>{formatStatus(s)}</SelectItem>
                 ))}
               </SelectContent>
@@ -171,7 +174,7 @@ export function TestDriveInsightGrid({
             const isToday      = groupBy === 'date' && groupKey === today;
             const isCollapsed  = collapsed.has(groupKey);
             const doneCount    = drives.filter(d => d.status === 'completed').length;
-            const activeCount  = drives.filter(d => ['scheduled','confirmed','show','in_progress'].includes(d.status)).length;
+            const activeCount  = drives.filter(d => ['scheduled','confirmed','show','key_assigned','in_progress'].includes(getTestDriveStatus(d))).length;
 
             return (
               <div key={groupKey} className={`rounded-xl border ${GROUP_HEADER[groupBy]} overflow-hidden`}>
@@ -219,7 +222,7 @@ export function TestDriveInsightGrid({
                             {td.customers?.full_name || td.customer_name || '—'}
                           </p>
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border shrink-0 ${STATUS_STYLES[td.status] ?? 'bg-muted text-muted-foreground border-border'}`}>
-                            {formatStatus(td.status)}
+                            {getTestDriveStatusLabel(td)}
                           </span>
                         </div>
 

@@ -1,9 +1,13 @@
-type StatusRow = { status?: string | null };
+import { getTestDriveStatus } from '@/lib/testDriveStatus';
+
+type StatusRow = { status?: string | null; key_handed_at?: string | null; security_checked_in_at?: string | null };
 
 export const TEST_DRIVE_STATUS_BUCKETS = {
   scheduled: 0,
   confirmed: 0,
   show: 0,
+  key_assigned: 0,
+  key_handover_to_sales: 0,
   in_progress: 0,
   completed: 0,
   no_show: 0,
@@ -25,7 +29,7 @@ export function buildTestDriveStatusCounts(rows: StatusRow[] = []) {
   const counts = { ...TEST_DRIVE_STATUS_BUCKETS };
 
   for (const row of rows) {
-    const status = String(row?.status ?? '').trim();
+    const status = row?.status ? getTestDriveStatus(row) : '';
     if (!(status in counts)) continue;
     counts[status as keyof typeof counts] += 1;
   }

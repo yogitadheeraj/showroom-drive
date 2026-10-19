@@ -96,7 +96,7 @@ export function buildCustomer360Summary({
     totalActivities: timeline.length,
     totalTestDrives: testDrives.length,
     totalCommunications: communications.length,
-    activeTestDrives: testDrives.filter((testDrive: any) => ['scheduled', 'confirmed', 'show', 'in_progress'].includes(testDrive.status)).length,
+    activeTestDrives: testDrives.filter((testDrive: any) => ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'].includes(testDrive.status)).length,
   };
 
   return {

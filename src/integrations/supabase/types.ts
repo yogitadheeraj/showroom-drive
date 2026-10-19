@@ -1865,6 +1865,7 @@ export type Database = {
         | "scheduled"
         | "confirmed"
         | "show"
+        | "key_assigned"
         | "no_show"
         | "in_progress"
         | "completed"
@@ -2023,6 +2024,7 @@ export const Constants = {
         "scheduled",
         "confirmed",
         "show",
+        "key_assigned",
         "no_show",
         "in_progress",
         "completed",

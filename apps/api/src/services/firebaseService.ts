@@ -264,6 +264,13 @@ function buildStatusMessages(
         security: { title: 'Customer Checked In', body: `${name} arrived for ${vehicle}. Verify license.`, data: refStr },
       };
 
+    case 'key_assigned':
+      return {
+        sales: { title: 'Key Assigned', body: `${vehicle} key assigned for ${name}. Awaiting Security start.`, data: refStr },
+        gro: { title: 'Key Assigned', body: `${name} is awaiting Security inspection and start for ${vehicle}.`, data: refStr },
+        security: { title: 'Ready for Security', body: `${vehicle} key assigned for ${name}. Complete inspection and start the drive.`, data: refStr },
+      };
+
     case 'in_progress':
       return {
         sales: { title: 'Drive Started', body: `${name} is on the road with ${vehicle}.`, data: refStr },

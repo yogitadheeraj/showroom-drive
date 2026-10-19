@@ -155,7 +155,7 @@ export async function getVehicleAvailabilityAtLocation(
   const allDrivesOnDate = await TestDrive.find({
     vehicle_id: vehicleId,
     scheduled_date: date,
-    status: { $in: ['scheduled', 'confirmed', 'show', 'in_progress', 'rescheduled'] },
+    status: { $in: ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress', 'rescheduled'] },
   }, { scheduled_time: 1, slot_duration_minutes: 1, location_id: 1 }).lean();
 
   let latestEndMinutes = 0; // minutes since midnight when last drive at any location ends
@@ -474,7 +474,7 @@ export async function getFleetOverview(dealerId?: string, locationId?: string, l
   const upcomingDrives = await TestDrive.find({
     vehicle_id: { $in: vehicleIds },
     scheduled_date: { $gte: today, $lte: tomorrow },
-    status: { $in: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+    status: { $in: ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'] },
   }).lean();
 
   // Fetch all involved locations

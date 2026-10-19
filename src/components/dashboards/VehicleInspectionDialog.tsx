@@ -287,16 +287,17 @@ const VehicleInspectionDialog = ({ open, onClose, testDrive, type, onComplete }:
           </DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-
         <div className="rounded-lg bg-muted p-3 flex items-center gap-3">
           <Car className="h-5 w-5 text-muted-foreground" />
           <div>
             <p className="font-medium text-sm text-foreground">
-              {testDrive.vehicles?.brand} {testDrive.vehicles?.model}
+              {[testDrive.vehicles?.year, testDrive.vehicles?.brand, testDrive.vehicles?.model, testDrive.vehicles?.variant].filter(Boolean).join(' ') || 'Vehicle details unavailable'}
             </p>
             <p className="text-xs text-muted-foreground">
-              {testDrive.vehicles?.registration_number} • {testDrive.vehicles?.color}
+              Registration: {testDrive.vehicles?.registration_number || 'Not recorded'}
+              {testDrive.vehicles?.color && ` | Color: ${testDrive.vehicles.color}`}
             </p>
+            {testDrive.vehicles?.vin && <p className="text-xs text-muted-foreground break-all">VIN: {testDrive.vehicles.vin}</p>}
           </div>
         </div>
 

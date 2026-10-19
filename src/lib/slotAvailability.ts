@@ -97,7 +97,7 @@ export async function getAvailableTimeSlots(
         filters: [
           { field: 'location_id', op: 'eq', value: locationId },
           { field: 'scheduled_date', op: 'eq', value: selectedDate },
-          { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+          { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'] },
         ],
       }),
       apiDbQuery<any[]>({
@@ -179,7 +179,7 @@ export async function getAvailableVehicles(
       filters: [
         { field: 'location_id', op: 'eq', value: locationId },
         { field: 'scheduled_date', op: 'eq', value: selectedDate },
-        { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+        { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'] },
       ],
     });
 
@@ -231,7 +231,7 @@ export async function checkAndReleaseNoShowBookings(
 
     const filters: Array<{ field: string; op: any; value: unknown }> = [
       { field: 'scheduled_date', op: 'eq', value: dateToCheck },
-      { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show'] },
+      { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'key_assigned'] },
     ];
     if (locationId) {
       filters.push({ field: 'location_id', op: 'eq', value: locationId });
@@ -378,7 +378,7 @@ export async function checkVehicleSlotAvailable(
         filters: [
           { field: 'vehicle_id', op: 'eq', value: vehicleId },
           { field: 'scheduled_date', op: 'eq', value: scheduledDate },
-          { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+          { field: 'status', op: 'in', value: ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'] },
         ],
       }),
     ]);

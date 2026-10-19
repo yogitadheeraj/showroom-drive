@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiDbQuery, apiGet } from '@/lib/apiClient';
+import { apiDbQuery, apiGet, apiPatch } from '@/lib/apiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { APP_ROLE } from '@/constants/roles';
@@ -12,6 +12,8 @@ import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import CarConfiguratorExperience from '@/components/public/CarConfiguratorExperience';
 import Customer360Sheet from '@/components/dashboards/Customer360Sheet';
 import { navigateTo } from '@/lib/browserNavigation';
+import { getTestDriveStatus } from '@/lib/testDriveStatus';
+import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import {
   AlertTriangle,
   CalendarCheck,
@@ -69,7 +71,9 @@ export const TodayOverviewSwitch = ({
 /* ── Status styling ── */
 
 const STATUS_META: Record<string, { label: string; dot: string; badge: string }> = {
+  key_assigned: { label: 'Key Assigned', dot: 'bg-amber-500', badge: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400' },
   scheduled: { label: 'Scheduled', dot: 'bg-slate-400', badge: 'border-slate-400/30 bg-slate-400/10 text-slate-600 dark:text-slate-300' },
+  rescheduled: { label: 'Rescheduled', dot: 'bg-slate-400', badge: 'border-slate-400/30 bg-slate-400/10 text-slate-600 dark:text-slate-300' },
   confirmed: { label: 'Confirmed', dot: 'bg-blue-500', badge: 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400' },
   show: { label: 'Arrived', dot: 'bg-violet-500', badge: 'border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-400' },
   in_progress: { label: 'On drive', dot: 'bg-sky-500', badge: 'border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400' },
@@ -79,8 +83,8 @@ const STATUS_META: Record<string, { label: string; dot: string; badge: string }>
   cancelled: { label: 'Cancelled', dot: 'bg-muted-foreground', badge: 'border-border bg-muted text-muted-foreground' },
 };
 
-const LIVE_STATUSES = ['show', 'in_progress', 'key_handover_to_sales'];
-const UPCOMING_STATUSES = ['scheduled', 'confirmed'];
+const LIVE_STATUSES = ['show', 'key_assigned', 'in_progress', 'key_handover_to_sales'];
+const UPCOMING_STATUSES = ['scheduled', 'confirmed', 'rescheduled'];
 
 const timeToMinutes = (value?: string | null) => {
   if (!value) return null;
@@ -193,9 +197,11 @@ const TodayView = () => {
       }
 
       const sorted = (rows || [])
+        .map((drive) => ({ ...drive, status: getTestDriveStatus(drive) }))
         .slice()
         .sort((a, b) => String(a?.scheduled_time || '').localeCompare(String(b?.scheduled_time || '')));
       setDrives(sorted);
+      setDetailDrive((current) => current ? sorted.find((drive) => drive.id === current.id) || current : null);
       setFollowUps(
         (tasks || []).filter((t: any) => String(t?.due_at || '').startsWith(todayStr)),
       );
@@ -207,16 +213,12 @@ const TodayView = () => {
   useEffect(() => {
     load();
   }, [load]);
+  useTestDriveRealtime(profile?.location_id, () => { void load(); });
 
   const updateTdStatus = async (id: string, status: string) => {
     setTdActionSaving(true);
     try {
-      await apiDbQuery({
-        table: 'test_drives',
-        action: 'update',
-        payload: { status },
-        filters: [{ field: 'id', op: 'eq', value: id }],
-      });
+      await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { status });
       setDetailDrive((prev) => (prev && prev.id === id ? { ...prev, status } : prev));
       toast({ title: 'Test drive updated', description: `Status changed to ${status.replace(/_/g, ' ')}.` });
       await load();
@@ -228,8 +230,35 @@ const TodayView = () => {
   };
 
   const renderTdActions = (td: any) => {
+    if (role === APP_ROLE.SALES) {
+      return (
+        <div className="flex flex-wrap gap-2">
+          {['scheduled', 'confirmed', 'rescheduled', 'show'].includes(td.status) && !td.key_handed_at && (
+            td.customers?.driving_license_verified ? (
+              <Button size="sm" disabled={tdActionSaving} onClick={async () => {
+                setTdActionSaving(true);
+                try {
+                  const keyHandedAt = new Date().toISOString();
+                  await apiPatch(`/api/test-drives/${encodeURIComponent(td.id)}`, { key_handed_at: keyHandedAt, status: 'key_assigned' });
+                  setDetailDrive((current) => current?.id === td.id ? { ...current, key_handed_at: keyHandedAt, status: 'key_assigned' } : current);
+                  toast({ title: 'Key assigned', description: 'Security will start the drive at the gate.' });
+                  await load();
+                } catch (error) {
+                  toast({ title: 'Key assignment failed', description: error instanceof Error ? error.message : String(error), variant: 'destructive' });
+                } finally { setTdActionSaving(false); }
+              }}>Assign Key</Button>
+            ) : <p className="text-xs text-warning">Upload the driving license below and have Security verify it before assigning the key.</p>
+          )}
+          {td.status === 'key_handover_to_sales' && (
+            <Button size="sm" onClick={() => navigateTo('/test-drives')}>Key Handover &amp; Follow-up</Button>
+          )}
+          {td.status === 'key_assigned' && <p className="text-xs text-muted-foreground">Key Assigned - awaiting Security inspection and start.</p>}
+          <Button size="sm" variant="outline" onClick={() => navigateTo('/test-drives')}>All Test Drive Actions</Button>
+        </div>
+      );
+    }
     const buttons: Array<{ label: string; next: string; variant?: 'default' | 'outline' | 'destructive' }> = [];
-    if (td.status === 'scheduled') {
+    if (['scheduled', 'rescheduled'].includes(td.status)) {
       buttons.push(
         { label: 'Confirm booking', next: 'confirmed' },
         { label: 'Mark no-show', next: 'no_show', variant: 'outline' },
@@ -241,8 +270,8 @@ const TodayView = () => {
         { label: 'Mark no-show', next: 'no_show', variant: 'outline' },
         { label: 'Cancel', next: 'cancelled', variant: 'destructive' },
       );
-    } else if (td.status === 'show') {
-      buttons.push({ label: 'Start drive', next: 'in_progress' });
+    } else if (['show', 'key_assigned'].includes(td.status)) {
+      return <p className="text-xs text-muted-foreground">Sales assigns the key; Security completes inspection and starts the drive.</p>;
     } else if (td.status === 'in_progress') {
       buttons.push(
         { label: 'Complete drive', next: 'completed' },
@@ -710,6 +739,9 @@ const TodayView = () => {
                           {meta.label}
                         </Badge>
                       </div>
+                      <div className="mt-3 border-t border-border/60 pt-3">
+                        {renderTdActions(td)}
+                      </div>
                     </div>
                   );
                 })}
@@ -760,6 +792,7 @@ const TodayView = () => {
         open={!!detailDrive}
         onClose={() => setDetailDrive(null)}
         actions={detailDrive ? renderTdActions(detailDrive) : null}
+        onChanged={() => void load()}
       />
 
       <Customer360Sheet customerId={customer360Id} open={!!customer360Id} onClose={() => setCustomer360Id(null)} />

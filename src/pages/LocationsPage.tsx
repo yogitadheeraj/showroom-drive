@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 import { apiDbQuery } from '@/lib/apiClient';
 import { createLocation, updateLocation } from '@/lib/locationBrandService';
 import { bulkUpsertLocationOperatingHours, listLocationOperatingHours } from '@/lib/locationOperatingHoursService';
@@ -1661,7 +1662,7 @@ const LocationsPage = () => {
                           drive.status === 'in_progress' ? 'default' :
                             drive.status === 'confirmed' ? 'outline' : 'secondary'
                       } className="text-xs">
-                        {drive.status.replace('_', ' ')}
+                        {getTestDriveStatusLabel(drive)}
                       </Badge>
                     </div>
                   ))}

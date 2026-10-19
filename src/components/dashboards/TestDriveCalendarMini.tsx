@@ -4,10 +4,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Car, Clock, MapPin, User, ChevronLeft, ChevronRight, X, Calendar, Shield } from 'lucide-react';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import { getTestDriveStatus, getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 
 type CalViewType = 'week' | 'month' | 'year';
 
 const STATUS_CAL: Record<string, string> = {
+  key_assigned: 'bg-amber-500 text-white',
   scheduled:   'bg-blue-500 text-white',
   confirmed:   'bg-indigo-500 text-white',
   show:        'bg-emerald-500 text-white',
@@ -19,6 +21,7 @@ const STATUS_CAL: Record<string, string> = {
 };
 
 const STATUS_DOT: Record<string, string> = {
+  key_assigned: 'bg-amber-500',
   scheduled:   'bg-blue-500',
   confirmed:   'bg-indigo-500',
   show:        'bg-emerald-500',
@@ -40,7 +43,8 @@ interface Props {
   testDrives: any[];
 }
 
-export default function TestDriveCalendarMini({ testDrives }: Props) {
+export default function TestDriveCalendarMini({ testDrives: rows }: Props) {
+  const testDrives = useMemo(() => rows.map((drive) => ({ ...drive, status: getTestDriveStatus(drive) })), [rows]);
   const [viewType, setViewType]       = useState<CalViewType>('week');
   const [baseDate, setBaseDate]       = useState(() => new Date());
   const [insight, setInsight]         = useState<{ type: 'day' | 'month' | 'year'; date: Date } | null>(null);
@@ -326,7 +330,7 @@ export default function TestDriveCalendarMini({ testDrives }: Props) {
                       <p className="text-[9px] text-muted-foreground">{td.scheduled_date} · {(td.scheduled_time || '').substring(0,5)}</p>
                     </div>
                     <span className={`text-[8px] px-1 py-0.5 rounded font-medium capitalize shrink-0 ${STATUS_CAL[td.status] ?? 'bg-slate-400 text-white'}`}>
-                      {td.status.replace(/_/g,' ')}
+                      {getTestDriveStatusLabel(td)}
                     </span>
                   </button>
                 ))}

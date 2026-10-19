@@ -76,7 +76,7 @@ export async function updateCustomerController(req: Request, res: Response) {
   const oldLicenseUrl = (current as any).driving_license_url;
   if (newLicenseUrl && newLicenseUrl !== oldLicenseUrl) {
     const activeTd = await TestDrive.findOne(
-      { customer_id: req.params.id, status: { $in: ['scheduled', 'confirmed', 'show', 'rescheduled'] } },
+      { customer_id: req.params.id, status: { $in: ['scheduled', 'confirmed', 'show', 'key_assigned', 'rescheduled'] } },
       { id: 1 },
     ).sort({ scheduled_date: 1 }).lean() as any;
 

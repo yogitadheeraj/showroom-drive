@@ -151,7 +151,7 @@ export async function createBlockedSlot(userId: string, data: Record<string, unk
   const conflicting = await TestDrive.find({
     location_id: locationId,
     scheduled_date: blockedDate,
-    status: { $in: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+    status: { $in: ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'] },
   }, { id: 1, scheduled_time: 1, slot_duration_minutes: 1, status: 1, customer_id: 1 }).lean();
 
   const affected = conflicting.filter((td) => {
@@ -233,7 +233,7 @@ export async function cancelConflictingBookings(
   const active = await TestDrive.find({
     location_id: slot.location_id,
     scheduled_date: slot.blocked_date,
-    status: { $in: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+    status: { $in: ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'] },
   }, { id: 1, scheduled_time: 1, slot_duration_minutes: 1 }).lean();
 
   const toCancel = active.filter((td) => {

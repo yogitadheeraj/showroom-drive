@@ -118,7 +118,7 @@ export async function listTestDrives(filters: Record<string, unknown> = {}) {
       ? Customer.find({ id: { $in: customerIds } }, { id: 1, full_name: 1, phone: 1, email: 1, driving_license_url: 1, driving_license_verified: 1 }).lean()
       : Promise.resolve([] as any[]),
     vehicleIds.length > 0
-      ? Vehicle.find({ id: { $in: vehicleIds } }, { id: 1, brand: 1, model: 1, variant: 1 }).lean()
+      ? Vehicle.find({ id: { $in: vehicleIds } }, { id: 1, brand: 1, model: 1, variant: 1, year: 1, registration_number: 1, color: 1, vin: 1 }).lean()
       : Promise.resolve([] as any[]),
     locationIds.length > 0
       ? Location.find({ id: { $in: locationIds } }, { id: 1, name: 1, city: 1 }).lean()
@@ -160,6 +160,10 @@ export async function listTestDrives(filters: Record<string, unknown> = {}) {
             model: vehicle.model,
             model_name: vehicle.model,
             variant: vehicle.variant,
+            year: vehicle.year,
+            registration_number: vehicle.registration_number,
+            color: vehicle.color,
+            vin: vehicle.vin,
           }
         : null,
       locations: location
@@ -195,9 +199,8 @@ export async function listTestDrives(filters: Record<string, unknown> = {}) {
 }
 
 export async function getTestDriveById(id: string) {
-  const doc = await TestDrive.findOne({ id }).lean();
-  if (!doc) return null;
-  const o = { ...doc } as any; delete o._id; return o;
+  const rows = await listTestDrives({ ids: id, limit: 1 });
+  return rows[0] ?? null;
 }
 
 // ─── Public booking rate limit check ────────────────────────────────────────
@@ -298,7 +301,7 @@ async function checkVehicleSlotAvailability(
     {
       vehicle_id: vehicleId,
       scheduled_date: scheduledDate,
-      status: { $in: ['scheduled', 'confirmed', 'show', 'in_progress'] },
+      status: { $in: ['scheduled', 'confirmed', 'show', 'key_assigned', 'in_progress'] },
     },
     { scheduled_time: 1, slot_duration_minutes: 1 },
   ).lean() as any[];
@@ -466,7 +469,7 @@ export async function bulkReassignTestDrives(
   toProfileId: string,
   date?: string, // yyyy-MM-dd; if omitted, reassigns ALL future + today drives
 ): Promise<{ reassigned: number }> {
-  const activeStatuses = ['show', 'scheduled', 'confirmed', 'in_progress', 'key_handover_to_sales', 'new'];
+  const activeStatuses = ['show', 'scheduled', 'confirmed', 'key_assigned', 'in_progress', 'key_handover_to_sales', 'new'];
   const query: Record<string, unknown> = {
     assigned_sales_person_id: fromProfileId,
     status: { $in: activeStatuses },
@@ -964,7 +967,7 @@ export async function autoAssignSalesPerson(locationId: string): Promise<{ id: s
   if (!salesProfiles.length) return null;
 
   // Count active test drives today per sales person
-  const activeStatuses = ['show', 'scheduled', 'confirmed', 'in_progress', 'key_handover_to_sales'];
+  const activeStatuses = ['show', 'scheduled', 'confirmed', 'key_assigned', 'in_progress', 'key_handover_to_sales'];
   const salesProfileIds = salesProfiles.map((p: any) => p.id);
 
   const activeCounts: Array<{ _id: string; count: number }> = await TestDrive.aggregate([

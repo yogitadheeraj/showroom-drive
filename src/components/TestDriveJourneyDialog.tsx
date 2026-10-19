@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { sendTransactionalEmail } from '@/lib/functionService';
+import { getTestDriveStatus } from '@/lib/testDriveStatus';
 import {
   Mail, Car, ShieldCheck, KeyRound, ClipboardCheck,
   CheckCircle2, AlertCircle, MessageSquare, Star, Building2,
@@ -17,6 +18,7 @@ interface TestDrive {
   started_at?: string | null;
   completed_at?: string | null;
   security_checked_in_at?: string | null;
+  key_handed_at?: string | null;
   security_checked_out_at?: string | null;
   scheduled_date?: string;
   scheduled_time?: string;
@@ -137,6 +139,8 @@ function getStepState(step: typeof JOURNEY_STEPS[0], currentStatus: string): 'co
     scheduled: 1,
     confirmed: 2,
     show: 3,
+    key_assigned: 5,
+    key_handover_to_sales: 7,
     in_progress: 6,
     completed: 8,
   };
@@ -163,7 +167,7 @@ export function TestDriveJourneyDialog({ testDrive, open, onClose }: Props) {
 
   if (!testDrive) return null;
 
-  const currentStatus = testDrive.status;
+  const currentStatus = getTestDriveStatus(testDrive);
   const customerEmail = testDrive.customers?.email;
   const enquiryId = (testDrive.metadata as any)?.enquiry_id || '';
   const durationMinutes = getDurationMinutes(testDrive);

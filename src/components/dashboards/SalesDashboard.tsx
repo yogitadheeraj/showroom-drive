@@ -24,6 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { logStaffActivity } from '@/lib/activityLogger';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
+import { getTestDriveStatus, getTestDriveStatusLabel } from '@/lib/testDriveStatus';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { navigateTo } from '@/lib/browserNavigation';
 import ServiceProgressPanel from './ServiceProgressPanel';
@@ -206,6 +207,7 @@ const SalesDashboard = () => {
     const enrichedDrives = await apiGet<any[]>(`/api/test-drives?sales_person_id=${encodeURIComponent(profile.id)}`) || [];
     setTestDrives(enrichedDrives.map((drive) => ({
       ...drive,
+      status: getTestDriveStatus(drive),
       assigned_sales_person: drive.assigned_sales_person || (
         drive.assigned_sales_person_id === profile.id
           ? { id: profile.id, full_name: profile.full_name, phone: profile.phone }
@@ -576,6 +578,11 @@ const SalesDashboard = () => {
   };
 
   const handleUploadLicense = async (testDriveId: string, customerId: string, file: File) => {
+    const drive = testDrives.find((item) => item.id === testDriveId);
+    if (!drive || !['scheduled', 'confirmed', 'rescheduled', 'show', 'key_assigned', 'in_progress', 'key_handover_to_sales'].includes(drive.status)) {
+      toast({ title: 'Upload unavailable', description: 'Documents can only be uploaded for active bookings.', variant: 'destructive' });
+      return;
+    }
     setUploading(testDriveId);
     try {
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -600,14 +607,14 @@ const SalesDashboard = () => {
   };
 
   const handleGiveKeyAndStart = async (id: string) => {
-    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { key_handed_at: new Date().toISOString() });
+    await apiPatch(`/api/test-drives/${encodeURIComponent(id)}`, { key_handed_at: new Date().toISOString(), status: 'key_assigned' });
     if (user?.id) {
       await logStaffActivity({
         userId: user.id,
         profileId: profile?.id,
         locationId: profile?.location_id,
         role: 'sales',
-        eventType: 'test_drive_started',
+        eventType: 'test_drive_key_assigned',
         label: 'Assigned vehicle and handed over key',
         metadata: { testDriveId: id },
       });
@@ -961,11 +968,12 @@ const SalesDashboard = () => {
     .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
   const statusColor: Record<string, string> = {
+    key_assigned: 'bg-amber-500/10 text-amber-600',
     scheduled: 'bg-info/10 text-info',
     confirmed: 'bg-primary/10 text-primary',
     show: 'bg-success/10 text-success',
     no_show: 'bg-warning/10 text-warning',
-    in_progress: 'bg-accent text-accent-foreground',
+    in_progress: 'bg-accent text-white',
     key_handover_to_sales: 'bg-warning/10 text-warning',
     completed: 'bg-success/10 text-success',
     cancelled: 'bg-destructive/10 text-destructive',
@@ -1003,6 +1011,44 @@ const SalesDashboard = () => {
     inProgress: testDrives.filter((td) => td.status === 'in_progress').length,
     completed: testDrives.filter((td) => td.status === 'completed').length,
   }), [testDrives]);
+
+  const currentDetailDrive = testDrives.find((drive) => drive.id === detailSheetDrive?.id) || detailSheetDrive;
+  const renderDriveActions = (td: any) => (
+    <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
+      <Button size="sm" variant="outline" onClick={() => setDetailSheetDrive(td)}>Documents &amp; Details</Button>
+      {['scheduled', 'confirmed', 'show', 'rescheduled'].includes(td.status) && (
+        <>
+          <Button size="sm" variant="outline" onClick={() => setReassignDrive(td)}>Reassign</Button>
+          <Button size="sm" variant="outline" onClick={() => setSwapDrive(td)}>Swap</Button>
+          <Button size="sm" variant="outline" onClick={() => { setRescheduleDrive(td); setNewDate(td.scheduled_date || ''); setNewTime((td.scheduled_time || '').substring(0, 5)); }}>Reschedule</Button>
+          {!td.key_handed_at && (td.customers?.driving_license_verified
+            ? <Button size="sm" onClick={() => void handleGiveKeyAndStart(td.id)}>Assign Key</Button>
+            : <span className="text-xs text-warning">Upload a driving license below and have Security verify it before assigning the key.</span>)}
+        </>
+      )}
+      {td.status === 'key_handover_to_sales' && (
+        <Button size="sm" onClick={async () => {
+          setCompletionLeadDialogDrive(td);
+          setLeadTemperature('cold');
+          setFollowUpTaskTitle('');
+          setFollowUpTaskDueAt('');
+          setSelectedQuestions([]);
+          setHandoverNotes('');
+          if (td.location_id) {
+            try {
+              const locationRow = await apiGet<any>(`/api/locations/${encodeURIComponent(td.location_id)}`);
+              const meta = locationRow?.metadata || {};
+              setPresetHandoverQuestions(Array.isArray(meta.handover_questions) ? meta.handover_questions : []);
+            } catch { setPresetHandoverQuestions([]); }
+          } else { setPresetHandoverQuestions([]); }
+        }}>Key Handover To Sales</Button>
+      )}
+      {td.status === 'completed' && (td.pre_drive_km != null || td.post_drive_km != null || td.pre_drive_scratches?.trim() || td.post_drive_scratches?.trim() || td.pre_drive_notes?.trim() || td.post_drive_notes?.trim()) && (
+        <Button size="sm" variant="outline" onClick={() => setInspectionViewDrive(td)}>Inspection</Button>
+      )}
+      {td.status === 'completed' && td.inspection_submitted_at && <Badge>Done</Badge>}
+    </div>
+  );
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1089,7 +1135,7 @@ const SalesDashboard = () => {
                       <span className="text-sm text-muted-foreground">{(drive.scheduled_time || '').substring(0, 5) || '--:--'}</span>
                       <span>
                         <Badge variant="secondary" className={`text-[11px] ${statusColor[drive.status] || ''}`}>
-                          {formatStatusLabel(drive.status)}
+                          {getTestDriveStatusLabel(drive)}
                         </Badge>
                       </span>
                     </button>
@@ -1114,7 +1160,7 @@ const SalesDashboard = () => {
                         <p className="mt-1 truncate text-xs text-muted-foreground">{`${drive.vehicles?.brand || ''} ${drive.vehicles?.model || ''}`.trim() || 'Unassigned'}</p>
                       </div>
                       <Badge variant="secondary" className={`text-[11px] ${statusColor[drive.status] || ''}`}>
-                        {formatStatusLabel(drive.status)}
+                        {getTestDriveStatusLabel(drive)}
                       </Badge>
                     </div>
                     <div className="mt-3 text-xs text-muted-foreground">
@@ -1259,6 +1305,7 @@ const SalesDashboard = () => {
           scheduled: testDrives.filter((td) => td.status === 'scheduled').length,
           confirmed: testDrives.filter((td) => td.status === 'confirmed').length,
           show: testDrives.filter((td) => td.status === 'show').length,
+          key_assigned: testDrives.filter((td) => td.status === 'key_assigned').length,
           no_show: testDrives.filter((td) => td.status === 'no_show').length,
           completed: testDrives.filter((td) => td.status === 'completed').length,
           cancelled: testDrives.filter((td) => td.status === 'cancelled').length,
@@ -1447,7 +1494,7 @@ const SalesDashboard = () => {
                     )}
                   </div>
                   <Badge variant="secondary" className={`text-[10px] shrink-0 ${statusColor[td.status] || ''}`}>
-                    {formatStatusLabel(td.status)}
+                    {getTestDriveStatusLabel(td)}
                   </Badge>
                 </div>
 
@@ -1456,12 +1503,12 @@ const SalesDashboard = () => {
                   <span className="flex items-center gap-1"><Car className="h-3 w-3" />{td.vehicles?.brand} {td.vehicles?.model}</span>
                   <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{td.scheduled_date} {(td.scheduled_time || '').substring(0, 5)}</span>
                   {td.key_handed_at && td.status !== 'in_progress' && td.status !== 'completed' && (
-                    <Badge className="text-[10px] bg-info/10 text-info border-info/20">Vehicle Assigned</Badge>
+                    <Badge className="text-[10px] bg-info/10 text-info border-info/20">Key Assigned - Awaiting Security Start</Badge>
                   )}
                 </div>
 
                 {/* ── Licence section (original) ── */}
-                <div onClick={e => e.stopPropagation()}>
+                {['scheduled', 'confirmed', 'rescheduled', 'show', 'key_assigned', 'in_progress', 'key_handover_to_sales'].includes(td.status) && <div onClick={e => e.stopPropagation()}>
                   {!td.customers?.driving_license_url ? (
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                       <Label htmlFor={`license-${td.id}`} className="text-xs shrink-0">Upload License:</Label>
@@ -1488,63 +1535,9 @@ const SalesDashboard = () => {
                       {td.customers?.driving_license_verified && <Badge variant="outline" className="text-success text-xs">Verified</Badge>}
                     </div>
                   )}
-                </div>
+                </div>}
 
-                {/* ── Action buttons ── */}
-                <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border" onClick={e => e.stopPropagation()}>
-                  {['scheduled', 'confirmed', 'show'].includes(td.status) && (
-                    <>
-                      <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" onClick={() => setReassignDrive(td)}>
-                        <UserCog className="h-3.5 w-3.5 mr-1" /> Reassign
-                      </Button>
-                      <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs" onClick={() => setSwapDrive(td)}>
-                        <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Swap
-                      </Button>
-                      <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs" onClick={() => { setRescheduleDrive(td); setNewDate(td.scheduled_date || ''); setNewTime((td.scheduled_time || '').substring(0, 5)); }}>
-                        <CalendarClock className="h-3.5 w-3.5 mr-1" /> Reschedule
-                      </Button>
-                    </>
-                  )}
-                  {(td.status === 'show' || td.status === 'scheduled') && !td.key_handed_at && td?.customers?.driving_license_verified && (
-                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" onClick={() => handleGiveKeyAndStart(td.id)}>
-                      <Key className="h-3.5 w-3.5 mr-1" /> Assign Key
-                    </Button>
-                  )}
-                  {td.status === 'key_handover_to_sales' && (
-                    <>
-                      <Badge className="bg-warning/10 text-warning text-xs"><Key className="h-3 w-3 mr-1" /> Key Handover Pending</Badge>
-                      <Button
-                        size="sm"
-                        className="bg-success text-success-foreground hover:bg-success/90 text-xs"
-                        onClick={async () => {
-                          setCompletionLeadDialogDrive(td);
-                          setLeadTemperature('cold');
-                          setFollowUpTaskTitle('');
-                          setFollowUpTaskDueAt('');
-                          setSelectedQuestions([]);
-                          setHandoverNotes('');
-                          if (td.location_id) {
-                            try {
-                              const locationRow = await apiGet<any>(`/api/locations/${encodeURIComponent(td.location_id)}`);
-                              const meta = locationRow?.metadata || {};
-                              setPresetHandoverQuestions(Array.isArray(meta.handover_questions) ? meta.handover_questions : []);
-                            } catch { setPresetHandoverQuestions([]); }
-                          } else { setPresetHandoverQuestions([]); }
-                        }}
-                      >
-                        <FileCheck className="h-3.5 w-3.5 mr-1" /> Key Handover To Sales
-                      </Button>
-                    </>
-                  )}
-                  {td.status === 'completed' && ((td as any).pre_drive_km || (td as any).post_drive_km) && (
-                    <Button size="sm" className="bg-muted text-foreground hover:bg-muted/80 text-xs" onClick={() => setInspectionViewDrive(td)}>
-                      <Eye className="h-3.5 w-3.5 mr-1" /> Inspection
-                    </Button>
-                  )}
-                  {td.status === 'completed' && (td as any).inspection_submitted_at && (
-                    <Badge className="bg-success/10 text-success text-xs"><ClipboardCheck className="h-3 w-3 mr-1" /> Done</Badge>
-                  )}
-                </div>
+                <div className="pt-2 border-t border-border">{renderDriveActions(td)}</div>
               </div>
             ))}
             </div>
@@ -1604,10 +1597,12 @@ const SalesDashboard = () => {
 
       {/* Test Drive Detail Sheet */}
       <TestDriveDetailSheet
-        testDrive={detailSheetDrive}
+        testDrive={currentDetailDrive}
         open={!!detailSheetDrive}
         onClose={() => setDetailSheetDrive(null)}
         securityEvents={detailSheetDrive ? securityEventsByDrive[detailSheetDrive.id] : undefined}
+        actions={currentDetailDrive ? renderDriveActions(currentDetailDrive) : null}
+        onChanged={() => void fetchAssignedDrives()}
       />
 
       {/* Opportunity Notes Dialog */}
@@ -1952,36 +1947,36 @@ const SalesDashboard = () => {
 
       {/* Inspection Details Dialog */}
       <Dialog open={!!inspectionViewDrive} onOpenChange={() => setInspectionViewDrive(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary" />Inspection Report</DialogTitle>
             <DialogDescription>{inspectionViewDrive?.vehicles?.brand} {inspectionViewDrive?.vehicles?.model} — {inspectionViewDrive?.vehicles?.registration_number}</DialogDescription>
           </DialogHeader>
           {inspectionViewDrive && (
             <div className="space-y-4">
-              {(inspectionViewDrive as any).pre_drive_km && (
+              {(inspectionViewDrive.pre_drive_km != null || inspectionViewDrive.pre_drive_scratches?.trim() || inspectionViewDrive.pre_drive_notes?.trim()) && (
                 <div className="rounded-lg border border-border p-4 space-y-2">
                   <h4 className="font-medium text-foreground flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-primary" /> Pre-Drive</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_km} km</span></div>
+                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{inspectionViewDrive.pre_drive_km != null ? `${inspectionViewDrive.pre_drive_km} km` : 'N/A'}</span></div>
                     <div><span className="text-muted-foreground">Fuel:</span> <span className="font-medium">{(inspectionViewDrive as any).pre_drive_fuel_level || 'N/A'}</span></div>
                   </div>
-                  {(inspectionViewDrive as any).pre_drive_scratches && <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> {(inspectionViewDrive as any).pre_drive_scratches}</div>}
-                  {(inspectionViewDrive as any).pre_drive_notes && <div className="text-sm"><span className="text-muted-foreground">Notes:</span> {(inspectionViewDrive as any).pre_drive_notes}</div>}
+                  {inspectionViewDrive.pre_drive_scratches?.trim() && <div className="text-sm whitespace-pre-wrap break-words"><span className="text-muted-foreground">Scratches / Damage:</span> {inspectionViewDrive.pre_drive_scratches}</div>}
+                  {inspectionViewDrive.pre_drive_notes?.trim() && <div className="text-sm whitespace-pre-wrap break-words"><span className="text-muted-foreground">Additional Notes:</span> {inspectionViewDrive.pre_drive_notes}</div>}
                 </div>
               )}
-              {(inspectionViewDrive as any).post_drive_km && (
+              {(inspectionViewDrive.post_drive_km != null || inspectionViewDrive.post_drive_scratches?.trim() || inspectionViewDrive.post_drive_notes?.trim()) && (
                 <div className="rounded-lg border border-border p-4 space-y-2">
                   <h4 className="font-medium text-foreground flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-success" /> Post-Drive</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_km} km</span></div>
+                    <div><span className="text-muted-foreground">Odometer:</span> <span className="font-medium">{inspectionViewDrive.post_drive_km != null ? `${inspectionViewDrive.post_drive_km} km` : 'N/A'}</span></div>
                     <div><span className="text-muted-foreground">Fuel:</span> <span className="font-medium">{(inspectionViewDrive as any).post_drive_fuel_level || 'N/A'}</span></div>
                   </div>
-                  {(inspectionViewDrive as any).post_drive_scratches && <div className="text-sm"><span className="text-muted-foreground">Scratches:</span> {(inspectionViewDrive as any).post_drive_scratches}</div>}
-                  {(inspectionViewDrive as any).post_drive_notes && <div className="text-sm"><span className="text-muted-foreground">Notes:</span> {(inspectionViewDrive as any).post_drive_notes}</div>}
+                  {inspectionViewDrive.post_drive_scratches?.trim() && <div className="text-sm whitespace-pre-wrap break-words"><span className="text-muted-foreground">Scratches / Damage:</span> {inspectionViewDrive.post_drive_scratches}</div>}
+                  {inspectionViewDrive.post_drive_notes?.trim() && <div className="text-sm whitespace-pre-wrap break-words"><span className="text-muted-foreground">Additional Notes:</span> {inspectionViewDrive.post_drive_notes}</div>}
                 </div>
               )}
-              {(inspectionViewDrive as any).pre_drive_km && (inspectionViewDrive as any).post_drive_km && (
+              {inspectionViewDrive.pre_drive_km != null && inspectionViewDrive.post_drive_km != null && (
                 <div className="rounded-lg bg-muted p-3 text-sm">
                   <p className="font-medium text-foreground">Distance: {((inspectionViewDrive as any).post_drive_km - (inspectionViewDrive as any).pre_drive_km).toFixed(1)} km</p>
                 </div>

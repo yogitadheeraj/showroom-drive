@@ -22,6 +22,7 @@ const testDriveCards = [
   { key: 'scheduled', label: 'Scheduled', icon: Clock3, tint: 'bg-sky-100 text-sky-700 border-sky-200' },
   { key: 'confirmed', label: 'Confirmed', icon: CalendarCheck, tint: 'bg-violet-100 text-violet-700 border-violet-200' },
   { key: 'show', label: 'Show', icon: CheckCircle2, tint: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  { key: 'key_assigned', label: 'Key Assigned', icon: Clock3, tint: 'bg-amber-100 text-amber-700 border-amber-200' },
   { key: 'no_show', label: 'No Show', icon: AlertTriangle, tint: 'bg-amber-100 text-amber-700 border-amber-200' },
   { key: 'completed', label: 'Completed', icon: CheckCircle2, tint: 'bg-green-100 text-green-700 border-green-200' },
   { key: 'cancelled', label: 'Cancelled', icon: XCircle, tint: 'bg-rose-100 text-rose-700 border-rose-200' },

@@ -12,6 +12,7 @@ import { sendMail } from './mailService.js';
 
 interface TestDriveStats {
   scheduled: number; confirmed: number; show: number; no_show: number;
+  key_assigned: number;
   in_progress: number; completed: number; cancelled: number; rescheduled: number;
 }
 
@@ -156,7 +157,7 @@ async function buildReportData(locationId: string, reportDate: string): Promise<
   const drives = await TestDrive.find({ location_id: locationId, scheduled_date: reportDate }).lean();
 
   const zeroStats: TestDriveStats = {
-    scheduled: 0, confirmed: 0, show: 0, no_show: 0,
+    scheduled: 0, confirmed: 0, show: 0, key_assigned: 0, no_show: 0,
     in_progress: 0, completed: 0, cancelled: 0, rescheduled: 0,
   };
   const statusBreakdown = drives.reduce((acc, d) => {
