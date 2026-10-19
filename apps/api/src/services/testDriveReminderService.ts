@@ -3,7 +3,7 @@
  * ───────────────────────────
  * Scheduled email reminders and post-drive communications for test drives.
  *
- * Jobs (all idempotent — guarded by boolean flags on the TestDrive document):
+ * Jobs use TestDrive flags and completion-email queue/send-log checks:
  *   1. 24h reminder  — sent ~24 h before scheduled time
  *   2. 4h  reminder  — sent ~4 h before scheduled time
  *   3. No-show re-engagement — sent when status = 'no_show'
@@ -12,7 +12,7 @@
  * Called by the scheduler in index.ts every 15 minutes.
  */
 
-import { TestDrive } from '../models/TestDrive.js';
+import { TestDrive, type ITestDrive } from '../models/TestDrive.js';
 import { Customer } from '../models/Customer.js';
 import { Profile } from '../models/Profile.js';
 import { Location } from '../models/Location.js';
@@ -22,10 +22,12 @@ import {
   testDriveReminder24hTemplate,
   testDriveReminder4hTemplate,
   testDriveNoShowReengagementTemplate,
-  testDriveThankYouTemplate,
 } from '../templates/emailTemplates.js';
 import { generateBookingToken } from '../controllers/customerBookingController.js';
 import { env } from '../config/env.js';
+import { EmailQueue } from '../models/EmailQueue.js';
+import { isAlreadySent } from './emailQueueService.js';
+import { sendTransactionalEmail } from './reportEmailService.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -178,12 +180,63 @@ export async function sendNoShowReengagement(): Promise<{ sent: number }> {
   return stats;
 }
 
+export async function queueTestDriveCompletionEmail(drive: Pick<ITestDrive,
+  'id' | 'status' | 'customer_id' | 'vehicle_id' | 'location_id' | 'assigned_sales_person_id' |
+  'scheduled_date' | 'security_checked_in_at' | 'security_checked_out_at' | 'started_at' | 'completed_at'
+>): Promise<boolean> {
+  if (drive.status !== 'completed') return false;
+
+  const messageId = `test-drive-completed-${drive.id}`;
+  if (await isAlreadySent(messageId)) {
+    await TestDrive.updateOne({ id: drive.id }, { $set: { thank_you_sent: true } });
+    return false;
+  }
+  if (await EmailQueue.exists({ 'message.message_id': messageId, deleted_at: null })) return false;
+
+  const customer = await Customer.findOne({ id: drive.customer_id }, { email: 1, full_name: 1 }).lean();
+  if (!customer?.email) {
+    console.warn(`[testDriveReminder] completion email skipped: no customer email (td:${drive.id})`);
+    return false;
+  }
+
+  const [location, vehicle, salesPerson] = await Promise.all([
+    Location.findOne({ id: drive.location_id }, { name: 1 }).lean(),
+    Vehicle.findOne({ id: drive.vehicle_id }, { brand: 1, model: 1, variant: 1 }).lean(),
+    drive.assigned_sales_person_id
+      ? Profile.findOne({ id: drive.assigned_sales_person_id }, { full_name: 1, phone: 1 }).lean()
+      : null,
+  ]);
+  const feedbackUrl = new URL('/test-drive-feedback', env.publicFrontendUrl);
+  feedbackUrl.searchParams.set('td', drive.id);
+  const start = drive.security_checked_in_at || drive.started_at;
+  const end = drive.security_checked_out_at || drive.completed_at;
+  const duration = start && end ? Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60_000) : null;
+
+  await sendTransactionalEmail({
+    recipientEmail: customer.email,
+    templateName: 'test-drive-completed',
+    messageId,
+    templateData: {
+      customerName: customer.full_name || customer.email,
+      vehicleName: vehicleLabel(vehicle),
+      locationName: location?.name || '',
+      location_id: drive.location_id,
+      scheduledDate: drive.scheduled_date,
+      salesPersonName: salesPerson?.full_name || '',
+      durationMinutes: duration !== null && Number.isFinite(duration) && duration > 0 ? duration : undefined,
+      feedbackLink: feedbackUrl.toString(),
+    },
+  });
+  console.log(`[testDriveReminder] completion email queued (td:${drive.id})`);
+  return true;
+}
+
 /**
- * Send thank-you + next-steps email for drives completed in the last 2h.
+ * Recover completion emails missed during the immediate completion request.
  */
-export async function sendPostDriveThankYou(): Promise<{ sent: number }> {
+export async function sendPostDriveThankYou(): Promise<{ queued: number }> {
   const cutoff = new Date(Date.now() - 2 * 3600_000).toISOString();
-  const stats = { sent: 0 };
+  const stats = { queued: 0 };
 
   const drives = await TestDrive.find({
     status: 'completed',
@@ -192,31 +245,8 @@ export async function sendPostDriveThankYou(): Promise<{ sent: number }> {
   }).lean();
 
   for (const drive of drives) {
-    const customer = await Customer.findOne({ id: drive.customer_id }, { email: 1, full_name: 1 }).lean();
-    if (!customer?.email) continue;
-
-    const [location, vehicle, salesPerson] = await Promise.all([
-      Location.findOne({ id: drive.location_id }, { name: 1 }).lean(),
-      Vehicle.findOne({ id: drive.vehicle_id }, { brand: 1, model: 1, variant: 1 }).lean(),
-      drive.assigned_sales_person_id
-        ? Profile.findOne({ id: drive.assigned_sales_person_id }, { full_name: 1, phone: 1 }).lean()
-        : null,
-    ]);
-
-    const tpl = testDriveThankYouTemplate({
-      customerName: customer.full_name || customer.email,
-      vehicleName: vehicleLabel(vehicle),
-      locationName: (location as any)?.name ?? '',
-      salesPersonName: (salesPerson as any)?.full_name ?? '',
-      salesPersonPhone: (salesPerson as any)?.phone ?? '',
-      bookingUrl: bookingUrl(),
-    });
-
-    const sent = await trySend(customer.email, tpl);
-    if (sent) {
-      await TestDrive.updateOne({ id: drive.id }, { $set: { thank_you_sent: true } });
-      stats.sent++;
-      console.log(`[testDriveReminder] thank-you sent → ${customer.email} (td:${drive.id})`);
+    if (await queueTestDriveCompletionEmail(drive)) {
+      stats.queued++;
     }
   }
 
@@ -233,9 +263,9 @@ export async function runTestDriveReminderJobs(): Promise<void> {
       sendNoShowReengagement(),
       sendPostDriveThankYou(),
     ]);
-    const total = rem.sent24h + rem.sent4h + noShow.sent + thanks.sent;
+    const total = rem.sent24h + rem.sent4h + noShow.sent + thanks.queued;
     if (total > 0) {
-      console.log(`[testDriveReminder] Batch complete — 24h:${rem.sent24h} 4h:${rem.sent4h} no-show:${noShow.sent} thanks:${thanks.sent}`);
+      console.log(`[testDriveReminder] Batch complete — 24h:${rem.sent24h} 4h:${rem.sent4h} no-show:${noShow.sent} completion queued:${thanks.queued}`);
     }
   } catch (err) {
     console.error('[testDriveReminder] Batch error', err);

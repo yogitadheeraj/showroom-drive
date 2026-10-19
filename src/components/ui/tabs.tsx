@@ -56,8 +56,15 @@ const TabsTrigger = React.forwardRef<
 
   React.useEffect(() => {
     const element = triggerRef.current;
-    if (element?.dataset.state === "active") {
-      element.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    const container = element?.parentElement;
+    if (!element || element.dataset.state !== "active" || container?.getAttribute("role") !== "tablist") return;
+
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    if (elementRect.left < containerRect.left) {
+      container.scrollBy({ left: elementRect.left - containerRect.left, behavior: "smooth" });
+    } else if (elementRect.right > containerRect.right) {
+      container.scrollBy({ left: elementRect.right - containerRect.right, behavior: "smooth" });
     }
   });
 

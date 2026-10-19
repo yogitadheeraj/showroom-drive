@@ -63,12 +63,15 @@ async function processQueue(
     }
 
     try {
-      await sendMail({
+      const result = await sendMail({
         to: payload.to,
         subject: payload.subject,
         html: payload.html,
         text: payload.text,
       });
+      if (!result.sent) {
+        throw new Error(`Email not sent: ${result.reason || 'SMTP delivery skipped'}`);
+      }
 
       await EmailSendLog.create({
         message_id: payload.message_id ?? null,

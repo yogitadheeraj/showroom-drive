@@ -78,7 +78,7 @@ function extractBranding(data: Record<string, unknown>): EmailBranding {
 // ── Templates ────────────────────────────────────────────────────────────────
 
 export function testDriveCompletedTemplate(data: Record<string, unknown>) {
-  const { customerName, vehicleName, locationName, scheduledDate, salesPersonName, durationMinutes } = data as Record<string, string | number | undefined>;
+  const { customerName, vehicleName, locationName, scheduledDate, salesPersonName, durationMinutes, feedbackLink } = data as Record<string, string | number | undefined>;
   const branding = extractBranding(data);
   return {
     subject: `Your test drive is complete — thank you, ${customerName || 'there'}!`,
@@ -95,11 +95,13 @@ export function testDriveCompletedTemplate(data: Record<string, unknown>) {
           ${detailRow('Assisted by', salesPersonName as string)}
           ${detailRow('Duration', durationMinutes ? `${durationMinutes} minutes` : undefined)}
         </div>
+        ${feedbackLink ? `<p>Tell us about your test drive experience:</p>
+        <p><a class="cta" href="${feedbackLink}">Share Your Feedback</a></p>` : ''}
         <p>Interested in the next step? Our team is ready to help with pricing, financing, or scheduling another test drive.</p>
       </div>`,
       branding,
     ),
-    text: `Hi ${customerName || 'there'}, your test drive${vehicleName ? ` of ${vehicleName}` : ''} is complete. Thank you for visiting us!`,
+    text: `Hi ${customerName || 'there'}, your test drive${vehicleName ? ` of ${vehicleName}` : ''} is complete. Thank you for visiting us!${feedbackLink ? ` Share your feedback: ${feedbackLink}` : ''}`,
   };
 }
 

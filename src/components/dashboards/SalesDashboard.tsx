@@ -647,10 +647,10 @@ const SalesDashboard = () => {
     if (td?.customers?.email) {
       const customerName = td.customers.full_name || 'Customer';
       const message = buildTraceabilityMessage(td, completedAt);
-      const surveyLink = 'https://survey.showroom-drive.com/feedback'; // Replace with actual survey link
+      const surveyLink = `${window.location.origin}/test-drive-feedback?td=${encodeURIComponent(id)}`;
 
-      // Send follow-up email
-      await sendTransactionalEmail({
+      try {
+        await sendTransactionalEmail({
           templateName: 'sales-follow-up',
           recipientEmail: td.customers.email,
           idempotencyKey: `test-drive-followup-${id}`,
@@ -660,34 +660,12 @@ const SalesDashboard = () => {
             surveyLink,
             thankYouMessage: 'Thank you for choosing us for your test drive experience!',
           },
-      });
-
-      // Send completed summary email
-      let emailError: unknown = null;
-      try {
-        await sendTransactionalEmail({
-          templateName: 'test-drive-completed',
-          recipientEmail: td.customers.email,
-          idempotencyKey: `test-drive-completed-${id}`,
-          templateData: {
-            customerName,
-            vehicleName: `${td.vehicles?.brand || ''} ${td.vehicles?.model || ''}`.trim(),
-            locationName: td.locations?.name || '',
-            scheduledDate: td.scheduled_date,
-            salesPersonName: profile?.full_name || '',
-            durationMinutes: td.started_at && completedAt
-              ? Math.round((new Date(completedAt).getTime() - new Date(td.started_at).getTime()) / 60000)
-              : undefined,
-          },
         });
       } catch (error) {
-        emailError = error;
-      }
-
-      if (emailError) {
+        console.error('Customer journey follow-up email failed', error);
         toast({
-          title: 'Completed, but email failed',
-          description: 'Customer follow-up email could not be sent right now.',
+          title: 'Completed, but journey email failed',
+          description: 'The additional journey follow-up could not be queued. Completion email is handled separately.',
           variant: 'destructive',
         });
       }

@@ -17,6 +17,7 @@ import { generateBookingToken } from '../controllers/customerBookingController.j
 import { env } from '../config/env.js';
 import { autoTransitAfterDrive } from './vehicleFleetService.js';
 import { enforceDealerResourceLimit, resolveDealerIdFromLocation } from './subscriptionPolicyService.js';
+import { queueTestDriveCompletionEmail } from './testDriveReminderService.js';
 
 // ─── Resolve dealer branding from a location_id ─────────────────────────────
 async function resolveDealerBranding(locationId: string | undefined): Promise<Record<string, unknown>> {
@@ -407,6 +408,9 @@ export async function updateTestDrive(id: string, data: Record<string, unknown>)
     ...data,
     updated_at: new Date().toISOString(),
   };
+  if (data.status === 'completed' && !data.completed_at) {
+    patch.completed_at = new Date().toISOString();
+  }
 
   if (assignedGroId !== undefined) {
     patch.assigned_gro_id = assignedGroId;
@@ -424,6 +428,11 @@ export async function updateTestDrive(id: string, data: Record<string, unknown>)
   );
   if (!doc) return null;
   const plain = toPlain(doc);
+  if (data.status === 'completed') {
+    await queueTestDriveCompletionEmail(doc).catch((error) => {
+      console.error(`[testDrive] completion saved but email could not be queued (td:${id})`, error);
+    });
+  }
   // Fire FCM push + Firestore real-time event whenever status is being set
   if (typeof data.status === 'string') {
     void afterStatusChange(plain, data.status as string).catch((err) => {
