@@ -41,7 +41,7 @@ const getInitials = (name?: string | null) =>
     .toUpperCase() || '?';
 
 const SalesAvailabilityStrip = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [staff, setStaff] = useState<any[]>([]);
   const [busyProfileIds, setBusyProfileIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -62,6 +62,7 @@ const SalesAvailabilityStrip = () => {
       const salesStaff = (profiles || [])
         .map((p) => ({ ...p, user_roles: (roles || []).filter((r) => r.user_id === p.user_id) }))
         .filter((p) => (p.user_roles || []).some((r: any) => r.role === APP_ROLE.SALES))
+        .filter((p) => p.user_id !== user?.id)
         .filter((p) => (locationId ? p.location_id === locationId : true));
 
       setStaff(salesStaff);
@@ -88,7 +89,7 @@ const SalesAvailabilityStrip = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [locationId]);
+  }, [locationId, user?.id]);
 
   useEffect(() => {
     load();

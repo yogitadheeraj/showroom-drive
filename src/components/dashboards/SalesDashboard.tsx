@@ -27,6 +27,7 @@ import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import { navigateTo } from '@/lib/browserNavigation';
 import ServiceProgressPanel from './ServiceProgressPanel';
+import TodayView, { TodayOverviewSwitch } from './TodayView';
 import { DashboardStatusSections } from './DashboardStatusSections';
 import { buildServiceBookingStatusCounts } from '@/lib/dashboardMetrics';
 import { getAvailableTimeSlots } from '@/lib/slotAvailability';
@@ -58,6 +59,7 @@ const formatCurrencyValue = (value: number, currencyCode?: string | null) => {
 };
 
 const SalesDashboard = () => {
+  const [view, setView] = useState<'today' | 'overview'>('today');
   const { user, profile } = useAuth();
   const [testDrives, setTestDrives] = useState<any[]>([]);
   const [securityEventsByDrive, setSecurityEventsByDrive] = useState<Record<string, any>>({});
@@ -202,7 +204,14 @@ const SalesDashboard = () => {
   const fetchAssignedDrives = async () => {
     if (!profile?.id) return;
     const enrichedDrives = await apiGet<any[]>(`/api/test-drives?sales_person_id=${encodeURIComponent(profile.id)}`) || [];
-    setTestDrives(enrichedDrives);
+    setTestDrives(enrichedDrives.map((drive) => ({
+      ...drive,
+      assigned_sales_person: drive.assigned_sales_person || (
+        drive.assigned_sales_person_id === profile.id
+          ? { id: profile.id, full_name: profile.full_name, phone: profile.phone }
+          : null
+      ),
+    })));
     const serviceBookings = await apiGet<any[]>(`/api/service-bookings?location_id=${encodeURIComponent(profile?.location_id || '')}`).catch(() => []);
     const counts = buildServiceBookingStatusCounts(serviceBookings || []);
     setServiceBookingCount(serviceBookings?.length || 0);
@@ -1020,6 +1029,10 @@ const SalesDashboard = () => {
   return (
     <div className="space-y-4 sm:space-y-6">
 
+      <TodayOverviewSwitch view={view} onChange={setView} />
+      {view === 'today' ? (
+        <TodayView />
+      ) : (<>
       {/* ── Header row: title + filter ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -2025,6 +2038,7 @@ const SalesDashboard = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </>)}
     </div>
   );
 };

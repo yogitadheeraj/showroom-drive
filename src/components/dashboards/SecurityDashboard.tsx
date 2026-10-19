@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ActivityInsightsMini } from '@/components/ActivityInsightsMini';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye, Car, Clock, File, Trash2, Phone, User, Truck, AlertTriangle, Zap, TrendingUp, ArrowRight, TimerReset, Activity, Loader2 } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, FileCheck, AlertCircle, Upload, ClipboardCheck, Eye, Car, Clock, File, Trash2, Phone, User, Truck, AlertTriangle, Zap, TrendingUp, ArrowRight, TimerReset, Activity, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,6 +20,13 @@ import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import { useTestDriveRealtime } from '@/hooks/useTestDriveRealtime';
 import IncomingVehiclesPanel from '@/components/IncomingVehiclesPanel';
 import { navigateTo } from '@/lib/browserNavigation';
+
+const toLocalDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const SecurityDashboard = () => {
   const { profile } = useAuth();
@@ -43,9 +50,25 @@ const SecurityDashboard = () => {
   const [docViewOpen, setDocViewOpen] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<any>(null);
   const [viewFilter, setViewFilter] = useState<'all' | 'active' | 'completed' | 'total' | 'in_progress' | 'license_ok' | 'pending_verification'>('all');
+  const [selectedDate, setSelectedDate] = useState(() => toLocalDateKey(new Date()));
   const drivesSectionRef = useRef<HTMLDivElement>(null);
   const [securityLogsByDrive, setSecurityLogsByDrive] = useState<Record<string, any[]>>({});
   const [detailSheetDrive, setDetailSheetDrive] = useState<any>(null);
+  const [pendingVerifyDriveId, setPendingVerifyDriveId] = useState<string | null>(null);
+  const [pendingRejectDriveId, setPendingRejectDriveId] = useState<string | null>(null);
+
+  const todayDate = toLocalDateKey(new Date());
+  const isTodaySelected = selectedDate === todayDate;
+  const isTodayDrive = (drive: { scheduled_date?: string | null } | null | undefined) => drive?.scheduled_date === todayDate;
+  const requireTodayDrive = (drive: { scheduled_date?: string | null } | null | undefined) => {
+    if (isTodayDrive(drive)) return true;
+    toast({
+      title: 'Action unavailable',
+      description: 'Security actions can only be performed on test drives scheduled for today.',
+      variant: 'destructive',
+    });
+    return false;
+  };
 
   const formatStatusLabel = (status: string) =>
     status
@@ -128,6 +151,8 @@ const SecurityDashboard = () => {
   };
 
   const handleUploadTestDriveDoc = async (testDriveId: string, file: File) => {
+    const drive = testDrives.find((item) => item.id === testDriveId);
+    if (!requireTodayDrive(drive)) return;
     setUploadingDocId(testDriveId);
     try {
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -164,6 +189,8 @@ const SecurityDashboard = () => {
   };
 
   const handleDeleteDocument = async (testDriveId: string, filename: string) => {
+    const drive = testDrives.find((item) => item.id === testDriveId);
+    if (!requireTodayDrive(drive)) return;
     try {
       await removeStorageFiles('documents', [`test-drives/${testDriveId}/${filename}`]);
 
@@ -187,12 +214,14 @@ const SecurityDashboard = () => {
 
   const checkIn = async (id: string) => {
     let drive = testDrives.find((item) => item.id === id);
+    if (!requireTodayDrive(drive)) return;
     if (!drive || !drive.key_handed_at || !drive.customers?.driving_license_verified || !drive.pre_drive_km || !drive.pre_drive_fuel_level) {
       const freshDrive = await apiGet<any>(`/api/test-drives/${encodeURIComponent(id)}`);
       if (freshDrive) {
         drive = freshDrive;
       }
     }
+    if (!requireTodayDrive(drive)) return;
 
     if (!drive?.key_handed_at) {
       toast({
@@ -241,12 +270,14 @@ const SecurityDashboard = () => {
 
   const checkOut = async (id: string) => {
     let drive = testDrives.find((item) => item.id === id);
+    if (!requireTodayDrive(drive)) return;
     if (!drive || !drive.key_handed_at || !drive.post_drive_km || !drive.post_drive_fuel_level) {
       const freshDrive = await apiGet<any>(`/api/test-drives/${encodeURIComponent(id)}`);
       if (freshDrive) {
         drive = freshDrive;
       }
     }
+    if (!requireTodayDrive(drive)) return;
     if (!drive?.key_handed_at) {
       toast({
         title: 'Vehicle not assigned yet',
@@ -289,7 +320,10 @@ const SecurityDashboard = () => {
     void fetchDrives();
   };
 
-  const openLicensePreview = async (customerId: string, licenseUrl: string) => {
+  const openLicensePreview = async (customerId: string, licenseUrl: string, driveId: string) => {
+    const drive = testDrives.find((item) => item.customer_id === customerId && item.id === driveId);
+    if (!requireTodayDrive(drive)) return;
+    setPendingVerifyDriveId(driveId);
     setPendingVerifyId(customerId);
     setPreviewOpen(true);
 
@@ -312,6 +346,8 @@ const SecurityDashboard = () => {
 
   const confirmVerify = async () => {
     if (!pendingVerifyId) return;
+    const drive = testDrives.find((item) => item.id === pendingVerifyDriveId);
+    if (!requireTodayDrive(drive)) return;
 
     await apiPatch(`/api/customers/${encodeURIComponent(pendingVerifyId)}`, { driving_license_verified: true });
 
@@ -330,17 +366,23 @@ const SecurityDashboard = () => {
     toast({ title: 'License verified' });
     setPreviewOpen(false);
     setPendingVerifyId(null);
+    setPendingVerifyDriveId(null);
     void fetchDrives();
   };
 
-  const openRejectDialog = (customerId: string) => {
+  const openRejectDialog = (customerId: string, driveId: string) => {
+    const drive = testDrives.find((item) => item.id === driveId);
+    if (!requireTodayDrive(drive)) return;
     setPendingRejectId(customerId);
+    setPendingRejectDriveId(driveId);
     setRejectReason('');
     setRejectOpen(true);
   };
 
   const confirmReject = async () => {
     if (!pendingRejectId) return;
+    const drive = testDrives.find((item) => item.id === pendingRejectDriveId);
+    if (!requireTodayDrive(drive)) return;
 
     await apiPatch(`/api/customers/${encodeURIComponent(pendingRejectId)}`, { driving_license_url: null, driving_license_verified: false });
 
@@ -359,11 +401,14 @@ const SecurityDashboard = () => {
     toast({ title: 'License rejected', description: rejectReason || 'Customer must re-upload their license' });
     setRejectOpen(false);
     setPendingRejectId(null);
+    setPendingRejectDriveId(null);
     setPreviewOpen(false);
     void fetchDrives();
   };
 
-  const handleReuploadLicense = async (customerId: string, file: File) => {
+  const handleReuploadLicense = async (customerId: string, file: File, driveId: string) => {
+    const drive = testDrives.find((item) => item.id === driveId);
+    if (!requireTodayDrive(drive)) return;
     setReuploadingId(customerId);
     try {
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -402,6 +447,7 @@ const SecurityDashboard = () => {
   };
 
   const openInspection = (testDrive: any, type: 'pre' | 'post') => {
+    if (!requireTodayDrive(testDrive)) return;
     setInspectionDrive(testDrive);
     setInspectionType(type);
     if (type === 'post') {
@@ -420,6 +466,7 @@ const SecurityDashboard = () => {
   };
 
   const handleInspectionComplete = async () => {
+    if (inspectionDrive && !requireTodayDrive(inspectionDrive)) return;
     await fetchDrives();
 
     if (pendingStartDriveId) {
@@ -436,25 +483,29 @@ const SecurityDashboard = () => {
     await checkOut(driveId);
   };
 
-  const pendingCount = testDrives.filter((d) => d.customers?.driving_license_url && !d.customers?.driving_license_verified).length;
+  const selectedDayDrives = useMemo(
+    () => testDrives.filter((drive) => drive.scheduled_date === selectedDate),
+    [testDrives, selectedDate],
+  );
+  const pendingCount = selectedDayDrives.filter((d) => d.customers?.driving_license_url && !d.customers?.driving_license_verified).length;
 
   // ── AI-derived smart metrics ──────────────────────────────────────────────
   const metrics = useMemo(() => {
     const now = new Date();
-    const active   = testDrives.filter((d) => d.status !== 'completed' && d.status !== 'cancelled');
-    const inProgress = testDrives.filter((d) => d.status === 'in_progress' && d.status !== 'cancelled');
-    const noLicense  = testDrives.filter((d) => !d.customers?.driving_license_url && d.status !== 'completed' && d.status !== 'cancelled');
-    const pendingInspection = testDrives.filter(
+    const active   = selectedDayDrives.filter((d) => d.status !== 'completed' && d.status !== 'cancelled');
+    const inProgress = selectedDayDrives.filter((d) => d.status === 'in_progress' && d.status !== 'cancelled');
+    const noLicense  = selectedDayDrives.filter((d) => !d.customers?.driving_license_url && d.status !== 'completed' && d.status !== 'cancelled');
+    const pendingInspection = selectedDayDrives.filter(
       (d) => d.key_handed_at && !(d as any).pre_drive_km && !d.security_checked_in_at && !['completed','cancelled'].includes(d.status)
     );
-    const overdueReturn = inProgress.filter((d) => {
+    const overdueReturn = selectedDate === todayDate ? inProgress.filter((d) => {
       if (!d.scheduled_date || !d.scheduled_time) return false;
       const scheduled = new Date(`${d.scheduled_date}T${d.scheduled_time}`);
       const slotDur = Number((d as any).slot_duration_minutes || 30);
       return now.getTime() > scheduled.getTime() + slotDur * 60_000 + 15 * 60_000;
-    });
-    const awaitingKey = testDrives.filter((d) => !d.key_handed_at && !['completed','cancelled'].includes(d.status));
-    const completedToday = testDrives.filter((d) => d.status === 'completed' && d.security_checked_out_at?.startsWith(now.toISOString().split('T')[0]));
+    }) : [];
+    const awaitingKey = selectedDayDrives.filter((d) => !d.key_handed_at && !['completed','cancelled'].includes(d.status));
+    const completedToday = selectedDayDrives.filter((d) => d.status === 'completed');
 
     // Compliance rate: drives with verified license / total active
     const complianceRate = active.length > 0
@@ -470,9 +521,9 @@ const SecurityDashboard = () => {
     if (awaitingKey.length > 0) actions.push({ id: 'key', type: 'info', icon: Car, title: 'Awaiting Key Handover', description: `${awaitingKey.length} drive${awaitingKey.length > 1 ? 's' : ''} waiting for sales to assign vehicle`, count: awaitingKey.length });
 
     return { active, inProgress, overdueReturn, noLicense, pendingInspection, awaitingKey, completedToday, complianceRate, actions };
-  }, [testDrives, pendingCount]);
+  }, [selectedDayDrives, pendingCount, selectedDate, todayDate]);
 
-  const filteredDrives = testDrives.filter((drive) => {
+  const filteredDrives = selectedDayDrives.filter((drive) => {
     // Always exclude cancelled test drives
     if (drive.status === 'cancelled') return false;
     
@@ -487,7 +538,37 @@ const SecurityDashboard = () => {
 
   const filterLabels: Record<string, string> = {
     all: 'All Records', active: 'Active Only', completed: 'Completed',
-    total: 'Total Today', in_progress: 'In Progress', license_ok: 'License Verified', pending_verification: 'Pending Verification',
+    total: isTodaySelected ? 'Total Today' : 'Total Selected Day', in_progress: 'In Progress', license_ok: 'License Verified', pending_verification: 'Pending Verification',
+  };
+
+  const formatSelectedDate = (dateKey: string) => {
+    const date = new Date(`${dateKey}T12:00:00`);
+    return Number.isNaN(date.getTime())
+      ? dateKey
+      : date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatDriveDate = (dateKey: string) => {
+    const date = new Date(`${dateKey}T12:00:00`);
+    return Number.isNaN(date.getTime())
+      ? dateKey
+      : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatScheduledTime = (time?: string) => {
+    if (!time) return 'Time not set';
+    const [hours, minutes] = time.split(':').map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return time;
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const changeSelectedDate = (offset: number) => {
+    const date = new Date(`${selectedDate}T12:00:00`);
+    date.setDate(date.getDate() + offset);
+    setSelectedDate(toLocalDateKey(date));
+    setViewFilter('all');
   };
 
   const handleStatClick = (filter: typeof viewFilter) => {
@@ -511,7 +592,7 @@ const SecurityDashboard = () => {
           <h1 className="text-xl sm:text-2xl font-heading font-bold text-foreground flex items-center gap-2">
             <Shield className="h-6 w-6 text-primary" /> Security Dashboard
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Real-time safety, compliance & vehicle management</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Real-time safety, compliance & vehicle management · {formatSelectedDate(selectedDate)}</p>
         </div>
         {/* Live compliance badge */}
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border ${
@@ -525,13 +606,12 @@ const SecurityDashboard = () => {
       </div>
 
       {/* ── KPI stat strip ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Total Today', value: testDrives.length, icon: Shield, color: 'text-primary', bg: 'bg-primary/10', activeColor: 'ring-primary', sub: `${metrics.active.length} active`, filter: 'total' as const },
+          { label: isTodaySelected ? 'Total Today' : 'Total Selected Day', value: selectedDayDrives.length, icon: Shield, color: 'text-primary', bg: 'bg-primary/10', activeColor: 'ring-primary', sub: `${metrics.active.length} active`, filter: 'total' as const },
           { label: 'In Progress', value: metrics.inProgress.length, icon: CheckCircle, color: 'text-success', bg: 'bg-success/10', activeColor: 'ring-success', sub: metrics.overdueReturn.length > 0 ? `${metrics.overdueReturn.length} overdue` : 'on track', alert: metrics.overdueReturn.length > 0, filter: 'in_progress' as const },
-          { label: 'License OK', value: testDrives.filter((d) => d.customers?.driving_license_verified).length, icon: FileCheck, color: 'text-info', bg: 'bg-info/10', activeColor: 'ring-info', sub: `${pendingCount} pending`, filter: 'license_ok' as const },
+          { label: 'License OK', value: selectedDayDrives.filter((d) => d.customers?.driving_license_verified).length, icon: FileCheck, color: 'text-info', bg: 'bg-info/10', activeColor: 'ring-info', sub: `${pendingCount} pending`, filter: 'license_ok' as const },
           { label: 'Pending Verification', value: pendingCount, icon: AlertCircle, color: pendingCount > 0 ? 'text-warning' : 'text-muted-foreground', bg: pendingCount > 0 ? 'bg-warning/10' : 'bg-muted/40', activeColor: 'ring-warning', sub: pendingCount > 0 ? 'needs action' : 'all clear', alert: pendingCount > 0, filter: 'pending_verification' as const },
-          { label: 'Total Vehicles', value: totalVehicles, icon: Car, color: 'text-sky-600', bg: 'bg-sky-100', activeColor: 'ring-sky-500', sub: 'fleet in location', filter: 'all' as const, navigateToVehicles: true },
         ].map((stat) => {
           const Icon = stat.icon;
           const isActive = viewFilter === stat.filter;
@@ -590,7 +670,28 @@ const SecurityDashboard = () => {
                 </Badge>
               )}
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" className="h-9 px-2" aria-label="Previous day" onClick={() => changeSelectedDate(-1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <input
+                aria-label="Test drive date"
+                type="date"
+                value={selectedDate}
+                onChange={(event) => {
+                  setSelectedDate(event.target.value);
+                  setViewFilter('all');
+                }}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+              />
+              <Button size="sm" variant="outline" className="h-9 px-2" aria-label="Next day" onClick={() => changeSelectedDate(1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              {!isTodaySelected && (
+                <Button size="sm" variant="outline" className="h-9 text-xs" onClick={() => { setSelectedDate(todayDate); setViewFilter('all'); }}>
+                  Today
+                </Button>
+              )}
               {viewFilter !== 'all' && (
                 <Button size="sm" variant="ghost" className="text-xs h-7 text-muted-foreground" onClick={() => setViewFilter('all')}>
                   × Clear
@@ -612,7 +713,7 @@ const SecurityDashboard = () => {
         <CardContent>
           <div className="max-h-[75vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-2.5">
-            {filteredDrives.slice(0, 5).map((testDrive) => {
+            {filteredDrives.map((testDrive) => {
               const urgency = getDriveUrgency(testDrive);
               const urgencyBar = urgency === 'critical' ? 'border-l-destructive' : urgency === 'warning' ? 'border-l-warning' : urgency === 'ok' ? 'border-l-success' : 'border-l-border';
               return (
@@ -648,12 +749,12 @@ const SecurityDashboard = () => {
                 {/* Vehicle + time */}
                 <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1"><Car className="h-3 w-3" />{testDrive.vehicles?.brand} {testDrive.vehicles?.model}</span>
-                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{testDrive.scheduled_date} {(testDrive.scheduled_time || '').substring(0, 5)}</span>
+                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatDriveDate(testDrive.scheduled_date)} · {formatScheduledTime(testDrive.scheduled_time)}</span>
                 </div>
 
                 {/* Actions */}
                 <div className="flex gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
-                  {!testDrive.security_checked_in_at ? (
+                  {isTodayDrive(testDrive) ? !testDrive.security_checked_in_at ? (
                     !testDrive.key_handed_at ? (
                       <Badge className="bg-muted text-muted-foreground text-xs">Awaiting Key</Badge>
                     ) : !testDrive.customers?.driving_license_verified ? (
@@ -680,7 +781,7 @@ const SecurityDashboard = () => {
                     </div>
                   ) : (
                     <Badge className="bg-muted text-muted-foreground text-xs">Checked Out</Badge>
-                  )}
+                  ) : <Badge variant="outline" className="text-xs">View only · actions available on the scheduled day</Badge>}
                 </div>
 
                 {/* License */}
@@ -700,24 +801,24 @@ const SecurityDashboard = () => {
                       ) : (
                         <>
                           <Badge className="bg-warning/10 text-warning text-xs">Verify Pending</Badge>
-                          <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" disabled={reuploadingId === testDrive.customer_id} onClick={() => void openLicensePreview(testDrive.customer_id, testDrive.customers.driving_license_url)}>
+                          {isTodayDrive(testDrive) && <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs" disabled={reuploadingId === testDrive.customer_id} onClick={() => void openLicensePreview(testDrive.customer_id, testDrive.customers.driving_license_url, testDrive.id)}>
                             <FileCheck className="h-3 w-3 mr-1" /> Verify
-                          </Button>
-                          <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs" disabled={reuploadingId === testDrive.customer_id} onClick={() => openRejectDialog(testDrive.customer_id)}>
+                          </Button>}
+                          {isTodayDrive(testDrive) && <Button size="sm" className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs" disabled={reuploadingId === testDrive.customer_id} onClick={() => openRejectDialog(testDrive.customer_id, testDrive.id)}>
                             <XCircle className="h-3 w-3 mr-1" /> Reject
-                          </Button>
+                          </Button>}
                         </>
                       )
                     ) : (
                       <>
                         <Badge className="bg-destructive/10 text-destructive text-xs">No License</Badge>
-                        <Label htmlFor={`reupload-sec-${testDrive.customer_id}`} className="cursor-pointer">
+                        {isTodayDrive(testDrive) && <Label htmlFor={`reupload-sec-${testDrive.customer_id}`} className="cursor-pointer">
                           <Button size="sm" className="bg-info text-info-foreground hover:bg-info/90 text-xs" asChild>
                             <span><Upload className="h-3 w-3 mr-1" /> Upload</span>
                           </Button>
-                        </Label>
-                        <input id={`reupload-sec-${testDrive.customer_id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={reuploadingId === testDrive.customer_id}
-                          onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleReuploadLicense(testDrive.customer_id, file); }} />
+                        </Label>}
+                        {isTodayDrive(testDrive) && <input id={`reupload-sec-${testDrive.customer_id}`} type="file" accept="image/*,.pdf" className="hidden" disabled={reuploadingId === testDrive.customer_id}
+                          onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleReuploadLicense(testDrive.customer_id, file, testDrive.id); }} />}
                       </>
                     )}
                   </div>
@@ -738,7 +839,7 @@ const SecurityDashboard = () => {
 
                 {/* Upload doc */}
                 <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-border" onClick={e => e.stopPropagation()}>
-                 {!(testDrive as any).inspection_submitted_at && (testDrive as any).key_handed_at && (
+                 {isTodayDrive(testDrive) && !(testDrive as any).inspection_submitted_at && (testDrive as any).key_handed_at && (
                     <Label htmlFor={`doc-upload-${testDrive.id}`} className="cursor-pointer ml-auto">
                     <Button size="sm" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 text-xs" asChild>
                       <span><Upload className="h-3 w-3 mr-1" /> Doc</span>
@@ -760,9 +861,9 @@ const SecurityDashboard = () => {
                           <button className="text-primary hover:underline" onClick={() => void viewDocument(testDrive.id, doc.name)}>
                             {doc.name.split('/').pop()?.substring(0, 18)}…
                           </button>
-                          <button className="text-destructive hover:text-destructive/80 ml-1" onClick={() => void handleDeleteDocument(testDrive.id, doc.name)}>
+                          {isTodayDrive(testDrive) && <button className="text-destructive hover:text-destructive/80 ml-1" onClick={() => void handleDeleteDocument(testDrive.id, doc.name)}>
                             <Trash2 className="h-3 w-3" />
-                          </button>
+                          </button>}
                         </div>
                       ))}
                     </div>
@@ -772,13 +873,6 @@ const SecurityDashboard = () => {
             );
             })}
             </div>
-            {filteredDrives.length > 5 && (
-              <div className="flex justify-center pt-3">
-                <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => navigateTo('/test-drives')}>
-                  View All {filteredDrives.length} Test Drives <ArrowRight className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
             {filteredDrives.length === 0 && <p className="text-center text-muted-foreground py-8 text-sm">No test drives for selected filter</p>}
           </div>
         </CardContent>
@@ -884,11 +978,18 @@ const SecurityDashboard = () => {
             ) : <p className="text-muted-foreground">Loading preview...</p>}
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { setPreviewOpen(false); openRejectDialog(pendingVerifyId!); }}>
+            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={!testDrives.some((drive) => drive.id === pendingVerifyDriveId && isTodayDrive(drive))} onClick={() => {
+              setPreviewOpen(false);
+              if (pendingVerifyId && pendingVerifyDriveId) openRejectDialog(pendingVerifyId, pendingVerifyDriveId);
+            }}>
               <XCircle className="h-4 w-4 mr-1" /> Reject
             </Button>
-            <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => setPreviewOpen(false)}>Cancel</Button>
-            <Button className="bg-success text-success-foreground hover:bg-success/90" onClick={() => void confirmVerify()}>
+            <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => {
+              setPreviewOpen(false);
+              setPendingVerifyId(null);
+              setPendingVerifyDriveId(null);
+            }}>Cancel</Button>
+            <Button className="bg-success text-success-foreground hover:bg-success/90" disabled={!testDrives.some((drive) => drive.id === pendingVerifyDriveId && isTodayDrive(drive))} onClick={() => void confirmVerify()}>
               <CheckCircle className="h-4 w-4 mr-1" /> Verify
             </Button>
           </DialogFooter>
@@ -909,7 +1010,7 @@ const SecurityDashboard = () => {
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button className="bg-muted text-foreground hover:bg-muted/80" onClick={() => setRejectOpen(false)}>Cancel</Button>
-            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => void confirmReject()}>
+            <Button className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={!testDrives.some((drive) => drive.id === pendingRejectDriveId && isTodayDrive(drive))} onClick={() => void confirmReject()}>
               <XCircle className="h-4 w-4 mr-1" /> Confirm Rejection
             </Button>
           </DialogFooter>

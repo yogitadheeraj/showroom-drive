@@ -22,7 +22,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Users, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle, MoreHorizontal, PlusCircle, CalendarClock, Shield, LayoutGrid, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { CalendarX, RefreshCw, Car, Clock, MapPin, User, Users, Phone, Route, Ban, TrendingUp, Key, FileCheck, CheckCircle2, CheckCircle, XCircle, PlayCircle, MoreHorizontal, PlusCircle, CalendarClock, Shield, LayoutGrid, Calendar, ChevronLeft, ChevronRight, X, type LucideIcon } from 'lucide-react';
 import { APP_ROLE } from '@/constants/roles';
 import { TestDriveJourneyDialog } from '@/components/TestDriveJourneyDialog';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
@@ -530,6 +530,142 @@ const TestDrivesPage = () => {
     }
 
     return null;
+  };
+
+  const getAvailableActions = (td: any) => {
+    const salesRoles = [APP_ROLE.SALES, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[];
+    const adminRoles = [APP_ROLE.GRO, APP_ROLE.SALES_ADMIN, APP_ROLE.DEALER_ADMIN, APP_ROLE.SUPERADMIN] as string[];
+    const actions: Array<{ label: string; description: string; icon: LucideIcon; onClick: () => void; disabled?: boolean; destructive?: boolean }> = [
+      {
+        label: 'Journey',
+        description: 'View the route and test-drive journey.',
+        icon: Route,
+        onClick: () => setJourneyDrive(td),
+      },
+    ];
+
+    if (td.status === 'cancelled') {
+      actions.push({
+        label: 'New Test Drive',
+        description: 'Book another test drive for this customer.',
+        icon: PlusCircle,
+        onClick: () => setRebookDrive(td),
+      });
+    }
+    if (td.status === 'key_handover_to_sales' && salesRoles.includes(role ?? '')) {
+      actions.push({
+        label: 'Key Handover',
+        description: 'Complete the handover and capture follow-up details.',
+        icon: FileCheck,
+        onClick: () => handleKeyHandoverComplete(td),
+      });
+    }
+    if (
+      ['show', 'scheduled', 'rescheduled'].includes(td.status) &&
+      !td.key_handed_at &&
+      td.customers?.driving_license_verified &&
+      salesRoles.includes(role ?? '')
+    ) {
+      actions.push({
+        label: 'Assign Key',
+        description: 'Hand over the key and start the test drive.',
+        icon: Key,
+        onClick: () => handleAssignKey(td.id),
+        disabled: assigningKey === td.id,
+      });
+    }
+    if (td.status === 'scheduled' && adminRoles.includes(role ?? '') && !td.key_handed_at) {
+      actions.push({
+        label: 'Confirm',
+        description: 'Confirm this scheduled test drive.',
+        icon: CheckCircle2,
+        onClick: () => updateStatus(td.id, 'confirmed'),
+      });
+    }
+    const canManageSecurityCheck = role === APP_ROLE.SECURITY || adminRoles.includes(role ?? '');
+    if (
+      canManageSecurityCheck &&
+      ['show', 'in_progress'].includes(td.status) &&
+      !td.security_checked_in_at
+    ) {
+      actions.push({
+        label: 'Security Check-In',
+        description: 'Record the customer and vehicle leaving for the drive.',
+        icon: Shield,
+        onClick: () => handleSecurityCheckIn(td.id, td.location_id),
+        disabled: securityActionId === td.id,
+      });
+    }
+    if (
+      canManageSecurityCheck &&
+      td.status === 'in_progress' &&
+      td.security_checked_in_at &&
+      !td.security_checked_out_at
+    ) {
+      actions.push({
+        label: 'Security Check-Out',
+        description: 'Record the vehicle returning from the drive.',
+        icon: CheckCircle2,
+        onClick: () => handleSecurityCheckOut(td.id),
+        disabled: securityActionId === td.id,
+      });
+    }
+
+    const reschedulableStatuses = ['scheduled', 'confirmed', 'show', 'no_show', 'rescheduled'];
+    const showStatuses = ['scheduled', 'confirmed', 'show', 'rescheduled'];
+    if (showStatuses.includes(td.status) && adminRoles.includes(role ?? '')) {
+      actions.push({
+        label: 'Mark Show',
+        description: 'Record that the customer arrived.',
+        icon: CheckCircle,
+        onClick: () => updateStatus(td.id, 'show'),
+      });
+    }
+    if (reschedulableStatuses.includes(td.status)) {
+      actions.push({
+        label: 'Reschedule',
+        description: 'Choose a new appointment date and time.',
+        icon: RefreshCw,
+        onClick: () => setRescheduleId(td.id),
+      });
+    }
+    if (showStatuses.includes(td.status)) {
+      actions.push({
+        label: 'No Show',
+        description: 'Record that the customer did not arrive.',
+        icon: CalendarX,
+        onClick: () => setNoShowId(td.id),
+      });
+    }
+    if (
+      canCreateOpportunity &&
+      ['completed', 'key_handover_to_sales'].includes(td.status) &&
+      td.scheduled_date &&
+      new Date(td.scheduled_date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    ) {
+      actions.push({
+        label: 'Create Lead',
+        description: 'Create a sales opportunity from this test drive.',
+        icon: TrendingUp,
+        onClick: () => {
+          setLeadDialogDrive(td);
+          setLeadTemperature('cold');
+          setFollowUpTaskTitle('');
+          setFollowUpTaskDueAt('');
+        },
+      });
+    }
+    if (['scheduled', 'confirmed', 'rescheduled'].includes(td.status)) {
+      actions.push({
+        label: 'Cancel',
+        description: 'Cancel this test-drive appointment.',
+        icon: Ban,
+        onClick: () => setCancelId(td.id),
+        destructive: true,
+      });
+    }
+
+    return actions;
   };
 
   const statusColor: Record<string, string> = {
@@ -1307,6 +1443,29 @@ const TestDrivesPage = () => {
           testDrive={detailSheetDrive}
           open={!!detailSheetDrive}
           onClose={() => setDetailSheetDrive(null)}
+          actions={detailSheetDrive && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {getAvailableActions(detailSheetDrive).map(({ label, description, icon: Icon, onClick, disabled, destructive }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={onClick}
+                  disabled={disabled}
+                  className={`flex min-h-16 items-start gap-3 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    destructive
+                      ? 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10'
+                      : 'border-border bg-card hover:border-primary/40 hover:bg-muted/50'
+                  }`}
+                >
+                  <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${destructive ? 'text-destructive' : 'text-primary'}`} />
+                  <span className="min-w-0">
+                    <span className={`block text-sm font-medium ${destructive ? 'text-destructive' : 'text-foreground'}`}>{label}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         />
 
         <Dialog open={!!rescheduleId} onOpenChange={(open) => {

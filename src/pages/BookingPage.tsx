@@ -968,24 +968,7 @@ const BookingPage = ({ hideStandaloneHeader = false }: BookingPageProps) => {
                   </div>
                 )}
 
-                {formData.scheduledDate && quickPreviewTimeSlots.length > 0 && (
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Quick Time Preview</Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {quickPreviewTimeSlots.slice(0, 12).map((t) => {
-                        const [h] = t.split(':').map(Number);
-                        const period = h < 12 ? 'AM' : 'PM';
-                        const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                        return (
-                          <span key={t} className="px-2 py-1 rounded-md bg-muted text-xs text-muted-foreground border border-border">
-                            {displayH}:{t.split(':')[1]} {period}
-                          </span>
-                        );
-                      })}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">Exact availability shown after selecting a location.</p>
-                  </div>
-                )}
+       
               </div>
             )}
 

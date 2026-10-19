@@ -7,11 +7,14 @@ import {
   FileCheck, AlertTriangle, Fuel, Route, CheckSquare, CalendarCheck,
   CalendarArrowUp,
 } from 'lucide-react';
+import { format, parse, parseISO, isValid } from 'date-fns';
 
 interface Props {
   testDrive: any | null;
   open: boolean;
   onClose: () => void;
+  /** Optional role-aware action cards shown in the details panel. */
+  actions?: React.ReactNode;
   /** Optional security events for this drive (from securityEventsByDrive map) */
   securityEvents?: {
     checkInBy?: string;
@@ -26,7 +29,7 @@ const STATUS_COLOR: Record<string, string> = {
   confirmed:              'bg-primary/10 text-primary border-primary/20',
   show:                   'bg-success/10 text-success border-success/20',
   no_show:                'bg-warning/10 text-warning border-warning/20',
-  in_progress:            'bg-accent text-accent-foreground border-accent/30',
+  in_progress:            'bg-accent text-white border-accent/30',
   key_handover_to_sales:  'bg-warning/10 text-warning border-warning/20',
   completed:              'bg-success/10 text-success border-success/20',
   cancelled:              'bg-destructive/10 text-destructive border-destructive/20',
@@ -35,8 +38,30 @@ const STATUS_COLOR: Record<string, string> = {
 
 function fmt(value?: string | null) {
   if (!value) return '—';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+  const date = parseISO(value);
+  return isValid(date) ? format(date, 'MMM d, yyyy, h:mm a') : value;
+}
+
+function formatScheduledDate(value?: string | null) {
+  if (!value) return '—';
+  const date = parseISO(value);
+  return isValid(date) ? format(date, 'EEEE, MMM d, yyyy') : value;
+}
+
+function formatScheduledTime(value?: string | null) {
+  if (!value) return '—';
+  const parsed = parse(value, value.length === 5 ? 'HH:mm' : 'HH:mm:ss', new Date());
+  return isValid(parsed) ? format(parsed, 'h:mm a') : value;
+}
+
+function formatSource(value?: string | null) {
+  if (!value) return '—';
+  const knownSources: Record<string, string> = {
+    staff_booking: 'Staff booking',
+    walkin: 'Walk-in',
+    customer_booking: 'Customer booking',
+  };
+  return knownSources[value.toLowerCase()] ?? value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function Section({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
@@ -60,7 +85,7 @@ function Row({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-export function TestDriveDetailSheet({ testDrive: td, open, onClose, securityEvents }: Props) {
+export function TestDriveDetailSheet({ testDrive: td, open, onClose, securityEvents, actions }: Props) {
   if (!td) return null;
 
   const statusLabel = (td.status || '')
@@ -73,7 +98,7 @@ export function TestDriveDetailSheet({ testDrive: td, open, onClose, securityEve
 
   const feedback = td.metadata?.handover_feedback;
   const hasFeedback = feedback && (feedback.questions?.length > 0 || feedback.notes?.trim());
-console.log('Security Events for this drive:', td, securityEvents)
+  const assignedSalesPerson = td.assigned_sales_person || td.salesPerson || td.assignedSalesPerson;
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent
@@ -95,7 +120,7 @@ console.log('Security Events for this drive:', td, securityEvents)
           </Badge>
           <Badge
             variant="outline"
-            className={`w-fit text-xs mt-1 ${STATUS_COLOR[td.status] || ''}`}
+            className={`w-fit text-xs mt-1 text-primary ${STATUS_COLOR[td.status] || ''}`}
           >
             
             {statusLabel}
@@ -134,17 +159,16 @@ console.log('Security Events for this drive:', td, securityEvents)
 
           {/* ── Booking Info ── */}
           <Section title="Booking" icon={CalendarCheck}>
-            <Row label="Date"      value={td.scheduled_date} />
-            <Row label="Time"      value={(td.scheduled_time || '').substring(0, 5) || undefined} />
+            <Row label="Date"      value={formatScheduledDate(td.scheduled_date)} />
+            <Row label="Time"      value={formatScheduledTime(td.scheduled_time)} />
             <Row label="Location"  value={td.locations?.name} />
-            <Row label="Source"    value={td.source} />
+            <Row label="Source"    value={formatSource(td.source)} />
             {td.notes && <Row label="Notes" value={td.notes} />}
           </Section>
-
           {/* ── Assigned Staff ── */}
           <Section title="Assigned Staff" icon={User}>
-            <Row label="Sales Person" value={td.assigned_sales_person?.full_name || td.salesPerson?.full_name} />
-            <Row label="Phone"          value={td.assigned_sales_person?.phone || td.salesPerson?.phone} />
+            <Row label="Sales Person" value={assignedSalesPerson?.full_name || td.assigned_sales_person_name || td.sales_person_name} />
+            <Row label="Phone"          value={assignedSalesPerson?.phone} />
           </Section>
           {/* ── Journey Timeline ── */}
           <Section title="Journey Timeline" icon={Clock}>
@@ -216,6 +240,14 @@ console.log('Security Events for this drive:', td, securityEvents)
             <Section title="Licence Rejection" icon={AlertTriangle}>
               <p className="text-sm text-destructive">{td.license_rejected_reason}</p>
             </Section>
+          )}
+
+          {/* ── Actions ── */}
+          {actions && (
+            <div className="border-t border-border pt-4">
+              <p className="mb-2 text-sm font-semibold text-foreground">Actions</p>
+              {actions}
+            </div>
           )}
         </div>
       </SheetContent>

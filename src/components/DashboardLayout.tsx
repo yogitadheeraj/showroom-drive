@@ -156,23 +156,15 @@ const NAV_ITEMS: Record<AppRole, NavItem[]> = {
   ],
   [APP_ROLE.SERVICE_EXPERT]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Compare Control', path: '/compare', icon: BarChart3 },
-    { label: 'Configurator', path: '/configurator', icon: Sparkles },
     { label: 'Service Bookings', path: '/service-bookings', icon: ClipboardCheck },
-    { label: 'Communications', path: '/communications', icon: MessageSquare },
-    { label: 'AI Insights', path: '/reports/ai-insights', icon: Sparkles },
-    { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
+    { label: 'Communications', path: '/communications', icon: MessageSquare }
   ],
   [APP_ROLE.SECURITY]: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Compare Control', path: '/compare', icon: BarChart3 },
-    { label: 'Configurator', path: '/configurator', icon: Sparkles },
     { label: 'Test Drives', path: '/test-drives', icon: CalendarCheck },
     { label: 'Incoming Vehicles', path: '/incoming-vehicles', icon: Truck },
     { label: 'Fleet', path: '/fleet', icon: Car },
-    { label: 'Waiting Board', path: '/waiting-board', icon: Shield },
-    { label: 'AI Insights', path: '/reports/ai-insights', icon: Sparkles },
-    { label: 'Activity Logs', path: '/activity-logs', icon: ScrollText },
+    { label: 'Waiting Board', path: '/waiting-board', icon: Shield }
   ],
 };
 

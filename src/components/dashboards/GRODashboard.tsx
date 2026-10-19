@@ -20,6 +20,7 @@ import GROCalendarView from './GROCalendarView';
 import BlockedSlotsManager from './BlockedSlotsManager';
 import { TestDriveInsightGrid } from './TestDriveInsightGrid';
 import { StaffActivityGrid } from './StaffActivityGrid';
+import TodayView, { TodayOverviewSwitch } from './TodayView';
 import { TestDriveDetailSheet } from '@/components/TestDriveDetailSheet';
 import { navigateTo } from '@/lib/browserNavigation';
 import { DashboardStatusSections } from './DashboardStatusSections';
@@ -27,6 +28,7 @@ import { buildServiceBookingStatusCounts, buildTestDriveStatusCounts } from '@/l
 import { getAvailableTimeSlots } from '@/lib/slotAvailability';
 
 const GRODashboard = () => {
+  const [view, setView] = useState<'today' | 'overview'>('today');
   const { profile } = useAuth();
   const { dealerLocations } = useDealerContext();
   const { toast } = useToast();
@@ -109,22 +111,26 @@ const GRODashboard = () => {
     const customerIds = Array.from(new Set((drives || []).map((d) => d.customer_id).filter(Boolean)));
     const vehicleIds = Array.from(new Set((drives || []).map((d) => d.vehicle_id).filter(Boolean)));
     const locationIds = Array.from(new Set((drives || []).map((d) => d.location_id).filter(Boolean)));
+    const salesProfileIds = Array.from(new Set((drives || []).map((d) => d.assigned_sales_person_id).filter(Boolean)));
 
-    const [customers, vehicles, locations] = await Promise.all([
+    const [customers, vehicles, locations, salesProfiles] = await Promise.all([
       customerIds.length ? apiDbQuery<any[]>({ table: 'customers', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: customerIds }] }) : Promise.resolve([]),
       vehicleIds.length ? apiDbQuery<any[]>({ table: 'vehicles', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: vehicleIds }] }) : Promise.resolve([]),
       locationIds.length ? apiDbQuery<any[]>({ table: 'locations', action: 'select', select: '*', filters: [{ field: 'id', op: 'in', value: locationIds }] }) : Promise.resolve([]),
+      salesProfileIds.length ? apiGet<any[]>(`/api/profiles?ids=${encodeURIComponent(salesProfileIds.join(','))}`) : Promise.resolve([]),
     ]);
 
     const customerMap = new Map(customers.map((c) => [c.id, c]));
     const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
     const locationMap = new Map(locations.map((l) => [l.id, l]));
+    const salesProfileMap = new Map((salesProfiles || []).map((p) => [p.id, p]));
 
     const enriched = (drives || []).map((d) => ({
       ...d,
       customers: customerMap.get(d.customer_id) || null,
       vehicles: vehicleMap.get(d.vehicle_id) || null,
       locations: locationMap.get(d.location_id) || null,
+      assigned_sales_person: d.assigned_sales_person || salesProfileMap.get(d.assigned_sales_person_id) || null,
     }));
 
     setTestDrives(enriched);
@@ -274,6 +280,10 @@ const GRODashboard = () => {
 
   return (
     <div className="space-y-5 sm:space-y-6 animate-fade-in">
+      <TodayOverviewSwitch view={view} onChange={setView} />
+      {view === 'today' ? (
+        <TodayView />
+      ) : (<>
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <CustomerSearch360 />
         <SalesAvailabilityStrip />
@@ -943,6 +953,7 @@ const GRODashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+      </>)}
     </div>
   );
 };
